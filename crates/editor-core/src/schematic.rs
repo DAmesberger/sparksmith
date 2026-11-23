@@ -1793,9 +1793,10 @@ pub fn placed_unit(project: &Project, occurrence: Id) -> Result<PlacedUnit> {
         &resolution,
         Some(occurrence),
     );
-    if let Some(usage) = &instance.tie
-        && let Some(spec) = &resolved.component.definition.tie
-    {
+    for spec in &resolved.component.definition.ties {
+        let Some(usage) = instance.ties.get(&spec.id) else {
+            continue;
+        };
         use crate::library::tie::{TieForm, TiePurpose};
         let text = |at, text, h| PlacedText {
             graphic: None,

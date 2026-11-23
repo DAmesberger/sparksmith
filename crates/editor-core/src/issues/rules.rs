@@ -27,7 +27,10 @@ pub(super) fn severity(project: &crate::model::Project, finding: &Finding) -> Se
         return Severity::Error;
     }
     match finding.code.as_str() {
-        "tie.loop" if finding.objects.iter().any(|o| matches!(o, ObjectRef::Instance {id} if project.instance(*id).and_then(|i| i.tie.as_ref()).is_some_and(|t| t.purpose == crate::library::tie::TiePurpose::StarGround))) => Severity::Error,
+        "tie.loop" if finding.objects.iter().any(|o| {
+            let ObjectRef::Terminal{endpoint}=o else {return false};
+            project.instance(endpoint.instance).is_some_and(|i|project.library.component(i.component).is_some_and(|c|c.definition.ties.iter().any(|s|s.ends.contains(&endpoint.terminal) && i.ties.get(&s.id).is_some_and(|u|u.purpose==crate::library::tie::TiePurpose::StarGround))))
+        }) => Severity::Error,
         "tie.same_net" | "tie.star_points" | "tie.second_join" | "tie.bridge_contact" | "tie.kelvin_off_anchor" | "tie.current_exceeded" | "board.clearance"
         | "board.courtyard_overlap"
         | "board.courtyard_clearance"

@@ -15,6 +15,7 @@ pub use sparksmith_generator_abi::v1::{Assembly, JumperBridge, JumperState, TieF
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TieSpec {
+    pub id: crate::ids::TieId,
     pub ends: Vec<TerminalId>,
     pub form: TieForm,
 }
@@ -82,10 +83,7 @@ pub(super) fn anchored(
     binding: &BindingDefinition,
     lib: &Library,
 ) -> bool {
-    component
-        .tie
-        .as_ref()
-        .is_some_and(|t| t.form == TieForm::Copper)
+    component.ties.iter().any(|t| t.form == TieForm::Copper)
         && lib.package(binding.package).is_some_and(|p| {
             p.definition.terminals.is_empty() && matches!(p.definition.model, PackageModel::NoBody)
         })
@@ -110,7 +108,34 @@ pub(super) fn findings(
             vec![ObjectRef::Definition { id }],
         ))
     };
-    if let Some(spec) = &component.tie {
+    let mut ids = BTreeSet::new();
+    let mut ends = BTreeSet::new();
+    for spec in &component.ties {
+        if spec.id.0 == 0 || !ids.insert(spec.id) || spec.ends.iter().any(|e| !ends.insert(*e)) {
+            report(
+                "tie.ends",
+                "Independent tie groups need distinct identities and disjoint terminals.",
+            );
+        }
+        let open = |form: TieForm| {
+            matches!(
+                form,
+                TieForm::SolderJumper {
+                    default: JumperState::Open,
+                    ..
+                }
+            )
+        };
+        if component
+            .ties
+            .first()
+            .is_some_and(|s| open(s.form) != open(spec.form))
+        {
+            report(
+                "tie.assembly",
+                "Tie groups on one component must agree on its default population.",
+            );
+        }
         if !spec.valid_ends(component) {
             report(
                 "tie.ends",
@@ -144,58 +169,85 @@ pub(super) fn findings(
         };
         for fp in binding.footprints.iter().filter_map(|r| lib.footprint(*r)) {
             let fp = &fp.definition;
-            let Some(spec) = &component.tie else {
-                if !fp.bridges.is_empty() {
-                    report(
-                        "tie.unowned_bridge",
-                        "Only a tie can use a footprint with copper bridges.",
-                    );
-                }
-                continue;
-            };
-            let no_body = matches!(package.definition.model, PackageModel::NoBody);
-            if spec.form == TieForm::Copper && !no_body {
-                report("tie.body", "A copper tie needs a package without a body.");
+            let group_of = |b: &Bridge| owner(b, fp, binding, component);
+            if fp.bridges.iter().any(|b| group_of(b).is_none()) {
+                report(
+                    "tie.unowned_bridge",
+                    "Each bridge must contact pads belonging to one declared tie group.",
+                );
             }
-            if spec.form == TieForm::ZeroOhm {
-                if no_body {
-                    report("tie.body", "A zero-ohm link needs a package with a body.");
+            for spec in &component.ties {
+                let no_body = matches!(package.definition.model, PackageModel::NoBody);
+                if spec.form == TieForm::Copper && !no_body {
+                    report("tie.body", "A copper tie needs a package without a body.");
                 }
-                if fp.pads.len() != 2
-                    || !spec.ends.iter().all(|end| {
-                        fp.pads
-                            .iter()
-                            .any(|p| p.terminal.and_then(|t| binding.terminal_of(t)) == Some(*end))
-                    })
-                {
-                    report(
-                        "tie.ends",
-                        "A zero-ohm link needs one land for each of its two ends.",
-                    );
+                if spec.form == TieForm::ZeroOhm {
+                    if no_body {
+                        report("tie.body", "A zero-ohm link needs a package with a body.");
+                    }
+                    if fp.pads.len() != 2
+                        || !spec.ends.iter().all(|end| {
+                            fp.pads.iter().any(|p| {
+                                p.terminal.and_then(|t| binding.terminal_of(t)) == Some(*end)
+                            })
+                        })
+                    {
+                        report(
+                            "tie.ends",
+                            "A zero-ohm link needs one land for each of its two ends.",
+                        );
+                    }
                 }
-            }
-            if spec.form.needs_bridge() {
-                if !bridges_join(fp, binding, spec) {
+                if spec.form.needs_bridge() {
+                    if !bridges_join(fp, binding, spec) {
+                        report(
+                            "tie.bridge",
+                            "The copper bridge must connect the declared lands of every tie end.",
+                        );
+                    }
+                } else if fp.bridges.iter().any(|b| group_of(b) == Some(spec.id)) {
                     report(
                         "tie.bridge",
-                        "The copper bridge must connect the declared lands of every tie end.",
+                        "This tie form needs separate lands without fabricated bridges.",
                     );
                 }
-            } else if !fp.bridges.is_empty() {
-                report(
-                    "tie.bridge",
-                    "This tie form needs separate lands without fabricated bridges.",
-                );
             }
         }
     }
+}
+
+pub(crate) fn owner(
+    b: &Bridge,
+    fp: &FootprintDefinition,
+    binding: &BindingDefinition,
+    component: &ComponentDefinition,
+) -> Option<crate::ids::TieId> {
+    component
+        .ties
+        .iter()
+        .find(|s| {
+            b.pads.iter().all(|id| {
+                fp.pad(*id)
+                    .and_then(|p| p.terminal)
+                    .and_then(|t| binding.terminal_of(t))
+                    .is_some_and(|t| s.ends.contains(&t))
+            })
+        })
+        .map(|s| s.id)
 }
 
 // Check the authored pad groups as a connected network. Footprint validation
 // separately checks that each declared land actually touches its bridge.
 fn bridges_join(fp: &FootprintDefinition, binding: &BindingDefinition, spec: &TieSpec) -> bool {
     let mut groups = Vec::new();
-    for bridge in &fp.bridges {
+    for bridge in fp.bridges.iter().filter(|b| {
+        b.pads.iter().all(|id| {
+            fp.pad(*id)
+                .and_then(|p| p.terminal)
+                .and_then(|t| binding.terminal_of(t))
+                .is_some_and(|t| spec.ends.contains(&t))
+        })
+    }) {
         let mut group = BTreeSet::new();
         for pad in &bridge.pads {
             let Some(end) = fp
@@ -243,16 +295,67 @@ impl Bridge {
                     .pads
                     .iter()
                     .find(|p| p.id == *id)
-                    .is_some_and(|pad| {
-                        (pad.kind == PadKind::PlatedThrough
-                            || (pad.kind == PadKind::Smd && pad.side == self.side))
-                            && crate::geometry::polygons_overlap(
-                                &ring,
-                                &pad.outline(super::CHECK_CHORD_MM),
-                            )
-                    })
+                    .is_some_and(|pad| bridge_touches_pad(&self.outline, self.side, pad))
             })
     }
+}
+
+/// Physical contact in the footprint frame. Used for authored and imported
+/// bridges. A boundary contact on the land is sufficient; drill voids are
+/// removed before testing the copper.
+pub fn bridge_touches_pad(outline: &Outline, side: PadSide, pad: &super::Pad) -> bool {
+    if pad.kind != PadKind::PlatedThrough && (pad.kind != PadKind::Smd || pad.side != side) {
+        return false;
+    }
+    let chord = super::PAD_ARC_TOLERANCE_MM;
+    let bridge = outline.flatten(chord);
+    let land = pad.outline(chord);
+    if bridge.len() < 3 || land.len() < 3 {
+        return false;
+    }
+    let edges = |ring: &[crate::geometry::Point]| -> Vec<_> {
+        ring.iter()
+            .copied()
+            .zip(ring.iter().copied().cycle().skip(1))
+            .collect()
+    };
+    // A point on either outer boundary is copper unless it lies strictly inside a drill.
+    let holes: Vec<_> = pad
+        .hole_shape()
+        .into_iter()
+        .chain(pad.vias.iter().map(|v| crate::geometry::Shape::Circle {
+            center: pad.to_footprint(v.at()),
+            radius: v.drill() / 2.,
+        }))
+        .map(|s| s.flatten(chord))
+        .collect();
+    let on_land = |p| {
+        !holes
+            .iter()
+            .any(|h| crate::geometry::polygon_contains(h, p))
+    };
+    if bridge
+        .iter()
+        .any(|&p| on_land(p) && crate::geometry::polygon_contains(&land, p))
+        || land
+            .iter()
+            .any(|&p| on_land(p) && crate::geometry::polygon_contains(&bridge, p))
+    {
+        return true;
+    }
+    let boundary = edges(&land);
+    let edge_meets = |a, b, c, d| crate::geometry::segments_gap(a, b, c, d) <= f64::EPSILON * 16.;
+    for (a, b) in edges(&bridge) {
+        if boundary.iter().any(|&(c, d)| edge_meets(a, b, c, d)) {
+            return true;
+        }
+        for hole in &holes {
+            if edges(hole).into_iter().any(|(c, d)| edge_meets(a, b, c, d)) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 #[cfg(test)]

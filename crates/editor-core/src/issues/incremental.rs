@@ -211,7 +211,7 @@ impl Checked {
         // The connectivity of the nets reached, from a graph of those nets;
         // every other net's findings are the last state's.
         let mut connectivity = kept
-            .filter(|_| !project.instances.iter().any(|i| i.tie.is_some()))
+            .filter(|_| !project.instances.iter().any(|i| !i.ties.is_empty()))
             .and_then(|last| {
                 let old = last
                     .board

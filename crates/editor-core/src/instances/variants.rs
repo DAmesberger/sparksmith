@@ -277,9 +277,9 @@ pub fn substitute_fit<'a>(
         })?;
     let own_form = library
         .component(instance.component)
-        .and_then(|c| c.definition.tie.as_ref())
+        .and_then(|c| c.definition.ties.first())
         .map(|s| s.form);
-    let candidate_form = component.definition.tie.as_ref().map(|s| s.form);
+    let candidate_form = component.definition.ties.first().map(|s| s.form);
     if own_form.is_some()
         && (own_form != Some(crate::library::tie::TieForm::ZeroOhm) || candidate_form != own_form)
     {
@@ -782,7 +782,7 @@ fn check_population(project: &Project, id: Id, population: Option<Population>) -
         && project
             .library
             .component(i.component)
-            .and_then(|c| c.definition.tie.as_ref())
+            .and_then(|c| c.definition.ties.first())
             .is_some_and(|s| s.form == crate::library::tie::TieForm::Copper)
     {
         return Err(invalid(format!(

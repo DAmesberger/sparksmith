@@ -314,16 +314,21 @@ impl CopperGraph {
         let mut out = Vec::new();
         out.extend_from_slice(&self.tie_findings);
         out.extend(self.current_findings(project));
+        let groups: BTreeMap<_, _> = crate::instances::ties::rows(project)
+            .into_iter()
+            .map(|t| ((t.instance, t.group), t))
+            .collect();
         for tie in self.ties() {
             let id = tie.bridge.instance;
-            let name = project
-                .instance(id)
-                .map_or("Tie", |i| i.designator.as_str());
+            let Some(row) = groups.get(&(id, tie.bridge.group)) else {
+                continue;
+            };
+            let name = &row.designator;
             for object in &tie.foreign {
                 out.push(Finding::new(
                     "tie.bridge_contact",
                     format!("{name} bridge touches copper outside its declared lands."),
-                    vec![ObjectRef::Instance { id }, *object],
+                    row.objects([*object]),
                 ));
             }
         }

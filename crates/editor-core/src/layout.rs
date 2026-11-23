@@ -1949,7 +1949,7 @@ pub fn check_families(
             }
         };
         if matches!(check, BoardCheck::Clearance | BoardCheck::Fills)
-            && project.instances.iter().any(|i| i.tie.is_some())
+            && project.instances.iter().any(|i| !i.ties.is_empty())
         {
             findings.retain(|f| {
                 !matches!(f.code.as_str(), "board.clearance" | "fill.clearance")

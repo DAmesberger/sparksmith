@@ -16,6 +16,8 @@ One concept covers three **forms**:
 | **Solder jumper** | open or closed, typed default, switchable per variant | pads, plus a solder bridge or a cuttable copper trace | nothing to buy or place; paste when closed |
 | **0 Ω link** | closed when fitted, open when not fitted | a bought part on its own lands | a BOM line and a placement row |
 
+One component can contain several independent ties. Each has its own ends, bridge copper, instance purpose, anchors, checks and query row. Its group identity survives renames and reordering. Commands take an optional group, required when their target would be ambiguous. Assembly and population belong to the physical component.
+
 Every tie has a **purpose**: star ground, Kelvin sense, shield bond, supply join, or none. The purpose decides which checks apply and how strict they are.
 
 The name is "tie", not "link", because "linked design" already means something else in Sparksmith. "Net short" is avoided too: a short is a fault.
@@ -26,7 +28,7 @@ The name is "tie", not "link", because "linked design" already means something e
 
 A tie is an ordinary component with terminals, a symbol, a package, a footprint and a binding. Pin mapping stays explicit. Two optional fields are added to `ComponentDefinition`:
 
-- `tie: Option<TieSpec>`: `ends`, the terminals it joins (2 to 8, each electrical and passive, each its own net), and `form`. The form is `copper`, `solder_jumper { default: open | closed, bridge: solder | trace }` or `zero_ohm`.
+- `ties: Vec<TieSpec>`: each group has a stable component-local TieId, `ends`, the terminals it joins (2 to 8, each electrical and passive, each its own net), and `form`. The form is `copper`, `solder_jumper { default: open | closed, bridge: solder | trace }` or `zero_ohm`.
 - `assembly: bought | copper_only | solder_only`: what the factory does with it, stated by type. This replaces the inference in `library::mechanical::copper_only` (below).
 
 `library.publish` checks the pieces against each other. A copper tie's footprint must carry a bridge that joins pads of every end and must have no body (`PackageModel::NoBody`). A 0 Ω link must have a body and pad grouping like any two-terminal chip. A solder jumper with `trace` must carry the trace as a bridge. `assembly` must agree with the form: a copper tie is `copper_only`, a solder jumper `solder_only`, a 0 Ω link `bought`.
@@ -37,7 +39,7 @@ A tie is an ordinary component with terminals, a symbol, a package, a footprint 
 
 ### On the instance (the use)
 
-`ComponentInstance` gets `tie: Option<TieUse>`:
+`ComponentInstance` gets `ties: BTreeMap<TieId, TieUse>`:
 
 - `purpose`: star ground, Kelvin sense, shield bond, supply join or none. It lives on the instance because one 0603 tie footprint serves many purposes.
 - `anchors`, used for Kelvin sense only. For each sense end, the pad of *another placed part* where the sense net must meet the anchored net, for example `{ R7, pad 1 }`. A Kelvin tie has no lands of its own: its package has no pads, and its ends sit on the anchor part's lands. It still has a symbol and a designator, and the sense nets are drawn in the schematic.
@@ -64,9 +66,9 @@ The tie adds one new fact to the graph:
 
 Version 1 is edited in place. All fields are optional and left out when empty, so revisions without a tie keep their content hashes:
 
-- `ComponentDefinition.tie`, `ComponentDefinition.assembly` (default `bought`);
+- `ComponentDefinition.ties`, `ComponentDefinition.assembly` (default `bought`);
 - `FootprintDefinition.bridges`;
-- `ComponentInstance.tie`.
+- `ComponentInstance.ties`.
 
 Fiducial and logo parts change hash once, when they gain `assembly: copper_only`. The examples and the golden file are regenerated. The jumper state is the existing population, so no variant field is added.
 
@@ -130,7 +132,7 @@ Where Sparksmith is better: the purpose is typed and drives the checks. Loops an
 
 The mapping uses KiCad's public file-format documentation only. The parser already reads the flag (`crates/kicad/src/board.rs`).
 
-- A footprint with `net_tie_pad_groups` (or the older `net_tie` attribute) becomes a **copper tie**. Each pad group becomes one end. The footprint's copper drawings that join the groups become bridges. The purpose is left as none, and a finding asks the person to set it. The report entry G5 changes from "tie missing" to "imported as a copper tie".
+- A footprint with `net_tie_pad_groups` (or the older `net_tie` attribute) becomes a **copper tie**. Each quoted group becomes one independent tie within the same component. Its distinct terminals become the ends. A copper drawing belongs only to the group owning all of the pads it contacts. Copper crossing groups requires review. The purpose is left as none, and a finding asks the person to set it. The report entry G5 changes from "tie missing" to "imported as a copper tie".
 - KiCad has no typed solder jumper. A two-pad part without a body becomes an ordinary part, and a copper-bridged net-tie footprint stays a copper tie. Where the designator starts with `JP`, the report *suggests* converting it to a solder jumper. It never converts by name. A jumper that is DNP in the source is imported as *Open*.
 - Footprint pad groups that only say pads are joined inside the part, such as a switch's paired legs, become one terminal with several pads, as today. They are not ties. If KiCad's documentation calls these "jumper" groups, the importer still does not treat them as solder jumpers.
 

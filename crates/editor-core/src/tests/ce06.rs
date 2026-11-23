@@ -237,7 +237,7 @@ fn mcu_component(lineages: &Mcu) -> ComponentDefinition {
     terminals.sort_by_key(|(t, _)| *t);
     ComponentDefinition {
         assembly: Default::default(),
-        tie: None,
+        ties: Default::default(),
         next_local: 74,
         designator_prefix: "U".into(),
         terminals: terminals

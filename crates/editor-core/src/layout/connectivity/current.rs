@@ -1,7 +1,6 @@
 //! Cross-section of a fabricated neck between the lands named by its bridge.
 use super::CopperGraph;
-use crate::diagnostics::{Finding, ObjectRef};
-use crate::fields::FieldValue;
+use crate::diagnostics::Finding;
 use crate::ids::Id;
 use crate::instances::{self, ties::TieRow};
 use crate::layout::{PlacedBridge, PlacedPad, fill::geom, physical, placed_pads};
@@ -17,13 +16,6 @@ pub struct TieCurrent {
     pub margin_a: Option<f64>,
     pub area_mm2: Option<f64>,
     pub source: Option<String>,
-}
-
-fn quantity(value: &FieldValue) -> Option<f64> {
-    match value {
-        FieldValue::Quantity { si, .. } => Some(si.to_f64()),
-        _ => None,
-    }
 }
 
 // A strip of width w can pass the neck when, after taking w/2 from
@@ -74,7 +66,11 @@ fn section(
 }
 
 impl CopperGraph {
-    pub fn tie_currents(&self, project: &Project, rows: &[TieRow]) -> BTreeMap<Id, TieCurrent> {
+    pub fn tie_currents(
+        &self,
+        project: &Project,
+        rows: &[TieRow],
+    ) -> BTreeMap<(Id, crate::ids::TieId), TieCurrent> {
         let mut result = BTreeMap::new();
         if rows.is_empty() {
             return result;
@@ -82,42 +78,21 @@ impl CopperGraph {
         let field = crate::library::standards::get()
             .ok()
             .and_then(|s| s.fields.local(&project.library, "Rated current"));
-        let Some(field) = field else {
-            return result;
-        };
         let pads = std::cell::OnceCell::new();
         for row in rows {
             let Some(instance) = project.instance(row.instance) else {
                 continue;
             };
-            let required_a = instances::effective_fields(&project.library, instance)
-                .ok()
-                .and_then(|v| {
-                    v.into_iter()
-                        .find(|f| f.field.id == field.id)?
-                        .value
-                        .and_then(|v| quantity(&v))
-                });
+            let (required_a, rated) = instances::ties::currents(project, instance, field);
             let mut current = TieCurrent {
                 required_a,
                 ..Default::default()
             };
             match row.form {
                 TieForm::ZeroOhm if row.state == JumperState::Closed => {
-                    if let Some(p) = instances::variants::fitted(project, instance)
-                        .part
-                        .and_then(|r| project.library.part(r))
-                    {
-                        current.capacity_a = p
-                            .definition
-                            .specs
-                            .iter()
-                            .find(|s| {
-                                s.field.id == field.id
-                                    && s.meaning == crate::fields::SpecMeaning::MinimumRating
-                            })
-                            .and_then(|s| quantity(&s.value));
-                        current.source = Some(p.definition.mpn.clone());
+                    if let Some((source, capacity)) = rated {
+                        current.capacity_a = Some(capacity);
+                        current.source = Some(source);
                     }
                 }
                 TieForm::Copper
@@ -141,7 +116,9 @@ impl CopperGraph {
                         let areas: Option<Vec<_>> = self
                             .ties()
                             .iter()
-                            .filter(|t| t.bridge.instance == row.instance)
+                            .filter(|t| {
+                                t.bridge.instance == row.instance && t.bridge.group == row.group
+                            })
                             .map(|t| section(project, &t.bridge, pads))
                             .collect();
                         current.area_mm2 = areas.and_then(|v| v.into_iter().reduce(f64::min));
@@ -155,7 +132,7 @@ impl CopperGraph {
                 _ => {}
             }
             current.margin_a = current.capacity_a.zip(required_a).map(|(c, r)| c - r);
-            result.insert(row.instance, current);
+            result.insert((row.instance, row.group), current);
         }
         result
     }
@@ -163,16 +140,41 @@ impl CopperGraph {
     pub(super) fn current_findings(&self, project: &Project) -> Vec<Finding> {
         let rows = instances::ties::rows(project);
         let currents = self.tie_currents(project, &rows);
-        rows.iter().filter(|r|matches!(r.form,TieForm::Copper|TieForm::SolderJumper{bridge:JumperBridge::Trace,..}) && r.purpose!=TiePurpose::KelvinSense && r.state==JumperState::Closed).filter_map(|r|{
-            let current=currents.get(&r.instance)?;
-            let need=current.required_a?;
-            let objects=vec![ObjectRef::Instance{id:r.instance}];
-            let name=&r.designator;
-            match current.capacity_a {
-                None=>Some(Finding::new("tie.current_unchecked", format!("{name} requires {need} A. Set the allowed temperature rise and supply an IPC-2152 table citing its edition and figure, with a point covering the placed bridge. Sparksmith ships no curve data."), objects)),
-                Some(cap) if cap<need=>Some(Finding::new("tie.current_exceeded",format!("{name} requires {need} A. Its bridge is rated for {cap} A by {}. The long-conductor rating is conservative for a short neck.",current.source.as_deref().unwrap_or("the supplied table")),objects)),
-                _=>None
+        let mut out = Vec::new();
+        for row in &rows {
+            if !row.form.needs_bridge()
+                || row.purpose == TiePurpose::KelvinSense
+                || row.state != JumperState::Closed
+            {
+                continue;
             }
-        }).collect()
+            let Some(current) = currents.get(&(row.instance, row.group)) else {
+                continue;
+            };
+            let Some(need) = current.required_a else {
+                continue;
+            };
+            let name = &row.designator;
+            let finding = match current.capacity_a {
+                None => Finding::new(
+                    "tie.current_unchecked",
+                    format!(
+                        "{name} requires {need} A. Set the allowed temperature rise and supply an IPC-2152 table citing its edition and figure, with a point covering the placed bridge. Sparksmith ships no curve data."
+                    ),
+                    row.objects([]),
+                ),
+                Some(cap) if cap < need => Finding::new(
+                    "tie.current_exceeded",
+                    format!(
+                        "{name} requires {need} A. Its bridge is rated for {cap} A by {}. The long-conductor rating is conservative for a short neck.",
+                        current.source.as_deref().unwrap_or("the supplied table")
+                    ),
+                    row.objects([]),
+                ),
+                _ => continue,
+            };
+            out.push(finding);
+        }
+        out
     }
 }

@@ -18,11 +18,15 @@ pub enum InstanceCommand {
     #[serde(rename = "tie.set_purpose")]
     SetPurpose {
         instance: Id,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<crate::ids::TieId>,
         purpose: crate::library::tie::TiePurpose,
     },
     #[serde(rename = "tie.set_anchor")]
     SetAnchor {
         instance: Id,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<crate::ids::TieId>,
         end: TerminalId,
         anchor: Option<crate::library::tie::Anchor>,
     },
@@ -276,14 +280,17 @@ pub(crate) fn apply_instance(project: &mut Project, command: InstanceCommand) ->
             &InstanceChange::Remove { instance },
             EditPolicy::Direct,
         )?,
-        InstanceCommand::SetPurpose { instance, purpose } => {
-            instances::ties::set_purpose(project, instance, purpose)?
-        }
+        InstanceCommand::SetPurpose {
+            instance,
+            group,
+            purpose,
+        } => instances::ties::set_purpose(project, instance, group, purpose)?,
         InstanceCommand::SetAnchor {
             instance,
+            group,
             end,
             anchor,
-        } => instances::ties::set_anchor(project, instance, end, anchor)?,
+        } => instances::ties::set_anchor(project, instance, group, end, anchor)?,
         InstanceCommand::SetDesignator {
             instance,
             designator,

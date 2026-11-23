@@ -7,13 +7,14 @@ fn ordinary_components_keep_their_serialized_identity() -> Result<(), serde_json
     let value = serde_json::to_value(&component)?;
     assert_eq!(component.assembly, Assembly::Bought);
     assert!(value.get("assembly").is_none());
-    assert!(value.get("tie").is_none());
+    assert!(value.get("ties").is_none());
     Ok(())
 }
 
 #[test]
 fn an_end_cannot_be_listed_twice() {
     let tie = TieSpec {
+        id: crate::ids::TieId(1),
         form: TieForm::Copper,
         ends: vec![TerminalId(1), TerminalId(1)],
     };

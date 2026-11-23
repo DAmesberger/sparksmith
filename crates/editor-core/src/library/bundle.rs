@@ -343,7 +343,7 @@ pub fn rewrite_refs(definition: &mut Definition, map: &mut dyn RefMap) -> Result
     match definition {
         Definition::Component(component) => {
             let ComponentDefinition {
-                tie: _,
+                ties: _,
                 assembly: _,
                 next_local: _,
                 designator_prefix: _,

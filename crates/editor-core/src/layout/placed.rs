@@ -472,6 +472,7 @@ mod tests;
 /// One fabricated bridge, including its geometry and explicit pad and net identities.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct PlacedBridge {
+    pub group: crate::ids::TieId,
     pub instance: Id,
     pub bridge: crate::ids::BridgeId,
     pub layer: CopperLayer,
@@ -482,7 +483,7 @@ pub struct PlacedBridge {
 
 /// Fabricated copper is independent of which assembly variant is selected.
 pub fn placed_bridges(project: &Project) -> Vec<PlacedBridge> {
-    if !project.instances.iter().any(|i| i.tie.is_some()) {
+    if !project.instances.iter().any(|i| !i.ties.is_empty()) {
         return Vec::new();
     }
     let nets = net_by_terminal(project);
@@ -490,7 +491,7 @@ pub fn placed_bridges(project: &Project) -> Vec<PlacedBridge> {
     for placement in &project.placements {
         let Some(i) = project
             .instance(placement.instance)
-            .filter(|i| i.tie.is_some())
+            .filter(|i| !i.ties.is_empty())
         else {
             continue;
         };
@@ -501,8 +502,19 @@ pub fn placed_bridges(project: &Project) -> Vec<PlacedBridge> {
             continue;
         };
         let fp = &view.footprint.definition;
+        let Some(component) = project.library.component(i.component) else {
+            continue;
+        };
         let transform = placement_transform(placement, &fp.datum);
         for bridge in &fp.bridges {
+            let Some(group) = crate::library::tie::owner(
+                bridge,
+                fp,
+                &view.binding.definition,
+                &component.definition,
+            ) else {
+                continue;
+            };
             let mut member_nets = bridge
                 .pads
                 .iter()
@@ -518,6 +530,7 @@ pub fn placed_bridges(project: &Project) -> Vec<PlacedBridge> {
             member_nets.sort_unstable();
             member_nets.dedup();
             bridges.push(PlacedBridge {
+                group,
                 instance: i.id,
                 bridge: bridge.id,
                 layer: match bridge.side {

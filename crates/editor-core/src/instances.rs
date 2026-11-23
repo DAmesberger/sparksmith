@@ -283,41 +283,41 @@ fn check_with<'a>(
     let component = &resolved.component.definition;
     let symbol = &resolved.symbol.definition;
     let name = &instance.designator;
-    match (&component.tie, &instance.tie) {
-        (Some(spec), Some(usage)) => {
-            if spec.form == crate::library::tie::TieForm::Copper
-                && !instance.population.is_populated()
-            {
-                return Err(invalid(format!(
-                    "{name} is fabricated copper and is always closed."
-                )));
-            }
-            let landless = resolved
-                .physical
-                .is_some_and(|p| p.footprint.definition.pads.is_empty());
-            if resolved.physical.is_some()
-                && (usage.purpose == crate::library::tie::TiePurpose::KelvinSense) != landless
-            {
-                return Err(invalid(format!(
-                    "{name} needs a landless copper implementation for Kelvin sense."
-                )));
-            }
-            if usage.anchors.values().any(|a| a.instance == instance.id) {
-                return Err(invalid(format!("Anchor {name} on another part.")));
-            }
-            if usage.anchors.keys().any(|end| !spec.ends.contains(end))
-                || (!usage.anchors.is_empty()
-                    && usage.purpose != crate::library::tie::TiePurpose::KelvinSense)
-            {
-                return Err(invalid(format!(
-                    "Choose a Kelvin sense end of {name} to anchor."
-                )));
-            }
-        }
-        (None, None) => {}
-        _ => {
+    if component.ties.len() != instance.ties.len() {
+        return Err(invalid(format!(
+            "The tie groups on {name} must agree with its component."
+        )));
+    }
+    for spec in &component.ties {
+        let usage = instance
+            .ties
+            .get(&spec.id)
+            .ok_or_else(|| invalid(format!("Missing tie group on {name}.")))?;
+        if spec.form == crate::library::tie::TieForm::Copper && !instance.population.is_populated()
+        {
             return Err(invalid(format!(
-                "The tie settings on {name} must agree with its component."
+                "{name} is fabricated copper and is always closed."
+            )));
+        }
+        let landless = resolved
+            .physical
+            .is_some_and(|p| p.footprint.definition.pads.is_empty());
+        if resolved.physical.is_some()
+            && (usage.purpose == crate::library::tie::TiePurpose::KelvinSense) != landless
+        {
+            return Err(invalid(format!(
+                "{name} needs a landless copper implementation for Kelvin sense."
+            )));
+        }
+        if usage.anchors.values().any(|a| a.instance == instance.id) {
+            return Err(invalid(format!("Anchor {name} on another part.")));
+        }
+        if usage.anchors.keys().any(|end| !spec.ends.contains(end))
+            || (!usage.anchors.is_empty()
+                && usage.purpose != crate::library::tie::TiePurpose::KelvinSense)
+        {
+            return Err(invalid(format!(
+                "Choose a Kelvin sense end of {name} to anchor."
             )));
         }
     }
@@ -762,14 +762,14 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
         Some(designator) => designator,
         None => next_designator(project, &component.definition.designator_prefix)?,
     };
-    let tie = component.definition.tie.as_ref();
+    let tie = component.definition.ties.first();
     let population = tie
         .map(|s| crate::model::Population::from(s.form))
         .unwrap_or_default();
-    let tie = ties::initial_usage(&project.library, &component.definition, request.physical);
+    let ties = ties::initial_usage(&project.library, &component.definition, request.physical);
     let id = project.allocate()?;
     project.instances.push(ComponentInstance {
-        tie,
+        ties,
         id,
         component: request.component,
         designator,
@@ -841,14 +841,14 @@ pub fn place_off_sheet(
         Some(designator) => designator,
         None => next_designator(project, &prefix)?,
     };
-    let tie = published.definition.tie.as_ref();
+    let tie = published.definition.ties.first();
     let population = tie
         .map(|s| crate::model::Population::from(s.form))
         .unwrap_or_default();
-    let tie = ties::initial_usage(&project.library, &published.definition, Some(physical));
+    let ties = ties::initial_usage(&project.library, &published.definition, Some(physical));
     let id = project.allocate()?;
     project.instances.push(ComponentInstance {
-        tie,
+        ties,
         id,
         component,
         designator,
@@ -971,7 +971,22 @@ pub(crate) fn retarget(project: &mut Project, id: Id, target: Retarget) -> Resul
             occurrence.unit = *unit;
         }
     }
+    let mut ties = ties::initial_usage(&project.library, &component, target.physical);
     let instance = instance_mut(project, id)?;
+    if instance.component.id == target.component.id {
+        for (group, usage) in &mut ties {
+            if let Some(previous) = instance.ties.get(group) {
+                *usage = previous.clone();
+            }
+        }
+    }
+    if instance.ties.is_empty()
+        && !ties.is_empty()
+        && let Some(spec) = component.ties.first()
+    {
+        instance.population = spec.form.into();
+    }
+    instance.ties = ties;
     let old_footprint = instance.physical.map(|p| p.footprint);
     instance.component = target.component;
     instance.representation = target.representation;

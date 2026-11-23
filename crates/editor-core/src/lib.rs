@@ -579,7 +579,7 @@ pub enum QueryResult {
     Lineage(Box<catalog::ItemReport>),
     Bom(completeness::BomReport),
     ResolveGroups(completeness::ResolveReport),
-    Ties(Vec<instances::ties::TieReport>),
+    Ties(Vec<layout::connectivity::TieReport>),
     Variants(instances::variants::VariantsReport),
     Substitutes(Vec<instances::variants::Substitute>),
     FootprintPreview(Box<library::footprint_edit::FootprintPreview>),
@@ -2177,7 +2177,7 @@ impl Engine {
             Query::ResolveGroups {} => Ok(QueryResult::ResolveGroups(
                 completeness::resolve_groups(&self.document.project)?,
             )),
-            Query::Ties {} => Ok(QueryResult::Ties(instances::ties::report(
+            Query::Ties {} => Ok(QueryResult::Ties(layout::connectivity::report(
                 self.project(),
                 &self.copper_graph(),
             ))),

@@ -9,7 +9,7 @@ use crate::shared::Shared;
 use crate::units::{Nm, PointNm};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 pub mod assembly_link;
@@ -52,8 +52,8 @@ pub struct PhysicalChoice {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentInstance {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tie: Option<crate::library::tie::TieUse>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub ties: BTreeMap<crate::ids::TieId, crate::library::tie::TieUse>,
     pub id: Id,
     pub component: ComponentRef,
     pub designator: String,
@@ -112,7 +112,7 @@ impl ComponentInstance {
     /// until its copy is decided here.
     pub fn duplicate(&self, id: Id, designator: String) -> ComponentInstance {
         let ComponentInstance {
-            tie,
+            ties,
             id: _,
             component,
             designator: _,
@@ -132,10 +132,18 @@ impl ComponentInstance {
         ComponentInstance {
             // A copied part has no board placement yet. An anchor refers to
             // a particular placed land and must be picked for the new use.
-            tie: tie.as_ref().map(|t| crate::library::tie::TieUse {
-                purpose: t.purpose,
-                ..Default::default()
-            }),
+            ties: ties
+                .iter()
+                .map(|(&group, t)| {
+                    (
+                        group,
+                        crate::library::tie::TieUse {
+                            purpose: t.purpose,
+                            ..Default::default()
+                        },
+                    )
+                })
+                .collect(),
             id,
             component: *component,
             designator,

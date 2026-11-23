@@ -18,8 +18,8 @@ pub const MAX_DESIGNATOR_PREFIX: usize = 8;
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentDefinition {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tie: Option<super::tie::TieSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ties: Vec<super::tie::TieSpec>,
     #[serde(default, skip_serializing_if = "super::tie::Assembly::is_bought")]
     pub assembly: super::tie::Assembly,
     /// Next unused local ID. Retired IDs are never reused.
@@ -190,7 +190,8 @@ impl ComponentDefinition {
     }
 
     pub(super) fn within_bounds(&self) -> bool {
-        self.tie.as_ref().is_none_or(|s| s.ends.len() <= 8)
+        self.ties.len() <= MAX_TERMINALS / 2
+            && self.ties.iter().all(|s| s.ends.len() <= 8)
             && self.designator_prefix.len() <= MAX_LABEL
             && self.terminals.len() <= MAX_TERMINALS
             && self.representations.len() <= MAX_COMPONENT_LISTS

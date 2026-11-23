@@ -852,7 +852,7 @@ fn component_definition(
     let count = u32::try_from(lands.len()).map_err(|_| invalid("too many terminals".into()))?;
     Ok(ComponentDefinition {
         assembly: Default::default(),
-        tie: None,
+        ties: Default::default(),
         // Terminals 1…N, then their fixed passive functions N+1…2N.
         next_local: 2 * count + 1,
         designator_prefix: spec.designator_prefix.clone(),

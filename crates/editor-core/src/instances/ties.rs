@@ -1,7 +1,7 @@
 //! The schematic view of deliberate joins. Electrical checks can follow a
 //! closed tie while the source netlist retains every distinct net and pin.
 use crate::diagnostics::{Finding, ObjectRef};
-use crate::ids::{Endpoint, Id, TerminalId};
+use crate::ids::{Endpoint, Id, TerminalId, TieId};
 use crate::library::tie::{JumperState, TieForm, TiePurpose};
 use crate::model::Project;
 use schemars::JsonSchema;
@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TieRow {
+    pub group: TieId,
     pub instance: Id,
     pub designator: String,
     pub form: TieForm,
@@ -18,42 +19,61 @@ pub struct TieRow {
     pub state: JumperState,
 }
 
+impl TieRow {
+    /// Include one real terminal from the group so issue selection and waivers
+    /// distinguish independent joins on a single physical component.
+    pub(crate) fn objects(&self, related: impl IntoIterator<Item = ObjectRef>) -> Vec<ObjectRef> {
+        std::iter::once(ObjectRef::Instance { id: self.instance })
+            .chain(
+                self.ends
+                    .keys()
+                    .take(1)
+                    .map(|&terminal| ObjectRef::Terminal {
+                        endpoint: Endpoint {
+                            instance: self.instance,
+                            terminal,
+                        },
+                    }),
+            )
+            .chain(related)
+            .collect()
+    }
+}
+
 pub fn form(project: &Project, instance: &crate::model::ComponentInstance) -> Option<TieForm> {
     project
         .library
         .component(instance.component)?
         .definition
-        .tie
-        .as_ref()
+        .ties
+        .first()
         .map(|s| s.form)
 }
 
 /// The stencil for a three-pad jumper opens only the two lands of the chosen pair.
-pub fn prints_paste(project: &Project, pad: &crate::layout::PlacedPad) -> bool {
-    let Some(instance) = project.instance(pad.instance) else {
+pub fn prints_paste(project: &Project, owner: Id, terminal: Option<Endpoint>) -> bool {
+    let Some(instance) = project.instance(owner) else {
         return true;
     };
-    let Some(spec) = project
-        .library
-        .component(instance.component)
-        .and_then(|c| c.definition.tie.as_ref())
-    else {
+    let Some(component) = project.library.component(instance.component) else {
         return true;
     };
-    match spec.form {
-        TieForm::Copper => false,
-        TieForm::ZeroOhm => true,
-        TieForm::SolderJumper { .. } => {
+    let groups = &component.definition.ties;
+    if groups.is_empty() {
+        return true;
+    }
+    match component.definition.assembly {
+        crate::library::tie::Assembly::CopperOnly => false,
+        crate::library::tie::Assembly::Bought => true,
+        crate::library::tie::Assembly::SolderOnly => {
             super::variants::population(instance, project.variants.active()).is_populated()
-                && pad
-                    .terminal
-                    .is_some_and(|e| spec.ends.contains(&e.terminal))
+                && terminal.is_some_and(|ep| groups.iter().any(|s| s.ends.contains(&ep.terminal)))
         }
     }
 }
 
 pub fn rows(project: &Project) -> Vec<TieRow> {
-    if !project.instances.iter().any(|i| i.tie.is_some()) {
+    if !project.instances.iter().any(|i| !i.ties.is_empty()) {
         return vec![];
     }
     let nets: BTreeMap<_, _> = project
@@ -61,17 +81,15 @@ pub fn rows(project: &Project) -> Vec<TieRow> {
         .iter()
         .flat_map(|n| n.terminals.iter().map(move |ep| (*ep, n.id)))
         .collect();
-    project
-        .instances
-        .iter()
-        .filter_map(|i| {
-            let usage = i.tie.as_ref()?;
-            let spec = project
-                .library
-                .component(i.component)?
-                .definition
-                .tie
-                .as_ref()?;
+    let mut result = Vec::new();
+    for i in project.instances.iter().filter(|i| !i.ties.is_empty()) {
+        let Some(c) = project.library.component(i.component) else {
+            continue;
+        };
+        for spec in &c.definition.ties {
+            let Some(usage) = i.ties.get(&spec.id) else {
+                continue;
+            };
             let ends = spec
                 .ends
                 .iter()
@@ -88,9 +106,14 @@ pub fn rows(project: &Project) -> Vec<TieRow> {
                 .collect();
             let closed = spec.form == TieForm::Copper
                 || super::variants::population(i, project.variants.active()).is_populated();
-            Some(TieRow {
+            result.push(TieRow {
+                group: spec.id,
                 instance: i.id,
-                designator: i.designator.clone(),
+                designator: if c.definition.ties.len() == 1 {
+                    i.designator.clone()
+                } else {
+                    format!("{} group {}", i.designator, spec.id.0)
+                },
                 form: spec.form,
                 purpose: usage.purpose,
                 ends,
@@ -99,15 +122,16 @@ pub fn rows(project: &Project) -> Vec<TieRow> {
                 } else {
                     JumperState::Open
                 },
-            })
-        })
-        .collect()
+            });
+        }
+    }
+    result
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Node {
     Net(Id),
-    Tie(Id),
+    Tie((Id, TieId)),
 }
 
 /// Connected groups for ERC and ties on a cycle. The bipartite graph
@@ -115,7 +139,7 @@ enum Node {
 #[derive(Default)]
 pub struct Network {
     groups: BTreeMap<Id, Id>,
-    pub loops: BTreeSet<Id>,
+    pub loops: BTreeSet<(Id, TieId)>,
 }
 
 impl Network {
@@ -129,13 +153,13 @@ impl Network {
             let distinct: BTreeSet<_> = t.ends.values().flatten().copied().collect();
             for net in distinct {
                 adjacency
-                    .entry(Node::Tie(t.instance))
+                    .entry(Node::Tie((t.instance, t.group)))
                     .or_default()
                     .push(Node::Net(net));
                 adjacency
                     .entry(Node::Net(net))
                     .or_default()
-                    .push(Node::Tie(t.instance));
+                    .push(Node::Tie((t.instance, t.group)));
             }
         }
         let mut network = Self::default();
@@ -200,7 +224,6 @@ impl Network {
 pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Finding> {
     let mut out = Vec::new();
     for t in rows {
-        let owner = ObjectRef::Instance { id: t.instance };
         let mut distinct = BTreeSet::new();
         for net in t.ends.values().flatten() {
             if !distinct.insert(*net) {
@@ -211,16 +234,16 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
                         t.designator,
                         project.net_name(*net)
                     ),
-                    vec![owner, ObjectRef::Net { id: *net }],
+                    t.objects([ObjectRef::Net { id: *net }]),
                 ));
                 break;
             }
         }
-        if network.loops.contains(&t.instance) {
+        if network.loops.contains(&(t.instance, t.group)) {
             out.push(Finding::new(
                 "tie.loop",
                 format!("{} is on a loop of closed ties.", t.designator),
-                vec![owner],
+                t.objects([]),
             ));
             if t.purpose == TiePurpose::StarGround {
                 out.push(Finding::new(
@@ -229,7 +252,7 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
                         "{} has another path between its star-ground nets.",
                         t.designator
                     ),
-                    vec![owner],
+                    t.objects([]),
                 ));
             }
         }
@@ -244,14 +267,14 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
                 if nets.len() < 2 {
                     continue;
                 }
-                if let Some(i) = project.instance(id).filter(|i| i.tie.is_none()) {
+                if let Some(i) = project.instance(id).filter(|i| i.ties.is_empty()) {
                     out.push(Finding::new(
                         "tie.other_bridge",
                         format!(
                             "{} also spans the star-ground nets of {}.",
                             i.designator, t.designator
                         ),
-                        vec![owner, ObjectRef::Instance { id }],
+                        t.objects([ObjectRef::Instance { id }]),
                     ));
                 }
             }
@@ -266,32 +289,58 @@ pub(super) fn initial_usage(
     library: &crate::library::Library,
     component: &crate::library::ComponentDefinition,
     choice: Option<crate::model::PhysicalChoice>,
-) -> Option<crate::library::tie::TieUse> {
-    let spec = component.tie.as_ref()?;
-    let landless = spec.form == TieForm::Copper
-        && choice
-            .and_then(|c| super::resolve_physical(library, component, c).ok())
-            .is_some_and(|p| p.footprint.definition.pads.is_empty());
-    Some(crate::library::tie::TieUse {
-        purpose: if landless {
-            TiePurpose::KelvinSense
-        } else {
-            TiePurpose::None
-        },
-        ..Default::default()
-    })
+) -> BTreeMap<TieId, crate::library::tie::TieUse> {
+    if component.ties.is_empty() {
+        return BTreeMap::new();
+    }
+    let landless = choice
+        .and_then(|c| super::resolve_physical(library, component, c).ok())
+        .is_some_and(|p| p.footprint.definition.pads.is_empty());
+    component
+        .ties
+        .iter()
+        .map(|s| {
+            (
+                s.id,
+                crate::library::tie::TieUse {
+                    purpose: if landless {
+                        TiePurpose::KelvinSense
+                    } else {
+                        TiePurpose::None
+                    },
+                    ..Default::default()
+                },
+            )
+        })
+        .collect()
+}
+
+fn selected_group(
+    i: &crate::model::ComponentInstance,
+    group: Option<TieId>,
+) -> crate::diagnostics::Result<TieId> {
+    group
+        .or_else(|| {
+            (i.ties.len() == 1)
+                .then(|| i.ties.keys().next().copied())
+                .flatten()
+        })
+        .filter(|id| i.ties.contains_key(id))
+        .ok_or_else(|| super::invalid(format!("Choose a tie group on {}.", i.designator)))
 }
 
 pub fn set_purpose(
     project: &mut Project,
     instance: Id,
+    group: Option<TieId>,
     purpose: TiePurpose,
 ) -> crate::diagnostics::Result<()> {
     let i = super::instance_mut(project, instance)?;
+    let group = selected_group(i, group)?;
     let name = &i.designator;
     let usage = i
-        .tie
-        .as_mut()
+        .ties
+        .get_mut(&group)
         .ok_or_else(|| super::invalid(format!("{name} is an ordinary component.")))?;
     if !usage.anchors.is_empty() && purpose != TiePurpose::KelvinSense {
         return Err(super::invalid(format!(
@@ -305,20 +354,22 @@ pub fn set_purpose(
 pub fn set_anchor(
     project: &mut Project,
     instance: Id,
+    group: Option<TieId>,
     end: TerminalId,
     anchor: Option<crate::library::tie::Anchor>,
 ) -> crate::diagnostics::Result<()> {
     let i = project
         .instance(instance)
         .ok_or_else(|| super::invalid("Choose a tie first.".into()))?;
+    let group = selected_group(i, group)?;
     let spec = project
         .library
         .component(i.component)
-        .and_then(|c| c.definition.tie.as_ref());
+        .and_then(|c| c.definition.ties.iter().find(|s| s.id == group));
     if !spec.is_some_and(|s| s.ends.contains(&end))
         || !i
-            .tie
-            .as_ref()
+            .ties
+            .get(&group)
             .is_some_and(|u| u.purpose == TiePurpose::KelvinSense)
     {
         return Err(super::invalid(format!(
@@ -345,8 +396,8 @@ pub fn set_anchor(
         }
     }
     let usage = super::instance_mut(project, instance)?
-        .tie
-        .as_mut()
+        .ties
+        .get_mut(&group)
         .ok_or_else(|| super::invalid("Choose a tie first.".into()))?;
     match anchor {
         Some(a) => {
@@ -359,117 +410,37 @@ pub fn set_anchor(
     Ok(())
 }
 
-/// A named schematic tie and the board locations where its ends meet.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct TieReport {
-    #[serde(flatten)]
-    pub tie: TieRow,
-    pub joins: Vec<JoinPoint>,
-    pub anchors: BTreeMap<TerminalId, AnchorReport>,
-    pub current: crate::layout::connectivity::TieCurrent,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct JoinPoint {
-    pub at: crate::geometry::Point,
-    pub layer: crate::model::CopperLayer,
-    pub bridge: Option<crate::ids::BridgeId>,
-    pub islands: Vec<crate::layout::connectivity::TieIsland>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct AnchorReport {
-    pub land: crate::library::tie::Anchor,
-    pub sense_island: Option<usize>,
-    pub at: Option<crate::geometry::Point>,
-    pub contacts: Vec<ObjectRef>,
-}
-
-pub fn report(project: &Project, graph: &crate::layout::CopperGraph) -> Vec<TieReport> {
-    let rows = rows(project);
-    let mut currents = graph.tie_currents(project, &rows);
-    rows.into_iter()
-        .map(|tie| {
-            let mut joins: Vec<_> = graph
-                .ties()
-                .iter()
-                .filter(|b| b.bridge.instance == tie.instance)
-                .filter_map(|b| {
-                    let ring = b.bridge.outline.flatten(crate::layout::CURVE_SLACK_MM);
-                    Some(JoinPoint {
-                        at: crate::geometry::Bounds::of(ring)?.center(),
-                        layer: b.bridge.layer,
-                        bridge: Some(b.bridge.bridge),
-                        islands: b.islands.clone(),
-                    })
-                })
-                .collect();
-            let pads = graph.pads();
-            if joins.is_empty()
-                && let Some(p) = project.placement_of(tie.instance)
-                && tie.purpose != TiePurpose::KelvinSense
-            {
-                let islands = pads
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, pad)| pad.instance == tie.instance)
-                    .filter_map(|(i, p)| {
-                        Some(crate::layout::connectivity::TieIsland {
-                            net: p.net,
-                            pad: p.pad,
-                            island: graph.pad_island(i)?,
-                        })
-                    })
-                    .collect();
-                joins.push(JoinPoint {
-                    at: p.position,
-                    layer: p.layer.into(),
-                    bridge: None,
-                    islands,
-                });
-            }
-            let mut anchors = BTreeMap::new();
-            if let Some(usage) = project.instance(tie.instance).and_then(|i| i.tie.as_ref()) {
-                for (&end, &land) in &usage.anchors {
-                    let at = pads
-                        .iter()
-                        .find(|p| p.instance == land.instance && p.pad == land.pad)
-                        .map(|p| p.position);
-                    let contacts = graph
-                        .anchor_contacts
-                        .get(&(tie.instance, end))
-                        .into_iter()
-                        .flatten()
-                        .copied()
-                        .collect();
-                    let sense_island = pads
-                        .iter()
-                        .position(|p| {
-                            p.terminal
-                                == (Endpoint {
-                                    instance: tie.instance,
-                                    terminal: end,
-                                })
-                                && p.instance == land.instance
-                                && p.pad == land.pad
-                        })
-                        .and_then(|i| graph.pad_island(i));
-                    anchors.insert(
-                        end,
-                        AnchorReport {
-                            land,
-                            at,
-                            contacts,
-                            sense_island,
-                        },
-                    );
-                }
-            }
-            let current = currents.remove(&tie.instance).unwrap_or_default();
-            TieReport {
-                tie,
-                joins,
-                anchors,
-                current,
-            }
-        })
-        .collect()
+/// The designer's requirement and the selected bought part's rated current.
+/// Both values use the project's own copy of the standard field lineage.
+pub(crate) fn currents(
+    project: &Project,
+    instance: &crate::model::ComponentInstance,
+    field: Option<crate::ids::FieldRef>,
+) -> (Option<f64>, Option<(String, f64)>) {
+    let Some(field) = field else {
+        return (None, None);
+    };
+    let amps = |v: &crate::fields::FieldValue| match v {
+        crate::fields::FieldValue::Quantity { si, .. } => Some(si.to_f64()),
+        _ => None,
+    };
+    let required = super::effective_fields(&project.library, instance)
+        .ok()
+        .and_then(|fields| {
+            fields
+                .into_iter()
+                .find(|f| f.field.id == field.id)?
+                .value
+                .and_then(|v| amps(&v))
+        });
+    let rated = super::variants::fitted(project, instance)
+        .part
+        .and_then(|r| project.library.part(r))
+        .and_then(|p| {
+            let value = p.definition.specs.iter().find(|s| {
+                s.field.id == field.id && s.meaning == crate::fields::SpecMeaning::MinimumRating
+            })?;
+            Some((p.definition.mpn.clone(), amps(&value.value)?))
+        });
+    (required, rated)
 }
