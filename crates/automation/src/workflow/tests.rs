@@ -154,8 +154,8 @@ struct Fake;
 impl Catalog for Fake {
     fn module_version(&self, id: &str) -> Option<(u16, u16)> {
         match id {
-            "library" => Some((3, 1)),
-            "generators" => Some((1, 2)),
+            "library" => Some((4, 0)),
+            "generators" => Some((2, 0)),
             "assist" => Some((1, 4)),
             _ => None,
         }
@@ -178,7 +178,7 @@ fn availability_names_versions_entries_and_reach() -> Fallible {
     workflow.reach.insert("library".into(), Class::Read);
     let why = workflow.availability(&Fake);
     assert!(
-        why.contains(&"needs library 2.1; this host has library 3.1".to_owned()),
+        why.contains(&"needs library 2.0; this host has library 4.0".to_owned()),
         "{why:?}"
     );
     assert!(
