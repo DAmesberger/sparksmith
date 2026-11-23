@@ -85,14 +85,7 @@ impl PcbEditor {
         let viewport = &scene.viewport;
         // The part a body is the 3D model of; pads, copper and fills are
         // not model bodies.
-        let part_of = |item: u64| {
-            let source = scene.source(item)?;
-            let plain = source.pad.is_none()
-                && source.track.is_none()
-                && source.via.is_none()
-                && source.fill.is_none();
-            source.instance.filter(|_| plain)
-        };
+        let part_of = |item: u64| scene.source(item)?.package_instance();
         let board_reach = |at: [f64; 3]| {
             let mm = viewport.mm_per_point(at).unwrap_or(0.0);
             (BOARD_REACH_PT * mm).max(BOARD_REACH_MM)
@@ -318,7 +311,8 @@ impl PcbEditor {
                 let primary = egui::PointerButton::Primary;
                 i.pointer.button_double_clicked(primary) || i.pointer.button_triple_clicked(primary)
             });
-            let on = at.is_some_and(|p| self.click_drawn_dimension(project, p, double));
+            let on = self.anchor_pick.is_none()
+                && at.is_some_and(|p| self.click_drawn_dimension(project, p, double));
             if !on && armed {
                 if let Some(at) = at {
                     self.begin_pick();

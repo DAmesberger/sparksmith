@@ -78,6 +78,20 @@ pub struct Source {
     pub occurrence: Option<u64>,
 }
 
+impl Source {
+    /// The placed package whose model this pick identifies. Its lands and
+    /// bridges have their own picks, even when they belong to the same part.
+    pub fn package_instance(&self) -> Option<Id> {
+        self.instance.filter(|_| {
+            self.pad.is_none()
+                && self.tie.is_none()
+                && self.track.is_none()
+                && self.via.is_none()
+                && self.fill.is_none()
+        })
+    }
+}
+
 /// How a model holds the board's flat bodies (laminate, pad, track, via
 /// and fill copper), all described by the board plan ([`plan`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -2213,8 +2227,7 @@ fn track_source(
 fn part_picks(sources: &[Source]) -> BTreeMap<Id, u64> {
     sources
         .iter()
-        .filter(|s| s.pad.is_none())
-        .filter_map(|s| s.instance.map(|i| (i, s.pick_id)))
+        .filter_map(|s| s.package_instance().map(|i| (i, s.pick_id)))
         .collect()
 }
 

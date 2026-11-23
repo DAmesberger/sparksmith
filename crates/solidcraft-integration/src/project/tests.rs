@@ -2843,7 +2843,30 @@ fn bridge_group_and_both_nets_survive_the_live_and_exact_board() -> Result<()> {
     let exact = build(&project)?;
     let differences = plan::parity(&plan, &exact)?;
     assert!(differences.is_empty(), "{differences:#?}");
+    let extra = plan::check(&missing, &exact, &mut || Ok(()))?.differences;
+    assert_eq!(extra.len(), 2);
+    for difference in extra {
+        let plan::Source::Bridge { instance, .. } = difference.source else {
+            return Err(Error::Verification("Expected the omitted bridge.".into()));
+        };
+        let owner = project
+            .instance(instance)
+            .ok_or_else(|| Error::Verification("Missing bridge owner.".into()))?;
+        let line = crate::export::describe(&project, &difference);
+        assert!(
+            line.starts_with(&format!(
+                "Bridge {bridge} of {} group {group}",
+                owner.designator
+            )),
+            "{line}"
+        );
+        assert!(line.contains("bridge copper"), "{line}");
+    }
     for model in [&live, &exact] {
+        assert!(
+            part_picks(&model.sources).is_empty(),
+            "the copper-only packages have no package body to pick"
+        );
         for (instance, layer) in [(first, Layer::Top), (second, Layer::Bottom)] {
             let matches = |s: &Source| s.instance == Some(instance) && s.tie.is_some();
             let source = model

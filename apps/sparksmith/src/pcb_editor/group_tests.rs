@@ -708,7 +708,10 @@ fn selecting_a_group_lights_its_nets_for_each_form() {
         );
     }
     for g in 1..=3 {
-        editor.select_hit(Hit::Tie(13, TieId(g)));
+        let pad = sparksmith_core::PadId(g * 2 + 1);
+        editor.select_hit(editor.pad_hit(13, pad, Some(u64::from(pad.0))));
+        assert_eq!(editor.tie_group, Some(TieId(g)));
+        assert_eq!(editor.highlighted_net(), None);
         let expected: BTreeSet<Id> = [u64::from(g * 2), u64::from(g * 2 + 1)].into();
         assert_eq!(editor.tie_focus().nets, expected, "3D selection");
         let highlighted = (2..8)

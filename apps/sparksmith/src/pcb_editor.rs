@@ -395,12 +395,13 @@ pub struct PcbEditor {
     /// a class edit sets the width and an edit by hand keeps it.
     width_from: Option<(Id, u64)>,
     route_start: Option<Point>,
-    /// A layer change pressed (V) during a route: the via's position and
-    /// the layer the route reaches it on. The next click routes there,
-    /// places the via and routes on on `layer` (`layout.route_layer_change`).
+    /// The Kelvin tie group and end waiting for the next electrical land click.
     anchor_pick: Option<crate::ties::AnchorPick>,
     tie_group: Option<sparksmith_core::TieId>,
     board_ties: crate::ties::BoardTies,
+    /// A layer change pressed (V) during a route: the via's position and
+    /// the layer the route reaches it on. The next click routes there,
+    /// places the via and routes on on `layer` (`layout.route_layer_change`).
     pending_via: Option<(Point, CopperLayer)>,
     /// The route in progress besides its head, and the routing settings
     /// (`route_tool`).
@@ -1252,6 +1253,7 @@ impl PcbEditor {
     pub fn on_tool(&mut self, tool: &str, engine: &Engine) -> Option<Operation> {
         self.sync(engine);
         self.discard_staged();
+        self.anchor_pick = None;
         if let Some(operation) = self.shape_tool(tool, engine) {
             return operation;
         }
@@ -1652,6 +1654,7 @@ impl PcbEditor {
 
     fn tie_section(&mut self, ui: &mut Ui, engine: &Engine, id: Id) -> Option<Operation> {
         let instance = engine.project().instance(id)?;
+        let waiting = self.anchor_pick;
         let operation = crate::ties::card(
             ui,
             engine,
@@ -1660,8 +1663,8 @@ impl PcbEditor {
             &mut self.tie_group,
             Some(&mut self.anchor_pick),
         );
-        if self.anchor_pick.is_some() {
-            self.tool = Tool::Select;
+        if self.anchor_pick.is_some() && self.anchor_pick != waiting {
+            self.end_route();
         }
         operation
     }
@@ -2519,7 +2522,7 @@ impl PcbEditor {
             .and_then(|b| pass(Hit::Tie(b.instance, b.group)))
             .or_else(|| {
                 self.pick_pad(at, |p| layers.pad(p))
-                    .and_then(|pad| pass(Hit::Pad(pad.instance, pad.net)))
+                    .and_then(|pad| pass(self.pad_hit(pad.instance, pad.pad.id, pad.net)))
             })
             .or_else(|| {
                 self.pick_via(project, at)
@@ -2537,6 +2540,13 @@ impl PcbEditor {
             .unwrap_or(Hit::Nothing)
     }
 
+    fn pad_hit(&self, instance: Id, pad: sparksmith_core::PadId, net: Option<Id>) -> menu::Hit {
+        match self.board_ties.group_of_pad(instance, pad) {
+            Some(group) => menu::Hit::Tie(instance, group),
+            None => menu::Hit::Pad(instance, net),
+        }
+    }
+
     /// Select what a 3D click picks, as a Layout click on the same object
     /// does ([`Self::select_hit`]): a pad selects its part and lights the
     /// pad's net (pads are not selected on their own in either view).
@@ -2550,8 +2560,10 @@ impl PcbEditor {
         if let (Some(instance), Some(tie)) = (s.instance, &s.tie) {
             return self.select_hit(Hit::Tie(instance, tie.group));
         }
+        if let (Some(instance), Some(pad)) = (s.instance, s.pad) {
+            return self.select_hit(self.pad_hit(instance, pad, s.net));
+        }
         match (s.instance, s.via, s.fill, s.track) {
-            (Some(instance), ..) if s.pad.is_some() => self.select_hit(Hit::Pad(instance, s.net)),
             (None, Some(via), ..) => self.select_via(via, s.net),
             (_, _, Some(fill), _) => self.select_fill(fill, s.net),
             (Some(instance), ..) => self.select_hit(Hit::Part(instance)),
@@ -2573,18 +2585,9 @@ impl PcbEditor {
         picked: Option<&sparksmith_solidcraft::project::Source>,
         along: &[&sparksmith_solidcraft::project::Source],
     ) {
-        use menu::Hit;
         let part = along
             .first()
-            .and_then(|s| {
-                (s.tie.is_none()
-                    && s.pad.is_none()
-                    && s.track.is_none()
-                    && s.via.is_none()
-                    && s.fill.is_none())
-                .then_some(s.instance)
-                .flatten()
-            })
+            .and_then(|s| s.package_instance())
             .filter(|&id| group::allows(&self.filter, group::Pick::Part(id)));
         let Some(instance) = part else {
             let picks: Vec<_> = picked.into_iter().chain(along.iter().copied()).collect();
@@ -2593,9 +2596,10 @@ impl PcbEditor {
         let net = self.highlighted;
         match along
             .iter()
-            .find(|s| s.instance == Some(instance) && s.pad.is_some())
+            .filter(|s| s.instance == Some(instance))
+            .find_map(|s| Some((s.pad?, s.net.or(net))))
         {
-            Some(pad) => self.select_hit(Hit::Pad(instance, pad.net.or(net))),
+            Some((pad, net)) => self.select_hit(self.pad_hit(instance, pad, net)),
             None => self.set_selection(Some(instance), None, net),
         }
     }

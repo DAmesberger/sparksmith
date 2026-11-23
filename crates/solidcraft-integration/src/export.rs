@@ -391,6 +391,16 @@ pub fn describe(project: &Project, difference: &Difference) -> String {
             Some(i) => format!("Pad {pad} of {}", i.designator),
             None => format!("Pad {pad} of part {instance}"),
         },
+        Source::Bridge {
+            instance,
+            group,
+            bridge,
+        } => {
+            let owner = project
+                .instance(instance)
+                .map_or_else(|| format!("part {instance}"), |i| i.designator.clone());
+            format!("Bridge {bridge} of {owner} group {group}")
+        }
         Source::Track { track } => format!("Track {track}"),
         Source::Via { via } => format!("Via {via}"),
         Source::Fill { fill } => format!("Fill {fill}"),
@@ -401,7 +411,11 @@ pub fn describe(project: &Project, difference: &Difference) -> String {
         Some(sparksmith_core::CopperLayer::Inner(n)) => format!(" on inner layer {n}"),
         None => String::new(),
     };
-    let what = kind_name(difference.kind);
+    let what = if matches!(difference.source, Source::Bridge { .. }) {
+        "bridge copper"
+    } else {
+        kind_name(difference.kind)
+    };
     let how = match (difference.problem, &difference.fit) {
         (Problem::PlannedNotBuilt, Some(fit)) => {
             format!("its {what} was built in another shape: {}", misfit(fit))
