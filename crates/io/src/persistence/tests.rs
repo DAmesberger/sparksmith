@@ -444,7 +444,7 @@ fn a_project_that_opens_from_a_compact_file_saves_and_recovers() -> Result<()> {
     let saved = dir.path().join("saved.sparksmith");
     write_project(&saved, &read)?;
     assert_eq!(read_project(&saved)?, read);
-    let store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
+    let mut store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
     store.write(&read, Some(&opened))?;
     let snapshot = store
         .path()
@@ -492,7 +492,7 @@ fn a_project_authored_past_the_old_cap_saves_and_recovers() -> Result<()> {
     let saved = dir.path().join("authored.sparksmith");
     write_project(&saved, &file)?;
     assert_eq!(Engine::from_file(read_project(&saved)?)?.to_file(), file);
-    let store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
+    let mut store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
     store.write(&file, None)?;
     let snapshot = store
         .path()

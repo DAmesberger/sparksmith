@@ -6,7 +6,7 @@ use crate::kit::severity::Level;
 use sparksmith_automation::{FileChange, HostFile};
 use sparksmith_core::{Document, Engine, Project, format::EditorFile};
 use sparksmith_io::DiskIdentity;
-use sparksmith_io::recovery::{self, RecoveryEntry, RecoveryStore};
+use sparksmith_io::recovery::{self, RecoveryEntry, RecoveryRecord, RecoveryStore, Snapshot};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button};
 use std::{
@@ -318,15 +318,15 @@ enum Job {
     SchematicPdf(Ticket, PathBuf, Arc<Project>),
     Recover(Ticket, Document, Option<PathBuf>),
     ClearRecovery(Ticket, bool),
-    Restore(Ticket, PathBuf),
-    DiscardRecovery(PathBuf),
+    Restore(Ticket, Snapshot),
+    DiscardRecovery(Snapshot),
     /// Discard the older sessions the listing named but did not read.
-    DiscardOlder(Vec<PathBuf>),
+    DiscardOlder(Vec<Snapshot>),
 }
 enum Event {
     Startup(Outcome<recovery::Listing>),
     Picked(Ticket, Kind, Option<PathBuf>),
-    Read(Ticket, PathBuf, Outcome<(EditorFile, DiskIdentity)>),
+    Read(Ticket, PathBuf, Outcome<(Box<EditorFile>, DiskIdentity)>),
     Imported(
         Ticket,
         PathBuf,
@@ -336,8 +336,8 @@ enum Event {
     Written(Ticket, PathBuf, Outcome<Wrote>, Option<String>),
     PdfExported(Ticket, PathBuf, Outcome<usize>),
     Recovered(Ticket, bool, bool, Outcome<()>),
-    Restored(Ticket, PathBuf, Outcome<EditorFile>),
-    Discarded(PathBuf, Outcome<()>),
+    Restored(Ticket, Outcome<Box<(RecoveryRecord, Snapshot)>>),
+    Discarded(Snapshot, Outcome<()>),
     /// The older sessions that are gone, and why the rest are not.
     DiscardedOlder(Vec<PathBuf>, Outcome<()>),
 }
@@ -356,7 +356,7 @@ enum Wrote {
 fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>) -> Sender<Job> {
     let (sender, jobs) = mpsc::channel();
     std::thread::spawn(sparksmith_core::library::standards::carried(move || {
-        let store = directory.as_ref().map_err(Clone::clone).and_then(|d| {
+        let mut store = directory.as_ref().map_err(Clone::clone).and_then(|d| {
             RecoveryStore::new(d)
                 .map_err(|e| format!("Recovery unavailable: cannot use {}: {e}", d.display()))
         });
@@ -378,7 +378,9 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
         while let Ok(job) = jobs.recv() {
             let result = match job {
                 Job::Read(ticket, path) => {
-                    let value = sparksmith_io::open_project(&path).map_err(|e| e.to_string());
+                    let value = sparksmith_io::open_project(&path)
+                        .map(|(document, id)| (Box::new(document), id))
+                        .map_err(|e| e.to_string());
                     Event::Read(ticket, path, value)
                 }
                 Job::Import(ticket, path) => {
@@ -412,7 +414,7 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                 }
                 Job::Recover(ticket, document, origin) => {
                     let file = EditorFile::from_document(&document);
-                    let result = store.as_ref().map_err(Clone::clone).and_then(|store| {
+                    let result = store.as_mut().map_err(|e| e.clone()).and_then(|store| {
                         store
                             .write(&file, origin.as_deref())
                             .map_err(|e| e.to_string())
@@ -420,17 +422,19 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                     Event::Recovered(ticket, false, false, result)
                 }
                 Job::ClearRecovery(ticket, close) => {
-                    let result = match &store {
+                    let result = match &mut store {
                         Ok(store) => store.remove_own().map_err(|e| e.to_string()),
                         Err(_) => Ok(()),
                     };
                     Event::Recovered(ticket, true, close, result)
                 }
-                Job::Restore(ticket, path) => {
-                    let result = recovery::read(&path)
-                        .map(|r| r.document)
-                        .map_err(|e| e.to_string());
-                    Event::Restored(ticket, path, result)
+                Job::Restore(ticket, snapshot) => {
+                    let result = directory.as_ref().map_err(Clone::clone).and_then(|dir| {
+                        recovery::restore(dir, &snapshot)
+                            .map(Box::new)
+                            .map_err(|e| e.to_string())
+                    });
+                    Event::Restored(ticket, result)
                 }
                 Job::DiscardRecovery(path) => {
                     let result = directory
@@ -446,7 +450,7 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                         match directory.as_ref().map_err(Clone::clone).and_then(|d| {
                             recovery::remove_entry(d, &path).map_err(|e| e.to_string())
                         }) {
-                            Ok(()) => removed.push(path),
+                            Ok(()) => removed.push(path.path().to_path_buf()),
                             Err(error) => {
                                 result = Err(error);
                                 break;
@@ -484,7 +488,7 @@ pub struct FileUi {
     recoveries: Vec<RecoveryEntry>,
     /// Older session files past the listing's read limit, named so the
     /// recovery question can say so and offer to discard them.
-    older_recoveries: Vec<PathBuf>,
+    older_recoveries: Vec<Snapshot>,
     /// The name a first save in flight writes (its ticket id), for the
     /// engine to take once the file holds it.
     naming: Option<(u64, String)>,
@@ -493,7 +497,7 @@ pub struct FileUi {
     /// A restored session file, removed once this session has saved its
     /// own recovery snapshot of the restored document (so the work is never
     /// in no file at all).
-    restored_source: Option<PathBuf>,
+    restored_source: Option<(u64, Snapshot)>,
     /// The file a restored session was opened from, or the KiCad file an
     /// imported project came from: until the project has
     /// a path, the save panel proposes its name and folder.
@@ -699,6 +703,7 @@ impl FileUi {
     /// proposes the KiCad project's folder and name.
     pub fn adopt_imported(&mut self, engine: &Engine, source: PathBuf) -> Outcome<()> {
         self.adopt(engine, None, None, true)?;
+        self.restored_source = None;
         self.restored_origin = Some(source);
         Ok(())
     }
@@ -715,6 +720,7 @@ impl FileUi {
         self.controller
             .adopt(engine.revision(), path, identity, recovered)?;
         if !recovered {
+            self.restored_source = None;
             self.restored_origin = None;
         }
         self.document = engine.document().clone();
@@ -1274,7 +1280,7 @@ impl FileUi {
                 }
                 match result {
                     Ok((document, identity)) => self.effects.push(Effect::Replace {
-                        document: Box::new(document),
+                        document,
                         path: Some(path),
                         identity: Some(identity),
                         recovered: false,
@@ -1332,7 +1338,11 @@ impl FileUi {
                 if result.is_ok()
                     && !removed
                     && ticket.stamp == self.controller.current
-                    && let Some(source) = self.restored_source.take()
+                    && self
+                        .restored_source
+                        .as_ref()
+                        .is_some_and(|(epoch, _)| *epoch == ticket.stamp.epoch)
+                    && let Some((_, source)) = self.restored_source.take()
                 {
                     self.send(Job::DiscardRecovery(source));
                 }
@@ -1354,7 +1364,7 @@ impl FileUi {
                     self.recovery_retry_at = self.now + 10.0;
                 }
             }
-            Event::Restored(ticket, path, result) => {
+            Event::Restored(ticket, result) => {
                 self.recovery_choice_pending = false;
                 if !self.controller.accept(&ticket, Kind::Restore) {
                     self.status = Some((
@@ -1364,17 +1374,20 @@ impl FileUi {
                     return;
                 }
                 match result {
-                    Ok(document) => {
-                        self.restored_origin = self
-                            .recoveries
-                            .iter()
-                            .find(|e| e.path == path)
-                            .and_then(|e| e.original_path.clone());
-                        self.recoveries.retain(|e| e.path != path);
+                    Ok(restored) => {
+                        let (record, snapshot) = *restored;
+                        let Some(epoch) = self.controller.current.epoch.checked_add(1) else {
+                            self.status =
+                                Some((Level::Error, "Document identity exhausted".into()));
+                            return;
+                        };
+                        self.restored_origin = record.original_path;
+                        self.recoveries
+                            .retain(|e| e.snapshot.path() != snapshot.path());
                         self.recovery_selected = 0;
-                        self.restored_source = Some(path);
+                        self.restored_source = Some((epoch, snapshot));
                         self.effects.push(Effect::Replace {
-                            document: Box::new(document),
+                            document: Box::new(record.document),
                             path: None,
                             identity: None,
                             recovered: true,
@@ -1385,17 +1398,18 @@ impl FileUi {
                     }
                 }
             }
-            Event::Discarded(path, result) => {
+            Event::Discarded(snapshot, result) => {
                 self.recovery_choice_pending = false;
                 match result {
-                    Ok(()) => self.recoveries.retain(|e| e.path != path),
+                    Ok(()) => self.recoveries.retain(|e| e.snapshot != snapshot),
                     Err(error) => self.status = Some((Level::Error, error)),
                 }
             }
             Event::DiscardedOlder(removed, result) => {
                 self.recovery_choice_pending = false;
                 let removed: std::collections::BTreeSet<_> = removed.into_iter().collect();
-                self.older_recoveries.retain(|p| !removed.contains(p));
+                self.older_recoveries
+                    .retain(|p| !removed.contains(p.path()));
                 if let Err(error) = result {
                     self.status = Some((Level::Error, error));
                 }
@@ -1548,7 +1562,7 @@ impl FileUi {
             Some(Choice::Save) => {
                 if let Some(ticket) = self.begin(Kind::Restore, None) {
                     self.recovery_choice_pending = true;
-                    self.send(Job::Restore(ticket, entry.path.clone()));
+                    self.send(Job::Restore(ticket, entry.snapshot));
                 }
             }
             Some(Choice::Cancel) => {
@@ -1559,7 +1573,7 @@ impl FileUi {
             }
             Some(Choice::Discard) => {
                 self.recovery_choice_pending = true;
-                self.send(Job::DiscardRecovery(entry.path.clone()));
+                self.send(Job::DiscardRecovery(entry.snapshot));
             }
             None => {}
         }
@@ -1775,9 +1789,15 @@ mod tests {
     }
 
     #[test]
-    fn recovery_rows_name_age_and_instances() {
+    fn recovery_rows_name_age_and_instances() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        RecoveryStore::new(dir.path())?.write(&Engine::demo()?.to_file(), None)?;
         let entry = RecoveryEntry {
-            path: "/r/session-1.json".into(),
+            snapshot: recovery::list(dir.path())?
+                .entries
+                .pop()
+                .ok_or("missing snapshot")?
+                .snapshot,
             original_path: None,
             saved_unix_ms: 1_000_000,
             project_name: "Untitled".into(),
@@ -1805,6 +1825,7 @@ mod tests {
             recovery_label(&unreadable, 1_000_000 + 2 * 86_400_000),
             "Older or damaged recovery · 2 days ago"
         );
+        Ok(())
     }
 
     /// Saving an untitled project proposes its name; a saved file keeps its

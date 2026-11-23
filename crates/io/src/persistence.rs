@@ -139,7 +139,7 @@ pub fn save_project(
 
 /// The SHA-256 of `file`'s bytes, read from its start (bounded by the
 /// container's size limit); the file is left at its start.
-fn identity_of(file: &mut File) -> Result<DiskIdentity> {
+pub(crate) fn identity_of(file: &mut File) -> Result<DiskIdentity> {
     use sha2::{Digest, Sha256};
     use std::io::Seek;
     file.rewind()?;

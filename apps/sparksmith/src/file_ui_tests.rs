@@ -143,11 +143,14 @@ impl Harness {
 
     /// The project names this session's recovery folder holds.
     fn recoverable(&self) -> Fallible<Vec<String>> {
-        Ok(recovery::list(&self.dir.path().join("recovery"))?
-            .entries
+        self.recovery_files()?
             .into_iter()
-            .map(|e| e.project_name)
-            .collect())
+            .filter(|p| {
+                p.extension()
+                    .is_some_and(|ext| ext == "sparksmith-recovery")
+            })
+            .map(|p| Ok(recovery::read(&p)?.document.project.name))
+            .collect()
     }
 
     /// Every file in the recovery folder (none before it exists), empty
@@ -224,6 +227,49 @@ fn save_after_a_restore_proposes_the_original_file() -> Fallible {
     let own = h.dir.path().join("own.sparksmith");
     h.files.adopt(&h.engine, Some(own), None, false)?;
     assert_eq!(h.files.save_proposal().1, "own.sparksmith");
+    Ok(())
+}
+
+/// The worker restores a particular source version. Before the desktop
+/// protects that copy in its own session, the source path is replaced.
+#[test]
+fn automatic_cleanup_after_restore_preserves_a_changed_source() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let folder = dir.path().join("recovery");
+    let mut writer = RecoveryStore::new(&folder)?;
+    writer.write(&Engine::demo()?.to_file(), None)?;
+    let source = writer.path().ok_or("missing snapshot")?.to_owned();
+    drop(writer);
+
+    let mut h = Harness::in_dir(dir)?;
+    h.until("the recovery question", |h| !h.files.recoveries.is_empty())?;
+    h.click("Restore")?;
+    h.until("the restored project", |h| !h.effects.is_empty())?;
+    let Some(Effect::Replace {
+        document,
+        recovered: true,
+        ..
+    }) = h.effects.pop()
+    else {
+        return Err("expected the restored project".into());
+    };
+    h.engine.replace_document(*document)?;
+    h.files.adopt(&h.engine, None, None, true)?;
+    let mut newer = h.engine.to_file();
+    newer.project.name = "Second project".into();
+    let mut other = RecoveryStore::new(&folder)?;
+    other.write(&newer, None)?;
+    std::fs::copy(other.path().ok_or("missing other snapshot")?, &source)?;
+
+    h.now += 3.0;
+    h.until("the cleanup refusal", |h| {
+        h.files.status.as_ref().is_some_and(|(level, text)| {
+            *level == Level::Error && text.contains("snapshot changed")
+        })
+    })?;
+    assert_eq!(recovery::read(&source)?.document, newer);
+    let protected = h.recoverable()?;
+    assert!(protected.contains(&h.engine.project().name));
     Ok(())
 }
 
@@ -739,7 +785,7 @@ fn a_missing_recovery_folder_is_reported_at_startup() -> Fallible {
 fn older_sessions_past_the_limit_are_named_and_discardable() -> Fallible {
     let dir = tempfile::tempdir()?;
     let folder = dir.path().join("recovery");
-    let store = RecoveryStore::new(&folder)?;
+    let mut store = RecoveryStore::new(&folder)?;
     store.write(&EditorFile::from_document(Engine::demo()?.document()), None)?;
     let first = store.path().ok_or("no snapshot")?.to_path_buf();
     let base = std::time::SystemTime::now() - Duration::from_secs(100_000);
@@ -753,7 +799,7 @@ fn older_sessions_past_the_limit_are_named_and_discardable() -> Fallible {
             .set_modified(base + Duration::from_secs(n as u64 * 10))?;
         paths.push(path);
     }
-    recovery::remove_entry(&folder, &first)?;
+    store.remove_own()?;
     let mut h = Harness::in_dir(dir)?;
     h.until("the recovery question", |h| !h.files.recoveries.is_empty())?;
     assert_eq!(h.files.recoveries.len(), recovery::MAX_ENTRIES);

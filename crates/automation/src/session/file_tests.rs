@@ -435,7 +435,7 @@ fn a_project_filled_to_the_limit_saves_identifies_and_recovers() -> Fallible {
     );
     assert_eq!(&reopened, &session.engine().to_file());
     // The recovery writer keeps the same state.
-    let store = sparksmith_io::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
+    let mut store = sparksmith_io::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
     store.write(&session.engine().to_file(), Some(&path))?;
     let snapshot = store.path().ok_or("a snapshot")?;
     assert_eq!(
