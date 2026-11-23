@@ -321,7 +321,7 @@ fn a_rebinding_reaches_lookup_display_and_the_sheet() -> Result<(), String> {
     let command = registry.get("route.width-next").ok_or("width")?;
     assert_eq!(registry.shortcut(command).as_deref(), Some("Q"));
     assert!(registry.is_custom("route.width-next"));
-    let sheet = crate::app::sheet_rows(&registry, "next track width", &active);
+    let sheet = crate::app::sheet_rows(&registry, "next track width", &active)?;
     assert_eq!(sheet, vec![("Next track width".to_owned(), "Q".to_owned())]);
     registry.reset("route.width-next");
     assert_eq!(
@@ -718,9 +718,9 @@ fn menu_rows_show_one_key_of_a_command_with_two() -> Result<(), String> {
 /// The shortcuts sheet has one row per name in a context: the palette's
 /// two keys share it (N7).
 #[test]
-fn the_shortcut_sheet_lists_a_name_once_with_all_its_keys() {
+fn the_shortcut_sheet_lists_a_name_once_with_all_its_keys() -> Result<(), String> {
     let registry = Registry::standard();
-    let rows = crate::app::sheet_rows(&registry, "Command palette", &[Context::Global]);
+    let rows = crate::app::sheet_rows(&registry, "Command palette", &[Context::Global])?;
     let shown: Vec<_> = rows
         .iter()
         .filter(|(n, _)| n == "Command palette")
@@ -732,4 +732,148 @@ fn the_shortcut_sheet_lists_a_name_once_with_all_its_keys() {
     );
     assert_eq!(shown.len(), 1, "{rows:?}");
     assert_eq!(shown[0].1, both);
+    Ok(())
+}
+
+/// The row for every desktop command, including gesture-only keys, comes
+/// from the same registry the dispatcher uses. Written by xtask help.
+#[test]
+fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Error>> {
+    use sparksmith_core::help::Facts;
+    let registry = Registry::standard();
+    let entries = registry.help_entries()?;
+    assert_eq!(entries.len(), registry.commands().len());
+    for (name, key) in [
+        ("help.back", egui::Key::ArrowLeft),
+        ("help.forward", egui::Key::ArrowRight),
+    ] {
+        let command = registry.get(name).ok_or("missing help navigation")?;
+        let expected = Chord::alt(key);
+        assert_eq!(command.handler, Handler::InPlace);
+        assert_eq!(command.context, Context::Help);
+        assert_eq!(
+            registry.resolve(expected, &active_contexts(Context::Help)),
+            Some(command)
+        );
+        assert!(
+            registry
+                .resolve(expected, &active_contexts(Context::Schematic))
+                .is_none()
+        );
+        let entry = entries.iter().find(|e| e.id.name() == name).ok_or(name)?;
+        assert!(
+            matches!(&entry.facts, Facts::Command { default_key: Some(key), reaches: Some(id), .. }
+            if key == &expected.name() && id.as_str() == "panel/help")
+        );
+    }
+    let route = entries
+        .iter()
+        .find(|entry| entry.id.name() == "route.width-next")
+        .ok_or("missing in-place route width key")?;
+    assert!(matches!(&route.facts, Facts::Command { default_key: Some(key), .. } if key == "W"));
+    let via = entries
+        .iter()
+        .find(|entry| entry.id.name() == "pcb.via")
+        .ok_or("missing Via tool")?;
+    assert!(
+        matches!(&via.facts, Facts::Command { reaches: Some(id), .. } if id.as_str() == "entry/layout.add_via")
+    );
+    assert!(
+        via.summary.contains("through via"),
+        "the ribbon and help describe the same tool"
+    );
+    let save = entries
+        .iter()
+        .find(|entry| entry.id.name() == "file.save")
+        .ok_or("missing Save command")?;
+    assert!(
+        matches!(&save.facts, Facts::Command { reaches: Some(id), .. } if id.as_str() == "entry/project.save")
+    );
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../library/help/generated/commands.json");
+    let update = std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref()
+        == Some(std::ffi::OsStr::new("1"));
+    sparksmith_io::help::sync_registry(&path, entries, update)?;
+    Ok(())
+}
+
+/// Read toolbar explanations from the same tools the editors draw,
+/// including the alternatives inside split buttons. No window is opened.
+fn ribbon_descriptions(registry: &Registry) -> BTreeMap<String, String> {
+    let engine = sparksmith_core::Engine::default();
+    let mut descriptions = BTreeMap::new();
+    let mut add = |workspace, ribbon: crate::shell::Ribbon| {
+        for tool in ribbon.groups.into_iter().flat_map(|group| group.tools) {
+            for button in std::iter::once(&tool).chain(&tool.menu) {
+                if !button.tip.is_empty()
+                    && let Some(command) = registry.for_tool(workspace, button.id)
+                {
+                    descriptions.insert(command.id.clone(), button.tip.to_owned());
+                }
+            }
+        }
+    };
+    let mut part = crate::part_editor::PartEditor::default();
+    for tab in ["details", "symbol", "pins", "footprint", "mapping", "model"] {
+        part.on_tab(tab);
+        add(Workspace::Part, part.ribbon(&engine));
+    }
+    add(
+        Workspace::Schematic,
+        crate::schematic_editor::SchematicEditor::default().ribbon(&engine),
+    );
+    let mut pcb = crate::pcb_editor::PcbEditor::default();
+    add(Workspace::Pcb, pcb.ribbon(&engine));
+    let _ = pcb.on_tool("board-shape", &engine);
+    add(Workspace::Pcb, pcb.ribbon(&engine));
+    descriptions
+}
+
+impl Registry {
+    /// Export canonical chords rather than platform key-cap labels. Rebinding
+    /// affects the desktop reader only, so every platform ships the same index.
+    pub(crate) fn help_entries(&self) -> Result<Vec<sparksmith_core::help::HelpEntry>, String> {
+        use sparksmith_core::help::{Facts, HelpEntry};
+        let mut entries = Vec::new();
+        let mut tips = ribbon_descriptions(self);
+        for command in self.commands() {
+            let keys: Vec<_> = command
+                .chord
+                .into_iter()
+                .chain(command.also.iter().copied())
+                .map(Chord::name)
+                .collect();
+            let default_key = if keys.is_empty() {
+                command.key_text.clone()
+            } else {
+                Some(keys.join(", "))
+            };
+            entries.push(HelpEntry {
+                id: format!("command/{}", command.id).parse()?,
+                title: command.title.clone(),
+                summary: tips.remove(&command.id).unwrap_or_else(|| {
+                    command
+                        .destination()
+                        .strip_prefix("entry/")
+                        .and_then(sparksmith_automation::session::metadata::find)
+                        .map_or_else(|| command.help_summary(), |e| e.summary.clone())
+                }),
+                since: env!("CARGO_PKG_VERSION").into(),
+                facts: Facts::Command {
+                    context: command.context.label().into(),
+                    default_key,
+                    reaches: Some(command.destination().parse()?),
+                },
+                body: vec![],
+                related: vec![],
+                keywords: command
+                    .keywords
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect(),
+            });
+        }
+        entries.sort_by(|a, b| a.id.cmp(&b.id));
+        Ok(entries)
+    }
 }

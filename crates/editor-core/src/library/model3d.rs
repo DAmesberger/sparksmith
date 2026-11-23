@@ -14,6 +14,7 @@ use super::package::PackageDefinition;
 use super::package_model::PackageModel;
 use super::part::{MAX_URL, Provenance};
 use super::{MAX_LABEL, printable};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::ids::{ContentHash, DefinitionId, ModelRef, PackageTerminalId};
 use crate::materials::MaterialId;
@@ -502,26 +503,30 @@ impl ModelDefinition {
     /// is a snapshot rule ([`snapshot_problems`]).
     pub(super) fn findings(&self, id: DefinitionId, out: &mut Vec<Finding>) {
         let this = || vec![ObjectRef::Definition { id }];
-        let block =
-            |code: &str, message: String| Finding::blocking(code, message, this(), Stage::Publish);
+        let block = |code: FindingCode, message: String| {
+            Finding::blocking(code, message, this(), Stage::Publish)
+        };
         // Assets.
         if let Some(problem) = asset_problem(&self.asset, self.format.media_types()) {
-            out.push(block("model.asset", format!("The model {problem}.")));
+            out.push(block(
+                FindingCode::ModelAsset,
+                format!("The model {problem}."),
+            ));
         }
         if let Some(pair) = &self.pair {
             if self.format != ModelFormat::Step {
                 out.push(block(
-                    "model.asset",
+                    FindingCode::ModelAsset,
                     "Only a STEP model takes an appearance pair.".into(),
                 ));
             } else if pair.hash == self.asset.hash {
                 out.push(block(
-                    "model.asset",
+                    FindingCode::ModelAsset,
                     "The appearance pair is the model's own asset.".into(),
                 ));
             } else if let Some(problem) = asset_problem(pair, ModelFormat::Gltf.media_types()) {
                 out.push(block(
-                    "model.asset",
+                    FindingCode::ModelAsset,
                     format!("The appearance pair {problem}."),
                 ));
             }
@@ -529,14 +534,14 @@ impl ModelDefinition {
         // Frame and bounds.
         if self.frame.unit_mm.is_nan() || self.frame.unit_mm <= 0.0 {
             out.push(block(
-                "model.bounds",
+                FindingCode::ModelBounds,
                 "The source frame needs a positive unit scale.".into(),
             ));
         }
         let [lo, hi] = self.bounds();
         if (0..3).any(|i| hi[i] <= lo[i]) {
             out.push(block(
-                "model.bounds",
+                FindingCode::ModelBounds,
                 "The model bounds must have positive length, width and height.".into(),
             ));
         }
@@ -555,7 +560,7 @@ impl ModelDefinition {
                 || !inside(area.origin())
             {
                 out.push(block(
-                    "model.bounds",
+                    FindingCode::ModelBounds,
                     "The marking area needs unit, perpendicular normal and u axes, a positive size and an origin within the model bounds.".into(),
                 ));
             }
@@ -564,7 +569,7 @@ impl ModelDefinition {
         // A part file's looks come from its appearance names (§11 L2).
         if self.bodies.is_empty() && self.format != ModelFormat::Solidcraft {
             out.push(block(
-                "model.body_unmapped",
+                FindingCode::ModelBodyUnmapped,
                 "The model maps no body to a role and material.".into(),
             ));
         }
@@ -572,7 +577,7 @@ impl ModelDefinition {
         for body in &self.bodies {
             if body.key.trim().is_empty() || !keys.insert(body.key.as_str()) {
                 out.push(block(
-                    "model.body_unmapped",
+                    FindingCode::ModelBodyUnmapped,
                     format!("Body key ‘{}’ is empty or mapped more than once.", body.key),
                 ));
             }
@@ -580,7 +585,7 @@ impl ModelDefinition {
                 && usize::from(index) >= self.custom_materials.len()
             {
                 out.push(block(
-                    "model.body_unmapped",
+                    FindingCode::ModelBodyUnmapped,
                     format!(
                         "Body ‘{}’ names custom material {index}, which the model does not carry.",
                         body.key
@@ -602,7 +607,7 @@ impl ModelDefinition {
                     .is_none_or(|e| e.iter().all(|c| *c >= 0.0));
             if !valid {
                 out.push(block(
-                    "model.body_unmapped",
+                    FindingCode::ModelBodyUnmapped,
                     format!(
                         "Custom material ‘{}’ needs a name, factors within 0–1 and an index of refraction within 1–4.",
                         material.name
@@ -615,19 +620,19 @@ impl ModelDefinition {
         for lead in &self.leads {
             if lead.key.trim().is_empty() || !lead_keys.insert(lead.key.as_str()) {
                 out.push(block(
-                    "model.leads",
+                    FindingCode::ModelLeads,
                     format!("Lead key ‘{}’ is empty or tagged twice.", lead.key),
                 ));
             }
             if !printable(&lead.designation) {
                 out.push(block(
-                    "model.leads",
+                    FindingCode::ModelLeads,
                     format!("Lead ‘{}’ needs a printable designation.", lead.key),
                 ));
             }
             if !inside(lead.contact()) {
                 out.push(block(
-                    "model.leads",
+                    FindingCode::ModelLeads,
                     format!(
                         "The contact of lead ‘{}’ lies outside the model bounds.",
                         lead.key
@@ -637,7 +642,7 @@ impl ModelDefinition {
         }
         if self.leads.len() > usize::from(u16::MAX) {
             out.push(block(
-                "model.leads",
+                FindingCode::ModelLeads,
                 "A lead map indexes at most 65535 leads.".into(),
             ));
         }
@@ -645,13 +650,13 @@ impl ModelDefinition {
         let licence = self.provenance.record.licence.as_deref().map(str::trim);
         if licence.is_none_or(str::is_empty) {
             out.push(block(
-                "model.licence",
+                FindingCode::ModelLicence,
                 "The model needs its licence stated.".into(),
             ));
         }
         if self.provenance.redistribution == Redistribution::Unknown {
             out.push(Finding::new(
-                "model.licence",
+                FindingCode::ModelLicence,
                 "Whether the model may be redistributed is unknown; it cannot be promoted or shared until stated.".into(),
                 this(),
             ));
@@ -732,7 +737,7 @@ pub fn package_findings(
     for entry in &model.lead_map {
         if !leads.insert(entry.lead) {
             out.push(Finding::blocking(
-                "model.leads",
+                FindingCode::ModelLeads,
                 format!("Model lead {} is mapped more than once.", entry.lead),
                 this(),
                 Stage::Publish,
@@ -740,7 +745,7 @@ pub fn package_findings(
         }
         if package.terminal(entry.terminal).is_none() {
             out.push(Finding::blocking(
-                "model.leads",
+                FindingCode::ModelLeads,
                 format!(
                     "The lead map names terminal {}, which the package does not have.",
                     entry.terminal
@@ -750,7 +755,7 @@ pub fn package_findings(
             ));
         } else if !terminals.insert(entry.terminal) {
             out.push(Finding::blocking(
-                "model.leads",
+                FindingCode::ModelLeads,
                 format!(
                     "Terminal {} takes more than one model lead.",
                     entry.terminal
@@ -778,7 +783,7 @@ pub fn library_findings(
     let this = || vec![ObjectRef::Definition { id }];
     let Some(published) = library.model(model.model) else {
         out.push(Finding::blocking(
-            "reference.missing",
+            FindingCode::ReferenceMissing,
             format!(
                 "{} is missing from the project library.",
                 super::names::capitalised(&library.describe(model.model.erased()))
@@ -795,7 +800,7 @@ pub fn library_findings(
     for entry in &model.lead_map {
         if usize::from(entry.lead) >= definition.leads.len() {
             out.push(Finding::blocking(
-                "model.leads",
+                FindingCode::ModelLeads,
                 format!(
                     "The lead map names lead {}, but ‘{}’ tags {} leads.",
                     entry.lead,
@@ -815,7 +820,7 @@ pub fn library_findings(
             .count();
         if unmapped > 0 {
             out.push(Finding::new(
-                "model.leads",
+                FindingCode::ModelLeads,
                 format!(
                     "{unmapped} package terminal(s) have no model lead; fitting and pin-1 checks skip them."
                 ),
@@ -827,7 +832,7 @@ pub fn library_findings(
     if excess > BOUNDS_TOLERANCE_MM {
         let size = definition.size_mm();
         out.push(Finding::new(
-            "model.bounds",
+            FindingCode::ModelBounds,
             format!(
                 "The model ({:.3} × {:.3} × {:.3} mm) exceeds the package envelope by {excess:.3} mm.",
                 size[0], size[1], size[2]
@@ -851,7 +856,7 @@ pub fn part_findings(
     let this = || vec![ObjectRef::Definition { id }];
     let Some(published) = library.model(part.model) else {
         out.push(Finding::blocking(
-            "reference.missing",
+            FindingCode::ReferenceMissing,
             format!(
                 "{} is missing from the project library.",
                 super::names::capitalised(&library.describe(part.model.erased()))
@@ -866,7 +871,7 @@ pub fn part_findings(
     };
     if published.definition.format != ModelFormat::Solidcraft {
         out.push(Finding::blocking(
-            "part_file.model",
+            FindingCode::PartFileModel,
             format!(
                 "‘{}’ is a {} model; a part file is a SolidCraft design.",
                 published.meta.name,
@@ -882,7 +887,7 @@ pub fn part_findings(
         .fold(f64::NEG_INFINITY, f64::max);
     if excess > BOUNDS_TOLERANCE_MM {
         out.push(Finding::new(
-            "model.bounds",
+            FindingCode::ModelBounds,
             format!(
                 "The part ({:.3} × {:.3} × {:.3} mm) exceeds the package envelope by {excess:.3} mm.",
                 hi[0] - lo[0],

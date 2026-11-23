@@ -277,7 +277,7 @@ fn issue_rows(project: &sparksmith_core::Project) -> Fallible<Vec<(String, Strin
     Ok(report
         .rows
         .iter()
-        .map(|r| (r.finding.code.clone(), r.title.clone()))
+        .map(|r| (r.finding.code.to_string(), r.title.clone()))
         .collect())
 }
 

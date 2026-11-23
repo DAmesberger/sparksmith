@@ -509,6 +509,12 @@ pub enum Request {
     /// Import exactly the working pinout document last previewed.
     #[serde(rename = "assist.pinout_apply")]
     WorkingApply(assist::WorkingApplyParams),
+    /// Search the shipped offline help by words or kind.
+    #[serde(rename = "help.search")]
+    HelpSearch(help::SearchParams),
+    /// Read a typed help entry, optionally in bounded excerpts.
+    #[serde(rename = "help.topic")]
+    HelpTopic(help::TopicParams),
     /// The workflows the host offers, ranked by a request's text.
     #[serde(rename = "assist.workflows")]
     Workflows(crate::workflow::entries::WorkflowsParams),
@@ -619,6 +625,8 @@ declare_requests! {
     PinoutEdit "assist.pinout_edit" Read "Edit a working pinout document" [in assist, effect(World), since(1, 0)],
     WorkingPreview "assist.pinout_preview" Read "Preview a working pinout document" [in assist, long, link, effect(World), since(1, 0)],
     WorkingApply "assist.pinout_apply" Edit "Apply a working pinout document" [in library, review, since(3, 2), returns(pinout_applied)],
+    HelpSearch "help.search" Read "Search offline help" [in help, effect(Pure), since(1, 0)],
+    HelpTopic "help.topic" Read "Read a help topic" [in help, effect(Pure), since(1, 0)],
     Workflows "assist.workflows" Read "List workflows" [in assist, effect(World), since(1, 1)],
     StepResult "assist.step_result" Read "Answer a workflow step" [in assist, effect(World), since(1, 1)],
     Offer "assist.offer" Show "Offer a workflow in the chat" [in assist, reach(Window), needs(Window), since(1, 2)],
@@ -1090,6 +1098,8 @@ impl Request {
                 "Import exactly the working pinout document last previewed, as one undo step.",
                 "library.pinout_apply of the working pinout document as it was last previewed, by that preview's base (leave base out, or give it exactly; a rounded number is refused): one undo step, imported rows unreviewed. Refused when the working document changed since the preview.",
             ),
+            entry!(HelpSearch, "Find help by words and kind.", "Search offline help by title, summary, id and keywords. An empty text lists the index."),
+            entry!(HelpTopic, "Read the facts, examples and text of a help topic.", "Read one stable help id. budget_bytes bounds the excerpt; next requests the remaining blocks."),
             entry!(
                 Workflows,
                 "List the workflows this host offers: refined processes for a request, with their inputs.",
@@ -1247,6 +1257,8 @@ pub struct Session {
     /// without building the snapshot.
     compact: bool,
     baseline: Option<reply::Baseline>,
+    /// Help read from an explicit library or by a session without an engine context.
+    help_index: std::sync::OnceLock<std::result::Result<sparksmith_core::help::Index, String>>,
     /// The shipped library, when the host gives it (else located).
     shipped: Option<sparksmith_io::shipped::ShippedLibrary>,
     /// Attached documents and working pinout documents (`assist.*`).
@@ -1302,6 +1314,7 @@ impl Session {
             sources,
             compact: false,
             baseline: None,
+            help_index: Default::default(),
             shipped: None,
             assist: assist::Assist::default(),
             turns: turns::Turns::default(),
@@ -1870,6 +1883,8 @@ impl Session {
             Request::PinoutEdit(params) => return self.pinout_edit(*params),
             Request::WorkingPreview(params) => return self.working_preview(params),
             Request::WorkingApply(params) => return self.working_apply(params),
+            Request::HelpSearch(params) => return self.search_help(&params),
+            Request::HelpTopic(params) => return self.read_help(params),
             Request::Workflows(params) => return self.workflows(&params),
             Request::StepResult(params) => return self.step_result(params),
             // The front door runs these in the window; here is none.
@@ -2296,6 +2311,9 @@ mod firmware;
 pub(crate) mod generated_models;
 pub mod generators;
 mod generic_search;
+pub mod help;
+#[cfg(test)]
+mod help_registry;
 mod interface;
 mod marking;
 pub mod mechanical_parts;

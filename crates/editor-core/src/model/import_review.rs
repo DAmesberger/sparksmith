@@ -3,6 +3,7 @@
 //! while the schematic still disagrees with what the board had, so it is
 //! never silent. Data and its findings only; an importer records them with
 //! `schematic.set_net_disagreements`.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::ids::{Endpoint, Id};
 use crate::model::Project;
@@ -18,9 +19,9 @@ pub const MAX_TERMINALS: usize = 200_000;
 const MAX_NAMED: usize = 8;
 
 /// The finding of a board that joined nets the schematic keeps apart.
-pub const BOARD_JOINS: &str = "import.board_joins_nets";
+pub const BOARD_JOINS: &str = crate::diagnostics::FindingCode::ImportBoardJoinsNets.as_str();
 /// The finding of a net the schematic joins that the board had split.
-pub const BOARD_SPLITS: &str = "import.board_splits_net";
+pub const BOARD_SPLITS: &str = crate::diagnostics::FindingCode::ImportBoardSplitsNet.as_str();
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -160,7 +161,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                     }
                 }
                 out.push(Finding::new(
-                    BOARD_JOINS,
+                    FindingCode::ImportBoardJoinsNets,
                     format!(
                         "The imported board joined {} on one net; the schematic keeps them apart, and its nets were kept.",
                         listed(&names)
@@ -173,7 +174,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                     continue;
                 };
                 out.push(Finding::new(
-                    BOARD_SPLITS,
+                    FindingCode::ImportBoardSplitsNet,
                     format!(
                         "Net {} joins pins the imported board had on {} nets; the schematic's net was kept.",
                         project.net_name(id),

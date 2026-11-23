@@ -118,7 +118,12 @@ impl Surface for Session {
     fn call(&mut self, cx: CallCx<'_>, mut call: Call) -> Result<Value, Box<Error>> {
         let verbose = cx.verbose | take_verbose_params(&mut call.params);
         unsupported(&call)?;
-        let target = read(&call)?;
+        let mut target = read(&call)?;
+        if let Request::HelpTopic(params) = &mut target.request {
+            params.contextual = call.project.is_some()
+                || cx.window.is_some()
+                || matches!(&cx.who, Principal::LocalAgent { .. });
+        }
         // Validate both the transport wrapper and its selected entry on
         // successful calls exercised by the automation test suite.
         #[cfg(test)]

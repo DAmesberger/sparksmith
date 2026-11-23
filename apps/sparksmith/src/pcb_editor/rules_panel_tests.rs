@@ -4,6 +4,7 @@
 use super::*;
 use egui::{Pos2, Shape};
 use sparksmith_core::Engine;
+use sparksmith_core::diagnostics::FindingCode;
 use sparksmith_core::rules::fixtures;
 use sparksmith_ui::fonts;
 
@@ -655,12 +656,12 @@ fn impact_text_counts_changes_and_issues() -> TestResult {
 #[test]
 fn board_rule_findings_offer_show_rule() {
     use sparksmith_core::issues::{IssueArea, IssueDetail, IssueGroup, IssueRow, Severity};
-    let row = |code: &str| IssueRow {
+    let row = |code: FindingCode| IssueRow {
         severity: Severity::Error,
         area: IssueArea::Board,
         group: IssueGroup {
-            code: code.into(),
-            key: code.into(),
+            code: code.to_string(),
+            key: code.to_string(),
             title: "Clearance".into(),
         },
         title: "Clearance R1 ↔ R2".into(),
@@ -669,16 +670,16 @@ fn board_rule_findings_offer_show_rule() {
         also: Default::default(),
         needs: Vec::new(),
     };
-    match crate::issues::fix(&row("board.via_hole_spacing")) {
+    match crate::issues::fix(&row(FindingCode::BoardViaHoleSpacing)) {
         Some(crate::issues::Fix::Open {
             label: "Show rule",
             dialog: crate::issues::FixDialog::DesignRules(RuleTopic::HoleSpacing),
         }) => {}
         other => panic_free_fail(&format!("{other:?}")),
     }
-    assert!(crate::issues::fix(&row("board.unrouted")).is_none());
+    assert!(crate::issues::fix(&row(FindingCode::BoardUnrouted)).is_none());
     assert_eq!(
-        crate::issues::fix(&row("board.unplaced"))
+        crate::issues::fix(&row(FindingCode::BoardUnplaced))
             .map(|f| f.label().to_owned())
             .as_deref(),
         Some("Update PCB…")

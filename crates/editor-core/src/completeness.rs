@@ -1,5 +1,6 @@
 //! Derived completeness. Nothing stores a "complete" or "verified" flag; a
 //! state holds when no current finding blocks it.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::fields::{self, EffectiveField};
 use crate::functions::rules::RuleFailureKind;
@@ -113,7 +114,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
         let display = instances::display_label(project, item, unit);
         if state == UnitState::Unplaced {
             findings.push(Finding::blocking(
-                "instance.unit_unplaced",
+                FindingCode::InstanceUnitUnplaced,
                 format!("{display} is neither placed nor marked unused."),
                 vec![ObjectRef::Unit { instance: id, unit }],
                 Stage::ElectricallyResolved,
@@ -147,7 +148,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
         let object = vec![ObjectRef::Terminal { endpoint }];
         if !nets::accounted_for(project, endpoint) {
             findings.push(Finding::blocking(
-                "instance.terminal_unaccounted",
+                FindingCode::InstanceTerminalUnaccounted,
                 format!(
                     "{} terminal ‘{}’ is neither connected nor marked no-connect.",
                     item.designator, terminal.name
@@ -162,7 +163,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
                     .is_some_and(|net| net.terminals.len() >= 2))
         {
             findings.push(Finding::blocking(
-                "instance.no_connect_connected",
+                FindingCode::InstanceNoConnectConnected,
                 format!(
                     "{} terminal ‘{}’ is marked no-connect but is connected.",
                     item.designator, terminal.name
@@ -176,7 +177,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
                 .is_some_and(|f| f.direction == Direction::PowerInput)
         {
             findings.push(Finding::blocking(
-                "instance.required_terminal_no_connect",
+                FindingCode::InstanceRequiredTerminalNoConnect,
                 format!(
                     "{} terminal ‘{}’ is a required power input; no-connect cannot satisfy it.",
                     item.designator, terminal.name
@@ -200,7 +201,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
             .map(|t| t.name.clone())
             .unwrap_or_else(|| pin.terminal.to_string());
         findings.push(Finding::new(
-            "instance.unmapped_pad",
+            FindingCode::InstanceUnmappedPad,
             format!(
                 "{} pad ‘{name}’ matched no pin on its imported symbol; a pin was added by import.",
                 item.designator
@@ -221,7 +222,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
             .map(|t| t.name.clone())
             .unwrap_or_else(|| terminal.to_string());
         findings.push(Finding::blocking(
-            "config.function_unresolved",
+            FindingCode::ConfigFunctionUnresolved,
             format!(
                 "{} terminal ‘{name}’ has no selected function and no default.",
                 item.designator
@@ -250,8 +251,8 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
         );
         // A pin rule's `require` verdict is its own code (C1).
         let code = match requirement {
-            Requirement::Rule { .. } => "config.rule_unmet",
-            _ => "config.requirement_unmet",
+            Requirement::Rule { .. } => FindingCode::ConfigRuleUnmet,
+            _ => FindingCode::ConfigRequirementUnmet,
         };
         findings.push(Finding::blocking(
             code,
@@ -263,9 +264,9 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
     // A rule that gave no verdict leaves the assignment unchecked.
     for failure in &functions.rule_failures {
         let code = match failure.kind {
-            RuleFailureKind::Compile => "rule.script",
-            RuleFailureKind::Budget => "rule.budget",
-            RuleFailureKind::Runtime => "rule.runtime",
+            RuleFailureKind::Compile => FindingCode::RuleScript,
+            RuleFailureKind::Budget => FindingCode::RuleBudget,
+            RuleFailureKind::Runtime => FindingCode::RuleRuntime,
         };
         findings.push(Finding::blocking(
             code,
@@ -286,7 +287,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
     for field in &properties {
         if let Some(stage) = fields::unmet(field) {
             findings.push(Finding::blocking(
-                "instance.field_required",
+                FindingCode::InstanceFieldRequired,
                 format!(
                     "{} needs a value for required field ‘{}’.",
                     item.designator, field.label
@@ -301,7 +302,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
     }
     if resolved.physical.is_none() {
         findings.push(Finding::blocking(
-            "instance.no_physical_choice",
+            FindingCode::InstanceNoPhysicalChoice,
             format!("{} has no physical implementation chosen.", item.designator),
             vec![ObjectRef::Instance { id }],
             Stage::BoardPlaceable,

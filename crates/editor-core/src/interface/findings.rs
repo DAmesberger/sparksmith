@@ -6,36 +6,42 @@
 //! it blocks publishing to the linked design. A broken assembly reference
 //! is a warning in Issues that blocks only publishing (slice P1); a loop
 //! through positions blocks fabrication output.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef};
 
 /// The interface changed since the last publish (advisory).
-pub const UNPUBLISHED: &str = "interface.unpublished";
+pub const UNPUBLISHED: &str = crate::diagnostics::FindingCode::InterfaceUnpublished.as_str();
 /// An exported datum's owner or feature is gone; it keeps its slot.
-pub const DATUM_LOST: &str = "interface.datum_lost";
+pub const DATUM_LOST: &str = crate::diagnostics::FindingCode::InterfaceDatumLost.as_str();
 /// An exported datum was found again by geometry, not by name.
-pub const DATUM_INEXACT: &str = "interface.datum_inexact";
+pub const DATUM_INEXACT: &str = crate::diagnostics::FindingCode::InterfaceDatumInexact.as_str();
 /// The linked design changed since the board last read it (advisory).
-pub const ASSEMBLY_STALE: &str = "assembly.stale";
+pub const ASSEMBLY_STALE: &str = crate::diagnostics::FindingCode::AssemblyStale.as_str();
 /// The linked design still links an older published board.
-pub const ASSEMBLY_OLDER_BOARD: &str = "assembly.older_board";
+pub const ASSEMBLY_OLDER_BOARD: &str = crate::diagnostics::FindingCode::AssemblyOlderBoard.as_str();
 /// The board and the linked design both changed since they last agreed.
-pub const ASSEMBLY_BOTH_CHANGED: &str = "assembly.both_changed";
+pub const ASSEMBLY_BOTH_CHANGED: &str =
+    crate::diagnostics::FindingCode::AssemblyBothChanged.as_str();
 /// A linked design feature uses a datum that no longer resolves.
-pub const ASSEMBLY_REFERENCE_LOST: &str = "assembly.reference_lost";
+pub const ASSEMBLY_REFERENCE_LOST: &str =
+    crate::diagnostics::FindingCode::AssemblyReferenceLost.as_str();
 /// A linked design feature's datum was found again only by geometry.
-pub const ASSEMBLY_REFERENCE_INEXACT: &str = "assembly.reference_inexact";
+pub const ASSEMBLY_REFERENCE_INEXACT: &str =
+    crate::diagnostics::FindingCode::AssemblyReferenceInexact.as_str();
 /// A linked design feature references a face that is not exported.
-pub const ASSEMBLY_UNEXPORTED_FACE: &str = "assembly.unexported_face";
+pub const ASSEMBLY_UNEXPORTED_FACE: &str =
+    crate::diagnostics::FindingCode::AssemblyUnexportedFace.as_str();
 /// The board and the linked design depend on each other's positions in a
 /// loop.
-pub const ASSEMBLY_CYCLE: &str = "assembly.cycle";
+pub const ASSEMBLY_CYCLE: &str = crate::diagnostics::FindingCode::AssemblyCycle.as_str();
 /// The board follows linked design geometry whose extent, but not its
 /// position, the linked design takes from the board (advisory).
-pub const ASSEMBLY_EXTENT_CYCLE: &str = "assembly.extent_cycle";
+pub const ASSEMBLY_EXTENT_CYCLE: &str =
+    crate::diagnostics::FindingCode::AssemblyExtentCycle.as_str();
 /// The linked design file was not found; the board uses its snapshot.
-pub const ASSEMBLY_MISSING: &str = "assembly.missing";
+pub const ASSEMBLY_MISSING: &str = crate::diagnostics::FindingCode::AssemblyMissing.as_str();
 /// The linked design was saved by a newer SolidCraft than this build reads.
-pub const ASSEMBLY_NEWER: &str = "assembly.newer";
+pub const ASSEMBLY_NEWER: &str = crate::diagnostics::FindingCode::AssemblyNewer.as_str();
 /// Refusal: a board edge driven by the linked design was edited locally.
 pub const ASSEMBLY_DRIVEN_EDGE: &str = "assembly.driven_edge";
 /// Refusal: publishing while a reference between the board and the linked
@@ -101,14 +107,18 @@ pub fn unpublished(changed: usize, revision: Option<u32>) -> Finding {
         Some(r) => format!("{changed} {datums} changed since revision {r}"),
         None => "The board interface has not been published".into(),
     };
-    Finding::new(UNPUBLISHED, message, vec![ObjectRef::Board])
+    Finding::new(
+        FindingCode::InterfaceUnpublished,
+        message,
+        vec![ObjectRef::Board],
+    )
 }
 
 /// `interface.datum_lost`: `datum` is its display name ("J1 opening"),
 /// `owner` the object it belonged to, when that still exists.
 pub fn datum_lost(datum: &str, owner: Option<ObjectRef>) -> Finding {
     Finding::new(
-        DATUM_LOST,
+        FindingCode::InterfaceDatumLost,
         format!("{datum} no longer exists on the board; unexport it or restore what it was on"),
         owner.into_iter().collect(),
     )
@@ -117,7 +127,7 @@ pub fn datum_lost(datum: &str, owner: Option<ObjectRef>) -> Finding {
 /// `interface.datum_inexact`.
 pub fn datum_inexact(datum: &str, owner: Option<ObjectRef>) -> Finding {
     Finding::new(
-        DATUM_INEXACT,
+        FindingCode::InterfaceDatumInexact,
         format!("{datum} was found again by its shape, not by its name; check it"),
         owner.into_iter().collect(),
     )
@@ -126,7 +136,7 @@ pub fn datum_inexact(datum: &str, owner: Option<ObjectRef>) -> Finding {
 /// `assembly.stale`.
 pub fn assembly_stale() -> Finding {
     Finding::new(
-        ASSEMBLY_STALE,
+        FindingCode::AssemblyStale,
         "The linked design changed. Preview the update to see what moves".into(),
         vec![ObjectRef::Board],
     )
@@ -141,7 +151,7 @@ pub fn assembly_older_board(revision: Option<u32>) -> Finding {
         None => "an older board".into(),
     };
     Finding::new(
-        ASSEMBLY_OLDER_BOARD,
+        FindingCode::AssemblyOlderBoard,
         format!(
             "The linked design still uses {held}. Run Update Links in SolidCraft, then check again"
         ),
@@ -152,7 +162,7 @@ pub fn assembly_older_board(revision: Option<u32>) -> Finding {
 /// `assembly.both_changed`.
 pub fn assembly_both_changed() -> Finding {
     Finding::new(
-        ASSEMBLY_BOTH_CHANGED,
+        FindingCode::AssemblyBothChanged,
         "The board and the linked design both changed since they last agreed. Preview the update \
          and choose which side wins where they conflict"
             .into(),
@@ -187,7 +197,7 @@ pub fn assembly_reference_lost(
     objects: Vec<ObjectRef>,
 ) -> Finding {
     Finding::new(
-        ASSEMBLY_REFERENCE_LOST,
+        FindingCode::AssemblyReferenceLost,
         format!(
             "The linked design's {feature} uses {datum}. {cause}, so it would fail. Restore \
              {restore}, or pick another reference in SolidCraft"
@@ -199,7 +209,7 @@ pub fn assembly_reference_lost(
 /// `assembly.reference_inexact`.
 pub fn assembly_reference_inexact(feature: &str, datum: &str, objects: Vec<ObjectRef>) -> Finding {
     Finding::new(
-        ASSEMBLY_REFERENCE_INEXACT,
+        FindingCode::AssemblyReferenceInexact,
         format!(
             "The linked design's {feature} uses {datum}, which was found again only by its shape. \
              Check it in SolidCraft"
@@ -212,7 +222,7 @@ pub fn assembly_reference_inexact(feature: &str, datum: &str, objects: Vec<Objec
 /// U1 that is not exported. …"
 pub fn assembly_unexported_face(feature: &str, part: &str, objects: Vec<ObjectRef>) -> Finding {
     Finding::new(
-        ASSEMBLY_UNEXPORTED_FACE,
+        FindingCode::AssemblyUnexportedFace,
         format!(
             "The linked design's {feature} is attached to a face of {part} that is not exported. It \
              may move to another part when the board changes. Export the face to keep it stable"
@@ -224,19 +234,19 @@ pub fn assembly_unexported_face(feature: &str, part: &str, objects: Vec<ObjectRe
 /// `assembly.cycle`: `path` names the loop in both files' words ("Hole H2
 /// follows boss 'Boss 3', and the linked design places the board by hole H2").
 pub fn assembly_cycle(path: &str, objects: Vec<ObjectRef>) -> Finding {
-    Finding::new(ASSEMBLY_CYCLE, path.to_owned(), objects)
+    Finding::new(FindingCode::AssemblyCycle, path.to_owned(), objects)
 }
 
 /// `assembly.extent_cycle`: `path` names the loop in both files' words, as
 /// for [`assembly_cycle`].
 pub fn assembly_extent_cycle(path: &str, objects: Vec<ObjectRef>) -> Finding {
-    Finding::new(ASSEMBLY_EXTENT_CYCLE, path.to_owned(), objects)
+    Finding::new(FindingCode::AssemblyExtentCycle, path.to_owned(), objects)
 }
 
 /// `assembly.missing`.
 pub fn assembly_missing() -> Finding {
     Finding::new(
-        ASSEMBLY_MISSING,
+        FindingCode::AssemblyMissing,
         "The linked design file was not found. The board uses the last known geometry".into(),
         vec![ObjectRef::Board],
     )
@@ -245,7 +255,7 @@ pub fn assembly_missing() -> Finding {
 /// `assembly.newer`.
 pub fn assembly_newer() -> Finding {
     Finding::new(
-        ASSEMBLY_NEWER,
+        FindingCode::AssemblyNewer,
         "This linked design was saved by a newer SolidCraft than this Sparksmith can read".into(),
         vec![ObjectRef::Board],
     )

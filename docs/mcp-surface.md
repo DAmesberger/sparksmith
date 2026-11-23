@@ -17,7 +17,7 @@
   - Skills (Beta) and tasks (Beta) arrive as official extensions.
 - **The proposed surface:**
   - **Five tools instead of 40:** `find`, `describe`, `query`, `apply` and `act`. Each of the last three is one permission class, so its annotations are exact.
-  - **The catalog becomes cacheable resources,** and method guides become skills.
+  - **The catalog becomes cacheable resources,** and method guides become offline help topics.
   - **Person-owned decisions become `input_required` steps,** not prose rules: approvals, impact reviews before applying, and uncertain datasheet rows. That merges preview and apply into one call.
   - **Large results become links** to resources addressed by revision.
   - **Live state becomes subscribable resources.**
@@ -109,7 +109,7 @@ A server whose state is "the one current project" would therefore mix up convers
 | Tool | Class | Annotations | What it does |
 |---|---|---|---|
 | `find {text, kind?, limit?}` | read | `readOnlyHint`, `idempotentHint`, closed world | Searches the catalog (§3.3) by what an entry does. Each hit carries `name`, `kind` (query, operation, action), `class`, a one-line summary and a link to `sparksmith://catalog/{name}` |
-| `describe {name, def?}` | read | same | Returns one entry's exact input schema, an example and related skills, from the same bytes as the catalog resource. `guide:<topic>` returns a skill's `SKILL.md` for clients that can't read skills |
+| `describe {name, def?}` | read | same | Returns one entry's exact input schema, an example and related skills, from the same bytes as the catalog resource. `guide:<topic>` returns the matching offline help topic |
 | `query {project?, name, params}` | read | same | Every read: `project.inspect`, `project.issues`, `library.search`, `functions.suggest`, the pin report, the BOM, **and dry runs**. Changes nothing |
 | `apply {project?, expected_revision, operations: [...], dry_run?}` | edit | `readOnlyHint: false`, `destructiveHint: false` (undoable), closed world | Typed document operations, including undo and redo, applied atomically as one undo step. `dry_run` returns the impact without changing anything. Operations whose impact the person owns go through review (§3.5) |
 | `act {project?, name, params}` | ask | `destructiveHint: true`, `openWorldHint: true` | Files, folders, exports, fabrication output, firmware export, publishing to folders, opening and creating projects. Always approved by the person (§3.5). May answer with a task (§3.8) |
@@ -196,26 +196,11 @@ The catalog marks which entries need a person (new M2 field `person`):
 - **Whether external clients pass updates to the model** is *unconfirmed*. The resources work without subscriptions, read when needed.
 - **List notifications are not used.** `toolsListChanged` and `promptsListChanged` are not offered: the lists are fixed per build.
 
-### 3.7 Workflows as prompts, methods as skills
+### 3.7 Workflow prompts and offline help
 
-**Skills.** Today's 14.8 KB of instructions become Agent Skills directories in `crates/automation/src/mcp/skills/`, embedded at build time, with digests computed from the served bytes.
-- **The skills:**
-  - `sparksmith-pinout-import` (with `references/pinout-format.md` and `references/rule-api.md`, generated from the schema);
-  - `sparksmith-packages`;
-  - `sparksmith-modules`;
-  - `sparksmith-generic-parts`;
-  - `sparksmith-purchasing`;
-  - `sparksmith-library-folders`;
-  - `sparksmith-firmware`;
-  - `sparksmith-models-and-markings`;
-  - `sparksmith-conventions`.
-- **Serving.** They are served through the skills extension (`skills/list`, `skills/get`, `resources/read`). Clients without it read the same files as plain resources, or through `describe {name: "guide:…"}`.
+A workflow supplies its prompt and method from its shipped library folder. The help index reads that same method for `workflow/<name>`. Authors put product guides in `library/help/topics/`.
 
-**Prompts.** The five workflows first proposed in the assistant panel design were `datasheet_to_component`, `fix_issues`, `review_schematic`, `route_nets` and `explain`.
-- **What a prompt returns.** Each returns one user message: the goal, and the skill embedded as a `resource` so that clients without skills still get it.
-- **Arguments.** Completions offer sheets, nets and object ids from the project. `prompts/get` may itself return `input_required` (MRTR), for example to choose the datasheet file when it is missing.
-
-**Coordination with `assist-to-mcp`.** That agent is moving the runner's server parts (document tools, the working pinout document, argument leniency). Its document tools should land as catalog entries (`query document.text`, `query document.view_page`), not as new MCP tools.
+All clients can call `help.search` and `help.topic`. The MCP resources `sparksmith://help` and `sparksmith://help/{id}` carry those results. The template completes its `id` argument. A client can also ask `describe` for `guide:<name>` to read a guide. See the [help design](design/help-system.md).
 
 ### 3.8 Long work: progress, cancel, and tasks for actions only
 

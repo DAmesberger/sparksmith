@@ -3,6 +3,7 @@
 use super::bundle::{RefSite, references};
 use super::drafts::{Draft, Drafts};
 use super::{Definition, Library, check_bounds, printable, publish_rank};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::fields;
 use crate::ids::{DefinitionId, DefinitionRef, Revision};
@@ -12,7 +13,7 @@ use std::collections::BTreeSet;
 pub const MAX_PUBLISH_SET: usize = 32;
 
 /// A finding that blocks publication.
-pub(super) fn issue(code: &str, message: String, objects: Vec<ObjectRef>) -> Finding {
+pub(super) fn issue(code: FindingCode, message: String, objects: Vec<ObjectRef>) -> Finding {
     Finding::blocking(code, message, objects, Stage::Publish)
 }
 
@@ -63,14 +64,14 @@ fn local_id_findings(
     for local in &ids {
         if *local == 0 || !seen.insert(*local) {
             out.push(issue(
-                "definition.local_id_invalid",
+                FindingCode::DefinitionLocalIdInvalid,
                 "An object identity is zero or used more than once.".into(),
                 vec![object(id, *local)],
             ));
         }
         if *local >= next_local {
             out.push(issue(
-                "definition.local_id_unallocated",
+                FindingCode::DefinitionLocalIdUnallocated,
                 "An object identity was never allocated by this revision.".into(),
                 vec![object(id, *local)],
             ));
@@ -81,7 +82,7 @@ fn local_id_findings(
     };
     if next_local < base_next {
         out.push(issue(
-            "definition.next_local_decreased",
+            FindingCode::DefinitionNextLocalDecreased,
             "The identity counter is below the base revision's.".into(),
             vec![this],
         ));
@@ -90,7 +91,7 @@ fn local_id_findings(
     for local in seen.difference(&base_ids) {
         if *local < base_next {
             out.push(issue(
-                "definition.local_id_reused",
+                FindingCode::DefinitionLocalIdReused,
                 "An object reuses an identity retired before this revision.".into(),
                 vec![object(id, *local)],
             ));
@@ -104,7 +105,7 @@ pub fn publish_findings(library: &Library, r: DefinitionRef) -> Vec<Finding> {
     let this = ObjectRef::Definition { id: r.id };
     let Some((meta, body)) = library.definition(r) else {
         return vec![issue(
-            "reference.missing",
+            FindingCode::ReferenceMissing,
             format!(
                 "{} is missing from the project library.",
                 super::names::capitalised(&library.describe(r))
@@ -115,7 +116,7 @@ pub fn publish_findings(library: &Library, r: DefinitionRef) -> Vec<Finding> {
     let mut out = Vec::new();
     if !printable(&meta.name) {
         out.push(issue(
-            "definition.name",
+            FindingCode::DefinitionName,
             "A published definition needs a printable name of 1–256 bytes.".into(),
             vec![this],
         ));
@@ -146,7 +147,7 @@ pub fn publish_findings(library: &Library, r: DefinitionRef) -> Vec<Finding> {
             let kind = d.value_type.kind().map(|k| (k, library.quantity_kind(k)));
             if let Some((k, None)) = kind {
                 out.push(issue(
-                    "reference.missing",
+                    FindingCode::ReferenceMissing,
                     format!(
                         "{} is missing from the project library.",
                         super::names::capitalised(&library.describe(k.erased()))
@@ -207,12 +208,12 @@ pub fn pending_revision(library: &Library, draft: &Draft) -> Result<DefinitionRe
 pub fn stageable(library: &Library, draft: &Draft) -> std::result::Result<DefinitionRef, Finding> {
     let this = vec![ObjectRef::Definition { id: draft.id }];
     check_bounds(&draft.meta, &draft.definition)
-        .map_err(|e| issue("definition.bounds", e.to_string(), this.clone()))?;
+        .map_err(|e| issue(FindingCode::DefinitionBounds, e.to_string(), this.clone()))?;
     pending_revision(library, draft).map_err(|e| {
         let code = match e {
-            Error::Conflict(_) => "definition.stale_base",
-            Error::Limit(_) => "definition.revisions_exhausted",
-            _ => "definition.base_invalid",
+            Error::Conflict(_) => FindingCode::DefinitionStaleBase,
+            Error::Limit(_) => FindingCode::DefinitionRevisionsExhausted,
+            _ => FindingCode::DefinitionBaseInvalid,
         };
         issue(code, e.to_string(), this)
     })

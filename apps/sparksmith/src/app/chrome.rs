@@ -406,6 +406,7 @@ impl App {
                         }),
                         |ui| kit::card_title(ui, "Browser", &summary),
                         |ui| {
+                            super::help_sheet::region(ui, ui.max_rect(), "panel/browser", 1);
                             pick = browser::show(
                                 ui,
                                 &self.engine,
@@ -490,15 +491,38 @@ impl App {
     fn column(&mut self, ctx: &egui::Context, rect: Rect) {
         let wants = kit::card::wants(ctx, 2.0 * f32::from(shell::COLUMN_CARD_INSET));
         let column = kit::card::column(rect, self.issues.expanded(), wants);
+        if self.help.open {
+            let active = self.workspace_contexts();
+            let fix = shell::column_card(
+                ctx,
+                "help",
+                column.subject,
+                shell::COLUMN_CARD_INSET,
+                |ui| {
+                    super::help_sheet::region(ui, ui.max_rect(), "panel/help", 1);
+                    self.help.show(ui, &self.engine, &self.registry, &active)
+                },
+            )
+            .flatten();
+            if let Some(fix) = fix {
+                self.help.close();
+                self.fix(ctx, fix);
+            }
+            self.issues_column(ctx, column);
+            return;
+        }
         let slot = shell::column_card(
             ctx,
             "properties",
             column.subject,
             shell::COLUMN_CARD_INSET,
-            |ui| match self.workspace {
-                Workspace::Part => self.part.subject_slot(ui, &self.engine),
-                Workspace::Schematic => self.schematic.subject_slot(ui, &self.engine),
-                Workspace::Pcb => self.pcb.subject_slot(ui, &self.engine),
+            |ui| {
+                super::help_sheet::region(ui, ui.max_rect(), "panel/properties", 1);
+                match self.workspace {
+                    Workspace::Part => self.part.subject_slot(ui, &self.engine),
+                    Workspace::Schematic => self.schematic.subject_slot(ui, &self.engine),
+                    Workspace::Pcb => self.pcb.subject_slot(ui, &self.engine),
+                }
             },
         );
         if let Some(slot) = slot {
@@ -522,6 +546,7 @@ impl App {
     fn issues_column(&mut self, ctx: &egui::Context, column: kit::card::Column) {
         let selection = self.selection();
         let request = shell::column_card(ctx, "issues", column.issues, 0, |ui| {
+            super::help_sheet::region(ui, ui.max_rect(), "panel/issues", 1);
             self.issues
                 .card(ui, &self.engine, self.workspace, &selection)
         })
@@ -561,6 +586,11 @@ impl App {
                         "That issue has nothing to select",
                     ),
                 }
+            }
+            Some(issues::Request::Help { code, fix }) => {
+                self.help.pending_context = false;
+                let fix = fix.filter(|_| self.issues.has_current_report(&self.engine));
+                self.help.finding(code, self.engine.report_key(), fix);
             }
             Some(issues::Request::Fix(fix)) => self.fix(ctx, fix),
             None => {}

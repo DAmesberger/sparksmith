@@ -275,6 +275,12 @@ impl SchematicEditor {
                 let marked = typed_error(project, buffer).is_some();
                 let response =
                     kit::checked_text_row(ui, &buffer.label, &mut buffer.text, "default", marked);
+                crate::app::help_sheet::region(
+                    ui,
+                    response.rect,
+                    "entry/instance.set_properties",
+                    3,
+                );
                 // Checked against this frame's text, so Enter never sends
                 // what the parser rejects.
                 let error = typed_error(project, buffer);

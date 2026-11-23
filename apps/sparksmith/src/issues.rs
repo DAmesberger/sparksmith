@@ -374,6 +374,10 @@ pub enum Request {
         pin_mux: Option<PinMuxTarget>,
     },
     Fix(Fix),
+    Help {
+        code: sparksmith_core::diagnostics::FindingCode,
+        fix: Option<Fix>,
+    },
 }
 
 /// The instance whose pin-mux panel a `config.*` issue opens, and the pin
@@ -695,6 +699,30 @@ impl Surface {
     /// The newest report of every area ([`crate::issue_reports`]).
     fn whole(&self, engine: &Engine) -> Option<Answer> {
         self.reports.latest(engine)
+    }
+
+    pub fn has_current_report(&self, engine: &Engine) -> bool {
+        self.reports.shows(engine.report_key())
+    }
+
+    pub fn selection_help(
+        &self,
+        engine: &Engine,
+        selection: &[ObjectRef],
+    ) -> Option<(sparksmith_core::diagnostics::FindingCode, Option<Fix>)> {
+        if selection.is_empty() {
+            return None;
+        }
+        let answer = self.whole(engine)?;
+        let row = answer
+            .report()?
+            .rows
+            .iter()
+            .find(|row| row.objects().any(|object| selection.contains(object)))?;
+        Some((
+            row.finding.code,
+            self.has_current_report(engine).then(|| fix(row)).flatten(),
+        ))
     }
 
     pub fn expanded(&self) -> bool {
@@ -1206,6 +1234,10 @@ impl Surface {
                         }
                         None
                     }
+                    RowAction::Help => Some(Request::Help {
+                        code: issue.finding.code,
+                        fix: fix(issue),
+                    }),
                     RowAction::Fix => fix(issue).map(Request::Fix),
                     RowAction::Waive => {
                         self.waiving = Some(Waiving {

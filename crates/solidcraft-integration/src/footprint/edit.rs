@@ -3,6 +3,7 @@
 //! Sparksmith's. New ids come from the sketch's counters and are reported by
 //! diffing the entity ids before and after, never invented by the caller.
 
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::BTreeSet;
 
 use crate::geom::Vec2;
@@ -19,7 +20,7 @@ use super::check::MAX_COORD_MM;
 use super::params::Values;
 use super::{Outcome, problem};
 
-const EDIT: &str = "footprint.sketch_edit";
+const EDIT: FindingCode = FindingCode::FootprintSketchEdit;
 
 fn sketch_error(e: SketchError) -> super::Problem {
     problem(EDIT, e.to_string())

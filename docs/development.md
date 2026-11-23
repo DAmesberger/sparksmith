@@ -173,3 +173,13 @@ Solidcraft and its required patches are pinned to `97817e1d6d8601d64884563254457
 - [Roadmap](../ROADMAP.md) and [agent instructions](../AGENTS.md)
 
 The Route tool shoves other nets' tracks and vias aside, walks round obstacles or ignores them (M cycles the mode); each click is one atomic transaction and undo step, also as `layout.route_step` for the CLI and MCP ([push-and-shove](push-and-shove.md)). Select drags an existing track segment with shove, also as `layout.track_drag`. Production output is built ([fabrication output](fabrication-output.md)). Large-board performance, incremental native rebuilds and arbitrary Solidcraft model composition remain future work.
+
+## Offline help
+
+Run `cargo xtask help --update` to regenerate the registry files and the glossary. Run `cargo xtask help --check` to verify them against the current app and catalog. Regeneration preserves the first shipped app version of each existing id. Newly added ids start at the current workspace version. Authored pages live in `library/help/topics`. When a fact in a topic’s `covers` list changes, review the topic against that fact and run `cargo xtask help --stamp <topic-id>`.
+
+`cargo xtask help --site <out>` builds a local manual in `<out>/docs/<app-version>/` and `<out>/docs/latest/`. The search and internal links work offline. Release publication is a separate founder-approved step.
+
+English entries are assembled from the generated facts, English topics and shared workflow methods. Translation files go under `library/help/<locale>/`, for example `de/guide/first-board.json`. Each contains the topic’s `id`, `english_digest` and `text` map returned by `sparksmith_io::help::locale::translation_source`. A translator changes only the map’s text values. The loader preserves references, units, measurements, shortcuts, examples and citations. A missing translation displays the English page. A changed English source displays the English page and marks the translation stale. English is the only language shipped before the first release.
+
+Regenerate the Help and Keyboard shortcuts screenshots for each release using the [macOS VM capture checklist](../tools/launch/README.md#release-checklist-for-help-screenshots).

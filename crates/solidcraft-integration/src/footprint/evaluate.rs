@@ -5,6 +5,7 @@
 //! → quantization to 1e-6 mm and the result hash.
 
 use crate::geom::prelude::*;
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::geom::Vec2;
@@ -99,17 +100,20 @@ pub(crate) fn solve(stored: &Sketch, values: &Values) -> Outcome<(Sketch, usize)
         } else {
             flipped(stored, &report.folded)
         };
-        return Err(problem("footprint.solve_failed", why));
+        return Err(problem(FindingCode::FootprintSolveFailed, why));
     }
     if !report.folded.is_empty() {
         return Err(problem(
-            "footprint.flipped",
+            FindingCode::FootprintFlipped,
             flipped(stored, &report.folded),
         ));
     }
     let flips = flips_from_stored(&sketch, stored);
     if !flips.is_empty() {
-        return Err(problem("footprint.flipped", flipped(stored, &flips)));
+        return Err(problem(
+            FindingCode::FootprintFlipped,
+            flipped(stored, &flips),
+        ));
     }
     Ok((sketch, report.dof))
 }
@@ -169,35 +173,38 @@ fn named_constraints(sketch: &Sketch, ids: &[String]) -> (String, usize) {
     (list, others)
 }
 
-fn point_at(sk: &Sketch, id: &str, code: &'static str) -> Outcome<Vec2> {
+fn point_at(sk: &Sketch, id: &str, code: FindingCode) -> Outcome<Vec2> {
     sk.point_index(id)
         .and_then(|i| sk.point(i))
         .ok_or_else(|| problem(code, format!("no sketch point `{id}`")))
 }
 
-fn curve_at(sk: &Sketch, id: &str, code: &'static str) -> Outcome<usize> {
+fn curve_at(sk: &Sketch, id: &str, code: FindingCode) -> Outcome<usize> {
     sk.curve_index(id)
         .ok_or_else(|| problem(code, format!("no sketch curve `{id}`")))
 }
 
 /// A line's start-to-end unit direction.
 fn direction(sk: &Sketch, id: &str) -> Outcome<Vec2> {
-    let c = curve_at(sk, id, "footprint.orientation")?;
+    let c = curve_at(sk, id, FindingCode::FootprintOrientation)?;
     let Some(CurveKind::Line { a, b }) = sk.curves.get(c).map(|c| &c.kind) else {
         return Err(problem(
-            "footprint.orientation",
+            FindingCode::FootprintOrientation,
             format!("`{id}` is not a line"),
         ));
     };
     let (Some(a), Some(b)) = (sk.point(*a), sk.point(*b)) else {
         return Err(problem(
-            "footprint.orientation",
+            FindingCode::FootprintOrientation,
             "a line names a missing point",
         ));
     };
-    (b - a)
-        .normalized()
-        .ok_or_else(|| problem("footprint.orientation", format!("`{id}` has no length")))
+    (b - a).normalized().ok_or_else(|| {
+        problem(
+            FindingCode::FootprintOrientation,
+            format!("`{id}` has no length"),
+        )
+    })
 }
 
 fn angle_of(sk: &Sketch, id: &str) -> Outcome<f64> {
@@ -314,7 +321,7 @@ fn paste_windows(
     anchor: Vec2,
     rotation_deg: f64,
 ) -> Outcome<Vec<PasteWindow>> {
-    const BAD: &str = "footprint.paste_window";
+    const BAD: FindingCode = FindingCode::FootprintPasteWindow;
     let wanted: BTreeMap<&str, usize> = curves
         .iter()
         .enumerate()
@@ -397,7 +404,7 @@ fn vias(role: &PadRole, values: &Values) -> Outcome<Vec<PadVia>> {
         values.positive(&grid.drill.0)?,
     );
     if usize::from(rows) * usize::from(cols) > MAX_PAD_VIAS {
-        return Err(problem("footprint.too_large", "too many pad vias"));
+        return Err(problem(FindingCode::FootprintTooLarge, "too many pad vias"));
     }
     let mut out = Vec::new();
     for i in 0..rows {
@@ -423,14 +430,17 @@ fn classify_roles(
 ) -> Outcome<BTreeMap<PadId, Seed>> {
     let roles = &request.source.pads;
     if roles.len() > MAX_PADS {
-        return Err(problem("footprint.too_large", "too many pad roles"));
+        return Err(problem(
+            FindingCode::FootprintTooLarge,
+            "too many pad roles",
+        ));
     }
     let copper = copper_only(sketch, non_copper);
     let profiles = find_profiles(&copper);
     let mut seeds = BTreeMap::new();
     let mut taken: BTreeMap<usize, PadId> = BTreeMap::new();
     for role in roles {
-        let anchor = point_at(sketch, &role.anchor.0, "footprint.anchor_missing")?;
+        let anchor = point_at(sketch, &role.anchor.0, FindingCode::FootprintAnchorMissing)?;
         let unclassified = |why: String| problem(UNCLASSIFIED, format!("pad {}: {why}", role.pad));
         let index = profile_at_point(&profiles, anchor)
             .ok_or_else(|| unclassified("no closed copper profile around the anchor".into()))?;
@@ -448,7 +458,7 @@ fn classify_roles(
         if let PadGeometry::Template { owned_curves, .. } = &role.geometry {
             let mut owned = Vec::new();
             for id in owned_curves {
-                let c = curve_at(sketch, &id.0, "footprint.owned_curve")?;
+                let c = curve_at(sketch, &id.0, FindingCode::FootprintOwnedCurve)?;
                 if copper.curves.get(c).is_some_and(|c| !c.construction) {
                     owned.push(id.0.clone());
                 }
@@ -483,7 +493,7 @@ fn classify_roles(
                 let curves = h
                     .curves
                     .iter()
-                    .map(|c| curve_at(sketch, &c.0, "footprint.hole_unclassified"))
+                    .map(|c| curve_at(sketch, &c.0, FindingCode::FootprintHoleUnclassified))
                     .collect::<Outcome<Vec<_>>>()?;
                 Some(classify::hole(
                     sketch,
@@ -520,7 +530,7 @@ fn classify_roles(
             .is_some()
         {
             return Err(problem(
-                "footprint.anchor_missing",
+                FindingCode::FootprintAnchorMissing,
                 format!("pad {} has two roles", role.pad),
             ));
         }
@@ -590,19 +600,19 @@ fn expand(
     for array in &source.arrays {
         let seed = seeds.get(&array.seed).ok_or_else(|| {
             problem(
-                "footprint.anchor_missing",
+                FindingCode::FootprintAnchorMissing,
                 format!("array {} has no seed pad {}", array.id.0, array.seed),
             )
         })?;
         if !seeded.insert(array.seed) {
             return Err(problem(
-                "footprint.array",
+                FindingCode::FootprintArray,
                 format!("pad {} seeds two arrays", array.seed),
             ));
         }
         if !ids.insert(array.id) {
             return Err(problem(
-                "footprint.array",
+                FindingCode::FootprintArray,
                 format!("array {} is defined twice", array.id.0),
             ));
         }
@@ -668,13 +678,13 @@ fn expand(
     }
     if let Some(orphan) = overrides.keys().find(|k| !used_overrides.contains(*k)) {
         return Err(problem(
-            "footprint.override_orphaned",
+            FindingCode::FootprintOverrideOrphaned,
             format!("an override targets {orphan:?}, which the arrays no longer generate"),
         ));
     }
     if out.len() > MAX_PADS {
         return Err(problem(
-            "footprint.too_large",
+            FindingCode::FootprintTooLarge,
             format!("{} pads", out.len()),
         ));
     }
@@ -683,7 +693,7 @@ fn expand(
 
 fn arc_of(sk: &Sketch, c: usize, a: usize, b: usize) -> Outcome<Shape> {
     let (Some(pc), Some(pa), Some(pb)) = (sk.point(c), sk.point(a), sk.point(b)) else {
-        return Err(problem("footprint.graphic", "an arc names a missing point"));
+        return Err(problem(FindingCode::FootprintGraphic, "an arc names a missing point"));
     };
     let start = (pa.y - pc.y).atan2(pa.x - pc.x).to_degrees();
     let end = (pb.y - pc.y).atan2(pb.x - pc.x).to_degrees();
@@ -705,7 +715,7 @@ fn curves_shape(
     sk: &Sketch,
     ids: &[sparksmith_core::library::footprint_source::SketchCurveId],
 ) -> Outcome<Shape> {
-    const BAD: &str = "footprint.graphic";
+    const BAD: FindingCode = FindingCode::FootprintGraphic;
     let pos = |i: usize| {
         sk.point(i)
             .map(|v| [v.x, v.y])
@@ -880,7 +890,7 @@ fn graphics(
             item: Item::Shape {
                 shape: stored_shape(&shape)?,
                 width_nm: Nm::from_mm_f64_rounded(values.length(&width.0)?)
-                    .map_err(|e| problem("footprint.too_large", e.to_string()))?,
+                    .map_err(|e| problem(FindingCode::FootprintTooLarge, e.to_string()))?,
                 fill: *fill,
             },
         });
@@ -892,7 +902,7 @@ fn datum(request: &EvaluationRequest<'_>, sketch: &Sketch) -> Outcome<Datum> {
     let Some(role) = &request.source.datum else {
         return Ok(Datum::default());
     };
-    let at = point_at(sketch, &role.point.0, "footprint.datum")?;
+    let at = point_at(sketch, &role.point.0, FindingCode::FootprintDatum)?;
     let rotation_deg = match &role.orientation {
         Some(o) => angle_of(sketch, &o.0)?.rem_euclid(360.0),
         None => 0.0,
@@ -906,7 +916,7 @@ pub(crate) fn q(v: f64) -> Outcome<f64> {
     let k = (v * 1e6).round();
     if !k.is_finite() || k.abs() > 9.0e15 {
         return Err(problem(
-            "footprint.too_large",
+            FindingCode::FootprintTooLarge,
             format!("{v} cannot be quantized"),
         ));
     }
@@ -921,13 +931,14 @@ fn qp(p: Point) -> Outcome<Point> {
 /// A solved shape stored: rounded to whole nanometres, the 1e-6 mm
 /// quantum ([`ShapeNm::from_mm_rounded`]).
 fn stored_shape(shape: &Shape) -> Outcome<ShapeNm> {
-    ShapeNm::from_mm_rounded(shape).map_err(|e| problem("footprint.too_large", e.to_string()))
+    ShapeNm::from_mm_rounded(shape)
+        .map_err(|e| problem(FindingCode::FootprintTooLarge, e.to_string()))
 }
 
 /// [`Pad::fold_rotation`], whose turned paste windows are stored rounded.
 fn fold(pad: &mut Pad) -> Outcome<()> {
     pad.fold_rotation()
-        .map_err(|e| problem("footprint.too_large", e.to_string()))
+        .map_err(|e| problem(FindingCode::FootprintTooLarge, e.to_string()))
 }
 
 /// The solved pad's remaining f64 values quantized (lengths, positions and
@@ -963,14 +974,14 @@ fn result_hash(
     datum: &Datum,
 ) -> Outcome<String> {
     sparksmith_core::library::footprint_source::result_hash(pads, graphics, datum)
-        .map_err(|e| problem("footprint.internal", e.to_string()))
+        .map_err(|e| problem(FindingCode::FootprintInternal, e.to_string()))
 }
 
 fn pipeline(request: EvaluationRequest<'_>) -> Outcome<Evaluation> {
     let source = request.source;
     if source.evaluator != evaluator_ref() {
         return Err(problem(
-            "footprint.evaluator_rev",
+            FindingCode::FootprintEvaluatorRev,
             format!(
                 "the source was made with {} {}, this build has {} {}",
                 source.evaluator.engine,
@@ -997,14 +1008,14 @@ fn pipeline(request: EvaluationRequest<'_>) -> Outcome<Evaluation> {
     let mut findings = Vec::new();
     if dof > 0 {
         findings.push(Finding::new(
-            "footprint.under_constrained",
+            FindingCode::FootprintUnderConstrained,
             format!("The footprint sketch has {dof} remaining degrees of freedom."),
             Vec::new(),
         ));
     }
     if !new_keys.is_empty() {
         findings.push(Finding::new(
-            "footprint.unresolved_key",
+            FindingCode::FootprintUnresolvedKey,
             format!(
                 "{} new array pads have no terminal decision yet (assign terminals).",
                 new_keys.len()
@@ -1020,7 +1031,7 @@ fn pipeline(request: EvaluationRequest<'_>) -> Outcome<Evaluation> {
         .any(|p| p.pos.x.abs() > MAX_COORD_MM || p.pos.y.abs() > MAX_COORD_MM)
     {
         return Err(problem(
-            "footprint.too_large",
+            FindingCode::FootprintTooLarge,
             "the solved sketch leaves the coordinate range",
         ));
     }

@@ -351,6 +351,37 @@ final class Player {
     }
 }
 
+/// Wait for the requested text in the take's own accessibility tree.
+func expectText(pid: pid_t, text: String) {
+    guard !text.isEmpty, AXIsProcessTrusted() else {
+        fail("expect needs a label and Accessibility permission")
+    }
+    let app = AXUIElementCreateApplication(pid)
+    let deadline = Date().addingTimeInterval(15)
+    while Date() < deadline {
+        var queue = [app]
+        var offset = 0
+        while offset < queue.count && offset < 4096 && Date() < deadline {
+            let node = queue[offset]
+            offset += 1
+            for attribute in [kAXTitleAttribute, kAXDescriptionAttribute, kAXValueAttribute] {
+                var value: CFTypeRef?
+                if AXUIElementCopyAttributeValue(node, attribute as CFString, &value) == .success,
+                    let value = value as? String, value == text { return }
+            }
+            var children: CFArray?
+            let available = 4096 - queue.count
+            if available > 0,
+                AXUIElementCopyAttributeValues(node, kAXChildrenAttribute as CFString, 0, available, &children) == .success,
+                let children = children as? [AXUIElement] {
+                queue.append(contentsOf: children)
+            }
+        }
+        Thread.sleep(forTimeInterval: 0.15)
+    }
+    fail("window of pid \(pid) did not expose ‘\(text)’")
+}
+
 /// Split a line into words, keeping "quoted text" together.
 func words(_ line: String) -> [String] {
     var result: [String] = []
@@ -398,6 +429,7 @@ func play(pid: pid_t, shot: String, trackOut: String, activate: Bool) {
             fail("\(shot):\(number + 1): \(op) needs a number at argument \(i + 1)")
         }
         switch op {
+        case "expect": expectText(pid: pid, text: args.first ?? "")
         case "wait": Thread.sleep(forTimeInterval: num(0))
         case "move": player.glide(to: CGPoint(x: num(0), y: num(1)), over: num(2, 0.6))
         case "click":

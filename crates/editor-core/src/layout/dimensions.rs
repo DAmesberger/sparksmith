@@ -19,6 +19,7 @@
 //! curve) stops its dimension driving, so the parts keep the poses it gave,
 //! and is reported by [`checks`] (`board.reference_lost`), which blocks
 //! fabrication output with no waiver.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::geometry::{Point, point_valid};
 use crate::ids::Id;
@@ -49,11 +50,11 @@ pub(crate) use carry::protect_connections;
 /// Finding code: a reference whose source is gone (a deleted part, pad,
 /// anchor, board curve or model face). It keeps its last geometry and
 /// blocks fabrication output with no waiver (§5.5).
-pub const REFERENCE_LOST: &str = "board.reference_lost";
+pub const REFERENCE_LOST: &str = crate::diagnostics::FindingCode::BoardReferenceLost.as_str();
 /// Finding code: a reference found again but not provably the same
 /// geometry (a renamed or unverified model face). It blocks fabrication
 /// output with no waiver until acknowledged in an impact preview (§5.5).
-pub const REFERENCE_INEXACT: &str = "board.reference_inexact";
+pub const REFERENCE_INEXACT: &str = crate::diagnostics::FindingCode::BoardReferenceInexact.as_str();
 
 /// Part-dimension mutations; each is one undo step.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -396,7 +397,11 @@ pub fn checks(project: &Project) -> Vec<Finding> {
                     target_words(project, f.target())
                 ),
             };
-            out.push(Finding::new(REFERENCE_LOST, message, objects));
+            out.push(Finding::new(
+                FindingCode::BoardReferenceLost,
+                message,
+                objects,
+            ));
         }
     }
     out
@@ -431,25 +436,28 @@ fn model_words(
     project: &Project,
     f: &FeatureRef,
     status: ReferenceStatus,
-) -> (&'static str, String) {
+) -> (FindingCode, String) {
     let what = model_feature_words(project, f);
     let why = model::find(project, f)
         .map(|t| t.note.trim_end_matches('.').to_owned())
         .filter(|n| !n.is_empty());
     match (status, why) {
         (ReferenceStatus::Inexact, Some(why)) => (
-            REFERENCE_INEXACT,
+            FindingCode::BoardReferenceInexact,
             format!("{what} may not be the face it was: {why}; pick it again"),
         ),
         (ReferenceStatus::Inexact, None) => (
-            REFERENCE_INEXACT,
+            FindingCode::BoardReferenceInexact,
             format!("{what} may not be the face it was; pick it again"),
         ),
         // The host's reason already names it ("J1 · top face is parallel
         // to the board; …").
-        (_, Some(why)) if why.starts_with(&what) => (REFERENCE_LOST, why),
-        (_, Some(why)) => (REFERENCE_LOST, format!("{what} is lost: {why}")),
-        (_, None) => (REFERENCE_LOST, format!("{what} is lost")),
+        (_, Some(why)) if why.starts_with(&what) => (FindingCode::BoardReferenceLost, why),
+        (_, Some(why)) => (
+            FindingCode::BoardReferenceLost,
+            format!("{what} is lost: {why}"),
+        ),
+        (_, None) => (FindingCode::BoardReferenceLost, format!("{what} is lost")),
     }
 }
 

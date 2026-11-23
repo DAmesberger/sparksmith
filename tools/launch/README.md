@@ -67,3 +67,12 @@ Keep `OUT` outside the repository (large media are not committed). Each take dir
 - It closes only the app it started, by pid, also on failure (no broad `pkill`).
 - Captions use IBM Plex Sans (SIL Open Font License), found in Solidcraft's pinned checkout; set
   `LAUNCH_FONT` to use another font with a permissive licence. There is no music track.
+
+## Release checklist for help screenshots
+
+1. Prepare a checkout of the release and its matching `sparksmith-desktop` executable inside the macOS VM. Use the guest terminal with Screen Recording and Accessibility enabled as described above. Keep the desktop, example and shipped library from the same revision.
+2. From the guest checkout, run `python3 tools/launch/help-capture.py --desktop /guest/path/to/sparksmith-desktop`, substituting the executable's guest-local path. The script opens a private copy of the ESP32-S31 development board for each shot, with default bindings and a fresh user profile. It prints a new folder under `target/help-capture/`.
+3. Review both PNGs at full size. The Help image should show search results for **annular ring** and the Keyboard shortcuts image should show the active binding for **Undo**. Check legibility and confirm each alt description in `capture.json` matches the view. If the UI has changed, update the relevant shot, expected labels and description and regenerate the images. The record identifies the app version, executable and example digests, window frames and PNG digests.
+4. In the release checkout, run `python3 tools/launch/help-capture.py --install /path/to/reviewed-capture-folder`. If that checkout is on another machine, first transfer the reviewed folder and use its local path. The installer checks the record, copies the images to `library/help/media/` and adds each figure to its panel topic. Run the project's `cargo xtask help --check` and `cargo xtask help --site target/help-manual` through the shared Cargo slot when applicable. Open the two pages in the desktop reader and the generated manual. Commit the PNGs and updated panel topics together.
+
+Use `python3 tools/launch/help-capture.py --list` to list the scenes without opening the editor. An image in a help topic carries its captured build version in its Markdown title, for example `![The action shown in this window](window.png "0.1.0")`. The capture version can differ from the release that first shipped the topic.

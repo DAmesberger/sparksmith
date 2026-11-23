@@ -81,7 +81,7 @@ fn a_dragged_track_with_no_way_through_is_left_unrouted() -> Fallible {
         checks(p, &Default::default())
             .into_iter()
             .filter(|f| f.blocks.is_some() || f.code == "keepout.track")
-            .map(|f| f.code)
+            .map(|f| f.code.to_string())
             .collect::<Vec<_>>()
     };
     assert_eq!(errors(&before), Vec::<String>::new());

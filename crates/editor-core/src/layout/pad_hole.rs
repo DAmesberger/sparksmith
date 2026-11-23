@@ -25,6 +25,7 @@ use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
 use super::physical::{self, HoleOwner};
 use super::{BoardCopper, CopperRing, EPS, PlacedPad, check_pair_budget, pad_labels, placed_pads};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::Shape;
 use crate::ids::{Id, PadId};
@@ -488,7 +489,7 @@ impl<'a> PadHoleCx<'a> {
         {
             issues.push(
                 Finding::new(
-                    "board.edge_clearance",
+                    FindingCode::BoardEdgeClearance,
                     format!("{}: {} {text}", hole.name, hole.what),
                     vec![hole.object],
                 )
@@ -524,7 +525,7 @@ impl<'a> PadHoleCx<'a> {
             };
             issues.push(
                 Finding::new(
-                    "board.pad_hole_clearance",
+                    FindingCode::BoardPadHoleClearance,
                     format!("{}: hole {how}; {}", hole.name, need.text()),
                     vec![hole.object, shape.object],
                 )
@@ -576,7 +577,7 @@ impl<'a> PadHoleCx<'a> {
                 )
             };
             issues.push(
-                Finding::new("board.pad_hole_spacing", text, objects).requiring(need.at_most(gap)),
+                Finding::new(FindingCode::BoardPadHoleSpacing, text, objects).requiring(need.at_most(gap)),
             );
         }
         Ok(pairs)
@@ -641,7 +642,7 @@ fn rings(
         if ring.is_finite() && ring < need.mm - EPS {
             issues.push(
                 Finding::new(
-                    "board.pth_annular_ring",
+                    FindingCode::BoardPthAnnularRing,
                     format!("{}: {}", name(pad), text(ring)),
                     vec![object],
                 )
@@ -652,7 +653,7 @@ fn rings(
         if ring.is_finite() && ring < npth_need.mm - EPS {
             issues.push(
                 Finding::new(
-                    "board.npth_annular_ring",
+                    FindingCode::BoardNpthAnnularRing,
                     format!(
                         "{}: annular ring {} mm round the unplated hole; {}",
                         name(pad),
@@ -672,7 +673,7 @@ fn rings(
         if ring < need.mm - EPS {
             issues.push(
                 Finding::new(
-                    "board.pth_annular_ring",
+                    FindingCode::BoardPthAnnularRing,
                     format!(
                         "{}: {}",
                         capitalised(&physical::mounting_hole_name(true, mount.at)),

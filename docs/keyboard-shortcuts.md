@@ -109,30 +109,7 @@ An armed drawing or placing tool shows a crosshair over the canvas (`kit::tool_c
 
 ## Default keymap
 
-The keymap is original. Letters are mnemonic where they can be: R route, V via, T tune, P place or fill (pour), B board shape, W wire, L label, H highlight. Solidcraft's sketch keys are kept in the sketch-like tools.
-
-| Context | Keys |
-| --- | --- |
-| Everywhere | ⌘P / ⇧⌘P palette · ⌘/ shortcuts · ⌘, settings · ⌘Q quit · ⌘W close window · ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as · ⇧⌘E export to Solidcraft · ⌘Z undo · ⇧⌘Z redo · ⌘B Browser · ⇧⌘I Issues · ⇧⌘A Assistant · ⇧⌘M Messages · ⌘1 / ⌘2 / ⌘3 Component / Schematic / PCB · ⇧⌘U update PCB from schematic (opens PCB) · F fit view |
-| Component | ⇧⌘N new component · ⇧⌘O open component · ⌘[ / ⌘] previous / next component |
-| Symbol tab | L line · ⇧L polyline · R rectangle · C circle · A arc · ⇧P polygon · ⇧T text · ⇧F field · N pin · ⌘R rotate · ⇧X mirror · ⌘D duplicate · Delete or Backspace · ⇧R repeat tool · Enter finish · Esc cancel |
-| Footprint tab | N pad · ⇧N pad row · H drill · ⇧H slot · L / A / C / R draw · D dimension · X construction ↔ silkscreen · Space turn pad · ⇧R repeat · Delete or Backspace · Esc |
-| Schematic | P place · W wire · N no connect · L net label · ⇧L global label · H hierarchical label · ⇧P power port · ⇧S sheet symbol · T note · ⌘R rotate (symbol or label) · ⇧X mirror · Delete removes the selected label, sheet symbol, drawing or wire (a picked wire corner goes first) · ⇧Delete or ⇧Backspace split the selected wire at the segment under the pointer · A round the picked wire corner by the Wire tool's radius, or make it sharp · Esc cancel |
-| PCB (both views) | D Layout ↔ 3D · ⇧⌘L show or hide the Parts and vias band under the canvas · ⇧D dimension a part (one tool in both views; in 3D Esc and Delete are its own `pcb.dimension-cancel` and `pcb.dimension-delete`, in Layout Esc cancel and Delete) · ⇧P refill all fills |
-| PCB Layout | R route · V via · T tune length · P fill · C place component (the Place palette; a part without pins, such as a fiducial, goes on the board at the view centre) · B board shape · M place 3D part ([mechanical parts](mechanical-parts.md)) · ⌘R rotate the selected part · 1–9, 0 stackup layer 1–10 (the active layer; through a via while routing) · ⇧L layer focus (all layers, dim others, active only) · ⇧F view from bottom · H highlight complete net · ⌥-drag a differential pair's track to move that half alone (its partner stays; the canvas hint names ⌥ during a pair drag) · Esc cancel |
-| PCB 3D | 1 front · 2 back · 3 left · 4 right · 5 top · 6 bottom · 7 home (isometric, fitted) · ⇧F fit and orbit around the selection · ⇧N follow net (the selected net solid, the rest see-through) · arrows turn the view 15° (⇧: 90°) · ⌘ arrows pan (arrows are navigation, read by the view, not rebindable) |
-| Wire tool (`WIRE_KEYS`) | Click corner; a pin, label, junction, free end or wire ends the wire · double-click or Enter end here with a free end · Esc end here (with no corner: cancel; again: Select) · Backspace remove the last corner · F flip the elbow · A arc corners on or off (sticky) |
-| Route tool (`ROUTE_KEYS`) | Click corner · Enter finish · Esc end (again: Select) · Backspace remove the last segment · V / ⇧V via to the next / previous layer · 1–0 (the Layout's layer keys) via to that layer · / next mode (45°, 90°, free) · F (or ⇧F) flip the elbow · W / ⇧W next / previous track width · D / ⇧D next / previous via size (⇧D instead of Dimension) · P pair routing on or off · M / ⇧M next / previous router (shove, walkaround, ignore; [push-and-shove](push-and-shove.md)) |
-| Tune tool (`TUNE_KEYS`) | Click tune the segment · / trombone ↔ accordion · A / ⇧A amplitude up / down · S / ⇧S spacing wider / narrower · F flip the side |
-| Fill tool (`FILL_KEYS`) | A lines ↔ arcs · Enter close · Backspace take back a point · Esc drop the outline |
-| Board shape | L line · A arc · C circle · R rectangle · F fillet · D dimension · U cutout · H hole · ⇧H slot · E name edge · X construction · Delete or Backspace · Esc |
-| Lists (`LIST_KEYS`, while a list has the keyboard) | ↑ / ↓ move and select · ⇧↑ / ⇧↓, ⇧Home / ⇧End extend from the anchor · ⌘↑ / ⌘↓ move the cursor only · Home / End, PgUp / PgDn jump · Space add or remove the row (on a group: fold) · ← / → fold, unfold, or go to the parent · Enter or F2 edit or locate · Esc cancel the edit, then clear the filter, then the selection · ⌘A select every shown row · / or ⌘F filter · ⌥↑ / ⌥↓ reorder (Dimensions) · Delete or Backspace delete the selected rows · letters and digits type ahead (700 ms) |
-
-The layer focus (`pcb.layer-focus`, PCB › Layout) is a registry command run by the app's dispatcher, so it works in every Layout tool and shows in the palette, Settings › Keyboard and the key reveal. It cycles how the copper layers besides the active one show: all dimmed under it, strongly dimmed, or hidden ([PCB realism](pcb-realism.md#pcb-2d-appssparksmith)). The view popover's Focus row sets it too, and the status line names it. It is view state and is not saved. Its default key is ⇧L (layer): ⇧S, the first choice, is the Tune tool's narrower spacing, and taking it would make the focus key do nothing while Tune is armed.
-
-Layer and display toggles have palette commands but no default keys. They cover each copper layer a stackup can have (the palette lists the board's), vias, silkscreens, courtyards, assembly, holes, component bodies and airwires.
-
-Route moved from X to R. The Component workspace's Open moved from ⌘P to ⇧⌘O, because ⌘P now opens the palette.
+Open **Keyboard shortcuts** from Help to see the commands grouped by context. The sheet reads the installed help registry and applies your current bindings. Use **Settings › Keyboard** to change a binding.
 
 ### Mnemonic audit (proposed, not applied)
 
@@ -150,13 +127,6 @@ Changing any of these keys would also change a key tip, because a tip equals a c
 
 ## 3D navigation
 
-The PCB 3D view has a navigation cube in its top-right corner. It follows Solidcraft's cube: click a face for that side's view, click a corner square for that corner's isometric view, or drag the cube to orbit. The house button above the cube goes home (isometric, fitted). The same views are the PCB 3D commands above (registry commands, rebindable in Settings and shown by the key reveal; 1–7 belong to PCB 3D and the layer keys 1–0 to Layout, sibling contexts that never see each other's keys), and the canvas hint at the bottom left names the gestures of the device last used to navigate: the mouse's buttons after a middle or right drag or a wheel notch, the trackpad's after a two-finger scroll or a pinch, and both before either (`navigation::Device`). The key reveal's navigation line follows it the same way, in 3D and on the flat canvases. The Keyboard shortcuts sheet lists every gesture under PCB › 3D (`navigation::NAVIGATION_3D`):
-
-| Input | Trackpad | Mouse |
-| --- | --- | --- |
-| Orbit | Shift + two fingers | Right-drag, Shift + middle-drag, or ⌘-drag on empty space |
-| Pan | Two fingers | Middle-drag, or Space + drag |
-| Zoom toward the pointer | Pinch | Wheel |
-| Fit | F | Middle double-click |
+The PCB 3D view has a navigation cube in its top-right corner. It follows Solidcraft's cube: click a face for that side's view, click a corner square for that corner's isometric view, or drag the cube to orbit. The house button above the cube goes home (isometric, fitted). The same views are the PCB 3D commands in the registry (registry commands, rebindable in Settings and shown by the key reveal; 1–7 belong to PCB 3D and the layer keys 1–0 to Layout, sibling contexts that never see each other's keys), and the canvas hint at the bottom left names the gestures of the device last used to navigate: the mouse's buttons after a middle or right drag or a wheel notch, the trackpad's after a two-finger scroll or a pinch, and both before either (`navigation::Device`). The key reveal's navigation line follows it the same way, in 3D and on the flat canvases. The Keyboard shortcuts sheet lists every gesture under PCB › 3D (`navigation::NAVIGATION_3D`).
 
 A plain or Shift left-drag on empty space does not orbit. In Solidcraft's Fusion preset, which Sparksmith follows, a left-drag on empty space is box selection. In PCB 3D the left button also selects and drives the move gizmo, so a bare drag that sometimes orbits and sometimes selects or moves would be ambiguous. ⌘-drag on empty space and the cube give a left-button orbit that cannot be confused with either.

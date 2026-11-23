@@ -113,7 +113,7 @@ fn codes(model: &ModelDefinition) -> Vec<(String, bool)> {
     out.into_iter()
         .map(|f| {
             let blocks = f.blocks_stage(Stage::Publish);
-            (f.code, blocks)
+            (f.code.to_string(), blocks)
         })
         .collect()
 }
@@ -516,7 +516,7 @@ fn lead_maps_are_checked_against_the_package_and_the_model() -> Fallible<()> {
         package_findings(package, &model, fixture.package, &mut out);
         library_findings(library, package, &model, fixture.package, &mut out);
         out.into_iter()
-            .map(|f| (f.code.clone(), f.blocks_stage(Stage::Publish)))
+            .map(|f| (f.code.to_string(), f.blocks_stage(Stage::Publish)))
             .collect::<Vec<_>>()
     };
     let entry = |lead, terminal| LeadMapEntry { lead, terminal };

@@ -26,7 +26,7 @@ fn on_net(engine: &Engine, net: Id) -> Vec<String> {
     let mut codes: Vec<String> = erc::checks(engine.project())
         .into_iter()
         .filter(|f| f.objects.contains(&ObjectRef::Net { id: net }))
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     codes.sort();
     codes
@@ -35,7 +35,7 @@ fn on_net(engine: &Engine, net: Id) -> Vec<String> {
 fn all_codes(engine: &Engine) -> Vec<String> {
     let mut codes: Vec<String> = erc::checks(engine.project())
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     codes.sort();
     codes

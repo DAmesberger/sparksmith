@@ -20,6 +20,7 @@
 use super::copper::CopperRing;
 use super::limits::mm;
 use super::placed::PlacedPad;
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Point, Shape, distance};
 use crate::ids::{Endpoint, Id, PadId};
@@ -576,7 +577,7 @@ fn track_width(project: &Project, track: &crate::model::Track) -> Option<Finding
         .track_width_min(super::net_class(project, track.net));
     (track.width < min.value - super::EPS).then(|| {
         Finding::new(
-            "board.track_width",
+            FindingCode::BoardTrackWidth,
             format!(
                 "A track on {}: width {} mm is under the minimum; needs {} mm ({}: min track width)",
                 project.net_name(track.net),
@@ -608,7 +609,7 @@ fn drill_size(project: &Project, drill_min: &super::limits::Need, hole: &Hole) -
     }
     let (code, text) = match hole.owner {
         HoleOwner::Via(_) => (
-            "board.via_drill_size",
+            FindingCode::BoardViaDrillSize,
             format!(
                 "A via on {}: drill {} mm is under the minimum; {}",
                 hole.net.map_or("no net", |n| project.net_name(n)),
@@ -617,7 +618,7 @@ fn drill_size(project: &Project, drill_min: &super::limits::Need, hole: &Hole) -
             ),
         ),
         _ => (
-            "board.drill_size",
+            FindingCode::BoardDrillSize,
             format!(
                 "{}: {} {} mm is under the minimum; {}",
                 capitalised(&hole.name),

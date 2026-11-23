@@ -253,7 +253,7 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
         for net in t.ends.values().flatten() {
             if !distinct.insert(*net) {
                 out.push(Finding::new(
-                    "tie.same_net",
+                    FindingCode::TieSameNet,
                     format!(
                         "{} has two ends on {}.",
                         t.label(project),
@@ -266,13 +266,13 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
         }
         if network.loops.contains(&(t.instance, t.group)) {
             out.push(Finding::new(
-                "tie.loop",
+                FindingCode::TieLoop,
                 format!("{} is on a loop of closed ties.", t.label(project)),
                 t.objects([]),
             ));
             if t.purpose == TiePurpose::StarGround {
                 out.push(Finding::new(
-                    "tie.star_points",
+                    FindingCode::TieStarPoints,
                     format!(
                         "{} has another path between its star-ground nets.",
                         t.label(project)
@@ -294,7 +294,7 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
                 }
                 if let Some(i) = project.instance(id).filter(|i| i.ties.is_empty()) {
                     out.push(Finding::new(
-                        "tie.other_bridge",
+                        FindingCode::TieOtherBridge,
                         format!(
                             "{} also spans the star-ground nets of {}.",
                             i.designator,

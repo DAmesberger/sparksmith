@@ -284,7 +284,7 @@ pub(crate) fn designator_list(names: &[String]) -> String {
 
 /// The identity of a finding for [`findings_diff`]: its code and objects.
 fn finding_key(finding: &Finding) -> (String, String) {
-    (finding.code.clone(), format!("{:?}", finding.objects))
+    (finding.code.to_string(), format!("{:?}", finding.objects))
 }
 
 /// Findings of `after` that `before` lacks (`new`) and of `before` that

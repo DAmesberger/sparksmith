@@ -13,6 +13,7 @@ use super::{
     AREA_MARGIN, Align, Anchor, Chart, LINE_GAP, LaidElement, LaidText, MAX_RENDERED_LINE,
     MarkingInputs, MarkingItem, MarkingLayout, MarkingSpec, PolarityMark, TEXT_ADVANCE, positive,
 };
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, Result};
 use crate::quantity::format_number;
 use crate::units::Nm;
@@ -39,7 +40,7 @@ struct Context<'a> {
 }
 
 impl Context<'_> {
-    fn note(&mut self, code: &str, message: String) {
+    fn note(&mut self, code: FindingCode, message: String) {
         let message = if self.inputs.designator.is_empty() {
             format!("{message}; nothing is drawn.")
         } else {
@@ -48,7 +49,7 @@ impl Context<'_> {
         self.findings.push(Finding::new(code, message, Vec::new()));
     }
     fn unrepresentable(&mut self, message: String) {
-        self.note("marking.unrepresentable", message);
+        self.note(FindingCode::MarkingUnrepresentable, message);
     }
     fn does_not_fit(&mut self, what: &str) {
         let [w, h] = self.area;
@@ -58,7 +59,7 @@ impl Context<'_> {
             format_number(h),
             format_number(self.min_height)
         );
-        self.note("marking.does_not_fit", message);
+        self.note(FindingCode::MarkingDoesNotFit, message);
     }
 }
 

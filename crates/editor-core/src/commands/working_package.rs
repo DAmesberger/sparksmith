@@ -3,6 +3,7 @@
 //! terminals carry over, the footprint rebuilt from the generated one, and
 //! the findings the change gives the binding drafts.
 use super::Outcome;
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::ids::{DefinitionId, FootprintRef, PackageRef, PackageTerminalId, PadId, Revision};
 use crate::library::package_fit;
@@ -154,7 +155,11 @@ fn bind_created(
             names.join(", ")
         )
     };
-    Err(Finding::new("binding.footprint_unbound", message, objects))
+    Err(Finding::new(
+        FindingCode::BindingFootprintUnbound,
+        message,
+        objects,
+    ))
 }
 
 /// The first local identity a package draft may allocate: above its
@@ -444,7 +449,7 @@ fn unmatched_finding(package: DefinitionId, replaced: &Replaced) -> Option<Findi
         ));
     }
     Some(Finding::new(
-        "package.terminals_unmatched",
+        FindingCode::PackageTerminalsUnmatched,
         format!(
             "Terminals matched {}: {}. Nothing is filled by position: if a removed and a new number are the same pad (an exposed pad the datasheet numbers), pass renumber [{{from, to}}]; else map them explicitly.",
             replaced.report.strategy.label(),
@@ -484,7 +489,7 @@ fn retained_findings(
             .count();
         if kept > 0 {
             out.push(Finding::new(
-                "binding.mapping_retained",
+                FindingCode::BindingMappingRetained,
                 format!(
                     "{kept} mapping(s) of ‘{}’ keep package terminals by position, as requested, while the package changes from {} terminal(s) to {}; check each against the new pinout.",
                     draft.meta.name,
@@ -522,7 +527,7 @@ fn mapping_findings(
             .count();
         if missing > 0 {
             out.push(Finding::blocking(
-                "binding.mapping_missing",
+                FindingCode::BindingMappingMissing,
                 format!(
                     "{missing} package terminal(s) of the new package are not mapped by ‘{}’; map them explicitly.",
                     draft.meta.name
@@ -538,7 +543,7 @@ fn mapping_findings(
             .count();
         if unknown > 0 {
             out.push(Finding::blocking(
-                "binding.mapping_unknown",
+                FindingCode::BindingMappingUnknown,
                 format!(
                     "{unknown} mapping(s) of ‘{}’ name package terminals the new package removes.",
                     draft.meta.name

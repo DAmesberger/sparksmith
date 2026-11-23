@@ -12,6 +12,7 @@ use super::check_pair_budget;
 use super::grid::BoundsGrid;
 use super::limits::{mm_against, need};
 use super::placed::{BoardDrawing, PlacedItem, placed_graphics};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, Shape, polygons_overlap, polyline_polygon_distance};
 use crate::ids::{GraphicId, Id};
@@ -20,12 +21,13 @@ use crate::rules::RuleKey;
 use std::collections::BTreeSet;
 
 /// The finding code for overlapping courtyards.
-pub const COURTYARD_OVERLAP: &str = "board.courtyard_overlap";
+pub const COURTYARD_OVERLAP: &str = crate::diagnostics::FindingCode::BoardCourtyardOverlap.as_str();
 /// The finding code for courtyards closer than the courtyard clearance.
-pub const COURTYARD_CLEARANCE: &str = "board.courtyard_clearance";
+pub const COURTYARD_CLEARANCE: &str =
+    crate::diagnostics::FindingCode::BoardCourtyardClearance.as_str();
 /// The finding code the board checks use when a bound leaves geometry
 /// unchecked.
-pub const COURTYARD_LIMIT: &str = "board.check_limit";
+pub const COURTYARD_LIMIT: &str = crate::diagnostics::FindingCode::BoardCheckLimit.as_str();
 
 /// One closed courtyard shape of one placed part, in board coordinates.
 #[derive(Clone, Debug, PartialEq)]
@@ -73,7 +75,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
 
 pub(crate) fn limit_finding() -> Finding {
     Finding::new(
-        COURTYARD_LIMIT,
+        FindingCode::BoardCheckLimit,
         "Board checks incomplete: courtyards past the check limit are unchecked".into(),
         vec![ObjectRef::Board],
     )
@@ -149,7 +151,7 @@ fn bounded_findings(project: &Project, budget: Option<usize>) -> Vec<Finding> {
             };
             let (code, message) = if overlap {
                 (
-                    COURTYARD_OVERLAP,
+                    FindingCode::BoardCourtyardOverlap,
                     format!(
                         "Courtyards overlap on the {side} side: {} / {}",
                         name(a.instance),
@@ -158,7 +160,7 @@ fn bounded_findings(project: &Project, budget: Option<usize>) -> Vec<Finding> {
                 )
             } else {
                 (
-                    COURTYARD_CLEARANCE,
+                    FindingCode::BoardCourtyardClearance,
                     format!(
                         "Courtyards of {} and {} are {} mm apart on the {side} side; {}",
                         name(a.instance),

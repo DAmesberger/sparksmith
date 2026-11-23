@@ -113,7 +113,7 @@ pub(super) fn findings(
     for spec in &component.ties {
         if spec.id.0 == 0 || !ids.insert(spec.id) || spec.ends.iter().any(|e| !ends.insert(*e)) {
             report(
-                "tie.ends",
+                FindingCode::TieEnds,
                 "Independent tie groups need distinct identities and disjoint terminals.",
             );
         }
@@ -132,25 +132,25 @@ pub(super) fn findings(
             .is_some_and(|s| open(s.form) != open(spec.form))
         {
             report(
-                "tie.assembly",
+                FindingCode::TieAssembly,
                 "Tie groups on one component must agree on its default population.",
             );
         }
         if !spec.valid_ends(component) {
             report(
-                "tie.ends",
+                FindingCode::TieEnds,
                 "Choose distinct passive terminals for the tie ends.",
             );
         }
         if component.assembly != spec.form.assembly() {
             report(
-                "tie.assembly",
+                FindingCode::TieAssembly,
                 "The assembly choice must agree with the tie form.",
             );
         }
         if component.implementations.is_empty() {
             report(
-                "tie.package",
+                FindingCode::TiePackage,
                 "Choose a physical implementation for the tie.",
             );
         }
@@ -179,7 +179,7 @@ pub(super) fn findings(
                     bridges.entry(group).or_default().push(bridge);
                 } else {
                     report(
-                        "tie.unowned_bridge",
+                        FindingCode::TieUnownedBridge,
                         "Each bridge must contact pads belonging to one declared tie group.",
                     );
                 }
@@ -187,15 +187,15 @@ pub(super) fn findings(
             for spec in &component.ties {
                 let no_body = matches!(package.definition.model, PackageModel::NoBody);
                 if spec.form == TieForm::Copper && !no_body {
-                    report("tie.body", "A copper tie needs a package without a body.");
+                    report(FindingCode::TieBody, "A copper tie needs a package without a body.");
                 }
                 if spec.form == TieForm::ZeroOhm {
                     if no_body {
-                        report("tie.body", "A zero-ohm link needs a package with a body.");
+                        report(FindingCode::TieBody, "A zero-ohm link needs a package with a body.");
                     }
                     if !spec.ends.iter().all(|end| pads.counts.get(end) == Some(&1)) {
                         report(
-                            "tie.ends",
+                            FindingCode::TieEnds,
                             "A zero-ohm link needs one land for each of its two ends.",
                         );
                     }
@@ -204,7 +204,7 @@ pub(super) fn findings(
                     && spec.ends.iter().any(|end| !pads.counts.contains_key(end))
                 {
                     report(
-                        "tie.ends",
+                        FindingCode::TieEnds,
                         "Every solder jumper end needs a conductive land.",
                     );
                 }
@@ -212,13 +212,13 @@ pub(super) fn findings(
                 if spec.form.needs_bridge() {
                     if !bridges_join(&pads, spec, group) {
                         report(
-                            "tie.bridge",
+                            FindingCode::TieBridge,
                             "The copper bridge must connect the declared lands of every tie end.",
                         );
                     }
                 } else if !group.is_empty() {
                     report(
-                        "tie.bridge",
+                        FindingCode::TieBridge,
                         "This tie form needs separate lands without fabricated bridges.",
                     );
                 }

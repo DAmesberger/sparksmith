@@ -5,6 +5,7 @@
 //! them (lengths in nanometres, angles in millidegrees, counts, choice keys
 //! and switches); `library.generate` makes the part from them. Aliases are
 //! text, never identity. The shipped rows are the generators' presets.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef, Stage};
 use crate::ids::{DefinitionId, MAX_LABEL, printable};
 use crate::library::generated::{GeneratorParams, MAX_PARAMS, ParamValue};
@@ -158,8 +159,9 @@ impl PackageRowDefinition {
     /// made. A row without a citation is estimated, which is allowed.
     pub(crate) fn findings(&self, id: DefinitionId, out: &mut Vec<Finding>) {
         let this = || vec![ObjectRef::Definition { id }];
-        let block =
-            |code: &str, message: String| Finding::blocking(code, message, this(), Stage::Publish);
+        let block = |code: FindingCode, message: String| {
+            Finding::blocking(code, message, this(), Stage::Publish)
+        };
         let generator_ok = !self.generator.is_empty()
             && self
                 .generator
@@ -167,7 +169,7 @@ impl PackageRowDefinition {
                 .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
         if !generator_ok {
             out.push(block(
-                "package_row.generator",
+                FindingCode::PackageRowGenerator,
                 format!(
                     "A package row names its generator: 1–{MAX_GENERATOR_ID} ASCII letters, digits, '-' or '_'."
                 ),
@@ -177,12 +179,12 @@ impl PackageRowDefinition {
         for alias in &self.aliases {
             if !printable(alias) || alias.len() > MAX_ALIAS {
                 out.push(block(
-                    "package_row.alias",
+                    FindingCode::PackageRowAlias,
                     format!("An alias needs 1–{MAX_ALIAS} bytes of printable text."),
                 ));
             } else if !seen.insert(fold_text(alias.trim())) {
                 out.push(block(
-                    "package_row.alias",
+                    FindingCode::PackageRowAlias,
                     format!("The alias ‘{}’ is listed twice.", alias.trim()),
                 ));
             }
@@ -191,7 +193,7 @@ impl PackageRowDefinition {
             && !code.valid()
         {
             out.push(block(
-                "package_row.alias",
+                FindingCode::PackageRowAlias,
                 format!(
                     "A size code gives both its imperial and its metric code, 1–{MAX_SIZE_CODE} digits each."
                 ),
@@ -200,7 +202,7 @@ impl PackageRowDefinition {
         if let Some(citation) = &self.citation {
             if !printable(&citation.document) {
                 out.push(block(
-                    "package_row.provenance",
+                    FindingCode::PackageRowProvenance,
                     "A citation names its public outline drawing in 1–256 bytes of printable text."
                         .into(),
                 ));
@@ -211,7 +213,7 @@ impl PackageRowDefinition {
                 .is_some_and(|r| !printable(r) || r.len() > MAX_CITATION_REVISION)
             {
                 out.push(block(
-                    "package_row.provenance",
+                    FindingCode::PackageRowProvenance,
                     format!(
                         "A citation's document revision is 1–{MAX_CITATION_REVISION} bytes of printable text."
                     ),
@@ -219,14 +221,14 @@ impl PackageRowDefinition {
             }
             if citation.page == Some(0) {
                 out.push(block(
-                    "package_row.provenance",
+                    FindingCode::PackageRowProvenance,
                     "Citation pages are numbered from 1.".into(),
                 ));
             }
         }
         if matches!(self.provenance.basis, Basis::FromReference(_)) {
             out.push(block(
-                "package_row.provenance",
+                FindingCode::PackageRowProvenance,
                 "A row cites its drawing with a citation, not a Part reference.".into(),
             ));
         }
@@ -240,7 +242,7 @@ mod tests {
     fn codes(row: &PackageRowDefinition) -> Vec<String> {
         let mut out = Vec::new();
         row.findings(DefinitionId(1), &mut out);
-        out.into_iter().map(|f| f.code).collect()
+        out.into_iter().map(|f| f.code.to_string()).collect()
     }
 
     #[test]

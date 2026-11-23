@@ -118,6 +118,7 @@ pub fn reason_id() -> egui::Id {
 pub enum RowAction {
     /// The row, its Locate or Enter: select and frame every object.
     Locate,
+    Help,
     Fix,
     Waive,
     /// Disclose or hide the details.
@@ -492,6 +493,11 @@ pub fn issues_list(
                 let waive = format!("Waive: {}", view.title);
                 let mut actions = vec![Action::icon("fit", &locate)];
                 let mut kinds = vec![RowAction::Locate];
+                let help = format!("Help for {}", view.title);
+                if src.disclosed(g, r) == Some(true) {
+                    actions.push(Action::text("?", &help));
+                    kinds.push(RowAction::Help);
+                }
                 if let (Some(text), Some(label)) = (view.fix, fix.as_deref()) {
                     actions.push(Action::text(text, label));
                     kinds.push(RowAction::Fix);
@@ -521,7 +527,14 @@ pub fn issues_list(
                     ..Row::new(line.key, &name)
                 };
                 let response = list::row::paint(ui, cx.id, rect, &row, &cols);
-                let action = if let Some(a) = response.action {
+                let requested = ui
+                    .data(|d| d.get_temp::<bool>(egui::Id::unique("issue-context-help")))
+                    .unwrap_or(false);
+                let action = if requested
+                    && (response.response.has_focus() || ui.rect_contains_pointer(rect))
+                {
+                    Some(RowAction::Help)
+                } else if let Some(a) = response.action {
                     kinds.get(a).copied()
                 } else if response.response.secondary_clicked() {
                     response

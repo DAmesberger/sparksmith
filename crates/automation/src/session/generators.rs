@@ -216,6 +216,7 @@ impl Session {
     /// Use `library` as the shipped library (tests, hosts that bundle it
     /// elsewhere).
     pub fn set_shipped(&mut self, library: ShippedLibrary) {
+        self.help_index.take();
         self.shipped = Some(library);
         self.descriptions = std::sync::OnceLock::new();
     }

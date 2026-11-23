@@ -87,6 +87,12 @@ pub const MODULES: &[ModuleDecl] = &[
         "Documents attached to an assistant run, its working pinout documents, its workflows and their cards in the chat, and its questions to the person.",
     ),
     module_at(
+        "help",
+        (1, 0),
+        "Help",
+        "Offline help for entries, findings, settings, commands and workflows.",
+    ),
+    module_at(
         "view",
         (1, 4),
         "View",

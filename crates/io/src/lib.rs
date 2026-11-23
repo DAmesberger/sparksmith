@@ -9,6 +9,7 @@ pub mod fabrication;
 pub mod fabricators;
 pub mod generated;
 pub mod generator_bundle;
+pub mod help;
 pub mod interface;
 pub mod kicad_files;
 pub mod library_folder;

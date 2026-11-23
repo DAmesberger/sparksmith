@@ -4,6 +4,7 @@ use super::datum::{PackageDatum, PackageDatumOrigin};
 use super::package_model::{ModelPlacement, PackageModel};
 use super::publish::{issue, object};
 use super::{MAX_LABEL, MAX_PACKAGE_TERMINALS, printable};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef, Result};
 use crate::geometry::{Point3, finite_within, size_valid};
 use crate::ids::{DefinitionId, PackageTerminalId};
@@ -187,7 +188,7 @@ impl PackageDefinition {
         // hole, a logo or a mechanical part (docs/mechanical-parts.md).
         if self.terminals.len() > MAX_PACKAGE_TERMINALS {
             out.push(issue(
-                "package.terminal_count",
+                FindingCode::PackageTerminalCount,
                 format!("A package has at most {MAX_PACKAGE_TERMINALS} physical terminals."),
                 vec![this],
             ));
@@ -196,7 +197,7 @@ impl PackageDefinition {
         for terminal in &self.terminals {
             if !printable(&terminal.designation) || !designations.insert(&terminal.designation) {
                 out.push(issue(
-                    "package.designation",
+                    FindingCode::PackageDesignation,
                     "A package terminal needs a unique printable designation.".into(),
                     vec![object(id, terminal.id.0)],
                 ));
@@ -208,7 +209,7 @@ impl PackageDefinition {
             .any(|l| self.terminal(l.terminal).is_none())
         {
             out.push(issue(
-                "package.leads",
+                FindingCode::PackageLeads,
                 "Every lead contact names a terminal of the package.".into(),
                 vec![this],
             ));
@@ -216,7 +217,7 @@ impl PackageDefinition {
         // Chip joints draw a termination at each end: two terminals.
         if matches!(self.joints, Some(PackageJoints::Chip { .. })) && self.terminals.len() != 2 {
             out.push(issue(
-                "package.chip_terminals",
+                FindingCode::PackageChipTerminals,
                 format!(
                     "A chip package has exactly two terminals; this one has {}.",
                     self.terminals.len()
@@ -231,7 +232,7 @@ impl PackageDefinition {
             PackageModel::PartFile(part) => {
                 for problem in part.problems() {
                     out.push(issue(
-                        "part_file.values",
+                        FindingCode::PartFileValues,
                         format!("The part file: {problem}."),
                         vec![this],
                     ));
@@ -241,14 +242,14 @@ impl PackageDefinition {
         }
         for problem in super::datum::datum_problems(&self.datums) {
             out.push(issue(
-                "package.datum",
+                FindingCode::PackageDatum,
                 format!("Package datum: {problem}."),
                 vec![this],
             ));
         }
         if !self.envelope_valid() {
             out.push(issue(
-                "package.envelope",
+                FindingCode::PackageEnvelope,
                 "Package envelope dimensions must be finite and positive.".into(),
                 vec![this],
             ));
@@ -264,7 +265,7 @@ mod tests {
     fn codes(package: &PackageDefinition) -> Vec<String> {
         let mut out = Vec::new();
         package.findings(DefinitionId(1), &mut out);
-        out.into_iter().map(|f| f.code).collect()
+        out.into_iter().map(|f| f.code.to_string()).collect()
     }
 
     fn chip() -> PackageDefinition {

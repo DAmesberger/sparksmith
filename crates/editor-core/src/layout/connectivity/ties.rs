@@ -260,7 +260,7 @@ impl CopperGraph {
                         .instance(bridge.instance)
                         .map_or("Tie", |i| &i.designator);
                     self.tie_findings.push(Finding::new(
-                        "board.clearance",
+                        FindingCode::BoardClearance,
                         format!("{name} bridge is too close to neighbouring copper."),
                         vec![owner, item.object],
                     ));
@@ -351,7 +351,7 @@ impl CopperGraph {
                     }
                     if !allowed {
                         self.tie_findings.push(Finding::new(
-                            "tie.kelvin_off_anchor",
+                            FindingCode::TieKelvinOffAnchor,
                             format!(
                                 "{} sense copper meets the other net away from its anchor land.",
                                 t.label(project)
@@ -377,7 +377,7 @@ impl CopperGraph {
                     _ => "copper".into(),
                 };
                 self.tie_findings.push(Finding::new(
-                    "tie.second_join",
+                    FindingCode::TieSecondJoin,
                     format!(
                         "{} and {} also meet near ({:.2}, {:.2}) mm through {} and {}, outside {}.",
                         project.net_name(a),
@@ -392,7 +392,7 @@ impl CopperGraph {
                 ));
                 if t.purpose == crate::library::tie::TiePurpose::StarGround {
                     self.tie_findings.push(Finding::new(
-                        "tie.star_points",
+                        FindingCode::TieStarPoints,
                         format!("{} has an additional copper join.", t.label(project)),
                         t.objects([x, y]),
                     ));
@@ -490,7 +490,7 @@ impl CopperGraph {
                 })
             {
                 self.tie_findings.push(Finding::new(
-                    "tie.kelvin_off_anchor",
+                    FindingCode::TieKelvinOffAnchor,
                     format!(
                         "{} needs sense copper joined at its anchor land.",
                         tie.label(project)

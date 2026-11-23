@@ -133,7 +133,7 @@ fn instance_codes(engine: &Engine, instance: Id) -> Result<Vec<String>> {
     Ok(inspect(engine, instance)?
         .findings
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect())
 }
 

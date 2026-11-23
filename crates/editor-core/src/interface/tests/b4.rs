@@ -78,7 +78,7 @@ fn linked() -> Fallible<(Engine, u64)> {
 fn codes(engine: &Engine) -> Vec<String> {
     assembly_link::checks(engine.project())
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect()
 }
 

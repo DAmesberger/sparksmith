@@ -11,6 +11,7 @@ mod browser_catalog;
 mod chrome;
 mod command_dispatch;
 mod command_palette;
+pub(crate) mod help_sheet;
 mod import_report;
 mod key_reveal;
 mod list_prefs;
@@ -162,7 +163,7 @@ pub struct App {
     workflow_pick: Option<(String, std::sync::mpsc::Receiver<Vec<std::path::PathBuf>>)>,
     /// ⌘ commands pressed over a focused field, run once it committed.
     after_commit: command_dispatch::AfterCommit,
-    shortcut_sheet: shortcut_sheet::ShortcutSheet,
+    help: help_sheet::HelpSheet,
     settings_window: settings_window::SettingsWindow,
     /// Hold ⌘ for key badges, tap ⌥ for key tips.
     reveal: key_reveal::KeyReveal,
@@ -396,7 +397,7 @@ impl App {
             asks: Default::default(),
             workflow_pick: None,
             after_commit: Default::default(),
-            shortcut_sheet: Default::default(),
+            help: Default::default(),
             settings_window: Default::default(),
             reveal: Default::default(),
             #[cfg(target_os = "macos")]
@@ -1752,7 +1753,7 @@ impl App {
     fn escape_review(&mut self, ctx: &egui::Context) {
         if self.palette.is_open()
             || self.settings_window.is_open()
-            || self.shortcut_sheet.is_open()
+            || self.help.open
             || ctx.any_popup_open()
             || ctx.egui_wants_keyboard_input()
         {
@@ -1919,6 +1920,7 @@ impl eframe::App for App {
         self.record_key(&ctx);
         // The palette's keys come before any canvas sees them.
         self.early_keys(&ctx);
+        self.help.keys(&ctx);
         self.command_palette(&ctx);
         self.system_windows(&ctx);
         self.escape_review(&ctx);
@@ -1943,10 +1945,10 @@ impl eframe::App for App {
         self.files.dialogs(&ctx);
         self.sources.dialogs(&ctx);
         self.messages_window(&ctx);
-        let active = self.active_contexts();
-        self.shortcut_sheet.show(&ctx, &self.registry, &active);
         self.settings(&ctx);
         self.live_windows(&ctx);
+        self.resolve_context_help(&ctx);
+        ctx.data_mut(|d| d.remove::<bool>(egui::Id::unique("issue-context-help")));
         self.reveal_overlay(&ctx);
         self.feedback(&ctx);
         self.unclaimed_refusals(&ctx);
@@ -2049,11 +2051,13 @@ pub(crate) fn sheet_rows(
     registry: &crate::commands::Registry,
     filter: &str,
     active: &[crate::commands::Context],
-) -> Vec<(String, String)> {
-    shortcut_sheet::groups(registry, filter, active)
+) -> Result<Vec<(String, String)>, String> {
+    let entries = registry.help_entries()?;
+    let index = entries.into_iter().map(|e| (e.id.clone(), e)).collect();
+    Ok(shortcut_sheet::groups(&index, registry, filter, active)
         .into_iter()
         .flat_map(|g| g.rows)
-        .collect()
+        .collect())
 }
 
 #[cfg(test)]

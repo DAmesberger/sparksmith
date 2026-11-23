@@ -51,6 +51,7 @@ impl Class {
 /// How an entry is reached.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 pub enum Kind {
     /// Reads; changes nothing.
     Query,

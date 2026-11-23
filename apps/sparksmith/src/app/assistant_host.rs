@@ -287,8 +287,11 @@ impl App {
                 .resizable(false)
                 .exact_size(assistant::STRIP_WIDTH);
             let frame = host.edge_frame(t.panel).inner_margin(egui::Margin::same(0));
-            host.show_edge(ui, panel, frame, |ui| self.assistant.strip(ui))
-                .inner
+            host.show_edge(ui, panel, frame, |ui| {
+                super::help_sheet::region(ui, ui.max_rect(), "panel/assistant", 1);
+                self.assistant.strip(ui)
+            })
+            .inner
         } else {
             let (window, engine) = self.window_and_engine();
             let context = serde_json::to_value(window.context(engine)).unwrap_or_default();
@@ -305,6 +308,7 @@ impl App {
                 .size_range(assistant::MIN_WIDTH..=assistant::MAX_WIDTH);
             let cards = &mut self.workflow_cards;
             host.show_edge(ui, panel, frame, |ui| {
+                super::help_sheet::region(ui, ui.max_rect(), "panel/assistant", 1);
                 self.assistant.column(ui, &now, cards)
             })
             .inner

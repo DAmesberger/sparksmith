@@ -18,6 +18,7 @@
 use super::FILL_CHORD_MM;
 use super::compute::Ctx;
 use super::geom::{self, Region, RegionIndex};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Point, polygon_contains, polygons_overlap};
 use crate::ids::Id;
@@ -96,14 +97,15 @@ pub const MAX_FILL_ROWS: usize = 256;
 /// A fill's audit found more violations than it lists ([`MAX_FILL_ROWS`]):
 /// an error that may not be waived, since a waiver could not say which
 /// copper it accepts.
-pub const CLEARANCE_UNLISTED: &str = "fill.clearance_unlisted";
+pub const CLEARANCE_UNLISTED: &str =
+    crate::diagnostics::FindingCode::FillClearanceUnlisted.as_str();
 
 /// Stored fill copper beyond the board outline, in a cutout or slot, or
 /// closer to an edge than the fill-to-board-edge clearance.
-pub const BOARD_EDGE: &str = "fill.board_edge";
+pub const BOARD_EDGE: &str = crate::diagnostics::FindingCode::FillBoardEdge.as_str();
 
 /// Stored fill copper inside a keepout that forbids fills on its layer.
-pub const KEEPOUT_FILL: &str = "keepout.fill";
+pub const KEEPOUT_FILL: &str = crate::diagnostics::FindingCode::KeepoutFill.as_str();
 
 /// How far, mm, a measured gap may fall short of the rule before the audit
 /// reports it: the chord tolerance the fill computation flattens curves at
@@ -149,14 +151,14 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             && project.net(net).is_none()
         {
             out.push(Finding::new(
-                "fill.net_missing",
+                FindingCode::FillNetMissing,
                 format!("{label} names a net that no longer exists"),
                 vec![me],
             ));
         }
         let Some(copper) = &fill.computed else {
             out.push(Finding::new(
-                "fill.stale",
+                FindingCode::FillStale,
                 format!("{label} is not filled yet"),
                 vec![me],
             ));
@@ -167,14 +169,14 @@ pub fn findings(project: &Project) -> Vec<Finding> {
         let stale = key.as_ref() != Some(&copper.key);
         if stale {
             out.push(Finding::new(
-                "fill.stale",
+                FindingCode::FillStale,
                 format!("{label} needs refilling: the board changed"),
                 vec![me],
             ));
         }
         if copper.regions.is_empty() {
             out.push(Finding::new(
-                "fill.empty",
+                FindingCode::FillEmpty,
                 format!("{label} has no copper"),
                 vec![me],
             ));
@@ -497,7 +499,7 @@ impl<'a> Audit<'a> {
                 continue;
             };
             report(Finding::new(
-                "fill.clearance",
+                FindingCode::FillClearance,
                 words(gap, &need, &describe(project, &o.object)),
                 vec![me, o.object],
             ));
@@ -543,7 +545,7 @@ impl<'a> Audit<'a> {
             };
             if gap.is_finite() {
                 report(Finding::new(
-                    "fill.clearance",
+                    FindingCode::FillClearance,
                     words(gap, &need, &fill_label(project, theirs)),
                     vec![me, ObjectRef::Fill { id: theirs.id }],
                 ));
@@ -564,7 +566,7 @@ impl<'a> Audit<'a> {
         if self.outer.len() >= 3 {
             if let Some(p) = stored.outside(&self.outer) {
                 report(Finding::new(
-                    BOARD_EDGE,
+                    FindingCode::FillBoardEdge,
                     format!(
                         "{what}: copper lies outside the board outline at {}; refill it",
                         at(p)
@@ -576,7 +578,7 @@ impl<'a> Audit<'a> {
                 && let Some(gap) = stored.distance(&self.outer, edge_limit)
             {
                 report(Finding::new(
-                    BOARD_EDGE,
+                    FindingCode::FillBoardEdge,
                     format!(
                         "{what}: copper is {} mm from the board edge; {}; refill it",
                         crate::layout::limits::mm_against(gap, edge.mm),
@@ -589,7 +591,7 @@ impl<'a> Audit<'a> {
         for (ring, object) in &self.cutouts {
             if let Some(gap) = stored.meets(ring, edge.mm, stale) {
                 report(Finding::new(
-                    BOARD_EDGE,
+                    FindingCode::FillBoardEdge,
                     if gap <= 0.0 {
                         format!(
                             "{what}: copper lies in {}; refill it",
@@ -624,7 +626,7 @@ impl<'a> Audit<'a> {
                     format!("keepout {}", k.name)
                 };
                 report(Finding::new(
-                    KEEPOUT_FILL,
+                    FindingCode::KeepoutFill,
                     format!("{what}: copper lies in {name}; refill it"),
                     vec![me, them],
                 ));
@@ -634,7 +636,7 @@ impl<'a> Audit<'a> {
         out.extend(rows);
         if unlisted > 0 {
             out.push(Finding::new(
-                CLEARANCE_UNLISTED,
+                FindingCode::FillClearanceUnlisted,
                 format!(
                     "{}: {unlisted} more copper violations not listed; refill it",
                     crate::library::names::capitalised(&what)
@@ -683,7 +685,7 @@ fn spokes_removed(
         };
         let they = if removed.spokes == 1 { "it" } else { "they" };
         out.push(Finding::new(
-            "fill.spokes_removed",
+            FindingCode::FillSpokesRemoved,
             format!(
                 "{}: {spokes} of {what} removed; {they} would end without reaching {net} copper",
                 crate::library::names::capitalised(label)
@@ -753,7 +755,7 @@ fn keepouts(ctx: &Ctx<'_>, out: &mut Vec<Finding>) {
                 let copper = geom::stadium(t.start, t.end, t.width / 2.0, FILL_CHORD_MM);
                 if inside(&copper) {
                     out.push(Finding::new(
-                        "keepout.track",
+                        FindingCode::KeepoutTrack,
                         format!("A track on {} enters {name}", project.net_name(t.net)),
                         vec![ObjectRef::Track { id: t.id }, me],
                     ));
@@ -765,7 +767,7 @@ fn keepouts(ctx: &Ctx<'_>, out: &mut Vec<Finding>) {
                 let on = ctx.layers.iter().any(|l| k.on(*l) && v.on(*l, &ctx.layers));
                 if on && inside(&geom::circle(v.position, v.diameter / 2.0, FILL_CHORD_MM)) {
                     out.push(Finding::new(
-                        "keepout.via",
+                        FindingCode::KeepoutVia,
                         format!("A via on {} lies in {name}", project.net_name(v.net)),
                         vec![ObjectRef::Via { id: v.id }, me],
                     ));
@@ -777,7 +779,7 @@ fn keepouts(ctx: &Ctx<'_>, out: &mut Vec<Finding>) {
                 let on = ctx.layers.iter().any(|l| k.on(*l) && pad.on_copper(*l));
                 if on && inside(&pad.outline().flatten(FILL_CHORD_MM)) {
                     out.push(Finding::new(
-                        "keepout.pad",
+                        FindingCode::KeepoutPad,
                         format!(
                             "A pad of {} lies in {name}",
                             project

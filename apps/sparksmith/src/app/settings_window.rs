@@ -272,9 +272,14 @@ impl SettingsWindow {
         let profiles = self.profiles.get_or_insert_with(profile_choices).clone();
         let closed = ui_kit::Window::new(egui::Id::unique("app-settings"), "settings", "Settings")
             .show_body(ctx, |ui| {
+                super::help_sheet::region(ui, ui.max_rect(), "panel/settings", 2);
                 kit::section(ui, "settings-rules", "Rules", true, None, |ui| {
-                    profile_changed =
-                        kit::choice_row(ui, "Default fab profile", default_profile, &profiles);
+                    profile_changed = super::help_sheet::setting(
+                        ui,
+                        "setting/default_rule_profile",
+                        "Default fab profile",
+                        |ui| kit::choice_row(ui, "Default fab profile", default_profile, &profiles),
+                    );
                     kit::hint(
                         ui,
                         "A new board starts with this profile",
@@ -283,12 +288,19 @@ impl SettingsWindow {
                     );
                     match &mut self.impedance_tolerance {
                         Ok(pct) => {
-                            self.impedance_changed = kit::number_row(
+                            self.impedance_changed = super::help_sheet::setting(
                                 ui,
+                                "setting/impedance_tolerance_pct",
                                 "Impedance tolerance",
-                                pct,
-                                "%",
-                                sparksmith_core::rules::signal::TOLERANCE_RANGE,
+                                |ui| {
+                                    kit::number_row(
+                                        ui,
+                                        "Impedance tolerance",
+                                        pct,
+                                        "%",
+                                        sparksmith_core::rules::signal::TOLERANCE_RANGE,
+                                    )
+                                },
                             );
                             kit::hint(
                                 ui,
@@ -310,10 +322,17 @@ impl SettingsWindow {
                     libraries_rows(ui, &mut self.libraries);
                 });
                 kit::section(ui, "settings-production", "Production", true, None, |ui| {
-                    waiver_changed = kit::check_row(
+                    waiver_changed = super::help_sheet::setting(
                         ui,
+                        "setting/require_waiver_reason",
                         "Require a reason to waive errors",
-                        require_waiver_reason,
+                        |ui| {
+                            kit::check_row(
+                                ui,
+                                "Require a reason to waive errors",
+                                require_waiver_reason,
+                            )
+                        },
                     );
                 });
                 if self.ai.wants_focus() {
@@ -443,7 +462,7 @@ impl SettingsWindow {
         let t = Tokens::get();
         let mut action = None;
         let custom = registry.is_custom(&command.id);
-        ui.horizontal(|ui| {
+        let row = ui.horizontal(|ui| {
             let name = if custom {
                 egui::RichText::new(format!("{} •", command.title)).color(t.accent)
             } else {
@@ -492,6 +511,7 @@ impl SettingsWindow {
                 }
             });
         });
+        super::help_sheet::region(ui, row.response.rect, &format!("command/{}", command.id), 3);
         if let Some(pending) = self.pending.clone().filter(|p| p.id == command.id) {
             let other = registry
                 .get(&pending.other)
@@ -542,14 +562,23 @@ fn reveal_rows(ui: &mut egui::Ui, reveal: &mut RevealSettings) -> bool {
     } else {
         "Alt"
     };
-    let mut changed = kit::check_row(
+    let mut changed = super::help_sheet::setting(
         ui,
-        &format!("Hold {command} to show the keys of what is on screen"),
-        &mut reveal.hold_badges,
+        "setting/keyboard.reveal.hold_badges",
+        "Hold to show keys",
+        |ui| {
+            kit::check_row(
+                ui,
+                &format!("Hold {command} to show the keys of what is on screen"),
+                &mut reveal.hold_badges,
+            )
+        },
     );
     let mut ms = f64::from(reveal.hold_ms);
     let range = f64::from(*HOLD_MS_RANGE.start())..=f64::from(*HOLD_MS_RANGE.end());
-    if kit::number_row(ui, "Hold for", &mut ms, "ms", range) {
+    if super::help_sheet::setting(ui, "setting/keyboard.reveal.hold_ms", "Hold for", |ui| {
+        kit::number_row(ui, "Hold for", &mut ms, "ms", range)
+    }) {
         let ms = ms.round().clamp(
             f64::from(*HOLD_MS_RANGE.start()),
             f64::from(*HOLD_MS_RANGE.end()),
@@ -559,11 +588,14 @@ fn reveal_rows(ui: &mut egui::Ui, reveal: &mut RevealSettings) -> bool {
         changed |= ms != reveal.hold_ms;
         reveal.hold_ms = ms;
     }
-    changed |= kit::check_row(
-        ui,
-        &format!("Tap {alt} for key tips on the ribbon"),
-        &mut reveal.key_tips,
-    );
+    changed |=
+        super::help_sheet::setting(ui, "setting/keyboard.reveal.key_tips", "Key tips", |ui| {
+            kit::check_row(
+                ui,
+                &format!("Tap {alt} for key tips on the ribbon"),
+                &mut reveal.key_tips,
+            )
+        });
     changed
 }
 
@@ -583,7 +615,7 @@ impl super::App {
     pub(super) fn system_windows(&mut self, ctx: &egui::Context) {
         let now = [
             self.messages_open,
-            self.shortcut_sheet.is_open(),
+            self.help.open,
             self.settings_window.is_open(),
             self.live.is_open(),
             self.import_report.is_open(),
@@ -596,7 +628,7 @@ impl super::App {
             super::system_windows::one_window(self.system_windows, now, escape);
         self.messages_open = messages;
         if !shortcuts {
-            self.shortcut_sheet.close();
+            self.help.close();
         }
         if !settings {
             self.settings_window.close();
@@ -744,25 +776,29 @@ impl super::App {
 /// changed.
 fn lists_rows(ui: &mut egui::Ui, lists: &mut sparksmith_io::settings::ListSettings) -> bool {
     use sparksmith_io::settings::ListDensity;
-    let mut changed = kit::choice_row(
-        ui,
-        "Rows",
-        &mut lists.density,
-        &[
-            (ListDensity::Compact, "Compact".to_owned()),
-            (ListDensity::Comfortable, "Comfortable".to_owned()),
-        ],
-    );
-    changed |= kit::choice_row(
-        ui,
-        "Motion",
-        &mut lists.reduced_motion,
-        &[
-            (None, "As the system".to_owned()),
-            (Some(false), "Full".to_owned()),
-            (Some(true), "Reduced".to_owned()),
-        ],
-    );
+    let mut changed = super::help_sheet::setting(ui, "setting/lists.density", "Rows", |ui| {
+        kit::choice_row(
+            ui,
+            "Rows",
+            &mut lists.density,
+            &[
+                (ListDensity::Compact, "Compact".to_owned()),
+                (ListDensity::Comfortable, "Comfortable".to_owned()),
+            ],
+        )
+    });
+    changed |= super::help_sheet::setting(ui, "setting/lists.reduced_motion", "Motion", |ui| {
+        kit::choice_row(
+            ui,
+            "Motion",
+            &mut lists.reduced_motion,
+            &[
+                (None, "As the system".to_owned()),
+                (Some(false), "Full".to_owned()),
+                (Some(true), "Reduced".to_owned()),
+            ],
+        )
+    });
     changed
 }
 
@@ -770,7 +806,12 @@ fn lists_rows(ui: &mut egui::Ui, lists: &mut sparksmith_io::settings::ListSettin
 /// Returns whether it changed.
 fn browser_rows(ui: &mut egui::Ui, lists: &mut sparksmith_io::settings::ListSettings) -> bool {
     let mut grouped = !lists.flat_components;
-    let changed = kit::check_row(ui, "Group components by category", &mut grouped);
+    let changed = super::help_sheet::setting(
+        ui,
+        "setting/lists.flat_components",
+        "Group components by category",
+        |ui| kit::check_row(ui, "Group components by category", &mut grouped),
+    );
     lists.flat_components = !grouped;
     changed
 }
@@ -797,14 +838,21 @@ fn profile_choices() -> Vec<(Option<String>, String)> {
 
 /// The online library: on or off, its URL, how it stands.
 fn libraries_rows(ui: &mut egui::Ui, page: &mut LibrariesPage) {
-    page.changed |= kit::check_row(ui, "Search the online library", &mut page.enabled);
-    let field = kit::checked_text_row(
+    page.changed |= super::help_sheet::setting(
         ui,
-        "Online library",
-        &mut page.url,
-        sparksmith_io::settings::DEFAULT_REGISTRY_URL,
-        page.error.is_some(),
+        "setting/registries.enabled",
+        "Search the online library",
+        |ui| kit::check_row(ui, "Search the online library", &mut page.enabled),
     );
+    let field = super::help_sheet::setting(ui, "setting/registries.url", "Online library", |ui| {
+        kit::checked_text_row(
+            ui,
+            "Online library",
+            &mut page.url,
+            sparksmith_io::settings::DEFAULT_REGISTRY_URL,
+            page.error.is_some(),
+        )
+    });
     page.editing = field.has_focus();
     if field.lost_focus() {
         page.changed = true;

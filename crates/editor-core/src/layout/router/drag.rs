@@ -659,7 +659,7 @@ fn pair_findings(project: &Project, graph: &CopperGraph, pair: &DiffPair) -> Vec
     length::pair_checks(project, graph, pair, &length::CheckSettings::default())
         .into_iter()
         .filter(|f| ["pair.skew", "pair.uncoupled", "pair.gap"].contains(&f.code.as_str()))
-        .map(|f| (f.code, f.message))
+        .map(|f| (f.code.to_string(), f.message))
         .collect()
 }
 

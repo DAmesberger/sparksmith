@@ -6,6 +6,7 @@
 use crate::geom::prelude::*;
 use crate::geom::{Loop2, Seg2, Vec2};
 use solidcraft_engine::sketch::{CurveKind, Sketch};
+use sparksmith_core::diagnostics::FindingCode;
 use sparksmith_core::library::{CornerMask, Hole, HoleShape, Outline, PadShape, Segment};
 use sparksmith_core::units::{Angle, Nm, PointNm};
 
@@ -16,7 +17,7 @@ pub(crate) const EPS: f64 = 1e-6;
 const TAU: f64 = std::f64::consts::TAU;
 const PI: f64 = std::f64::consts::PI;
 
-pub(crate) const UNCLASSIFIED: &str = "footprint.pad_shape_unclassified";
+pub(crate) const UNCLASSIFIED: FindingCode = FindingCode::FootprintPadShapeUnclassified;
 
 /// One merged boundary piece: a line or a circular arc (radians,
 /// counter-clockwise positive).
@@ -391,7 +392,7 @@ pub(crate) fn hole(
     anchor: Vec2,
     rotation_deg: f64,
 ) -> Outcome<Hole> {
-    const BAD: &str = "footprint.hole_unclassified";
+    const BAD: FindingCode = FindingCode::FootprintHoleUnclassified;
     let rad = rotation_deg.to_radians();
     let to_local = |v: Vec2| rotate(v - anchor, -rad);
     let pos = |i: usize| {

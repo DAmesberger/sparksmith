@@ -59,7 +59,7 @@ pub const DEFAULT_REGISTRY_URL: &str = "https://parts.sparksmith.io";
 
 /// One online parts registry (part-search §6, registry R0 §10), searched
 /// after every local source. Off unless the person turns it on.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RegistrySetting {
     /// `http://` or `https://`, host and optional port, no path.
@@ -101,7 +101,7 @@ pub fn check_registry_url(url: &str) -> Result<()> {
 }
 
 /// One configured library folder.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SourceSetting {
     pub path: PathBuf,
@@ -115,7 +115,7 @@ pub struct SourceSetting {
     pub name: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UserSettings {
     pub format: u32,
@@ -179,7 +179,9 @@ pub const MAX_FILTER_LIST: usize = 64;
 pub const MAX_FILTER_QUERY: usize = sparksmith_core::catalog::MAX_QUERY;
 
 /// How tall list rows are.
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(
+    Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ListDensity {
     #[default]
@@ -190,7 +192,7 @@ pub enum ListDensity {
 
 /// One saved filter of one list: a query the list's filter bar offers
 /// as a named chip.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SavedFilter {
     /// The list's stable name (`pcb.parts`, `issues`).
@@ -199,7 +201,7 @@ pub struct SavedFilter {
 }
 
 /// The lists' settings (Settings › Lists).
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ListSettings {
     #[serde(default)]
@@ -278,7 +280,7 @@ impl ListSettings {
 /// The board selection filter: whether a click, the rectangle and ⌘A may
 /// take parts (with their pads), tracks, vias and fills. A file naming
 /// any other kind is refused.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SelectionFilter {
     pub parts: bool,
@@ -310,7 +312,7 @@ pub const MAX_WINDOW_POINTS: f32 = 65_536.0;
 /// The main window as it was last left, restored on the next launch: full
 /// screen, maximized, or its frame. The frame is the window's last one out
 /// of full screen and maximized, so leaving either returns to it.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WindowState {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -341,7 +343,7 @@ impl WindowState {
 }
 
 /// Where one project's production files go.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProductionFolder {
     /// The project file, absolute.
@@ -389,7 +391,7 @@ pub const HOLD_MS_DEFAULT: u32 = 500;
 /// Solidcraft's keymap names it (`Ctrl+Shift+S`), or `None` for no key.
 /// Whether the id and chord mean something is the app's to say: an entry
 /// it cannot apply is reported and kept, never dropped.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct KeyBinding {
     pub command: String,
@@ -397,7 +399,7 @@ pub struct KeyBinding {
 }
 
 /// Hold ⌘ to show key badges; tap ⌥ for key tips.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RevealSettings {
     pub hold_badges: bool,
@@ -416,7 +418,7 @@ impl Default for RevealSettings {
 }
 
 /// The keymap the user changed and the reveal overlays' settings.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct KeyboardSettings {
     pub format: u32,

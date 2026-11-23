@@ -1141,7 +1141,7 @@ fn regenerating_carries_a_placed_parts_exact_part_to_the_new_revision() -> TestR
     let placed = project.instance(instance).ok_or("no instance")?;
     let findings: Vec<String> = crate::instances::part_findings(&project.library, placed)
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     assert_eq!(findings, ["part.spec_unrated"]);
     let pinned = placed.part.ok_or("the Part was dropped")?;
@@ -1275,7 +1275,7 @@ fn regenerating_at_the_same_version_carries_a_part_left_on_an_older_revision() -
         Ok(
             crate::instances::part_findings(&engine.project().library, placed)
                 .into_iter()
-                .map(|f| f.code)
+                .map(|f| f.code.to_string())
                 .collect(),
         )
     };

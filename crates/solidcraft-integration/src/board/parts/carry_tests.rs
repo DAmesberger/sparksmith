@@ -26,7 +26,7 @@ fn pad(project: &Project, instance: Id, n: usize) -> Fallible<WorldPad> {
 fn board_codes(project: &Project) -> Vec<String> {
     let mut codes: Vec<String> = layout::checks(project, &Default::default())
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     codes.sort();
     codes

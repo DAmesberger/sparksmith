@@ -157,14 +157,14 @@ impl CopperGraph {
             let name = row.label(project);
             let finding = match current.capacity_a {
                 None => Finding::new(
-                    "tie.current_unchecked",
+                    FindingCode::TieCurrentUnchecked,
                     format!(
                         "{name} requires {need} A. Set the allowed temperature rise and supply an IPC-2152 table citing its edition and figure, with a point covering the placed bridge. Sparksmith ships no curve data."
                     ),
                     row.objects([]),
                 ),
                 Some(cap) if cap < need => Finding::new(
-                    "tie.current_exceeded",
+                    FindingCode::TieCurrentExceeded,
                     format!(
                         "{name} requires {need} A. Its bridge is rated for {cap} A by {}. The long-conductor rating is conservative for a short neck.",
                         current.source.as_deref().unwrap_or("the supplied table")

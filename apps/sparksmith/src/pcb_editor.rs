@@ -102,7 +102,7 @@ mod track_drag;
 mod track_drag_tests;
 mod tune_tool;
 mod variants_card;
-pub use rules_panel::{RuleTopic, topic_for as rule_topic_for};
+pub use rules_panel::{RuleTopic, rule_text, topic_for as rule_topic_for};
 #[cfg(test)]
 pub(crate) use variants_card::tests as variant_fixtures;
 mod track_card;

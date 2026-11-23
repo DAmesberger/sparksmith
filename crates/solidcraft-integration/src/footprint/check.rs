@@ -5,6 +5,7 @@
 //! round trip is refused), enforces the footprint subset and validates every
 //! curve and constraint by index. Ported from the F0 spike.
 
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::BTreeSet;
 
 use solidcraft_engine::sketch::{ConstraintKind, CurveKind, MAX_SPLINE_POINTS, Sketch};
@@ -20,14 +21,14 @@ pub(crate) const MAX_CURVES: usize = 4096;
 /// Largest coordinate or dimension value, mm.
 pub(crate) const MAX_COORD_MM: f64 = 1000.0;
 
-const UNSUPPORTED: &str = "footprint.sketch_unsupported";
-const TOO_LARGE: &str = "footprint.too_large";
+const UNSUPPORTED: FindingCode = FindingCode::FootprintSketchUnsupported;
+const TOO_LARGE: FindingCode = FindingCode::FootprintTooLarge;
 
 /// The canonical JSON the product stores for a sketch: its keys sorted,
 /// the text a saved file reads back as (`SketchBlob`, file format version
 /// 4), so a sketch made here equals itself after saving and reopening.
 pub(crate) fn canonical(sketch: &Sketch) -> Outcome<String> {
-    let internal = |e: serde_json::Error| problem("footprint.internal", e.to_string());
+    let internal = |e: serde_json::Error| problem(FindingCode::FootprintInternal, e.to_string());
     let value = serde_json::to_value(sketch).map_err(internal)?;
     serde_json::to_string(&value).map_err(internal)
 }
@@ -69,8 +70,8 @@ fn load(json: &str, free_form: bool) -> Outcome<Sketch> {
     }
     let sketch: Sketch = serde_json::from_value(given.clone())
         .map_err(|e| problem(UNSUPPORTED, format!("not a Solidcraft sketch: {e}")))?;
-    let again =
-        serde_json::to_value(&sketch).map_err(|e| problem("footprint.internal", e.to_string()))?;
+    let again = serde_json::to_value(&sketch)
+        .map_err(|e| problem(FindingCode::FootprintInternal, e.to_string()))?;
     if again != given {
         return Err(problem(
             UNSUPPORTED,

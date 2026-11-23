@@ -1113,3 +1113,111 @@ fn assistant_mentions_load_replace_results_and_attach_from_keyboard_and_pointer(
     }
     Ok(())
 }
+
+#[test]
+fn offline_help_opens_with_f1_and_reads_a_result_from_the_keyboard() -> Fallible {
+    let mut ax = Ax::new(Workspace::Schematic)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    ax.key(Key::F1);
+    ax.settle();
+    assert!(ax.has(Role::Button, "Close help"), "{}", ax.dump());
+    ax.type_text("route.width-next");
+    ax.key(Key::Enter);
+    ax.settle();
+    assert!(ax.texts.iter().any(|s| s == "Shortcut"), "{}", ax.dump());
+    ax.button("Back")?;
+    ax.button("Forward")?;
+    ax.key(Key::Escape);
+    assert!(!ax.has(Role::Button, "Close help"));
+    Ok(())
+}
+
+/// The Help search field keeps ordinary typing, while both its history
+/// bindings work from the field and follow a keymap edit immediately.
+#[test]
+fn help_history_uses_the_focused_readers_effective_keys() -> Fallible {
+    use crate::commands::{Chord, Context};
+
+    let mut ax = Ax::new(Workspace::Schematic)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    ax.app.help.open_topic("panel/help");
+    ax.settle();
+    ax.app.help.open_topic("panel/palette");
+    ax.settle();
+    assert!(
+        ax.ctx.text_edit_focused(),
+        "the reader's search field has focus"
+    );
+    assert!(ax.app.active_contexts().contains(&Context::Help));
+
+    let back = Chord::alt(Key::B);
+    std::sync::Arc::make_mut(&mut ax.app.registry).rebind("help.back", Some(back))?;
+    crate::keys::publish(&ax.ctx, &ax.app.registry);
+    ax.key_with(Key::ArrowLeft, Modifiers::ALT);
+    assert!(ax.has(Role::Heading, "Command palette"), "{}", ax.dump());
+    ax.key_with(back.key, back.modifiers());
+    assert!(ax.has(Role::Heading, "Help"), "{}", ax.dump());
+    ax.key_with(Key::ArrowRight, Modifiers::ALT);
+    assert!(ax.has(Role::Heading, "Command palette"), "{}", ax.dump());
+
+    // The other search field has the keyboard while help is still visible.
+    ax.app.palette.open();
+    ax.settle();
+    assert!(!ax.app.active_contexts().contains(&Context::Help));
+    ax.key_with(back.key, back.modifiers());
+    assert!(
+        ax.has(Role::Heading, "Command palette"),
+        "outside focus must leave history alone"
+    );
+    Ok(())
+}
+
+/// A help result in the command palette opens the same searchable shortcuts
+/// sheet as the menu command. The row uses the currently bound key.
+#[test]
+fn palette_help_result_opens_effective_shortcuts() -> Fallible {
+    let mut ax = Ax::new(Workspace::Pcb)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    std::sync::Arc::make_mut(&mut ax.app.registry).rebind(
+        "route.width-next",
+        Some(crate::commands::Chord::key(Key::Q)),
+    )?;
+    crate::keys::publish(&ax.ctx, &ax.app.registry);
+    ax.app.run_command(&ax.ctx, "app.palette");
+    ax.settle();
+    ax.type_text("help:panel/keyboard-shortcuts");
+    ax.key(Key::Enter);
+    ax.settle();
+    assert!(ax.has(Role::Heading, "Keyboard shortcuts"), "{}", ax.dump());
+    ax.type_text("Next track width");
+    ax.settle();
+    assert!(
+        ax.texts.iter().any(|t| t == "Next track width"),
+        "{}",
+        ax.dump()
+    );
+    assert!(ax.texts.iter().any(|t| t == "Q"), "{}", ax.dump());
+    Ok(())
+}
+
+#[test]
+fn settings_question_opens_the_source_of_the_default() -> Fallible {
+    let mut ax = Ax::new(Workspace::Pcb)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    ax.app.settings_window.open();
+    ax.settle();
+    ax.button("Help for Impedance tolerance")?;
+    ax.settle();
+    assert!(ax.has(Role::Heading, "Default source"), "{}", ax.dump());
+    ax.button("Close help")?;
+    assert!(!ax.has(Role::Heading, "Default source"));
+    Ok(())
+}

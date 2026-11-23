@@ -15,7 +15,7 @@ type Fallible<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 fn codes(project: &Project) -> Vec<String> {
     profile_fit::findings(project)
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect()
 }
 

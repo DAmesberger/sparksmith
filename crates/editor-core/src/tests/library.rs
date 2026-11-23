@@ -142,7 +142,7 @@ fn blocking_codes(engine: &Engine, id: DefinitionId) -> Result<Vec<String>> {
         .findings
         .into_iter()
         .filter(|f| f.blocks_stage(Stage::Publish))
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect())
 }
 

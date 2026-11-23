@@ -22,6 +22,7 @@ pub use query::{
 mod shape;
 pub use shape::PackageShape;
 
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Result};
 use crate::fields::{
     self, FieldSelection, FieldValue, RatedSpec, Requirement, SpecMeaning, ToleranceBasis,
@@ -354,7 +355,7 @@ pub fn update_findings(
         }];
         if update.latest > update.origin.revision {
             out.push(Finding::new(
-                "library.update_available",
+                FindingCode::LibraryUpdateAvailable,
                 format!(
                     "‘{}’ holds {} of {}; the project copied {}.",
                     update.source,
@@ -368,7 +369,7 @@ pub fn update_findings(
         if !update.modified.is_empty() {
             let revisions: Vec<String> = update.modified.iter().map(Revision::to_string).collect();
             out.push(Finding::new(
-                "library.source_modified",
+                FindingCode::LibrarySourceModified,
                 format!(
                     "{} of {} in ‘{}’ changed after the project copied it; the project keeps its copy.",
                     revisions.join(", "),

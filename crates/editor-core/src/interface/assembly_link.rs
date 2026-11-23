@@ -38,6 +38,7 @@
 //! changes ([`conflicts`], [`board_changes`]) and the update says, per
 //! item both changed, which side wins ([`Resolution`]).
 use super::findings;
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::geometry::Point;
 use crate::ids::{ContentHash, Id, printable};
@@ -1197,7 +1198,7 @@ pub fn checks(project: &Project) -> Vec<Finding> {
         match r.status {
             ReferenceStatus::Resolved => {}
             ReferenceStatus::Lost => out.push(Finding::new(
-                findings::ASSEMBLY_REFERENCE_LOST,
+                FindingCode::AssemblyReferenceLost,
                 if note.is_empty() {
                     format!(
                         "The board follows the linked design's {}, which is no longer there. Pick it \
@@ -1214,7 +1215,7 @@ pub fn checks(project: &Project) -> Vec<Finding> {
                 vec![ObjectRef::Board],
             )),
             ReferenceStatus::Inexact => out.push(Finding::new(
-                findings::ASSEMBLY_REFERENCE_INEXACT,
+                FindingCode::AssemblyReferenceInexact,
                 format!(
                     "The board follows the linked design's {}, which was found again only by its \
                      shape{}. Check it, or pick it again",

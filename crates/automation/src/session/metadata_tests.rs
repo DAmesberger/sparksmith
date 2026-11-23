@@ -17,7 +17,7 @@ fn names(family: &str) -> Vec<&'static str> {
 }
 
 #[test]
-fn the_catalog_has_its_272_entries() {
+fn the_catalog_has_its_293_entries() {
     assert_eq!(names("command").len(), Request::ENTRIES.len());
     assert_eq!(names("operation").len(), Operation::entries().count());
     assert_eq!(names("query").len(), Query::ENTRIES.len());
@@ -38,8 +38,8 @@ fn the_catalog_has_its_272_entries() {
     // queries (assembly variants); then library.account and library.sign_out;
     // then variant.review_substitute; then schematic.pins; then
     // variant.set_exclusions; then tie.set_purpose, tie.set_anchor, tie.list
-    // and rules.set_tie_current.
-    assert_eq!(metadata::entries().len(), 296);
+    // and rules.set_tie_current; then the two offline help queries.
+    assert_eq!(metadata::entries().len(), 298);
 }
 
 /// A title is short, says more than the wire name, and is unique within its

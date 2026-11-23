@@ -19,6 +19,7 @@
 //! each other) are placed in halves until each lands or proves determined.
 use crate::geom::Vec2;
 use crate::geom::prelude::*;
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::BTreeMap;
 
 use crate::footprint::check::{self, MAX_COORD_MM};
@@ -31,7 +32,7 @@ use solidcraft_engine::sketch::{
 use sparksmith_core::diagnostics::{Finding, ObjectRef, Result};
 use sparksmith_core::ids::Id;
 use sparksmith_core::layout::dimensions::{
-    FeatureGeometry, PartFreedom, PartPose, PartsRequest, PartsSolution, REFERENCE_LOST,
+    FeatureGeometry, PartFreedom, PartPose, PartsRequest, PartsSolution,
 };
 use sparksmith_core::library::footprint_source::{
     DimKind, DimValue, GeomConstraint, SketchRef, SolveStatus,
@@ -57,9 +58,9 @@ const AXIS_MM: f64 = 10.0;
 /// read as unchanged, mm or degrees.
 const SAME: f64 = 1e-9;
 
-const CODE: &str = "layout.dimension";
+const CODE: FindingCode = FindingCode::LayoutDimension;
 /// Finding code of a solve the dimensions cannot satisfy.
-const CONFLICT: &str = "layout.dimension_conflict";
+const CONFLICT: FindingCode = FindingCode::LayoutDimensionConflict;
 
 /// One target's frame in the scratch sketch.
 struct Frame {
@@ -604,13 +605,13 @@ pub(super) fn solve(request: &PartsRequest<'_>) -> Result<PartsSolution> {
 fn solve_outcome(request: &PartsRequest<'_>) -> Outcome<PartsSolution> {
     if request.parts.is_empty() || request.parts.len() > MAX_SOLVE_PARTS {
         return Err(problem(
-            "layout.dimension_limit",
+            FindingCode::LayoutDimensionLimit,
             format!("a parts solve takes 1–{MAX_SOLVE_PARTS} parts"),
         ));
     }
     if request.dimensions.len() > MAX_SOLVE_DIMENSIONS {
         return Err(problem(
-            "layout.dimension_limit",
+            FindingCode::LayoutDimensionLimit,
             format!("a parts solve takes at most {MAX_SOLVE_DIMENSIONS} dimensions"),
         ));
     }
@@ -675,7 +676,7 @@ fn solve_outcome(request: &PartsRequest<'_>) -> Outcome<PartsSolution> {
         }
         let Some(refs) = refs.into_iter().collect::<Option<Vec<Ref>>>() else {
             findings.push(Finding::new(
-                REFERENCE_LOST,
+                FindingCode::BoardReferenceLost,
                 "A dimension names board geometry that was deleted".into(),
                 vec![ObjectRef::Board],
             ));

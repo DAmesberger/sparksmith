@@ -24,6 +24,7 @@
 //! uncoupled. Parallel stretches closer than the gap are `pair.gap`
 //! findings.
 use super::{CopperGraph, impedance};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::geometry::Point;
 use crate::ids::Id;
@@ -600,7 +601,7 @@ pub(crate) fn checks_from(
                 ("long", l - hi)
             };
             findings.push(Finding::new(
-                "length.mismatch",
+                FindingCode::LengthMismatch,
                 format!(
                     "{} is {} mm too {word} for length group {}; {} mm, needs {} ± {} mm",
                     project.net_name(*member),
@@ -667,7 +668,7 @@ fn check_pair(
         && (a - b).abs() > max_skew + 1e-6
     {
         findings.push(Finding::new(
-            "pair.skew",
+            FindingCode::PairSkew,
             format!(
                 "{}: halves differ by {} mm; needs at most {} mm (net class {class_name}: max skew)",
                 pair.name,
@@ -684,7 +685,7 @@ fn check_pair(
         let worst = uncoupled[0].max(uncoupled[1]);
         if worst > max + 1e-6 && (a > 0.0 || b > 0.0) {
             findings.push(Finding::new(
-                "pair.uncoupled",
+                FindingCode::PairUncoupled,
                 format!(
                     "{}: {} mm runs uncoupled; needs at most {} mm (net class {class_name}: max uncoupled)",
                     pair.name,
@@ -704,7 +705,7 @@ fn check_pair(
     }
     for (layer, (edge, gap, p, n)) in worst {
         findings.push(Finding::new(
-            "pair.gap",
+            FindingCode::PairGap,
             format!(
                 "{}: halves {} mm apart on {}; needs a {} mm pair gap",
                 pair.name,
@@ -725,7 +726,7 @@ fn check_pair(
         // model supplies no impedance value on these uncoupled track stretches.
         if uncoupled.into_iter().any(|length| length > 1e-6) {
             findings.push(Finding::new(
-                "impedance.uncoupled",
+                FindingCode::ImpedanceUncoupled,
                 format!(
                     "{}: {} Ω check excludes {} mm of {} and {} mm of {}; the tracks run uncoupled",
                     pair.name,
@@ -795,7 +796,7 @@ fn single_ended_impedance(
     }
     for ((net, layer), (_, z, track, target)) in worst {
         findings.push(Finding::new(
-            "impedance.mismatch",
+            FindingCode::ImpedanceMismatch,
             format!(
                 "{} on {} is {:.1} Ω; needs {:.1} Ω ± {} %",
                 project.net_name(net),
@@ -812,7 +813,7 @@ fn single_ended_impedance(
     }
     for (net, layer) in unreferenced {
         findings.push(Finding::new(
-            "impedance.mismatch",
+            FindingCode::ImpedanceMismatch,
             format!(
                 "{} on {} has no reference plane for its impedance target",
                 project.net_name(net),
@@ -833,7 +834,7 @@ fn single_ended_impedance(
 /// neither its net class nor the host's Settings state a tolerance.
 fn no_tolerance(name: &str, objects: Vec<ObjectRef>) -> Finding {
     Finding::new(
-        "impedance.no_tolerance",
+        FindingCode::ImpedanceNoTolerance,
         format!("{name} impedance is not checked: set a tolerance in Settings"),
         objects,
     )
@@ -866,7 +867,7 @@ fn impedance_of_runs(
     }
     for (layer, (_, z, track)) in worst {
         findings.push(Finding::new(
-            "impedance.mismatch",
+            FindingCode::ImpedanceMismatch,
             format!(
                 "{} on {} is {:.1} Ω differential; needs {:.1} Ω ± {} %",
                 pair.name,
@@ -884,7 +885,7 @@ fn impedance_of_runs(
     }
     for layer in unreferenced {
         findings.push(Finding::new(
-            "impedance.mismatch",
+            FindingCode::ImpedanceMismatch,
             format!(
                 "{} on {} has no reference plane for its impedance target",
                 pair.name,

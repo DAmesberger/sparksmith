@@ -515,10 +515,11 @@ fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
         return failure;
     }
     if let Some(topic) = args.name.strip_prefix("guide:") {
-        return desk::failure(
-            "guide.unknown",
-            format!("there is no guide {topic}: this server serves no guides yet"),
-        );
+        return desk.catalog(envelope(
+            "help.topic",
+            json!({"id":format!("guide/{topic}")}),
+            None,
+        ));
     }
     let Some(entry) = catalog::entry(&args.name) else {
         return generator(desk, &args.name)
@@ -645,7 +646,13 @@ fn run(desk: &mut dyn Calls, kind: Kind, args: RunArgs) -> Value {
     if let Err(why) = fields::check(&entry.name, &params, how) {
         return desk::failure("arguments.invalid", why);
     }
-    let sent = envelope(&entry.name, params, args.expected_revision);
+    let mut sent = envelope(&entry.name, params, args.expected_revision);
+    if entry.module == "help" {
+        if args.project.is_none() {
+            return desk.catalog(sent);
+        }
+        sent.project.clone_from(&args.project);
+    }
     if OPENS.contains(&entry.name.as_str()) {
         if args.project.is_some() {
             return desk::failure(

@@ -427,7 +427,7 @@ pub fn artwork_findings(
         .into_iter()
         .map(|problem| {
             Finding::blocking(
-                "marking.artwork",
+                crate::diagnostics::FindingCode::MarkingArtwork,
                 format!("Marking: {problem}."),
                 vec![ObjectRef::Definition { id: owner }],
                 Stage::Publish,
@@ -778,7 +778,7 @@ pub fn spec_findings(owner: DefinitionId, spec: &MarkingSpec) -> Vec<Finding> {
         .into_iter()
         .map(|problem| {
             Finding::blocking(
-                "marking.template",
+                crate::diagnostics::FindingCode::MarkingTemplate,
                 format!("Marking: {problem}."),
                 vec![ObjectRef::Definition { id: owner }],
                 Stage::Publish,

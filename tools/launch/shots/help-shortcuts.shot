@@ -1,0 +1,4 @@
+key / cmd
+expect "Filter by name or key"
+type "Undo"
+expect "⌘Z"

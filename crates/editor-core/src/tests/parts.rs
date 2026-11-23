@@ -262,7 +262,11 @@ fn purchasing_codes(engine: &Engine, id: Id) -> Result<(PurchasingState, Vec<Str
     let report = inspect(engine, id)?.purchasing;
     Ok((
         report.state,
-        report.findings.into_iter().map(|f| f.code).collect(),
+        report
+            .findings
+            .into_iter()
+            .map(|f| f.code.to_string())
+            .collect(),
     ))
 }
 

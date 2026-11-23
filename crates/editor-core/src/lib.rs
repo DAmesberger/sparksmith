@@ -18,6 +18,7 @@ pub mod firmware;
 pub mod format;
 pub mod functions;
 pub mod geometry;
+pub mod help;
 pub mod ids;
 pub mod instances;
 pub mod interface;

@@ -16,6 +16,10 @@ sparksmith-io.workspace = true
 sparksmith-kicad.workspace = true
 sparksmith-fabcheck.workspace = true
 serde_json.workspace = true
+serde.workspace = true
+tempfile.workspace = true
+schemars.workspace = true
+sparksmith-generators.workspace = true
 # Hashes generator modules and their bundles (MIT OR Apache-2.0).
 sha2.workspace = true
 # Parses Rust for the UI container gate (MIT OR Apache-2.0; already in the tree).
@@ -35,5 +39,3 @@ sketch = ["dep:sparksmith-solidcraft"]
 # only: the gates never build Solidcraft; `sparksmith-io` cannot depend on
 # it).
 sparksmith-solidcraft.workspace = true
-# Planted source trees for the `no-builtin-data` gate's tests.
-tempfile.workspace = true

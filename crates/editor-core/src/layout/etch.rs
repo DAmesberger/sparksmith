@@ -23,6 +23,7 @@ use super::copper::CopperRing;
 use super::fill::{self, FILL_CHORD_MM, RegionIndex};
 use super::grid::BoundsGrid;
 use super::limits::{cite, mm, mm_against};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, distance, polygon_contains, segments_cross};
 use crate::ids::Id;
@@ -100,7 +101,7 @@ fn acute(project: &Project, graph: &CopperGraph, below: f64, out: &mut Vec<Findi
         let [a, b] = w.objects;
         out.push(
             Finding::new(
-                "board.acute_copper",
+                FindingCode::BoardAcuteCopper,
                 format!(
                     "Copper angle {}° < {}°: {} / {} on {} at {} ({rule})",
                     mm(w.angle_deg),
@@ -132,7 +133,7 @@ fn hatch_findings(project: &Project, rules: &crate::rules::DesignRules) -> Vec<F
         let width = f.settings.width_min.unwrap_or(rules.fill.width_min);
         if h.width < width {
             out.push(Finding::new(
-                "board.copper_sliver",
+                FindingCode::BoardCopperSliver,
                 format!(
                     "{}: hatch lines {} mm wide < its min fill width {} mm",
                     crate::library::names::capitalised(&fill::fill_label(project, f)),
@@ -455,7 +456,7 @@ fn slivers(project: &Project, graph: &CopperGraph, min: f64, out: &mut Vec<Findi
                     reported.push((a.object, other));
                     out.push(
                         Finding::new(
-                            "board.copper_sliver",
+                            FindingCode::BoardCopperSliver,
                             format!(
                                 "Unfilled gap {} mm < {} mm: {} / {} in {} at {} ({rule})",
                                 mm_against(gap, min),

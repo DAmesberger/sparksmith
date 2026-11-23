@@ -47,11 +47,13 @@ pub enum Context {
     /// A focused list (Dimensions, Issues, the parts table): its keys
     /// replace the workspace's while it has the keyboard.
     List,
+    /// Keyboard focus within the docked help reader.
+    Help,
 }
 
 impl Context {
     /// Every context, in sheet order.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Global,
         Self::Component,
         Self::Symbol,
@@ -66,6 +68,7 @@ impl Context {
         Self::BoardShape,
         Self::Pcb3d,
         Self::List,
+        Self::Help,
     ];
 
     pub fn label(self) -> &'static str {
@@ -84,13 +87,16 @@ impl Context {
             Self::BoardShape => "PCB › Board shape",
             Self::Pcb3d => "PCB › 3D",
             Self::List => "Lists",
+            Self::Help => "Help",
         }
     }
 
     pub fn parent(self) -> Option<Self> {
         match self {
             Self::Global => None,
-            Self::Component | Self::Schematic | Self::Pcb | Self::List => Some(Self::Global),
+            Self::Component | Self::Schematic | Self::Pcb | Self::List | Self::Help => {
+                Some(Self::Global)
+            }
             Self::Symbol | Self::Footprint => Some(Self::Component),
             Self::SchematicWire => Some(Self::Schematic),
             Self::PcbLayout | Self::Pcb3d => Some(Self::Pcb),
@@ -111,6 +117,7 @@ impl Context {
                 | Self::PcbTune
                 | Self::BoardShape
                 | Self::List
+                | Self::Help
         )
     }
 
@@ -118,7 +125,7 @@ impl Context {
     /// its own keys and the Everywhere commands apply (the board shape
     /// sketch has its own ribbon).
     pub fn exclusive(self) -> bool {
-        matches!(self, Self::BoardShape | Self::List)
+        matches!(self, Self::BoardShape | Self::List | Self::Help)
     }
 
     /// Whether `self` is `other` or lies inside it.
@@ -155,6 +162,12 @@ impl Chord {
     pub const fn cmd(key: egui::Key) -> Self {
         Self {
             command: true,
+            ..Self::key(key)
+        }
+    }
+    pub const fn alt(key: egui::Key) -> Self {
+        Self {
+            alt: true,
             ..Self::key(key)
         }
     }
@@ -439,6 +452,7 @@ pub enum Handler {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppCommand {
     Palette,
+    Help,
     Shortcuts,
     New,
     Open,
@@ -605,7 +619,110 @@ pub struct Command {
     pub keywords: &'static str,
 }
 
+pub fn workspace_page(workspace: Workspace) -> &'static str {
+    match workspace {
+        Workspace::Part => "panel/component",
+        Workspace::Schematic => "panel/schematic",
+        Workspace::Pcb => "panel/layout",
+    }
+}
+
 impl Command {
+    /// Give the registry title its context once; gesture-only commands tell
+    /// readers where the input takes effect.
+    #[cfg(test)]
+    fn help_summary(&self) -> String {
+        let title = self.title.trim_end_matches('…');
+        match self.context {
+            Context::Global => format!("{title} from any workspace."),
+            context => format!("{}: {title}.", context.label()),
+        }
+    }
+
+    /// The surface entry this action invokes, or the workspace/panel
+    /// that owns an interactive command. Tool gestures can span several edits.
+    #[cfg(test)]
+    fn destination(&self) -> &'static str {
+        use AppCommand as A;
+        match self.action {
+            Action::App(app) => match app {
+                A::Palette => "panel/palette",
+                A::Help => "panel/help",
+                A::Shortcuts => "panel/keyboard-shortcuts",
+                A::New => "entry/project.new",
+                A::Open => "entry/project.open",
+                A::Save | A::SaveAs => "entry/project.save",
+                A::Export => "entry/project.export_native",
+                A::ExportSchematicPdf => "entry/schematic.export_pdf",
+                A::Undo => "entry/project.undo",
+                A::Redo => "entry/project.redo",
+                A::ToggleIssues => "panel/issues",
+                A::ToggleBrowser => "panel/browser",
+                A::Messages => "panel/messages",
+                A::LibrarySources => "panel/libraries",
+                A::Settings => "panel/settings",
+                A::ToggleAssistant | A::ConnectAssistants => "panel/assistant",
+                A::Workspace(workspace) => workspace_page(workspace),
+                A::View3d(_) | A::ToggleFollowNet | A::ToggleRealistic | A::TogglePcb3d => {
+                    "panel/model-3d"
+                }
+                A::ToggleParts => "panel/layout",
+                A::Cut => "panel/schematic",
+                A::Copy => "entry/schematic.copy",
+                A::Paste => "entry/schematic.paste",
+                A::SelectAll | A::FitView => "panel/properties",
+                A::ClearRecent | A::ImportKicad | A::ImportReport | A::Quit | A::CloseWindow => {
+                    "panel/files"
+                }
+            },
+            Action::Ribbon(Workspace::Pcb, RibbonEvent::Tool(id)) => match id {
+                "route" => "entry/layout.route_apply",
+                "via" => "entry/layout.add_via",
+                "tune" => "entry/layout.tune_length",
+                "dimension" => "entry/layout.dimension_add",
+                "place" => "entry/component.place_board_only",
+                "place-part" => "entry/layout.place_part_file",
+                "board-shape" => "entry/board.start_sketch",
+                "fill" => "entry/fill.add",
+                "refill" => "entry/fill.refill",
+                "production" => "entry/project.export_fabrication",
+                "update" => "entry/layout.sync",
+                _ => "panel/layout",
+            },
+            Action::Ribbon(Workspace::Schematic, RibbonEvent::Tool(id)) => match id {
+                "place" => "entry/component.place",
+                "wire" => "entry/wire.draw",
+                "junction" => "entry/junction.place",
+                "no-connect" => "entry/instance.set_no_connect",
+                "label" | "global-label" | "hierarchical-label" | "power" => "entry/label.place",
+                "sheet-symbol" => "entry/sheet_symbol.place",
+                "add-sheet" => "entry/sheet.add",
+                "annotate" => "entry/schematic.annotate",
+                "note" | "draw-line" | "draw-rect" => "entry/drawing.add",
+                "rotate" | "mirror" => "entry/schematic.arrange",
+                _ => "panel/schematic",
+            },
+            Action::Ribbon(Workspace::Pcb, RibbonEvent::Tab("3d")) => "panel/model-3d",
+            Action::Ribbon(workspace, _) => workspace_page(workspace),
+            Action::Pcb(_) | Action::PcbLayer(_) | Action::PcbDialog(_) => "panel/layout",
+            Action::PcbArrange(PcbArrange::Align(_)) => "entry/layout.align",
+            Action::PcbArrange(PcbArrange::Distribute(_)) => "entry/layout.distribute",
+            Action::Key => match self.context {
+                Context::Component | Context::Symbol | Context::Footprint => "panel/component",
+                Context::Schematic | Context::SchematicWire => "panel/schematic",
+                Context::Pcb3d => "panel/model-3d",
+                Context::Pcb
+                | Context::PcbLayout
+                | Context::PcbRoute
+                | Context::PcbFill
+                | Context::PcbTune
+                | Context::BoardShape => "panel/layout",
+                Context::List | Context::Global => "panel/keyboard-shortcuts",
+                Context::Help => "panel/help",
+            },
+        }
+    }
+
     fn new(
         id: impl Into<String>,
         title: impl Into<String>,
@@ -1016,46 +1133,16 @@ impl Registry {
 
 /// The least [`match_score`] of a match by a word or a substring of the
 /// title, keywords or id; lower scores are letters found in order.
-const WORD_MATCH: u32 = 300;
+use sparksmith_core::help::WORD_MATCH;
 
-/// How well `q` (lower case) finds `command`: its title first, then its
-/// keywords, context and id. 0: no match.
 pub fn match_score(q: &str, command: &Command) -> u32 {
-    use sparksmith_ui::shortcut_box::score;
-    if q.is_empty() {
-        return 1;
-    }
-    let title = score(q, &command.title);
-    // Every word of the query found in the title, keywords or context.
-    let words = format!(
-        "{} {} {}",
-        command.title,
-        command.keywords,
-        command.context.label()
+    sparksmith_core::help::match_score(
+        q,
+        &command.title,
+        &command.id,
+        &format!("{} {}", command.keywords, command.context.label()),
+        matches!(&command.action, Action::App(AppCommand::Workspace(_))),
     )
-    .to_lowercase();
-    let all_words = q.split_whitespace().all(|w| {
-        words
-            .split(|c: char| !c.is_alphanumeric())
-            .any(|k| k.starts_with(w))
-    });
-    let other = if all_words { 700 } else { 0 };
-    let id = score(q, &command.id) / 2;
-    title.max(other).max(id).max(whole_words(q, command))
-}
-
-/// Every word of `q` is a whole word of the title: above a word that only
-/// starts with it. A workspace is where its name leads ("schematic": Go to
-/// Schematic before Export schematic PDF…). 0 otherwise.
-fn whole_words(q: &str, command: &Command) -> u32 {
-    let title = command.title.to_lowercase();
-    let words = title.split(|c: char| !c.is_alphanumeric());
-    let whole = q.split_whitespace().all(|w| words.clone().any(|t| t == w));
-    match (whole, &command.action) {
-        (false, _) => 0,
-        (true, Action::App(AppCommand::Workspace(_))) => 900,
-        (true, _) => 850,
-    }
 }
 
 /// Whether `a` and `b` sharing `chord` is a conflict: both could see the
@@ -1213,6 +1300,22 @@ fn defaults() -> Vec<Command> {
             .chord(Chord::cmd(K::P).with_shift())
             .icon("zoom")
             .keywords("search find run commands"),
+        app("app.help", "Help", A::Help)
+            .chord(Chord::key(K::F1))
+            .icon("list")
+            .keywords("manual documentation guide context"),
+        key(
+            "help.back",
+            "Back in help",
+            C::Help,
+            Chord::alt(K::ArrowLeft),
+        ),
+        key(
+            "help.forward",
+            "Forward in help",
+            C::Help,
+            Chord::alt(K::ArrowRight),
+        ),
         app("app.shortcuts", "Keyboard shortcuts", A::Shortcuts)
             .chord(Chord::cmd(K::Slash))
             .icon("list")

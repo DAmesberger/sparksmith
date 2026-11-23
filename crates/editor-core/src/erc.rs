@@ -8,6 +8,7 @@
 //! once as `instance.terminal_unaccounted`. Pin rule `warn` verdicts are ERC
 //! notes (`config.rule_note`); `require` verdicts and rule failures block
 //! electrical resolution and are completeness findings.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::functions::{ActiveFunction, Direction, Drive, Resolution};
 use crate::ids::{Endpoint, Id};
@@ -75,7 +76,7 @@ fn net_checks(
     if connected {
         for endpoint in &unresolved {
             out.push(Finding::new(
-                "erc.unchecked_terminal",
+                FindingCode::ErcUncheckedTerminal,
                 format!(
                     "{}: {} has no active function and is not checked.",
                     net.name,
@@ -133,7 +134,7 @@ fn net_checks(
             && !has(Direction::PowerOutput)
         {
             out.push(Finding::new(
-                "erc.input_only_net",
+                FindingCode::ErcInputOnlyNet,
                 format!("{}: inputs are connected with no driver.", net.name),
                 vec![this],
             ));
@@ -147,7 +148,7 @@ fn net_checks(
             .filter(|(_, f)| f.direction == Direction::PowerInput)
         {
             out.push(Finding::new(
-                "erc.undriven_power_input",
+                FindingCode::ErcUndrivenPowerInput,
                 format!(
                     "{} has no power-output driver on its net.",
                     terminal(project, *endpoint)
@@ -202,12 +203,12 @@ pub fn driver_contention(a: Driver, b: Driver) -> Option<Contention> {
 }
 
 impl Contention {
-    pub fn code(self) -> &'static str {
+    pub fn code(self) -> FindingCode {
         match self {
-            Self::PushPull => "erc.driver_conflict",
-            Self::OpenDrain => "erc.open_drain_contention",
-            Self::OpenSource => "erc.open_source_contention",
-            Self::Supplies => "erc.power_output_conflict",
+            Self::PushPull => FindingCode::ErcDriverConflict,
+            Self::OpenDrain => FindingCode::ErcOpenDrainContention,
+            Self::OpenSource => FindingCode::ErcOpenSourceContention,
+            Self::Supplies => FindingCode::ErcPowerOutputConflict,
         }
     }
 
@@ -401,7 +402,7 @@ fn rule_notes(
             },
         }));
         out.push(Finding::new(
-            "config.rule_note",
+            FindingCode::ConfigRuleNote,
             format!(
                 "{}: {}{}",
                 instance.designator,

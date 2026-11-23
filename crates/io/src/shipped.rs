@@ -34,6 +34,8 @@ const MAX_ANCESTORS: usize = 8;
 /// One kind of shipped data, each in its own subfolder.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Shelf {
+    /// Offline help registries, topics and media.
+    Help,
     /// Fab profiles (`profiles/*.json`).
     Profiles,
     /// Fabricator records the profiles name (`fabricators/*.json`).
@@ -70,6 +72,7 @@ impl Shelf {
     /// The subfolder name.
     pub fn dir_name(self) -> &'static str {
         match self {
+            Self::Help => "help",
             Self::Profiles => "profiles",
             Self::Fabricators => "fabricators",
             Self::Stackups => "stackups",

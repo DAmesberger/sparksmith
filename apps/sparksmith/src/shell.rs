@@ -529,6 +529,7 @@ pub fn ribbon(
         .show_separator_line(false)
         .frame(host.edge_frame(egui::Color32::TRANSPARENT))
         .show(ui, |ui| {
+            crate::app::help_sheet::region(ui, ui.max_rect(), "panel/ribbon", 1);
             let available = ui.max_rect().shrink(gap);
             let tile = Rect::from_min_size(available.min, vec2(WORKSPACE_WIDTH, RIBBON_HEIGHT));
             let card = Rect::from_min_max(pos2(tile.right() + gap, available.top()), available.max);

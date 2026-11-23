@@ -6,6 +6,7 @@ use super::{
     MAX_PINOUT_VARIANTS, MAX_ROW_NUMBERS, PINOUT_FORMAT, PinoutAccept, PinoutChange, PinoutClass,
     PinoutDocument, PinoutPin, PinoutTarget, RULE_ROW_PREFIX, ReviewItem, ReviewReason,
 };
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::functions::rules::{MAX_RULE_SOURCE, PinRule, PinRuleScript};
 use crate::functions::{
@@ -478,7 +479,7 @@ impl Builder<'_> {
                         let found = functions.iter().find(|f| &f.label == label).map(|f| f.id);
                         if found.is_none() {
                             self.findings.push(Finding::blocking(
-                                "function.design_default",
+                                FindingCode::FunctionDesignDefault,
                                 format!(
                                     "Row ‘{}’ names ‘{label}’ as its default, which is not one of its functions.",
                                     pin.row
@@ -520,7 +521,7 @@ impl Builder<'_> {
             (Some(p), Some(r)) => (p, r),
             _ => {
                 self.findings.push(Finding::blocking(
-                    "function.resource_unknown",
+                    FindingCode::FunctionResourceUnknown,
                     format!(
                         "Function ‘{}’ of row ‘{}’ names a peripheral or a role but not both.",
                         f.label, pin.row
@@ -545,7 +546,7 @@ impl Builder<'_> {
             });
         if found.is_none() {
             self.findings.push(Finding::blocking(
-                "function.resource_unknown",
+                FindingCode::FunctionResourceUnknown,
                 format!(
                     "Function ‘{}’ of row ‘{}’ takes role ‘{role}’ of peripheral ‘{peripheral}’, which the document does not declare.",
                     f.label, pin.row
@@ -918,7 +919,7 @@ fn number_findings(document: &PinoutDocument, component: DefinitionId, out: &mut
             for number in numbers.iter() {
                 if let Some(first) = seen.insert(number, &pin.row) {
                     out.findings.push(Finding::blocking(
-                        "package.designation",
+                        FindingCode::PackageDesignation,
                         format!(
                             "Rows ‘{first}’ and ‘{}’ both use number {number} in {}.",
                             pin.row, variant.name
@@ -931,7 +932,7 @@ fn number_findings(document: &PinoutDocument, component: DefinitionId, out: &mut
         }
         if count != variant.terminal_count as usize {
             out.findings.push(Finding::blocking(
-                "package.terminal_count",
+                FindingCode::PackageTerminalCount,
                 format!(
                     "{} states {} terminals but {count} {} numbered in it.",
                     variant.name,
@@ -1013,7 +1014,7 @@ pub fn stage(
                     .terminal(*terminal)
                     .map_or_else(|| terminal.to_string(), |t| t.name.clone());
                 out.findings.push(Finding::blocking(
-                    "pinout.split_terminal",
+                    FindingCode::PinoutSplitTerminal,
                     format!(
                         "Row ‘{row}’ numbers a pad of terminal ‘{name}’, which row ‘{first}’ already describes; the terminal is kept whole and the row adds nothing. List every number of the terminal in one row (number: {{variant: [\"8\", \"9\"]}})."
                     ),

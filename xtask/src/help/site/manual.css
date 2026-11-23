@@ -1,0 +1,35 @@
+:root {
+  color-scheme: light dark;
+  --ink: #18221f; --subtle: #40544b; --surface: #fcfdfb; --line: #c5d1c9; --link: #005e46; --wash: #edf4ef;
+  font: 100%/1.55 "Atkinson Hyperlegible Next", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ink:#edf4ef; --subtle:#bad2c4; --surface:#151d19; --line:#4b5f52; --link:#8be0be; --wash:#24332b }
+}
+* {box-sizing:border-box}
+body {margin:0;background:var(--surface);color:var(--ink)}
+header, main {max-width:64rem;margin:auto;padding:1rem clamp(1rem,4vw,3rem)}
+header {border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+header a {font-weight:650;color:var(--ink)}
+main {padding-top:2rem;padding-bottom:4rem}
+a {color:var(--link);text-underline-offset:.18em}
+a:focus-visible, input:focus-visible {outline:3px solid var(--link);outline-offset:3px}
+h1 {font:650 clamp(2rem,5vw,3.25rem)/1.15 system-ui,sans-serif;letter-spacing:-.035em;margin:.3em 0}
+h2 {font-size:1.4rem;line-height:1.28;margin:1.6em 0 .6em}
+p,li {max-width:75ch;overflow-wrap:anywhere}
+p {margin:.7rem 0}
+.context,small,dt {color:var(--subtle)}
+ul {padding-inline-start:1.35em}
+.index {list-style:none;padding:0}.index li {padding:.55rem 0;border-bottom:1px solid var(--line)}
+.index li p {margin:.1em 0 0;color:var(--subtle)}
+input {display:block;width:min(36rem,100%);font:inherit;padding:.5em .7em;margin:.3rem 0 1rem;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+dl {display:grid;grid-template-columns:minmax(6rem,10rem) 1fr;gap:.5rem 1.5rem}
+dd {margin:0;overflow-wrap:anywhere}
+aside {background:var(--wash);padding:.7rem 1rem;margin:1rem 0;border-left:.25rem solid var(--link)}
+img {max-width:100%;height:auto}figure {margin:1rem 0}
+.table {overflow-x:auto}table {width:100%;border-collapse:collapse}
+td,th {text-align:left;vertical-align:top;padding:.5rem;border-bottom:1px solid var(--line)}
+pre {overflow-x:auto;background:var(--wash);padding:.8rem;max-width:100%}
+code,kbd,pre {font-family:"IBM Plex Mono",ui-monospace,monospace}
+kbd {padding:.05em .3em;border:1px solid var(--line);border-radius:.2rem}
+@media (max-width:34rem) {dl {display:block} dd {margin:0 0 .8rem} main {padding-top:1rem}}

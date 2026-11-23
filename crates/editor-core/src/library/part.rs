@@ -6,6 +6,7 @@
 //! distributor, SKU and links. No price, stock or supplier observation.
 use super::publish::{issue, object};
 use super::{ComponentDefinition, Library, printable};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::fields::{self, MAX_RATED_SPECS, RatedSpec};
 use crate::ids::{BindingRef, ComponentRef, DefinitionId, MAX_LABEL};
@@ -196,7 +197,7 @@ impl PartDefinition {
         }
         if !printable(&self.manufacturer) || !printable(&self.mpn) {
             out.push(issue(
-                "part.identity",
+                FindingCode::PartIdentity,
                 "A Part needs a printable manufacturer and MPN of 1–256 bytes.".into(),
                 vec![this],
             ));
@@ -204,7 +205,7 @@ impl PartDefinition {
         let component = library.component(self.component);
         if component.is_none() {
             out.push(issue(
-                "reference.missing",
+                FindingCode::ReferenceMissing,
                 format!(
                     "{} is missing from the project library.",
                     named(self.component.erased())
@@ -219,7 +220,7 @@ impl PartDefinition {
         }
         if library.binding(self.binding).is_none() {
             out.push(issue(
-                "reference.missing",
+                FindingCode::ReferenceMissing,
                 format!(
                     "{} is missing from the project library.",
                     named(self.binding.erased())
@@ -236,7 +237,7 @@ impl PartDefinition {
             let component = &component.definition;
             if !component.implementations.contains(&self.binding) {
                 out.push(issue(
-                    "part.binding_unlisted",
+                    FindingCode::PartBindingUnlisted,
                     format!(
                         "{} does not list {}.",
                         named(self.component.erased()),
@@ -270,7 +271,7 @@ impl PartDefinition {
             ];
             if !lineages.insert(spec.field.id) {
                 out.push(issue(
-                    "part.spec_duplicate",
+                    FindingCode::PartSpecDuplicate,
                     format!(
                         "{} has more than one rated value.",
                         super::names::capitalised(&library.describe(spec.field.erased()))
@@ -280,7 +281,7 @@ impl PartDefinition {
             }
             if component.field(spec.field.id).map(|s| s.field) != Some(spec.field) {
                 out.push(issue(
-                    "part.spec_field",
+                    FindingCode::PartSpecField,
                     format!(
                         "{} does not select {}.",
                         super::names::capitalised(&library.describe(self.component.erased())),
@@ -292,7 +293,7 @@ impl PartDefinition {
             }
             let Some(view) = library.field_view(spec.field) else {
                 out.push(issue(
-                    "reference.missing",
+                    FindingCode::ReferenceMissing,
                     format!(
                         "{} or its quantity kind is missing from the project library.",
                         super::names::capitalised(&library.describe(spec.field.erased()))
@@ -305,14 +306,14 @@ impl PartDefinition {
             let name = &view.field.meta.name;
             if let Err(error) = fields::check_value(&spec.value, value_type, view.kind_body()) {
                 out.push(issue(
-                    "part.spec_value",
+                    FindingCode::PartSpecValue,
                     format!("The rated {name} is invalid: {error}."),
                     objects.clone(),
                 ));
             }
             if !spec.meaning.fits(value_type) {
                 out.push(issue(
-                    "part.spec_meaning",
+                    FindingCode::PartSpecMeaning,
                     format!(
                         "A {} cannot compare values of {name}.",
                         spec.meaning.label()
@@ -331,14 +332,14 @@ impl PartDefinition {
                 || !optional_label(&reference.licence)
             {
                 out.push(issue(
-                    "part.reference_text",
+                    FindingCode::PartReferenceText,
                     "A reference needs a printable title, revision and licence.".into(),
                     local(reference.id),
                 ));
             }
             if !reference.url.as_deref().is_none_or(link) {
                 out.push(issue(
-                    "part.link",
+                    FindingCode::PartLink,
                     format!(
                         "Reference ‘{}’ needs an http(s) link without spaces.",
                         reference.title
@@ -350,7 +351,7 @@ impl PartDefinition {
                 || !reference.provenance.well_formed()
             {
                 out.push(issue(
-                    "part.hash",
+                    FindingCode::PartHash,
                     format!(
                         "Reference ‘{}’ names a hash that is not 64 lower-case hex digits.",
                         reference.title
@@ -365,14 +366,14 @@ impl PartDefinition {
                 || !optional_label(&offer.packaging)
             {
                 out.push(issue(
-                    "part.offer_text",
+                    FindingCode::PartOfferText,
                     "An offer needs a printable distributor, SKU and packaging.".into(),
                     local(offer.id),
                 ));
             }
             if !offer.url.as_deref().is_none_or(link) {
                 out.push(issue(
-                    "part.link",
+                    FindingCode::PartLink,
                     format!(
                         "The offer of ‘{}’ needs an http(s) link without spaces.",
                         offer.distributor
@@ -384,7 +385,7 @@ impl PartDefinition {
         let this = vec![ObjectRef::Definition { id }];
         if !self.provenance.well_formed() || !optional_label(&self.provenance.licence) {
             out.push(issue(
-                "part.hash",
+                FindingCode::PartHash,
                 "The provenance needs a printable source and a 64-digit lower-case hex hash."
                     .into(),
                 this.clone(),
@@ -397,7 +398,7 @@ impl PartDefinition {
                 && !self.references.iter().any(|x| x.id == r)
             {
                 out.push(issue(
-                    "part.provenance_basis",
+                    FindingCode::PartProvenanceBasis,
                     "The provenance names a reference this Part does not list.".into(),
                     this.clone(),
                 ));

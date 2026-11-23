@@ -16,11 +16,12 @@ use crate::diagnostics::{Error, Finding, ObjectRef, Requirement, Result};
 use crate::model::{PadFinish, Project};
 
 /// The board's copper layer count is not one its fab profile is for.
-pub const LAYERS: &str = "board.profile_layers";
+pub const LAYERS: &str = crate::diagnostics::FindingCode::BoardProfileLayers.as_str();
 /// A chosen manufacturing option needs a thinner board.
-pub const CHOICE_THICKNESS: &str = "board.fab_choice_thickness";
+pub const CHOICE_THICKNESS: &str =
+    crate::diagnostics::FindingCode::BoardFabChoiceThickness.as_str();
 /// A chosen manufacturing option needs another surface finish.
-pub const CHOICE_FINISH: &str = "board.fab_choice_finish";
+pub const CHOICE_FINISH: &str = crate::diagnostics::FindingCode::BoardFabChoiceFinish.as_str();
 
 /// A profile's finish requirements name surface finishes: a file that
 /// names another word is refused, never read as a requirement no board
@@ -121,7 +122,10 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             ));
         }
     }
-    for (code, messages) in [(CHOICE_THICKNESS, thin), (CHOICE_FINISH, finished)] {
+    for (code, messages) in [
+        (FindingCode::BoardFabChoiceThickness, thin),
+        (FindingCode::BoardFabChoiceFinish, finished),
+    ] {
         if !messages.is_empty() {
             out.push(Finding::new(
                 code,

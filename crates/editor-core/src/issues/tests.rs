@@ -148,3 +148,23 @@ fn an_incomplete_board_check_is_a_counted_error_that_locates() {
         );
     }
 }
+
+#[test]
+fn finding_codes_keep_the_wire_names_and_declaration_facts()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    use crate::diagnostics::FindingCode;
+    let ring = FindingCode::BoardViaAnnularRing;
+    assert_eq!(serde_json::to_string(&ring)?, r#""board.via_annular_ring""#);
+    assert_eq!(ring.severity(), Severity::Error);
+    assert_eq!(ring.blocks(), None);
+    assert_eq!(
+        FindingCode::ComponentMappingMissing.blocks(),
+        Some(Stage::Publish)
+    );
+    for &code in FindingCode::ALL {
+        assert_eq!(code.as_str().parse::<FindingCode>()?, code);
+        assert_eq!(check(code.group_title()), Vec::<Problem>::new());
+    }
+    assert!(serde_json::from_str::<FindingCode>(r#""board.typo""#).is_err());
+    Ok(())
+}

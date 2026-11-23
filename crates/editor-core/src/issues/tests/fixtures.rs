@@ -406,7 +406,7 @@ fn per_instance_copies_of_one_part_finding_are_one_issue() {
     let part = crate::ids::DefinitionId(40);
     let finding = |instance: u64, designator: &str| {
         Finding::new(
-            "part.stale_component",
+            crate::diagnostics::FindingCode::PartStaleComponent,
             format!(
                 "{designator}: Part EX-1 is for Resistor r1, older than the instance's Resistor r2."
             ),
@@ -681,67 +681,37 @@ fn a_rule_code_moves_from_the_text_to_the_diagnostic() {
     );
 }
 
-/// Every finding code the core sources emit is classified in
-/// [`KNOWN_CODES`], so a new rule gets a severity and a group title.
+/// A declaration without an emitter names the wire value to remove. The
+/// compiler checks in the other direction: every constructor takes FindingCode.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
-fn every_finding_code_in_the_sources_is_known() -> Fallible<()> {
-    let mut found = std::collections::BTreeSet::new();
-    for (path, text) in sources()? {
-        let mut rest = text.as_str();
-        while let Some(at) = rest.find(['(', ',']) {
-            rest = &rest[at + 1..];
-            let call = rest.trim_start();
-            let Some(literal) = call.strip_prefix('"') else {
-                continue;
-            };
-            let Some(end) = literal.find('"') else {
-                continue;
-            };
-            let code = &literal[..end];
-            let before = &text[..text.len() - rest.len() - 1];
-            let callee = before
-                .trim_end()
-                .rsplit(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'))
-                .next()
-                .unwrap_or_default();
-            let finding_call = matches!(
-                callee,
-                "Finding::new" | "Finding::blocking" | "issue" | "publish_issue"
-            );
-            if finding_call && code.contains('.') && !code.contains(' ') {
-                found.insert((code.to_owned(), path.clone()));
+fn every_declared_finding_has_an_owner() -> Fallible<()> {
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let native = core.join("../../solidcraft-integration/src");
+    let mut dirs = vec![core, native];
+    let mut texts = Vec::new();
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                if !path.ends_with("tests") {
+                    dirs.push(path);
+                }
+            } else if path.extension().is_some_and(|ext| ext == "rs")
+                && !path.ends_with("diagnostics/finding_code.rs")
+                && !path
+                    .file_name()
+                    .is_some_and(|n| n.to_string_lossy().contains("test"))
+            {
+                texts.push(std::fs::read_to_string(path)?);
             }
         }
     }
-    assert!(found.len() > 50, "the scan finds the rule owners");
-    for (code, path) in &found {
-        assert!(KNOWN_CODES.contains(&code.as_str()), "{code} ({path})");
-    }
-    Ok(())
-}
-
-/// Every code in [`KNOWN_CODES`] except the synthetic ones `project.issues`
-/// adds is still written in a production source (as a literal outside the
-/// classification table), so a code whose last emitter is gone is removed
-/// with it.
-#[cfg(not(target_arch = "wasm32"))]
-#[test]
-fn every_known_code_is_still_emitted() -> Fallible<()> {
-    let texts: Vec<String> = sources()?
-        .into_iter()
-        .filter(|(path, _)| path != "issues/rules.rs")
-        .map(|(_, text)| text)
-        .collect();
-    let synthetic = [
-        super::super::rules::NO_PART,
-        super::super::rules::CHECK_FAILED,
-    ];
-    for code in KNOWN_CODES.iter().filter(|c| !synthetic.contains(c)) {
-        let literal = format!("\"{code}\"");
+    for code in crate::diagnostics::FindingCode::ALL {
+        let reference = format!("FindingCode::{code:?}");
         assert!(
-            texts.iter().any(|text| text.contains(&literal)),
-            "{code} is classified but nothing emits it"
+            texts.iter().any(|source| source.contains(&reference)),
+            "{code} has no owner"
         );
     }
     Ok(())

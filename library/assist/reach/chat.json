@@ -3,6 +3,7 @@
   "name": "chat",
   "about": "What the assistant chat may reach on the open project (docs/assistant-panel.md §5.1): edits of the document modules, which run inside the message's one undo step; publishing drafts into the open project without asking (unasked), while a publish to a library asks; files, fabrication output and the 3D model up to an ask, which waits for the person's Allow in the chat; and the window, which it may steer (select, open a workspace) but never edit. The app adds the open project's folder as the only folder a path may name. Settings and the network are out of reach because reach lists neither.",
   "modules": {
+    "help": "read",
     "project": "edit",
     "files": "ask",
     "schematic": "edit",

@@ -393,7 +393,7 @@ pub fn pin_option_findings(
             .unwrap_or_default();
         if let Err(e) = pin_config::check_config(options, config) {
             out.push(Finding::new(
-                "config.pin_option",
+                crate::diagnostics::FindingCode::ConfigPinOption,
                 format!(
                     "{} terminal ‘{}’: its pin configuration is no longer valid: {e}.",
                     instance.designator, declared.name

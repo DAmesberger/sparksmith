@@ -5,6 +5,7 @@
 //! purchasing completeness. It compares by the spec's declared meaning,
 //! never by matching names or text.
 use super::{FieldValue, ToleranceBasis, ValueType, tolerance_interval};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::ids::FieldRef;
 use schemars::JsonSchema;
@@ -144,7 +145,7 @@ impl Requirement {
         let label = &self.label;
         if spec.field.id != self.field.id {
             return vec![Finding::new(
-                "part.spec_field_mismatch",
+                FindingCode::PartSpecFieldMismatch,
                 format!("The rated value is not a value of {label}."),
                 objects,
             )];
@@ -158,12 +159,12 @@ impl Requirement {
         match met {
             Some(true) => Vec::new(),
             Some(false) => vec![Finding::new(
-                "part.spec_mismatch",
+                FindingCode::PartSpecMismatch,
                 format!("The rated {label} ({meaning}) does not meet the requirement."),
                 objects,
             )],
             None => vec![Finding::new(
-                "part.spec_uncomparable",
+                FindingCode::PartSpecUncomparable,
                 format!("The rated {label} ({meaning}) cannot be compared with the requirement."),
                 objects,
             )],
