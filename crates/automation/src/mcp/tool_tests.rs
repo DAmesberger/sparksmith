@@ -40,7 +40,9 @@ struct Connection {
 impl Connection {
     async fn open(mode: Mode, folder: &Path) -> Fallible<Self> {
         let policy = Grant::new(mode, [folder.to_path_buf()]);
-        let server = Server::new(Session::default(), policy)?;
+        let mut session = Session::default();
+        session.set_shipped(sparksmith_io::shipped::ShippedLibrary::for_checkout()?);
+        let server = Server::new(session, policy)?;
         let (client_io, server_io) = tokio::io::duplex(1 << 22);
         let (read, write) = tokio::io::split(server_io);
         let serving = tokio::spawn(server.serve(read, write));
@@ -355,9 +357,12 @@ fn find_and_describe_reach_the_catalog() -> Fallible<()> {
                 .await?,
             "catalog.unknown"
         );
-        assert_eq!(
-            c.refused(DESCRIBE, json!({"name": "guide:pinout"})).await?,
-            "guide.unknown"
+        let guide = c.ok(DESCRIBE, json!({"name":"guide:first-board"})).await?;
+        assert_eq!(guide["id"], "guide/first-board");
+        assert!(
+            guide["excerpt"]
+                .as_array()
+                .is_some_and(|body| !body.is_empty())
         );
         assert_eq!(
             c.refused(DESCRIBE, json!({"nam": "x"})).await?,

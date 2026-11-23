@@ -320,6 +320,8 @@ pub(super) fn command(cx: &mut Builder, key: super::super::RequestId) -> Value {
         PinoutEdit => assistant::pinout_edit(cx),
         WorkingPreview => assistant::working_preview(cx),
         WorkingApply => assistant::working_apply(cx),
+        HelpSearch => cx.typed::<crate::session::help::SearchReply>(),
+        HelpTopic => cx.typed::<crate::session::help::TopicReply>(),
         Workflows => assistant::workflows(cx),
         StepResult => assistant::step_result(cx),
         Offer => assistant::offer(cx),

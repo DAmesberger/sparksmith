@@ -79,7 +79,7 @@ fn rmcp_client_discovers_and_lists_at_2026_07_28() -> Fallible<()> {
         );
         assert!(info.capabilities.tools.is_some());
         assert!(info.capabilities.prompts.is_some());
-        assert!(info.capabilities.resources.is_none());
+        assert!(info.capabilities.resources.is_some());
 
         let tools = client.list_tools(None).await?;
         assert_eq!(tools.ttl_ms, Some(LIST_TTL_MS));
@@ -97,10 +97,9 @@ fn rmcp_client_discovers_and_lists_at_2026_07_28() -> Fallible<()> {
         let names: Vec<&str> = prompts.prompts.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, ["datasheet_to_body", "datasheet_to_component"]);
         assert_eq!(prompts.cache_scope, Some(CacheScope::Public));
-        assert_eq!(
-            code(client.list_resources(None).await)?,
-            ErrorCode::METHOD_NOT_FOUND
-        );
+        let resources = client.list_resources(None).await?;
+        assert_eq!(resources.resources.len(), 1);
+        assert_eq!(resources.resources[0].uri, "sparksmith://help");
         client.cancel().await?;
         serving.await??;
         Fallible::Ok(())
@@ -580,5 +579,31 @@ fn the_datasheet_prompt_serves_the_method() -> Fallible<()> {
         }
     }
     assert!(named >= 10, "{named} entries named");
+    Ok(())
+}
+
+#[test]
+fn help_resource_and_query_serve_identical_bytes_and_complete_ids() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    let mut session = Session::default();
+    session.set_shipped(sparksmith_io::shipped::ShippedLibrary::for_checkout()?);
+    let server = Server::new(session, Grant::new(Mode::AutoAllowEdits, [dir.path().to_owned()]))?;
+    block_on(async move {
+        let (mut wire, serving) = Wire::open(server);
+        let id = "finding/board.via_annular_ring";
+        for (n,uri,name,params) in [(1,help::INDEX.to_owned(),"help.search",json!({"text":""})),
+            (3,format!("{}/{id}",help::INDEX),"help.topic",json!({"id":id}))] {
+            wire.send(&request(n, "resources/read", json!({"uri":uri})).to_string()).await?;
+            let resource = wire.reply().await?;
+            let text = resource["result"]["contents"][0]["text"].as_str().ok_or_else(|| format!("resource failed: {resource}"))?;
+            wire.send(&request(n+1, "tools/call", json!({"name":"query","arguments":{"name":name,"params":params}})).to_string()).await?;
+            let query = wire.reply().await?;
+            assert_eq!(query["result"]["content"][0]["text"], text);
+        }
+        wire.send(&request(5,"completion/complete",json!({"ref":{"type":"ref/resource","uri":help::TEMPLATE},"argument":{"name":"id","value":id}})).to_string()).await?;
+        assert_eq!(wire.reply().await?["result"]["completion"]["values"],json!([id]));
+        drop(wire); serving.await??;
+        Fallible::Ok(())
+    })??;
     Ok(())
 }

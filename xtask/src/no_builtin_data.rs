@@ -11,9 +11,7 @@
 //! functions, files a test-only `mod` declares, and `tests/` and `benches/`
 //! folders. A macro inside another macro's arguments counts too.
 //!
-//! The allowlist holds the program's own assets (fonts, shaders, icons) and
-//! the MCP skill prompt, which belong to the program rather than to the
-//! library. An entry that no longer matches a site fails, so it is removed
+//! The allowlist holds the program's own interface assets (fonts and shaders). An entry that no longer matches a site fails, so it is removed
 //! with the data it allowed.
 use crate::{Result, root};
 use std::collections::BTreeSet;

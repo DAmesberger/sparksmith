@@ -20,8 +20,7 @@
 //!   six verbs of [`tools`] (`find`, `describe`, `query`, `apply`, `act`,
 //!   `show`); the catalog's entries are data behind them ([`catalog`]). The
 //!   prompts are the host's workflows, generated from their data when the
-//!   server starts ([`prompts`]). Resources and completion answer `-32601`
-//!   until their slices.
+//!   server starts ([`prompts`]). Help resource reads and template completion use the same gated queries.
 //! - **Errors** use the spec's codes: `-32602` for an unknown tool or bad
 //!   parameters, `-32601` for a method not served, `-32603` when the session
 //!   thread is gone, `-32022` for another version. A failure of the call
@@ -39,6 +38,7 @@
 pub mod catalog;
 pub mod desk;
 pub mod fields;
+mod help;
 pub mod lenient;
 pub mod prompts;
 pub mod tools;
@@ -50,11 +50,11 @@ use crate::session::Session;
 use crate::workflow::{Loaded, load};
 use desk::Desk;
 use rmcp::model::{
-    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, CompleteRequestMethod,
-    CompleteRequestParams, CompleteResult, ContentBlock, DiscoverResult, GetPromptRequestParams,
-    GetPromptResponse, Implementation, ListPromptsResult, ListResourceTemplatesRequestMethod,
-    ListResourceTemplatesResult, ListResourcesRequestMethod, ListResourcesResult, ListToolsResult,
-    PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerConfig, Tool,
+    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, CompleteRequestParams,
+    CompleteResult, ContentBlock, DiscoverResult, GetPromptRequestParams, GetPromptResponse,
+    Implementation, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
+    ListToolsResult, PaginatedRequestParams, ProtocolVersion, ReadResourceRequestParams,
+    ReadResourceResult, ServerCapabilities, ServerConfig, Tool,
 };
 use rmcp::service::{RequestContext, ServerInitializeError};
 use rmcp::transport::async_rw::AsyncRwTransport;
@@ -230,6 +230,8 @@ impl ServerHandler for Server {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
+            .enable_resources()
+            .enable_completions()
             .build();
         if let Some(tools) = capabilities.tools.as_mut() {
             tools.list_changed = Some(false);
@@ -305,32 +307,40 @@ impl ServerHandler for Server {
             .map_err(|why| ErrorData::invalid_params(why, None))
     }
 
-    // Not served until their slices (P3, P4, P11): a method of an
-    // undeclared capability is not found, rather than an empty answer.
+    // Help resources use the query verbs behind the same grant.
     async fn list_resources(
         &self,
-        _request: Option<PaginatedRequestParams>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
-        Err(ErrorData::method_not_found::<ListResourcesRequestMethod>())
+        one_page(request.as_ref())?;
+        help::model(
+            serde_json::json!({"resources":[{"uri": help::INDEX, "name":"Offline help index", "mimeType":"application/json"}], "ttlMs": LIST_TTL_MS, "cacheScope":"public"}),
+        )
     }
-
     async fn list_resource_templates(
         &self,
-        _request: Option<PaginatedRequestParams>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
-        Err(ErrorData::method_not_found::<
-            ListResourceTemplatesRequestMethod,
-        >())
+        one_page(request.as_ref())?;
+        help::model(
+            serde_json::json!({"resourceTemplates":[{"uriTemplate":help::TEMPLATE, "name":"Help topic", "mimeType":"application/json"}], "ttlMs": LIST_TTL_MS, "cacheScope":"public"}),
+        )
     }
-
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, ErrorData> {
+        help::model(self.help_resource(&request.uri).await?)
+    }
     async fn complete(
         &self,
-        _request: CompleteRequestParams,
+        request: CompleteRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, ErrorData> {
-        Err(ErrorData::method_not_found::<CompleteRequestMethod>())
+        help::model(self.help_completion(&request).await?)
     }
 }
 
