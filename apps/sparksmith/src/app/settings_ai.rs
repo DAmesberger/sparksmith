@@ -272,6 +272,7 @@ impl Quick {
         let draft = draft
             .or_else(|| shipped.endpoint_presets.first().map(|p| p.endpoint.clone()))
             .unwrap_or_else(|| EndpointSetting {
+                harness_profile: None,
                 name: String::new(),
                 provider: Wire::Anthropic,
                 base_url: String::new(),
@@ -1207,6 +1208,13 @@ fn endpoint_form(
         }
     }
     kit::text_row(ui, "Model", &mut d.model).on_hover_text("The model id as the server knows it");
+    let mut harness = d.harness_profile.clone().unwrap_or_default();
+    if kit::text_row(ui, "Harness profile", &mut harness)
+        .on_hover_text("Leave empty to use the workflow or model's harness profile")
+        .changed()
+    {
+        d.harness_profile = (!harness.is_empty()).then_some(harness);
+    }
     number_u32(
         ui,
         "Wait for a reply",

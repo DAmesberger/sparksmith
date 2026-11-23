@@ -400,7 +400,7 @@ fn build(policy: Policy) -> Fallible<Built> {
         &library,
         crate::model::ModelProfile::anthropic("claude-opus-5-5"),
         unbounded(),
-    );
+    )?;
     config.policy = policy;
     let mut session = fresh()?;
     let grant = library.reach.grant();
@@ -451,7 +451,7 @@ fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Falli
         cached,
         session,
         refused,
-    } = build(Policy::CHAT)?;
+    } = build(crate::chat::tests::config()?.policy)?;
     assert!(refused.is_empty(), "{refused:#?}");
     let project = session.engine().project();
     assert_eq!(project.instances.len(), 3);
@@ -561,7 +561,7 @@ fn placed() -> Fallible<(ChatConfig, Session, Vec<Message>)> {
         &library,
         crate::model::ModelProfile::anthropic("claude-opus-5-5"),
         unbounded(),
-    );
+    )?;
     let mut session = fresh()?;
     let grant = library.reach.grant();
     let mut history = Vec::new();
@@ -800,7 +800,7 @@ fn reading_without_a_change_nudges_the_model_and_the_turn_goes_on() -> Fallible 
         "the turn is not ended by reading"
     );
     assert!(nudge.contains("assist.ask"), "{nudge}");
-    let allowance = Policy::CHAT.nudge_tokens;
+    let allowance = config.policy.nudge_tokens;
     assert_eq!(nudges.len(), 1, "{nudges:?}");
     assert!(nudges[0] > allowance, "{nudges:?}");
     // The model answered on the request after the nudge.
@@ -828,6 +828,9 @@ fn the_generators_listing_is_not_cut_in_the_chat() -> Fallible {
     .verb("query", json!({"name": "library.generators", "params": {}}));
     assert_eq!(answer["ok"], true, "{answer}");
     let size = answer["result"].to_string().len();
-    assert!(size < Policy::CHAT.reply_chars, "{size} characters");
+    assert!(
+        size < crate::chat::tests::config()?.policy.reply_chars,
+        "{size} characters"
+    );
     Ok(())
 }

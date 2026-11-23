@@ -79,6 +79,34 @@ fn the_shipped_datasheet_workflow_passes_its_check() -> Fallible {
 }
 
 #[test]
+fn harness_profiles_are_named_at_the_workflow_or_model_step() -> Fallible {
+    assert!(refused(|w| w["harness_profile"] = json!("../name"))?.contains("/harness_profile"));
+    let step = shipped()?
+        .steps
+        .iter()
+        .position(|s| s.kind == StepKind::Model)
+        .ok_or("model step")?;
+    let at = format!("/steps/{step}/harness_profile");
+    assert!(
+        refused(|w| w["steps"][step]["harness_profile"] = json!("invalid/name"))?.contains(&at)
+    );
+    assert!(
+        refused(|w| w["steps"][0]["harness_profile"] = json!("compact"))?
+            .contains("/steps/0/harness_profile")
+    );
+    let mut value: Value = serde_json::from_str(&shipped_text()?)?;
+    value["harness_profile"] = json!("custom");
+    value["steps"][step]["harness_profile"] = json!("compact");
+    let workflow = Workflow::parse(&value.to_string(), "workflow.json")?;
+    assert_eq!(workflow.harness_profile.as_deref(), Some("custom"));
+    assert_eq!(
+        workflow.steps[step].harness_profile.as_deref(),
+        Some("compact")
+    );
+    Ok(())
+}
+
+#[test]
 fn the_shipped_workflow_is_available_here() -> Fallible {
     // Its folder loads (its method beside it) and this host meets its
     // needs. The result card's view.open is left off a host without it,
@@ -782,6 +810,7 @@ fn the_shipped_body_workflow_passes_its_check_and_follows_its_method() -> Fallib
         .check_method(&method)
         .map_err(|p| format!("{p:?}"))?;
     assert!(workflow.offer_when.is_empty());
+    assert_eq!(workflow.harness_profile.as_deref(), Some("compact"));
     let listed = load::list(Some(&shipped_folder()), None, &HostCatalog);
     let ours = listed.iter().find(|l| l.id == BODY).ok_or("listed")?;
     assert_eq!(ours.why_not, Vec::<String>::new());

@@ -32,6 +32,7 @@ pub mod desk;
 pub mod documents;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod fixtures;
+pub mod harness;
 pub mod legacy;
 pub mod model;
 pub mod pins;

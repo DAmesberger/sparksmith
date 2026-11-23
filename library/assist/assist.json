@@ -1,5 +1,6 @@
 {
   "format": 1,
-  "about": "The datasheet assistant's shipped settings. The base system prompt is system-prompt.md, where {product} stands for the program's name; the run profiles are profiles/NAME.json, and a user's assist-profiles/NAME.json takes the shipped one's place.",
-  "default_model": "claude-opus-5-5"
+  "about": "The datasheet assistant reads system-prompt.md with {product} as the program's name. Model run profiles live in profiles/ and harness profiles in harness/. A user's files in assist-profiles/ and assist-harness/ override shipped files of the same name.",
+  "default_model": "claude-opus-5-5",
+  "default_harness": "compact"
 }

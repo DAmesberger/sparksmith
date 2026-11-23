@@ -142,6 +142,43 @@ fn published_terminals(session: &Session) -> Fallible<Vec<(String, Vec<&'static 
 }
 
 #[test]
+fn an_unreadable_step_harness_stops_before_the_workflow_changes_anything() -> Fallible {
+    let mut loaded = shipped()?;
+    let step = loaded
+        .workflow
+        .steps
+        .iter_mut()
+        .rfind(|step| step.kind == crate::workflow::StepKind::Model)
+        .ok_or("model step")?;
+    step.harness_profile = Some("missing-model-step-harness".into());
+    let config = local_config(131_072)?;
+    let mut backend = openai(Vec::new(), &config);
+    let mut session = profiled_session();
+    let before = session.engine().revision();
+    let mut person = Scripted::default();
+    let error = start(
+        &loaded,
+        &config,
+        Default::default(),
+        &mut backend,
+        &mut session,
+        &mut person,
+    )
+    .err()
+    .ok_or("invalid harness accepted")?;
+    assert!(
+        error
+            .to_string()
+            .contains("missing-model-step-harness.json"),
+        "{error}"
+    );
+    assert_eq!(session.engine().revision(), before);
+    assert!(person.events.is_empty());
+    assert!(person.asked.is_empty());
+    Ok(())
+}
+
+#[test]
 fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
     let loaded = shipped()?;
     let config = local_config(131_072)?;

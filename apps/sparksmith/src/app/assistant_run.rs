@@ -34,11 +34,13 @@ const RESULT_CHARS: usize = 4_000;
 /// The run's model configuration: the run profile Settings › AI's model
 /// selects (shipped or the person's own), the person's limits as `budget`
 /// (the runner holds the workflow's own budget within them).
-fn run_config(profile: ModelProfile, budget: Budget) -> Result<RunConfig, String> {
+fn run_config(
+    profile: ModelProfile,
+    budget: Budget,
+    config_dir: Option<&std::path::Path>,
+) -> Result<RunConfig, String> {
     let shipped = AssistLibrary::locate().map_err(|e| e.to_string())?;
-    let folder = sparksmith_io::settings::UserDirs::from_env()
-        .ok()
-        .map(|dirs| sparksmith_assist::profile::user_folder(&dirs.config));
+    let folder = config_dir.map(sparksmith_assist::profile::user_folder);
     let mut config =
         RunConfig::new(&shipped, profile, None, folder.as_deref()).map_err(|e| e.to_string())?;
     config.budget = budget;
@@ -167,7 +169,16 @@ impl App {
         self.assistant.permissions = Some(permissions);
         let started = self
             .chat_grant()
-            .and_then(|(grant, _)| Ok((grant, run_config(model.profile.clone(), budget)?)))
+            .and_then(|(grant, _)| {
+                Ok((
+                    grant,
+                    run_config(
+                        model.profile.clone(),
+                        budget,
+                        self.settings_window.ai.config_dir().as_deref(),
+                    )?,
+                ))
+            })
             .and_then(|(grant, config)| {
                 let wake = ctx.clone();
                 worker::start_run(

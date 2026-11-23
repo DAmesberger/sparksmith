@@ -496,6 +496,24 @@ impl App {
                 return;
             }
         };
+        let folder = self
+            .settings_window
+            .ai
+            .config_dir()
+            .as_deref()
+            .map(sparksmith_assist::profile::user_folder);
+        let config = match ChatConfig::with_profiles(
+            &library,
+            model.profile.clone(),
+            budget,
+            folder.as_deref(),
+        ) {
+            Ok(config) => config,
+            Err(why) => {
+                self.assistant.conversation.state = State::Error(why.to_string());
+                return;
+            }
+        };
         // The chat may offer a workflow (`assist.offer`) among these.
         let workflows = self.workflow_cards.listed().to_vec();
         self.assistant.session.lend_workflows(Some(workflows));
@@ -562,7 +580,6 @@ impl App {
         let mut said = std::mem::take(&mut self.assistant.notes);
         said.push(format!("The window shows: {context}\n\n{text}"));
         let message = vec![Part::text(said.join("\n\n"))];
-        let config = ChatConfig::new(&library, model.profile.clone(), budget);
         let history = std::mem::take(&mut self.assistant.history);
         let wake = ctx.clone();
         match worker::start(

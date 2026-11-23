@@ -527,10 +527,19 @@ fn a_connection_is_added_under_advanced_and_its_key_kept_out_of_files() -> Falli
             !ax.texts.iter().any(|t| t.contains("sk-typed-secret")),
             "the key field is masked"
         );
+        let harness = scroll_to(&mut ax, Role::TextInput, "Harness profile")?;
+        ax.click_at(harness.center());
+        ax.type_text("compact");
         // The form's Save, below Connection's.
         let save = scroll_to_nth(&mut ax, Role::Button, "Save", true)?;
         ax.click_at(save.center());
         let text = std::fs::read_to_string(&local)?;
+        let settings = sparksmith_assist::settings::read(&local)?;
+        let saved = settings.run_endpoint().ok_or("missing saved connection")?;
+        assert_eq!(
+            saved.model_profile()?.harness_profile.as_deref(),
+            Some("compact")
+        );
         assert!(text.contains("qwen3.8:27b"), "{text}");
         assert!(!text.contains("sk-typed"), "no key in the file: {text}");
         assert!(

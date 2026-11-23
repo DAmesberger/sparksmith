@@ -42,6 +42,17 @@ pub const WORKFLOW_FILE: &str = "workflow.json";
 pub const METHOD_FILE: &str = "method.md";
 
 const MAX_ID: usize = 64;
+/// Maximum length of a model or harness profile file's name without its extension.
+pub const MAX_PROFILE_NAME: usize = 64;
+
+/// Profile names are single filename components.
+pub fn valid_profile_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= MAX_PROFILE_NAME
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b))
+}
 const MAX_TITLE: usize = 60;
 const MAX_SUMMARY: usize = 200;
 const MAX_TEXT: usize = 400;
@@ -79,6 +90,9 @@ pub struct Workflow {
     pub id: String,
     /// `major.minor`. A recording names it with the files' digest.
     pub version: String,
+    /// Harness for this workflow's model steps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness_profile: Option<String>,
     /// The card's and the palette's title.
     pub title: String,
     /// The one line the chat's index and `prompts/list` show.
@@ -408,6 +422,9 @@ pub struct Step {
     /// Lowercase `a–z`, `0–9`, `-` and `_`; unique in the workflow.
     pub id: String,
     pub kind: StepKind,
+    /// Overrides the workflow's harness for this model step.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness_profile: Option<String>,
     /// Its row in the run's step list.
     pub title: String,
     /// Input: the inputs it asks for.
@@ -581,6 +598,7 @@ impl Workflow {
                 format!("{:?}: use 1–{MAX_ID} characters a–z, 0–9 and '-'", self.id),
             ));
         }
+        check_profile_name(out, "/harness_profile", self.harness_profile.as_deref());
         if self.version().is_none() {
             out.push(problem(
                 "/version",
@@ -775,6 +793,11 @@ impl Workflow {
                 ));
             }
             text_rule(out, &format!("{at}/title"), &step.title, MAX_TITLE);
+            check_profile_name(
+                out,
+                &format!("{at}/harness_profile"),
+                step.harness_profile.as_deref(),
+            );
             self.check_fields(n, step, out);
             match step.kind {
                 StepKind::Input => {
@@ -936,7 +959,12 @@ impl Workflow {
     /// A field set that its step's kind does not use.
     fn check_fields(&self, n: usize, step: &Step, out: &mut Vec<Problem>) {
         let kind = step.kind;
-        let present: [(&str, bool, &[StepKind]); 17] = [
+        let present: [(&str, bool, &[StepKind]); 18] = [
+            (
+                "harness_profile",
+                step.harness_profile.is_some(),
+                &[StepKind::Model],
+            ),
             ("inputs", !step.inputs.is_empty(), &[StepKind::Input]),
             ("call", step.call.is_some(), &[StepKind::Tool]),
             ("params", step.params.is_some(), &[StepKind::Tool]),
@@ -1722,6 +1750,17 @@ fn valid_id(id: &str, wide: bool) -> bool {
                 || b == b'-'
                 || (wide && b"_.".contains(&b))
         })
+}
+
+fn check_profile_name(out: &mut Vec<Problem>, at: &str, name: Option<&str>) {
+    if let Some(name) = name
+        && !valid_profile_name(name)
+    {
+        out.push(problem(
+            at,
+            format!("{name:?}: use 1–{MAX_PROFILE_NAME} characters a–z, 0–9, '.', '-' or '_'"),
+        ));
+    }
 }
 
 fn valid_media_type(media: &str) -> bool {

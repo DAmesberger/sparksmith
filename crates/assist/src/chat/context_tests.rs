@@ -90,10 +90,20 @@ fn a_long_reply_is_shortened_as_json_and_says_how_to_ask_for_less() {
 }
 
 #[test]
-fn bulky_replies_read_and_moved_past_are_cleared_together_and_name_their_call() {
+fn shortening_obeys_small_byte_budgets_for_ordinary_replies() {
+    let reply = json!("🔌".repeat(1_000));
+    for budget in 0..=250 {
+        let short = shrink(&reply, budget);
+        assert!(short.len() <= budget, "{budget}: {short}");
+        assert_eq!(short.is_empty(), budget == 0);
+    }
+}
+
+#[test]
+fn bulky_replies_read_and_moved_past_are_cleared_together_and_name_their_call() -> Fallible {
     let policy = Policy {
         batch_chars: 20_000,
-        ..Policy::CHAT
+        ..crate::chat::tests::config()?.policy
     };
     let search = json!({"name": "library.search", "params": {"query": "resistor"}});
     let mut history = vec![
@@ -125,6 +135,7 @@ fn bulky_replies_read_and_moved_past_are_cleared_together_and_name_their_call() 
     assert_eq!(texts[4], "{\"open\":0}");
     // Cleared once only.
     assert_eq!(clear_settled(&mut history, &policy), 0);
+    Ok(())
 }
 
 #[test]
@@ -185,14 +196,19 @@ fn condensing_keeps_the_ids_of_edits_and_the_person_s_words_and_drops_listings()
     // Below the trigger nothing changes.
     let before = history.clone();
     assert_eq!(
-        condense(&mut history, &Policy::CHAT, 1_000_000, &estimate),
+        condense(
+            &mut history,
+            &crate::chat::tests::config()?.policy,
+            1_000_000,
+            &estimate
+        ),
         None
     );
     assert_eq!(history, before);
     // The last round (the issues query) stays.
     let policy = Policy {
         keep_rounds: 1,
-        ..Policy::CHAT
+        ..crate::chat::tests::config()?.policy
     };
     let condensed = condense(&mut history, &policy, 4_000, &estimate).ok_or("not condensed")?;
     assert_eq!(condensed.cleared, 2);
@@ -287,5 +303,84 @@ fn a_summary_replaces_the_earlier_turns_with_the_record_and_keeps_the_latest() -
     assert!(again.is_some_and(
         |(_, kept)| kept.contains("instance 12") && kept.contains("Build a 3.3 V supply.")
     ));
+    Ok(())
+}
+
+#[test]
+fn small_reply_budgets_keep_contracts_and_approval_steps_whole() {
+    let contract = json!({"class":"ask","person":"approval","reach":["files","runtime"],
+        "name":"project.save","full":{"name":"project.save","detail":"full"}});
+    for (verb, input) in [
+        ("describe", json!({"name":"project.save"})),
+        ("query", json!({"name":"project.schema"})),
+        ("find", json!({"text":"save"})),
+    ] {
+        assert_eq!(
+            reply_text(verb, &input, contract.clone(), 1),
+            contract.to_string()
+        );
+    }
+}
+
+#[test]
+fn every_model_surface_view_shows_the_catalogs_permission_declarations() -> Fallible {
+    use crate::harness::{HarnessProfile, SurfaceStrategy};
+    use sparksmith_automation::{
+        Grant, Session,
+        front::NoOne,
+        session::{SchemaDetail, metadata},
+    };
+    use sparksmith_io::shipped::ShippedLibrary;
+    let grant = Grant::default();
+    let mut session = Session::default();
+    let mut agent = crate::verbs::Agent {
+        session: &mut session,
+        grant: &grant,
+        window: None,
+        turn: None,
+        asker: &mut NoOne,
+    };
+    let mut profile = HarnessProfile::load(&ShippedLibrary::locate()?, None, "compact")?;
+    for detail in [SchemaDetail::Input, SchemaDetail::Full] {
+        profile.surface_view.strategy = detail;
+        for name in ["project.inspect", "project.save", "library.pinout_apply"] {
+            let meta = metadata::find(name).ok_or("entry")?;
+            let mut args = json!({"name":name});
+            profile.surface_view.apply("describe", &mut args);
+            let answer = agent.verb("describe", args.clone());
+            assert_eq!(answer["ok"], true, "{answer}");
+            let described: Value =
+                serde_json::from_str(&reply_text("describe", &args, answer["result"].clone(), 1))?;
+            assert_eq!(described.get("class"), Some(&json!(meta.class)), "{name}");
+            assert_eq!(described.get("person"), Some(&json!(meta.person)), "{name}");
+            assert_eq!(
+                described.get("reach"),
+                Some(&json!(meta.reach.iter().collect::<Vec<_>>())),
+                "{name}"
+            );
+            assert_eq!(
+                described.get("asks_with_path").and_then(Value::as_bool),
+                meta.takes_path.then_some(true),
+                "{name}"
+            );
+        }
+    }
+    let args = json!({"name":"project.schema","params":{"name":"project.save","detail":"full"}});
+    let answer = agent.verb("query", args.clone());
+    assert_eq!(answer["ok"], true, "{answer}");
+    let queried: Value =
+        serde_json::from_str(&reply_text("query", &args, answer["result"].clone(), 1))?;
+    assert_eq!(queried["matches"][0]["person"], "approval");
+    assert_eq!(queried["matches"][0]["reach"], json!(["files"]));
+    let page = json!({"name":"project.save","def":"part","schema":{}});
+    assert_eq!(
+        reply_text(
+            "describe",
+            &json!({"name":"project.save","def":"part"}),
+            page.clone(),
+            1
+        ),
+        page.to_string()
+    );
     Ok(())
 }

@@ -13,6 +13,9 @@
 //! request [`Event::Request`], the reply's reasoning and text, then each
 //! tool call's row from `Running` to how it ended, and [`Event::Usage`]
 //! against the turn's [`Budget`].
+use crate::harness::{
+    CondenseHistory, HistoryStrategy, ReplyStrategy, ShapeReply, SurfaceStrategy,
+};
 use crate::model::{
     Budget, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason, ToolSpec,
 };
@@ -49,6 +52,7 @@ const PRODUCT_PLACEHOLDER: &str = "{product}";
 /// What ships for the chat: its system prompt and its reach.
 #[derive(Clone, Debug)]
 pub struct ChatLibrary {
+    run_profiles: crate::AssistLibrary,
     /// The prompt, then the playbook.
     pub system: String,
     pub reach: ReachProfile,
@@ -108,6 +112,7 @@ impl ChatLibrary {
                 .replace(PRODUCT_PLACEHOLDER, sparksmith_core::product_name!())
         };
         Ok(Self {
+            run_profiles: crate::AssistLibrary::load(shipped)?,
             system: product(&system),
             reach,
             condense: product(&condense),
@@ -138,6 +143,9 @@ pub struct ChatConfig {
     pub tools: Vec<ToolSpec>,
     /// How much of the conversation the model is sent.
     pub policy: Policy,
+    pub surface_view: crate::harness::SurfaceView,
+    reply_strategy: ReplyStrategy,
+    history_strategy: HistoryStrategy,
     /// The summariser's instructions.
     pub condense: String,
     /// The note after a long read-only stretch ([`Policy::nudge_tokens`]).
@@ -147,16 +155,32 @@ pub struct ChatConfig {
 impl ChatConfig {
     /// A chat on `profile` with the shipped prompt, the six verbs and
     /// `budget` per turn.
-    pub fn new(library: &ChatLibrary, profile: ModelProfile, budget: Budget) -> Self {
-        Self {
+    pub fn new(library: &ChatLibrary, profile: ModelProfile, budget: Budget) -> Result<Self> {
+        Self::with_profiles(library, profile, budget, None)
+    }
+
+    pub fn with_profiles(
+        library: &ChatLibrary,
+        profile: ModelProfile,
+        budget: Budget,
+        user_profiles: Option<&std::path::Path>,
+    ) -> Result<Self> {
+        let run =
+            crate::RunConfig::new(&library.run_profiles, profile.clone(), None, user_profiles)?;
+        let harness = run.harness_for(None, None)?;
+        let policy = harness.policy();
+        Ok(Self {
             profile,
             system: library.system.clone(),
             budget,
             tools: crate::verbs::tools(),
-            policy: Policy::CHAT,
+            policy,
+            surface_view: harness.surface_view,
+            history_strategy: harness.history_strategy(),
+            reply_strategy: harness.reply_strategy(),
             condense: library.condense.clone(),
             nudge: library.nudge.clone(),
-        }
+        })
     }
 
     /// Why this model can't chat, if it can't: the chat works through
@@ -305,7 +329,9 @@ pub fn turn(
     let share = |history: &[Message]| estimate(history) as f64 / window.max(1) as f64;
     let before = estimate(history);
     let over = share(history) > policy.trigger;
-    let mut condensed = context::condense(history, policy, context, &estimate);
+    let mut condensed = config
+        .history_strategy
+        .condense(history, policy, context, &estimate);
     if (over || condensed.is_some())
         && share(history) > policy.target
         && let Some((turns, record)) = context::summarise(
@@ -383,8 +409,11 @@ pub fn turn(
         let limit = u64::from(profile.output.per_request).min(allowance.output);
         // Between requests: replies read and moved past go, together.
         let before = estimate(history);
-        let cleared = context::clear_settled(history, policy);
-        if let Some(condensed) = context::condense(history, policy, context, &estimate) {
+        let cleared = config.history_strategy.clear_settled(history, policy);
+        if let Some(condensed) = config
+            .history_strategy
+            .condense(history, policy, context, &estimate)
+        {
             events(Event::Condensed(Condensed {
                 cleared: condensed.cleared + cleared,
                 before_tokens: before,
@@ -472,7 +501,7 @@ pub fn turn(
             };
         }
         let mut results = Vec::with_capacity(calls.len());
-        for (call, (id, name, input, malformed)) in (0u32..).zip(calls) {
+        for (call, (id, name, mut input, malformed)) in (0u32..).zip(calls) {
             let row = |state| Event::Call {
                 request: n,
                 call,
@@ -503,6 +532,7 @@ pub fn turn(
                 results.push(result(id, text, true));
                 continue;
             }
+            config.surface_view.apply(&name, &mut input);
             events(row(CallState::Running {
                 input: input.clone(),
             }));
@@ -521,7 +551,9 @@ pub fn turn(
                 answer["error"].clone()
             };
             crate::run::integers_as_text(&mut body);
-            let text = context::shrink(&body, policy.reply_chars);
+            let text = config
+                .reply_strategy
+                .render(&name, &input, body, policy.reply_chars);
             events(row(if ok {
                 CallState::Done {
                     reply: text.clone(),
