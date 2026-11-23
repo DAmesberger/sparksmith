@@ -1,0 +1,1215 @@
+[
+  {
+    "id": "setting/browser_width",
+    "title": "Browser width",
+    "summary": "The Browser's width in points, as last dragged; `None` for the default. The app clamps it to what the window fits.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The Browser's width in points, as last dragged; `None` for the\ndefault. The app clamps it to what the window fits.",
+        "exclusiveMinimum": 0,
+        "format": "float",
+        "maximum": 4096.0,
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "unit": "pt",
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/default_rule_profile",
+    "title": "Default rule profile",
+    "summary": "The fab profile library id a new board starts with when none is chosen (Settings); `None`: every new board asks.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The fab profile library id a new board starts with when none is\nchosen (Settings); `None`: every new board asks.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/favourites",
+    "title": "Favourites",
+    "summary": "Favourites",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "items": {
+          "description": "A lineage's identity across sources: how favourites and recents are\nkeyed (never by path or name), and what `CatalogEntry::key` returns.",
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "A lineage of the open project.",
+              "properties": {
+                "lineage": {
+                  "description": "A definition lineage. Opaque so the representation can change when shared\nlibrary folders need collision-free identities.",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "source": {
+                  "const": "project",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source",
+                "lineage"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "A lineage of a library folder.",
+              "properties": {
+                "library": {
+                  "description": "A library source's identity (S3, D1): random, generated once when the\nfolder is created and stored in its manifest. Never a path or name.\n\nWritten as 32 lower-case hex digits. The core never generates one:\n`sparksmith-io` draws them from the operating system and passes them\nin as values.",
+                  "type": "string"
+                },
+                "lineage": {
+                  "description": "A lineage's identity inside one library folder (S3, D1): random, so\ntwo git authors adding lineages never collide on a counter. Project\ncopies get fresh project `DefinitionId`s on import.\n\nWritten as 32 lower-case hex digits. The core never generates one:\n`sparksmith-io` draws them from the operating system and passes them\nin as values.",
+                  "type": "string"
+                },
+                "source": {
+                  "const": "library",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source",
+                "library",
+                "lineage"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "maxItems": 256,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/format",
+    "title": "Format",
+    "summary": "Format",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "unit": null,
+      "default": 1,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/impedance_tolerance_pct",
+    "title": "Impedance tolerance",
+    "summary": "How far routed impedance may stray from a net class's target, in percent, when the class states no tolerance (Settings › Rules); `None`: the shipped value ([`SettingsDefaults`]).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "How far routed impedance may stray from a net class's target, in\npercent, when the class states no tolerance (Settings › Rules);\n`None`: the shipped value ([`SettingsDefaults`]).",
+        "format": "double",
+        "maximum": 50.0,
+        "minimum": 0.5,
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "unit": "%",
+      "default": 10.0,
+      "source": "How far routed impedance may stray from a net class's target, in percent, when the class states no tolerance of its own. ±10 % is the controlled-impedance tolerance fabricators commonly offer as standard, tighter values usually being a special order; it is also the value the impedance check used before it became a setting. Set your fabricator's stated tolerance in Settings."
+    }
+  },
+  {
+    "id": "setting/keyboard",
+    "title": "Keyboard",
+    "summary": "The user's keymap and the key-reveal overlays.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "additionalProperties": false,
+        "description": "The user's keymap and the key-reveal overlays.",
+        "properties": {
+          "bindings": {
+            "default": [],
+            "description": "Only the changed commands, in id order.",
+            "items": {
+              "additionalProperties": false,
+              "description": "One changed key: the command's registry id and its chord as\nSolidcraft's keymap names it (`Ctrl+Shift+S`), or `None` for no key.\nWhether the id and chord mean something is the app's to say: an entry\nit cannot apply is reported and kept, never dropped.",
+              "properties": {
+                "chord": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "command": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "command"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "format": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reveal": {
+            "additionalProperties": false,
+            "default": {
+              "hold_badges": true,
+              "hold_ms": 500,
+              "key_tips": true
+            },
+            "description": "Hold ⌘ to show key badges; tap ⌥ for key tips.",
+            "properties": {
+              "hold_badges": {
+                "type": "boolean"
+              },
+              "hold_ms": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "key_tips": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "hold_badges",
+              "hold_ms",
+              "key_tips"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "type": "object"
+      },
+      "unit": null,
+      "default": {
+        "bindings": [],
+        "format": 1,
+        "reveal": {
+          "hold_badges": true,
+          "hold_ms": 500,
+          "key_tips": true
+        }
+      },
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/keyboard.bindings",
+    "title": "Bindings",
+    "summary": "Only the changed commands, in id order.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "default": [],
+        "description": "Only the changed commands, in id order.",
+        "items": {
+          "additionalProperties": false,
+          "description": "One changed key: the command's registry id and its chord as\nSolidcraft's keymap names it (`Ctrl+Shift+S`), or `None` for no key.\nWhether the id and chord mean something is the app's to say: an entry\nit cannot apply is reported and kept, never dropped.",
+          "properties": {
+            "chord": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "command": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command"
+          ],
+          "type": "object"
+        },
+        "maxItems": 1024,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/keyboard.bindings.chord",
+    "title": "Chord",
+    "summary": "Chord",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/keyboard.bindings.command",
+    "title": "Command",
+    "summary": "Command",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "string"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/keyboard.format",
+    "title": "Format",
+    "summary": "Format",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "unit": null,
+      "default": 1,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/keyboard.reveal",
+    "title": "Reveal",
+    "summary": "Hold ⌘ to show key badges; tap ⌥ for key tips.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "additionalProperties": false,
+        "default": {
+          "hold_badges": true,
+          "hold_ms": 500,
+          "key_tips": true
+        },
+        "description": "Hold ⌘ to show key badges; tap ⌥ for key tips.",
+        "properties": {
+          "hold_badges": {
+            "type": "boolean"
+          },
+          "hold_ms": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "key_tips": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "hold_badges",
+          "hold_ms",
+          "key_tips"
+        ],
+        "type": "object"
+      },
+      "unit": null,
+      "default": {
+        "hold_badges": true,
+        "hold_ms": 500,
+        "key_tips": true
+      },
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/keyboard.reveal.hold_badges",
+    "title": "Hold badges",
+    "summary": "Hold badges",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": true,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/keyboard.reveal.hold_ms",
+    "title": "Hold ms",
+    "summary": "Hold ms",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "format": "uint32",
+        "maximum": 3000,
+        "minimum": 150,
+        "type": "integer"
+      },
+      "unit": "ms",
+      "default": 500,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/keyboard.reveal.key_tips",
+    "title": "Key tips",
+    "summary": "Key tips",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": true,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/lists",
+    "title": "Lists",
+    "summary": "Row density, reduced motion and saved list filters.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "additionalProperties": false,
+        "description": "Row density, reduced motion and saved list filters.",
+        "properties": {
+          "density": {
+            "default": "compact",
+            "description": "How tall list rows are.",
+            "oneOf": [
+              {
+                "enum": [
+                  "compact"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "comfortable",
+                "description": "Six points taller rows.",
+                "type": "string"
+              }
+            ]
+          },
+          "flat_components": {
+            "description": "The Browser lists components flat, not grouped by category\n(Settings › Browser; grouped by default).",
+            "type": "boolean"
+          },
+          "reduced_motion": {
+            "description": "`None` follows the system's Reduce motion.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "saved_filters": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One saved filter of one list: a query the list's filter bar offers\nas a named chip.",
+              "properties": {
+                "list": {
+                  "description": "The list's stable name (`pcb.parts`, `issues`).",
+                  "type": "string"
+                },
+                "query": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "list",
+                "query"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "unit": null,
+      "default": {
+        "density": "compact"
+      },
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/lists.density",
+    "title": "Density",
+    "summary": "How tall list rows are.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "default": "compact",
+        "description": "How tall list rows are.",
+        "oneOf": [
+          {
+            "enum": [
+              "compact"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "comfortable",
+            "description": "Six points taller rows.",
+            "type": "string"
+          }
+        ]
+      },
+      "unit": null,
+      "default": "compact",
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/lists.flat_components",
+    "title": "Flat components",
+    "summary": "The Browser lists components flat, not grouped by category (Settings › Browser; grouped by default).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The Browser lists components flat, not grouped by category\n(Settings › Browser; grouped by default).",
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": false,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/lists.reduced_motion",
+    "title": "Reduced motion",
+    "summary": "`None` follows the system's Reduce motion.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "`None` follows the system's Reduce motion.",
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/lists.saved_filters",
+    "title": "Saved filters",
+    "summary": "Saved filters",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "items": {
+          "additionalProperties": false,
+          "description": "One saved filter of one list: a query the list's filter bar offers\nas a named chip.",
+          "properties": {
+            "list": {
+              "description": "The list's stable name (`pcb.parts`, `issues`).",
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "list",
+            "query"
+          ],
+          "type": "object"
+        },
+        "maxItems": 64,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/lists.saved_filters.list",
+    "title": "List",
+    "summary": "The list's stable name (`pcb.parts`, `issues`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The list's stable name (`pcb.parts`, `issues`).",
+        "type": "string"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/lists.saved_filters.query",
+    "title": "Query",
+    "summary": "Query",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "string"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/part_files",
+    "title": "Part files",
+    "summary": "Part files opened in the part-file chooser, most recent first: absolute paths, at most [`MAX_RECENT_PART_FILES`].",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "Part files opened in the part-file chooser, most recent first:\nabsolute paths, at most [`MAX_RECENT_PART_FILES`].",
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 8,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/production_folders",
+    "title": "Production folders",
+    "summary": "The folder each project's production files were last written to, by project file, most recent first: a machine's own paths, so kept per user and never in the (portable) project.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The folder each project's production files were last written to,\nby project file, most recent first: a machine's own paths, so kept\nper user and never in the (portable) project.",
+        "items": {
+          "additionalProperties": false,
+          "description": "Where one project's production files go.",
+          "properties": {
+            "folder": {
+              "description": "The folder that holds its output folder, absolute.",
+              "type": "string"
+            },
+            "project": {
+              "description": "The project file, absolute.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "project",
+            "folder"
+          ],
+          "type": "object"
+        },
+        "maxItems": 32,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/production_folders.folder",
+    "title": "Folder",
+    "summary": "The folder that holds its output folder, absolute.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The folder that holds its output folder, absolute.",
+        "type": "string"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/production_folders.project",
+    "title": "Project",
+    "summary": "The project file, absolute.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The project file, absolute.",
+        "type": "string"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/projects",
+    "title": "Projects",
+    "summary": "Project files last opened or saved (File › Open Recent), most recent first: absolute paths, at most [`MAX_RECENT_PROJECTS`].",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "Project files last opened or saved (File › Open Recent), most recent\nfirst: absolute paths, at most [`MAX_RECENT_PROJECTS`].",
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 10,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/recent",
+    "title": "Recent",
+    "summary": "Most recent first.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "Most recent first.",
+        "items": {
+          "description": "A lineage's identity across sources: how favourites and recents are\nkeyed (never by path or name), and what `CatalogEntry::key` returns.",
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "A lineage of the open project.",
+              "properties": {
+                "lineage": {
+                  "description": "A definition lineage. Opaque so the representation can change when shared\nlibrary folders need collision-free identities.",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "source": {
+                  "const": "project",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source",
+                "lineage"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "A lineage of a library folder.",
+              "properties": {
+                "library": {
+                  "description": "A library source's identity (S3, D1): random, generated once when the\nfolder is created and stored in its manifest. Never a path or name.\n\nWritten as 32 lower-case hex digits. The core never generates one:\n`sparksmith-io` draws them from the operating system and passes them\nin as values.",
+                  "type": "string"
+                },
+                "lineage": {
+                  "description": "A lineage's identity inside one library folder (S3, D1): random, so\ntwo git authors adding lineages never collide on a counter. Project\ncopies get fresh project `DefinitionId`s on import.\n\nWritten as 32 lower-case hex digits. The core never generates one:\n`sparksmith-io` draws them from the operating system and passes them\nin as values.",
+                  "type": "string"
+                },
+                "source": {
+                  "const": "library",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source",
+                "library",
+                "lineage"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "maxItems": 32,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/registries",
+    "title": "Registries",
+    "summary": "Online parts registries (Settings › Libraries); none by default.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "Online parts registries (Settings › Libraries); none by default.",
+        "items": {
+          "additionalProperties": false,
+          "description": "One online parts registry (part-search §6, registry R0 §10), searched\nafter every local source. Off unless the person turns it on.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "url": {
+              "description": "`http://` or `https://`, host and optional port, no path.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url",
+            "enabled"
+          ],
+          "type": "object"
+        },
+        "maxItems": 4,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/registries.enabled",
+    "title": "Enabled",
+    "summary": "Enabled",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/registries.url",
+    "title": "Url",
+    "summary": "`http://` or `https://`, host and optional port, no path.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "`http://` or `https://`, host and optional port, no path.",
+        "type": "string"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/require_waiver_reason",
+    "title": "Require waiver reason",
+    "summary": "The app's waivers of pre-flight findings need a reason (off by default: a reason is optional).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The app's waivers of pre-flight findings need a reason (off by\ndefault: a reason is optional).",
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": false,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/selection_filter",
+    "title": "Selection filter",
+    "summary": "Which kinds the Layout and 3D selection may take (the selection filter), as last set; every kind by default.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "additionalProperties": false,
+        "description": "Which kinds the Layout and 3D selection may take (the selection\nfilter), as last set; every kind by default.",
+        "properties": {
+          "fills": {
+            "type": "boolean"
+          },
+          "parts": {
+            "type": "boolean"
+          },
+          "tracks": {
+            "type": "boolean"
+          },
+          "vias": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "parts",
+          "tracks",
+          "vias",
+          "fills"
+        ],
+        "type": "object"
+      },
+      "unit": null,
+      "default": {
+        "fills": true,
+        "parts": true,
+        "tracks": true,
+        "vias": true
+      },
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/selection_filter.fills",
+    "title": "Fills",
+    "summary": "Fills",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": true,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/selection_filter.parts",
+    "title": "Parts",
+    "summary": "Parts",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": true,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/selection_filter.tracks",
+    "title": "Tracks",
+    "summary": "Tracks",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": true,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/selection_filter.vias",
+    "title": "Vias",
+    "summary": "Vias",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": true,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/sources",
+    "title": "Sources",
+    "summary": "Sources",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "items": {
+          "additionalProperties": false,
+          "description": "One configured library folder.",
+          "properties": {
+            "enabled": {
+              "description": "Turned off sources stay listed with the reason \"turned off\".",
+              "type": "boolean"
+            },
+            "name": {
+              "description": "The manifest's name when the folder was last read, so a source\nwhose folder went missing is still listed by its library name.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "writable": {
+              "description": "Whether `library.promote` may write to it.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "path",
+            "enabled",
+            "writable"
+          ],
+          "type": "object"
+        },
+        "maxItems": 64,
+        "type": "array"
+      },
+      "unit": null,
+      "default": [],
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/sources.enabled",
+    "title": "Enabled",
+    "summary": "Turned off sources stay listed with the reason \"turned off\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "Turned off sources stay listed with the reason \"turned off\".",
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/sources.name",
+    "title": "Name",
+    "summary": "The manifest's name when the folder was last read, so a source whose folder went missing is still listed by its library name.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The manifest's name when the folder was last read, so a source\nwhose folder went missing is still listed by its library name.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/sources.path",
+    "title": "Path",
+    "summary": "Path",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "string"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/sources.writable",
+    "title": "Writable",
+    "summary": "Whether `library.promote` may write to it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "Whether `library.promote` may write to it.",
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/window",
+    "title": "Window",
+    "summary": "The main window as last left; `None`: the default frame.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "additionalProperties": false,
+        "description": "The main window as last left; `None`: the default frame.",
+        "properties": {
+          "fullscreen": {
+            "type": "boolean"
+          },
+          "maximized": {
+            "type": "boolean"
+          },
+          "position": {
+            "description": "The outer top-left corner on the desktop, in points, when known.",
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "size": {
+            "description": "The inner (content) size in points.",
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          }
+        },
+        "required": [
+          "size"
+        ],
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/window.fullscreen",
+    "title": "Fullscreen",
+    "summary": "Fullscreen",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/window.maximized",
+    "title": "Maximized",
+    "summary": "Maximized",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/window.position",
+    "title": "Position",
+    "summary": "The outer top-left corner on the desktop, in points, when known.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The outer top-left corner on the desktop, in points, when known.",
+        "items": {
+          "format": "float",
+          "type": "number"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/window.size",
+    "title": "Size",
+    "summary": "The inner (content) size in points.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "description": "The inner (content) size in points.",
+        "items": {
+          "format": "float",
+          "type": "number"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
+      },
+      "unit": null,
+      "default": null,
+      "source": "UserSettings default"
+    }
+  }
+]

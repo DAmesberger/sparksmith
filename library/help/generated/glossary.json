@@ -1,0 +1,2170 @@
+[
+  {
+    "id": "term/active-layer",
+    "title": "Active layer",
+    "summary": "The layer the Footprint tab's Line, Arc, Circle and Rectangle draw on: construction (reference geometry, never output), silkscreen, assembly or courtyard.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The layer the Footprint tab's Line, Arc, Circle and Rectangle draw on: construction (reference geometry, never output), silkscreen, assembly or courtyard.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/annotation",
+    "title": "Annotation",
+    "summary": "Numbering designators in page and position order across sheets. By default only designators that are not yet prefix plus number change, so existing designators stay stable.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Numbering designators in page and position order across sheets. By default only designators that are not yet prefix plus number change, so existing designators stay stable.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/assembly-variant",
+    "title": "Assembly variant",
+    "summary": "A named way to build the same board: per part, a population and a fitted Part that override the default (the build with no variant). The copper is the same in every variant; a substitute Part must sit on the same land pattern with the same pad grouping. The active variant, a project setting, is what the 3D view, BOM, pick-and-place and assembly drawing show.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A named way to build the same board: per part, a population and a fitted Part that override the default (the build with no variant). The copper is the same in every variant; a substitute Part must sit on the same land pattern with the same pad grouping. The active variant, a project setting, is what the 3D view, BOM, pick-and-place and assembly drawing show.",
+      "avoid": [
+        "Variant alone (see part variant and footprint variant)"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Variant alone (see part variant and footprint variant)"
+    ]
+  },
+  {
+    "id": "term/authoring-grid",
+    "title": "Authoring grid",
+    "summary": "The snapping grid of the library editor (2.5 mm for symbols, 0.05 mm for footprints by default). An editor setting saved with the drafts; never revision data and never a blocking rule.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The snapping grid of the library editor (2.5 mm for symbols, 0.05 mm for footprints by default). An editor setting saved with the drafts; never revision data and never a blocking rule.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/board-interface",
+    "title": "Board interface",
+    "summary": "The datums a board publishes for a linked design to reference, and nothing else: a linked design may depend only on them. Published as a `.solidcraft` design whose datum bodies come first, in slot order, with a sidecar file. See [board interface](docs/architecture/board-interface.md).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The datums a board publishes for a linked design to reference, and nothing else: a linked design may depend only on them. Published as a `.solidcraft` design whose datum bodies come first, in slot order, with a sidecar file. See [board interface](docs/architecture/board-interface.md).",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/board-model-update",
+    "title": "Board model update",
+    "summary": "How the model worker makes the native model of an edited board from the last one it built: when the edit changes only values (a parameter, a sketch's drawing, where a via placement stands) they are changed in the kept design and only what they reach is evaluated and meshed again; any other edit builds the board anew. The result is the model a fresh build makes. See [PCB realism](docs/pcb-realism.md#edits-update-the-model-in-place).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "How the model worker makes the native model of an edited board from the last one it built: when the edit changes only values (a parameter, a sketch's drawing, where a via placement stands) they are changed in the kept design and only what they reach is evaluated and meshed again; any other edit builds the board anew. The result is the model a fresh build makes. See [PCB realism](docs/pcb-realism.md#edits-update-the-model-in-place).",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/board-only-part",
+    "title": "Board-only part",
+    "summary": "A part on the board and on no sheet (a fiducial, a mounting hole or a logo; KiCad's \"not in schematic\"): an instance marked `board_only` with every unit unused, made by `component.place_board_only`. Schematic work leaves it alone. A part may have no terminals at all, board-only or not.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A part on the board and on no sheet (a fiducial, a mounting hole or a logo; KiCad's \"not in schematic\"): an instance marked `board_only` with every unit unused, made by `component.place_board_only`. Schematic work leaves it alone. A part may have no terminals at all, board-only or not.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/board-shape",
+    "title": "Board shape",
+    "summary": "The board's outline: a rectangle or a parametric sketch whose dimensions are bound to board parameters, with cutouts, milled slots and mounting holes. The 3D laminate, fills and board-edge checks all use the solved shape.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The board's outline: a rectangle or a parametric sketch whose dimensions are bound to board parameters, with cutouts, milled slots and mounting holes. The 3D laminate, fills and board-edge checks all use the solved shape.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/board-update",
+    "title": "Board update",
+    "summary": "A reviewed transfer of schematic or component changes into the PCB, preserving the identity of existing component instances.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A reviewed transfer of schematic or component changes into the PCB, preserving the identity of existing component instances.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/board-via",
+    "title": "Board via",
+    "summary": "A plated hole that joins its net's copper on every copper layer it spans, placed on the board (distinct from a pad via inside a footprint pad). It is tented (covered by mask) or open, and it is real copper in the native model. Only through vias exist yet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A plated hole that joins its net's copper on every copper layer it spans, placed on the board (distinct from a pad via inside a footprint pad). It is tented (covered by mask) or open, and it is real copper in the native model. Only through vias exist yet.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/catalog-entry",
+    "title": "Catalog entry",
+    "summary": "One searchable lineage at its latest published revision in one library source, derived from library data and never stored: its name, description, effective field defaults, package names, completeness badges and how many instances use it. A lineage that exists only as a draft has an entry that cannot be placed.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One searchable lineage at its latest published revision in one library source, derived from library data and never stored: its name, description, effective field defaults, package names, completeness badges and how many instances use it. A lineage that exists only as a draft has an entry that cannot be placed.",
+      "avoid": [
+        "Part (a part is an exact manufacturer part)"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Part (a part is an exact manufacturer part)"
+    ]
+  },
+  {
+    "id": "term/catalog-index",
+    "title": "Catalog index",
+    "summary": "A per-user cache of one library folder's catalog entries and record hashes, kept in the user cache directory. Never authoritative: a deleted or stale index is rebuilt identically from the folder, and it is never written into a project or a folder.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A per-user cache of one library folder's catalog entries and record hashes, kept in the user cache directory. Never authoritative: a deleted or stale index is rebuilt identically from the folder, and it is never written into a project or a folder.",
+      "avoid": [],
+      "developer_only": true
+    }
+  },
+  {
+    "id": "term/catalog-query",
+    "title": "Catalog query",
+    "summary": "One line of free text, reserved filters (`pkg:`, `has:`, `missing:`, `src:`) and field predicates, parsed in core against the library's field definitions and ANDed.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One line of free text, reserved filters (`pkg:`, `has:`, `missing:`, `src:`) and field predicates, parsed in core against the library's field definitions and ANDed.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/command-palette",
+    "title": "Command palette",
+    "summary": "The desktop app's searchable list of every runnable command (⌘P / Ctrl+P), with its shortcut and context; it runs a command through the same path as its ribbon button or key. Distinct from the Place palette, which finds components.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The desktop app's searchable list of every runnable command (⌘P / Ctrl+P), with its shortcut and context; it runs a command through the same path as its ribbon button or key. Distinct from the Place palette, which finds components.",
+      "avoid": [
+        "Quick open",
+        "launcher"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Quick open",
+      "launcher"
+    ]
+  },
+  {
+    "id": "term/completeness-badge",
+    "title": "Completeness badge",
+    "summary": "One separately shown property of a catalog entry: a symbol, a footprint, a 3D envelope or a manufacturer part number. Badges are never combined into a single \"complete\" flag.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One separately shown property of a catalog entry: a symbol, a footprint, a 3D envelope or a manufacturer part number. Badges are never combined into a single \"complete\" flag.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/completeness-finding",
+    "title": "Completeness finding",
+    "summary": "A finding that blocks a derived stage: publication, board placement or electrical resolution. A state holds when no current finding blocks it; it is never stored.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A finding that blocks a derived stage: publication, board placement or electrical resolution. A state holds when no current finding blocks it; it is never stored.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/component-definition",
+    "title": "Component definition",
+    "summary": "A reusable electrical interface, including its terminals and their electrical roles. It can have different schematic representations and physical implementations.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A reusable electrical interface, including its terminals and their electrical roles. It can have different schematic representations and physical implementations.",
+      "avoid": [
+        "Symbol",
+        "manufacturer part"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Symbol",
+      "manufacturer part"
+    ]
+  },
+  {
+    "id": "term/component-instance",
+    "title": "Component instance",
+    "summary": "One component used in a project, such as R12, with its electrical connections, chosen implementation and project-specific requirements.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One component used in a project, such as R12, with its electrical connections, chosen implementation and project-specific requirements.",
+      "avoid": [
+        "Library component when referring to a placed instance"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Library component when referring to a placed instance"
+    ]
+  },
+  {
+    "id": "term/component-property",
+    "title": "Component property",
+    "summary": "A named, typed characteristic of a component, such as resistance, resistance tolerance or rated power. Its meaning includes the quantity and permitted units where applicable, independently of its displayed text.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A named, typed characteristic of a component, such as resistance, resistance tolerance or rated power. Its meaning includes the quantity and permitted units where applicable, independently of its displayed text.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/copper-fill",
+    "title": "Copper fill",
+    "summary": "A copper region of one net on one copper layer, drawn as an outline or following the board outline (its stored region), and computed by the core from the board around it: it keeps its clearances, joins its net's pads with solid or thermal connections and yields to higher-priority fills. Its computed copper is stored with the key of its inputs, and it is stale when they change.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A copper region of one net on one copper layer, drawn as an outline or following the board outline (its stored region), and computed by the core from the board around it: it keeps its clearances, joins its net's pads with solid or thermal connections and yields to higher-priority fills. Its computed copper is stored with the key of its inputs, and it is stale when they change.",
+      "avoid": [
+        "Zone"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Zone"
+    ]
+  },
+  {
+    "id": "term/copper-layer",
+    "title": "Copper layer",
+    "summary": "A named layer of the stackup that carries copper: Top, Inner 1…n or Bottom. Tracks lie on a copper layer; a board side (top or bottom) is the side a part, mask or silkscreen is on, and its outer copper layer is the copper layer of that side.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A named layer of the stackup that carries copper: Top, Inner 1…n or Bottom. Tracks lie on a copper layer; a board side (top or bottom) is the side a part, mask or silkscreen is on, and its outer copper layer is the copper layer of that side.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/courtyard",
+    "title": "Courtyard",
+    "summary": "The keep-out area a placed part and its assembly tools need, drawn as closed shapes on the courtyard layer. It is authored or explicitly generated, never inferred.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The keep-out area a placed part and its assembly tools need, drawn as closed shapes on the courtyard layer. It is authored or explicitly generated, never inferred.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/courtyard-overlap",
+    "title": "Courtyard overlap",
+    "summary": "The board check that two placements on the same side have courtyards sharing interior area. Touching edges is not overlap; a part without a courtyard is not checked.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The board check that two placements on the same side have courtyards sharing interior area. Touching edges is not overlap; a part without a courtyard is not checked.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/custom-entry",
+    "title": "Custom entry",
+    "summary": "A family's built-in template entry of original typical values (estimated) that the author edits; listed with the rows, never a citation.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A family's built-in template entry of original typical values (estimated) that the author edits; listed with the rows, never a citation.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/datum-token",
+    "title": "Datum token",
+    "summary": "The name an interface datum is written under in the exported design and sidecar, built from ids only (`i80.opening`, `h12`, `board.top`), so renaming a part changes nothing an assembly references.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The name an interface datum is written under in the exported design and sidecar, built from ids only (`i80.opening`, `h12`, `board.top`), so renaming a part changes nothing an assembly references.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/definition-draft",
+    "title": "Definition draft",
+    "summary": "An editable, possibly incomplete body of one definition lineage, saved and recovered with the project. Publishing turns it into a new immutable revision; nothing marks a draft as verified.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An editable, possibly incomplete body of one definition lineage, saved and recovered with the project. Publishing turns it into a new immutable revision; nothing marks a draft as verified.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/definition-lineage",
+    "title": "Definition lineage",
+    "summary": "The stable identity of one library definition across all its revisions, such as one footprint. A lineage has exactly one kind (component, symbol, package, footprint, binding, quantity kind or field).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The stable identity of one library definition across all its revisions, such as one footprint. A lineage has exactly one kind (component, symbol, package, footprint, binding, quantity kind or field).",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/derived-courtyard",
+    "title": "Derived courtyard",
+    "summary": "A courtyard graphic a footprint source computes from its pad and body extents grown by a named excess (`CourtyardFromExtents`). It exists only because a template or the author added that role explicitly; nothing adds one automatically. An assembly outline from the package envelope is the same kind of explicit role.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A courtyard graphic a footprint source computes from its pad and body extents grown by a named excess (`CourtyardFromExtents`). It exists only because a template or the author added that role explicitly; nothing adds one automatically. An assembly outline from the package envelope is the same kind of explicit role.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/design-default",
+    "title": "Design default",
+    "summary": "The function a multi-function terminal uses when an instance makes no explicit selection. A terminal with one function is fixed and needs no default; a reset state is never a design default.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The function a multi-function terminal uses when an instance makes no explicit selection. A terminal with one function is fixed and needs no default; a reset state is never a design default.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/design-rules",
+    "title": "Design rules",
+    "summary": "The limits a board is checked and routed against: clearances between copper objects, board edges and holes, hole and via sizes, mask, silkscreen, paste, courtyard, fill and land-estimator values. A project's effective rules are its fab profile, then its rule overrides, then net classes and class-to-class clearances. Every finding names the rule, its value and where it came from.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The limits a board is checked and routed against: clearances between copper objects, board edges and holes, hole and via sizes, mask, silkscreen, paste, courtyard, fill and land-estimator values. A project's effective rules are its fab profile, then its rule overrides, then net classes and class-to-class clearances. Every finding names the rule, its value and where it came from.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/designator-prefix",
+    "title": "Designator prefix",
+    "summary": "The letters a component definition declares for numbering its instances, such as R, C or U; the core assigns the lowest free number under it when a placement gives no designator.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The letters a component definition declares for numbering its instances, such as R, C or U; the core assigns the lowest free number under it when a placement gives no designator.",
+      "avoid": [
+        "Reference class",
+        "inferring meaning from a designator"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Reference class",
+      "inferring meaning from a designator"
+    ]
+  },
+  {
+    "id": "term/device-binding",
+    "title": "Device binding",
+    "summary": "An explicit association between a component definition and a package, including the mapping from electrical terminals to package terminals and the footprint variants it allows. A binding belongs to one component lineage, and component revisions list the bindings they allow.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An explicit association between a component definition and a package, including the mapping from electrical terminals to package terminals and the footprint variants it allows. A binding belongs to one component lineage, and component revisions list the bindings they allow.",
+      "avoid": [
+        "Footprint assignment when a pin mapping is also required"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Footprint assignment when a pin mapping is also required"
+    ]
+  },
+  {
+    "id": "term/differential-pair",
+    "title": "Differential pair",
+    "summary": "Two nets with an explicit positive and negative half, routed together at the pair gap. Its width, gap, impedance target and limits come from the positive net's class. A pair is never inferred from net names; names only suggest one.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Two nets with an explicit positive and negative half, routed together at the pair gap. Its width, gap, impedance target and limits come from the positive net's class. A pair is never inferred from net names; names only suggest one.",
+      "avoid": [
+        "Diff net"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Diff net"
+    ]
+  },
+  {
+    "id": "term/display-only-layer",
+    "title": "Display-only layer",
+    "summary": "A body the 3D view draws for realism but never saves: soldermask and via tents, plated finish, open-via bores, silkscreen films, edge stackup bands, terminations, solder and marking decals. The saved native model holds only the physical bodies.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A body the 3D view draws for realism but never saves: soldermask and via tents, plated finish, open-via bores, silkscreen films, edge stackup bands, terminations, solder and marking decals. The saved native model holds only the physical bodies.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/distributor-offer",
+    "title": "Distributor offer",
+    "summary": "A distributor's listing for an exact manufacturer part, identified by the distributor and its own SKU or product link, with optional packaging text. It is part of the Part revision and holds only identity the user chose. Price and availability are observations about that offer, not properties of the electrical component definition, and Sparksmith does not store them.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A distributor's listing for an exact manufacturer part, identified by the distributor and its own SKU or product link, with optional packaging text. It is part of the Part revision and holds only identity the user chose. Price and availability are observations about that offer, not properties of the electrical component definition, and Sparksmith does not store them.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/drive",
+    "title": "Drive",
+    "summary": "How an output or bidirectional function drives its net: push-pull, open drain or open source. Inputs, passive and power functions have no drive. Electrical checks use the active function's drive, so several open-drain drivers with a pull-up are not a conflict.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "How an output or bidirectional function drives its net: push-pull, open drain or open source. Inputs, passive and power functions have no drive. Electrical checks use the active function's drive, so several open-drain drivers with a pull-up are not a conflict.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/driving-dimension",
+    "title": "Driving dimension",
+    "summary": "A sketch dimension whose value the solver must meet, set as a number or bound to a footprint parameter. A driven (reference) dimension only reports a measurement and is shown in parentheses.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A sketch dimension whose value the solver must meet, set as a number or bound to a footprint parameter. A driven (reference) dimension only reports a measurement and is shown in parentheses.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/edge-constraint",
+    "title": "Edge constraint",
+    "summary": "A placement, fill or keepout tied to a named edge by an anchor, a distance along the edge and an offset from it (expressions over board parameters), so it follows the edge when the board shape changes.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A placement, fill or keepout tied to a named edge by an anchor, a distance along the edge and an offset from it (expressions over board parameters), so it follows the edge when the board shape changes.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/effective-value",
+    "title": "Effective value",
+    "summary": "The value a field has on an instance, with its origin: assigned, component default, field default, explicitly unset or no value. It is derived, never stored. Assigned zero is a value, distinct from explicitly unset.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The value a field has on an instance, with its origin: assigned, component default, field default, explicitly unset or no value. It is derived, never stored. Assigned zero is a value, distinct from explicitly unset.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/electrical-terminal",
+    "title": "Electrical terminal",
+    "summary": "A connection point on a component's electrical interface. Terminals with the same role or name are not automatically the same connection point.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A connection point on a component's electrical interface. Terminals with the same role or name are not automatically the same connection point.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/exact-reference",
+    "title": "Exact reference",
+    "summary": "A reference to one lineage at one revision. A component instance pins exactly one component revision; its symbol and implementation choices are lineages resolved through that revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A reference to one lineage at one revision. A component instance pins exactly one component revision; its symbol and implementation choices are lineages resolved through that revision.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/fab-profile",
+    "title": "Fab profile",
+    "summary": "The file that holds a fabricator's design rules: a named, complete set of every rule, each citing its source (the fabricator's capability page and the date it was read). The shipped library holds sourced profiles (`library/profiles/`), read-only; others are imported or saved by the user, and a user profile with a shipped profile's id takes its place. A project keeps a snapshot of its fab profile, so a changed library profile does not change the project until it is switched. The rules themselves stay \"design rules\". A profile may offer manufacturing options: choices the fabricator publishes other limits for (a mask colour, the smallest drill, the outer copper weight, its recommended or minimum values). The snapshot keeps the board's choice of each; the outer copper weight also sets the stackup's outer foils.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The file that holds a fabricator's design rules: a named, complete set of every rule, each citing its source (the fabricator's capability page and the date it was read). The shipped library holds sourced profiles (`library/profiles/`), read-only; others are imported or saved by the user, and a user profile with a shipped profile's id takes its place. A project keeps a snapshot of its fab profile, so a changed library profile does not change the project until it is switched. The rules themselves stay \"design rules\". A profile may offer manufacturing options: choices the fabricator publishes other limits for (a mask colour, the smallest drill, the outer copper weight, its recommended or minimum values). The snapshot keeps the board's choice of each; the outer copper weight also sets the stackup's outer foils.",
+      "avoid": [
+        "Rule profile",
+        "fab preset"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Rule profile",
+      "fab preset"
+    ]
+  },
+  {
+    "id": "term/fabrication-attributes",
+    "title": "Fabrication attributes",
+    "summary": "The board finish choices a fabricator builds: soldermask colour and finish, pad surface finish and silkscreen colour. They are saved in the design; the 3D view draws them, but they do not change the native Solidcraft model.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The board finish choices a fabricator builds: soldermask colour and finish, pad surface finish and silkscreen colour. They are saved in the design; the 3D view draws them, but they do not change the native Solidcraft model.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/fabricator",
+    "title": "Fabricator",
+    "summary": "A board house, as a record of data: its id, name, website and where they were read (`fabricators/<id>.json`, shipped or the user's). A fab profile names its fabricator by id, so fabricator → profiles is a hierarchy of data, never text in a profile's name; profile suggestions prefer the board's own fabricator. Distinct from a part's manufacturer (Manufacturer part).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A board house, as a record of data: its id, name, website and where they were read (`fabricators/<id>.json`, shipped or the user's). A fab profile names its fabricator by id, so fabricator → profiles is a hierarchy of data, never text in a profile's name; profile suggestions prefer the board's own fabricator. Distinct from a part's manufacturer (Manufacturer part).",
+      "avoid": [
+        "Manufacturer (for a board house)",
+        "fab house"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Manufacturer (for a board house)",
+      "fab house"
+    ]
+  },
+  {
+    "id": "term/facet",
+    "title": "Facet",
+    "summary": "A filter offered because the current results carry it: a field with its values and range, a package name or a completeness badge. Facets are derived from the results, never from a fixed category list.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A filter offered because the current results carry it: a field with its values and range, a package name or a completeness badge. Facets are derived from the results, never from a fixed category list.",
+      "avoid": [
+        "Category"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Category"
+    ]
+  },
+  {
+    "id": "term/fiducial",
+    "title": "Fiducial",
+    "summary": "An optical alignment mark the assembler's cameras find the board by: a pad of kind fiducial (bare copper in a mask opening, no terminal, no paste) inside a clear area kept free of copper, silkscreen and other parts (the part's courtyard and a copper keep-out on its side). A global fiducial locates the board (the fab profile's `fiducial_count_min` per assembled side, not symmetric about the board's centre); a local one sits beside a fine-pitch part.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An optical alignment mark the assembler's cameras find the board by: a pad of kind fiducial (bare copper in a mask opening, no terminal, no paste) inside a clear area kept free of copper, silkscreen and other parts (the part's courtyard and a copper keep-out on its side). A global fiducial locates the board (the fab profile's `fiducial_count_min` per assembled side, not symmetric about the board's centre); a local one sits beside a fine-pitch part.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/field-override",
+    "title": "Field override",
+    "summary": "An instance's decision for one selected field, keyed by field lineage: an assigned value or an explicit unset. Without an override the field is inherited.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An instance's decision for one selected field, keyed by field lineage: an assigned value or an explicit unset. Without an override the field is inherited.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/field-predicate",
+    "title": "Field predicate",
+    "summary": "A query term that compares a typed field value by meaning, such as `res>=10k`, `tol<=1%` or `C:1n..100n`. Its key resolves through the data's field names and units; its value is parsed in the field's own units, and a comparison means \"meets\", not \"equals\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A query term that compares a typed field value by meaning, such as `res>=10k`, `tol<=1%` or `C:1n..100n`. Its key resolves through the data's field names and units; its value is parsed in the field's own units, and a comparison means \"meets\", not \"equals\".",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/field-selection",
+    "title": "Field selection",
+    "summary": "A component revision's choice of one exact field revision, with an optional component default and whether the value is shown on the symbol.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A component revision's choice of one exact field revision, with an optional component default and whether the value is shown on the symbol.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/firmware-pin-configuration",
+    "title": "Firmware pin configuration",
+    "summary": "The format-1 description of one instance's configured pins (function, peripheral, role, mux code, GPIO, options and firmware name) derived from its function resolution, pin configuration and named nets, and emitted as JSON, a C header, a Zephyr overlay skeleton, Rust constants or a user template. It is a starting point, not clock, register or HAL setup.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The format-1 description of one instance's configured pins (function, peripheral, role, mux code, GPIO, options and firmware name) derived from its function resolution, pin configuration and named nets, and emitted as JSON, a C header, a Zephyr overlay skeleton, Rust constants or a user template. It is a starting point, not clock, register or HAL setup.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/followed-face",
+    "title": "Followed face",
+    "summary": "A face of a linked design's body that the board follows (`assembly.follow`): its trace along the board's normal becomes fixed board-sketch geometry the reference owns, which only an assembly update moves.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A face of a linked design's body that the board follows (`assembly.follow`): its trace along the board's normal becomes fixed board-sketch geometry the reference owns, which only an assembly update moves.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/footprint",
+    "title": "Footprint",
+    "summary": "A PCB mounting pattern for a package, including copper lands, holes, mask and paste openings, outlines and placement references.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A PCB mounting pattern for a package, including copper lands, holes, mask and paste openings, outlines and placement references.",
+      "avoid": [
+        "Package"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Package"
+    ]
+  },
+  {
+    "id": "term/footprint-evaluator",
+    "title": "Footprint evaluator",
+    "summary": "The host component that interprets a footprint source: it applies sketch edits and solves the source into typed pads, drawings and the datum. The core never interprets a sketch; the desktop, CLI and MCP pass Solidcraft's sketch evaluator.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The host component that interprets a footprint source: it applies sketch edits and solves the source into typed pads, drawings and the datum. The core never interprets a sketch; the desktop, CLI and MCP pass Solidcraft's sketch evaluator.",
+      "avoid": [],
+      "developer_only": true
+    }
+  },
+  {
+    "id": "term/footprint-source",
+    "title": "Footprint source",
+    "summary": "How a footprint's solved pads and drawings were derived: an opaque sketch, parameters, pad roles and arrays, interpreted only by a footprint evaluator outside the core. Consumers read only the solved data.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "How a footprint's solved pads and drawings were derived: an opaque sketch, parameters, pad roles and arrays, interpreted only by a footprint evaluator outside the core. Consumers read only the solved data.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/footprint-template",
+    "title": "Footprint template",
+    "summary": "A parametric footprint family (2-terminal chip, gull-wing SOIC/SOP, QFN/DFN, pin header, tabbed SOT/DPAK, molded SOD/SMA/MELF, BGA/LGA, through-hole) that builds into an empty footprint draft as ordinary sketch edits, with dimensions bound to named parameters, in one undo step. Its land defaults are estimated unless a package row cites a land pattern.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A parametric footprint family (2-terminal chip, gull-wing SOIC/SOP, QFN/DFN, pin header, tabbed SOT/DPAK, molded SOD/SMA/MELF, BGA/LGA, through-hole) that builds into an empty footprint draft as ordinary sketch edits, with dimensions bound to named parameters, in one undo step. Its land defaults are estimated unless a package row cites a land pattern.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/footprint-variant",
+    "title": "Footprint variant",
+    "summary": "An alternative mounting pattern for the same package, such as a hand-soldering pattern with larger pads. Each variant has its own identity and revision history.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An alternative mounting pattern for the same package, such as a hand-soldering pattern with larger pads. Each variant has its own identity and revision history.",
+      "avoid": [
+        "Revision when describing an alternative pattern"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Revision when describing an alternative pattern"
+    ]
+  },
+  {
+    "id": "term/function-resolution",
+    "title": "Function resolution",
+    "summary": "The active function of each electrical terminal of one instance, derived from its explicit selection, its fixed function or its design default. Terminals with none are unresolved. Exceeded role capacity, an excluded pair or a function unavailable in the chosen implementation is a conflict, which commands reject; a missing required role or an unmet requirement is incomplete, which completeness reports.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The active function of each electrical terminal of one instance, derived from its explicit selection, its fixed function or its design default. Terminals with none are unresolved. Exceeded role capacity, an excluded pair or a function unavailable in the chosen implementation is a conflict, which commands reject; a missing required role or an unmet requirement is incomplete, which completeness reports.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/generated-model",
+    "title": "Generated model",
+    "summary": "A package's parametric 3D model built from its package form by a family builder, with a body role and a physical material on every body; one shared native definition per package revision, used by every instance.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A package's parametric 3D model built from its package form by a family builder, with a body role and a physical material on every body; one shared native definition per package revision, used by every instance.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/gpio-identity",
+    "title": "GPIO identity",
+    "summary": "The port and index a datasheet gives a terminal (`A`, 9). One identity belongs to one terminal of a component.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The port and index a datasheet gives a terminal (`A`, 9). One identity belongs to one terminal of a component.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/graphic",
+    "title": "Graphic",
+    "summary": "A drawn primitive (line, polyline, rectangle, circle, arc, polygon) or text of a symbol, with a stable local ID across revisions. Text refers to a designator, name, unit label or field; it is never the authority for a value.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A drawn primitive (line, polyline, rectangle, circle, arc, polygon) or text of a symbol, with a stable local ID across revisions. Text refers to a designator, name, unit label or field; it is never the authority for a value.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/identity-bar",
+    "title": "Identity bar",
+    "summary": "The strip above every Component workspace view naming the open component (source › name), its state (published, draft, new, read-only) and origin, with back, forward and Switch.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The strip above every Component workspace view naming the open component (source › name), its state (published, draft, new, read-only) and origin, with back, forward and Switch.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/implementation",
+    "title": "Implementation",
+    "summary": "A device-binding lineage a component revision offers for building it physically. Together with one of the binding's footprints it forms the instance's physical choice.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A device-binding lineage a component revision offers for building it physically. Together with one of the binding's footprints it forms the instance's physical choice.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/instance-property-value",
+    "title": "Instance property value",
+    "summary": "The value assigned to a component property for a particular project instance, such as R12's resistance of 10 kΩ. It describes the same component in both schematic and PCB views.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The value assigned to a component property for a particular project instance, such as R12's resistance of 10 kΩ. It describes the same component in both schematic and PCB views.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/interface-datum",
+    "title": "Interface datum",
+    "summary": "One exported reference of the board interface: a frame, plane, axis, profile, volume or parameter, such as the board top, a mounting hole's axis or a connector's opening. Its identity is its owner, role and name, never a designator or display name; its geometry is derived from the board each time, never stored. Not the footprint datum, which is a footprint's origin.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One exported reference of the board interface: a frame, plane, axis, profile, volume or parameter, such as the board top, a mounting hole's axis or a connector's opening. Its identity is its owner, role and name, never a designator or display name; its geometry is derived from the board each time, never stored. Not the footprint datum, which is a footprint's origin.",
+      "avoid": [],
+      "developer_only": false
+    },
+    "keywords": [
+      "datum"
+    ]
+  },
+  {
+    "id": "term/interface-sidecar",
+    "title": "Interface sidecar",
+    "summary": "The `<name>.interface.json` file beside a published board interface, also stored in the design's metadata: the format version, the board's permanent interface identity, the revision, a hash, and every datum's token, slot, geometry, status and face names.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The `<name>.interface.json` file beside a published board interface, also stored in the design's metadata: the format version, the board's permanent interface identity, the revision, a hash, and every datum's token, slot, geometry, status and face names.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/interface-tier",
+    "title": "Interface tier",
+    "summary": "How much of the board the published design carries after the slots: the interface only, the mechanical board (laminate, pads and parts; the default) or the full board with copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "How much of the board the published design carries after the slots: the interface only, the mechanical board (laminate, pads and parts; the default) or the full board with copper.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/junction",
+    "title": "Junction",
+    "summary": "A schematic connection point where wires meet away from a terminal, made where a wire end lands on another wire's segment. The solid junction dot is drawn wherever three or more conductors meet (a pin counts as one); it is derived from connectivity, not stored. A plain wire crossing is not a junction.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A schematic connection point where wires meet away from a terminal, made where a wire end lands on another wire's segment. The solid junction dot is drawn wherever three or more conductors meet (a pin counts as one); it is derived from connectivity, not stored. A plain wire crossing is not a junction.",
+      "avoid": [
+        "Dot (as the stored object)"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Dot (as the stored object)"
+    ]
+  },
+  {
+    "id": "term/keepout",
+    "title": "Keepout",
+    "summary": "An outline on chosen copper layers where tracks, vias, pads or fill copper are not allowed.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An outline on chosen copper layers where tracks, vias, pads or fill copper are not allowed.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/layer-view",
+    "title": "Layer view",
+    "summary": "Which layers PCB 3D shows, toggled from the navigation bar's Layers popover. It is display state: hiding a layer filters what is drawn and picked and never rebuilds geometry. Outer copper and silkscreen share their state with PCB 2D.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Which layers PCB 3D shows, toggled from the navigation bar's Layers popover. It is display state: hiding a layer filters what is drawn and picked and never rebuilds geometry. Outer copper and silkscreen share their state with PCB 2D.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/lead-map",
+    "title": "Lead map",
+    "summary": "The explicit pairing of a library model's lead tags with a package's terminals, stored where the package uses the model. Exact designation matches are only proposed, never inferred.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The explicit pairing of a library model's lead tags with a package's terminals, stored where the package uses the model. Exact designation matches are only proposed, never inferred.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/lead-tag",
+    "title": "Lead tag",
+    "summary": "A body (or one face of a body) of a library model named as a lead, with its designation and its contact point, measured on the geometry and rechecked when the model is built.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A body (or one face of a body) of a library model named as a lead, with its designation and its contact point, measured on the geometry and rechecked when the model is built.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/length-group",
+    "title": "Length group",
+    "summary": "Nets and pairs whose routed lengths must match: within a tolerance of a target, or of the longest member.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Nets and pairs whose routed lengths must match: within a tolerance of a target, or of the longest member.",
+      "avoid": [
+        "Match group"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Match group"
+    ]
+  },
+  {
+    "id": "term/library-folder",
+    "title": "Library folder",
+    "summary": "A directory of library items shared as plain files or through git: a `sparksmith-library.json` manifest (format version, random 128-bit library id, name), one immutable file per revision at `lineages/<lineage id>/rNNNN.json`, asset bytes at `assets/sha256/<hash>` and the mutable `catalog.json` of shelves and tags. Lineage ids inside a folder are random, so two authors adding lineages never collide. A manifest of another format or with an unknown required feature is refused, never read partly.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A directory of library items shared as plain files or through git: a `sparksmith-library.json` manifest (format version, random 128-bit library id, name), one immutable file per revision at `lineages/<lineage id>/rNNNN.json`, asset bytes at `assets/sha256/<hash>` and the mutable `catalog.json` of shelves and tags. Lineage ids inside a folder are random, so two authors adding lineages never collide. A manifest of another format or with an unknown required feature is refused, never read partly.",
+      "avoid": [
+        "Library project",
+        "library file"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Library project",
+      "library file"
+    ]
+  },
+  {
+    "id": "term/library-model",
+    "title": "Library model",
+    "summary": "A revisioned library definition of a package's 3D model from a file (GLB for appearance, STEP for mechanical shape, `.solidcraft` for parametric): its packed asset by content hash, source frame, bounds, every body mapped explicitly to a role and material, lead tags with measured contacts, an optional marking area and provenance with redistribution. Packages share it by exact revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A revisioned library definition of a package's 3D model from a file (GLB for appearance, STEP for mechanical shape, `.solidcraft` for parametric): its packed asset by content hash, source frame, bounds, every body mapped explicitly to a role and material, lead tags with measured contacts, an optional marking area and provenance with redistribution. Packages share it by exact revision.",
+      "avoid": [
+        "Imported model",
+        "vendor model"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "3D model",
+      "Imported model",
+      "vendor model"
+    ]
+  },
+  {
+    "id": "term/library-revision",
+    "title": "Library revision",
+    "summary": "A specific saved version of a library definition. Later edits produce a different revision of that definition; alternative definitions such as footprint variants retain separate identities.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A specific saved version of a library definition. Later edits produce a different revision of that definition; alternative definitions such as footprint variants retain separate identities.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/library-source",
+    "title": "Library source",
+    "summary": "Where catalog entries come from: the project library snapshot, and the library folders listed in the user's settings. A folder source is read-only or writable, and one that cannot be read stays listed with its reason (path missing, unsupported format, unknown required feature). A source is authoritative only for new imports, never for a project that already holds a revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Where catalog entries come from: the project library snapshot, and the library folders listed in the user's settings. A folder source is read-only or writable, and one that cannot be read stays listed with its reason (path missing, unsupported format, unknown required feature). A source is authoritative only for new imports, never for a project that already holds a revision.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/linked-design",
+    "title": "Linked design",
+    "summary": "A SolidCraft design that links the published board interface, and whose walls, bosses and openings the board may in turn follow through followed faces. An enclosure is one example; the code names only the generic concept. Updates in either direction go through a preview bound to both files' revisions.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A SolidCraft design that links the published board interface, and whose walls, bosses and openings the board may in turn follow through followed faces. An enclosure is one example; the code names only the generic concept. Updates in either direction go through a preview bound to both files' revisions.",
+      "avoid": [],
+      "developer_only": false
+    },
+    "keywords": [
+      "assembly link"
+    ]
+  },
+  {
+    "id": "term/local-id",
+    "title": "Local ID",
+    "summary": "An ID that is unique only inside one definition lineage, such as a terminal, pin-function, resource, role, unit, package-terminal, pad or enumeration-choice ID. Each revision allocates new local IDs from its `next_local` counter; an ID retired by an earlier revision is never reused, so it cannot come back with a different meaning.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An ID that is unique only inside one definition lineage, such as a terminal, pin-function, resource, role, unit, package-terminal, pad or enumeration-choice ID. Each revision allocates new local IDs from its `next_local` counter; an ID retired by an earlier revision is never reused, so it cannot come back with a different meaning.",
+      "avoid": [],
+      "developer_only": true
+    }
+  },
+  {
+    "id": "term/manufacturer-part",
+    "title": "Manufacturer part",
+    "summary": "One exact orderable item: its own revisioned definition lineage holding the manufacturer as written, the complete manufacturer part number (MPN, ordering suffixes included), the exact component revision and device binding it implements, its rated specs, references, distributor offers and provenance. An instance may pin one Part revision; the Part must agree with the instance's component revision, physical choice and requirements, and a component update that leaves it behind is a finding, never a silent re-pointing. A supplier listing is an offer for that part, not its identity. An \"atomic part\" in other tools is a component plus exactly one Part.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One exact orderable item: its own revisioned definition lineage holding the manufacturer as written, the complete manufacturer part number (MPN, ordering suffixes included), the exact component revision and device binding it implements, its rated specs, references, distributor offers and provenance. An instance may pin one Part revision; the Part must agree with the instance's component revision, physical choice and requirements, and a component update that leaves it behind is a finding, never a silent re-pointing. A supplier listing is an offer for that part, not its identity. An \"atomic part\" in other tools is a component plus exactly one Part.",
+      "avoid": [
+        "Part for a component definition or a catalog entry"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Part",
+      "Part for a component definition or a catalog entry"
+    ]
+  },
+  {
+    "id": "term/marking",
+    "title": "Marking",
+    "summary": "The lettering and marks on a package top (top mark, value code, polarity mark, colour bands): a spec on the component or a Part's top mark, overridden per instance. Display only: never in the saved native model or fabrication output.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The lettering and marks on a package top (top mark, value code, polarity mark, colour bands): a spec on the component or a Part's top mark, overridden per instance. Display only: never in the saved native model or fabrication output.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/marking-decal",
+    "title": "Marking decal",
+    "summary": "The display-only mesh of an instance's laid-out marking, 5 µm above the package's marked face, drawn with the finish's look and shown with the Markings layer toggle.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The display-only mesh of an instance's laid-out marking, 5 µm above the package's marked face, drawn with the finish's look and shown with the Markings layer toggle.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/mask-opening",
+    "title": "Mask opening",
+    "summary": "The gap in the solder mask over a pad: the land grown by the pad's mask expansion as a mitred offset, or none when the pad is tented. Display-only in 3D, never saved in the native model.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The gap in the solder mask over a pad: the land grown by the pad's mask expansion as a mitred offset, or none when the pad is tented. Display-only in 3D, never saved in the native model.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/mask-web",
+    "title": "Mask web",
+    "summary": "The strip of solder mask between two neighbouring pad openings. A web below the design rules' minimum mask web (0.1 mm in the default profile, an estimate) is an advisory lint.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The strip of solder mask between two neighbouring pad openings. A web below the design rules' minimum mask web (0.1 mm in the default profile, an estimate) is an advisory lint.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/meander",
+    "title": "Meander",
+    "summary": "Bumps added to one track segment to lengthen it by an exact amount: a trombone bumps to one side, an accordion swings to both.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Bumps added to one track segment to lengthen it by an exact amount: a trombone bumps to one side, an accordion swings to both.",
+      "avoid": [
+        "Serpentine (as a term)",
+        "squiggle"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Serpentine (as a term)",
+      "squiggle"
+    ]
+  },
+  {
+    "id": "term/mechanical-export",
+    "title": "Mechanical export",
+    "summary": "A geometric representation of the board and its components for assembly work in other designs. It does not contain the complete electrical design.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A geometric representation of the board and its components for assembly work in other designs. It does not contain the complete electrical design.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/mechanical-part",
+    "title": "Mechanical part",
+    "summary": "A part placed directly on the board from a part file (a solderable nut, spacer or heatsink): an ordinary component instance of a generated set (component, mechanical symbol, package using the part file, footprint, binding) whose package records its variant key, source and assembly flags. Its symbol unit starts unused; its pads are mechanical copper that may land terminals.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A part placed directly on the board from a part file (a solderable nut, spacer or heatsink): an ordinary component instance of a generated set (component, mechanical symbol, package using the part file, footprint, binding) whose package records its variant key, source and assembly flags. Its symbol unit starts unused; its pads are mechanical copper that may land terminals.",
+      "avoid": [
+        "Board-only object",
+        "inferring a mechanical part from a designator"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Board-only object",
+      "inferring a mechanical part from a designator"
+    ]
+  },
+  {
+    "id": "term/model-placement",
+    "title": "Model placement",
+    "summary": "The authored rigid transform of a package's 3D model relative to its footprint datum; the seating plane (z = 0) is the top of the land copper. Fit leads to pads, quick actions and the triad each set it with one command.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The authored rigid transform of a package's 3D model relative to its footprint datum; the seating plane (z = 0) is the top of the land copper. Fit leads to pads, quick actions and the triad each set it with one command.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/mux-code",
+    "title": "Mux code",
+    "summary": "The datasheet's selector for one pin function, such as an alternate-function number, stored as explicit text on the function. It is shown and exported, never parsed out of a name.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The datasheet's selector for one pin function, such as an alternate-function number, stored as explicit text on the function. It is shown and exported, never parsed out of a name.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/named-edge",
+    "title": "Named edge",
+    "summary": "An edge of the board shape with a name (bottom, right, top and left for a rectangle) that edge constraints refer to.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An edge of the board shape with a name (bottom, right, top and left for a rectangle) that edge constraints refer to.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/native-solidcraft-model",
+    "title": "Native Solidcraft model",
+    "summary": "A Solidcraft design containing the board and component models, with editable parameters, features and placement relationships. It is the 3D model used by Sparksmith and saved for direct use in Solidcraft.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A Solidcraft design containing the board and component models, with editable parameters, features and placement relationships. It is the 3D model used by Sparksmith and saved for direct use in Solidcraft.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/net",
+    "title": "Net",
+    "summary": "A set of electrical connection points intended to be joined. Each net has a persistent ID and an editable name; tracks refer to the ID. Connecting merges nets (the routed, else older, ID survives) and disconnecting splits them (the larger group keeps the ID). Sharing a net does not establish that PCB copper actually connects those points.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A set of electrical connection points intended to be joined. Each net has a persistent ID and an editable name; tracks refer to the ID. Connecting merges nets (the routed, else older, ID survives) and disconnecting splits them (the larger group keeps the ID). Sharing a net does not establish that PCB copper actually connects those points.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/net-class",
+    "title": "Net class",
+    "summary": "A named group of nets with their own track width, minimum width, clearance, via size and fill connection. A net is in a class by explicit assignment or by the first matching name pattern, never by any other inference.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A named group of nets with their own track width, minimum width, clearance, via size and fill connection. A net is in a class by explicit assignment or by the first matching name pattern, never by any other inference.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/net-label",
+    "title": "Net label",
+    "summary": "A named connection point on a sheet that wires end on and whose name joins it to other labels: a local label within its sheet, a global label (off-sheet connector) across all sheets, a hierarchical label to the sheet pin of the same name on its sheet's symbol. Labels name their net by a fixed priority; they never join anything by drawn position.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A named connection point on a sheet that wires end on and whose name joins it to other labels: a local label within its sheet, a global label (off-sheet connector) across all sheets, a hierarchical label to the sheet pin of the same name on its sheet's symbol. Labels name their net by a fixed priority; they never join anything by drawn position.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/no-connect-marker",
+    "title": "No-connect marker",
+    "summary": "A project decision to leave a particular connection point unconnected. It is distinct from a manufacturer's declaration that a package terminal must not be connected.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A project decision to leave a particular connection point unconnected. It is distinct from a manufacturer's declaration that a package terminal must not be connected.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/origin",
+    "title": "Origin",
+    "summary": "Where an imported project revision came from: library id, source lineage, source revision and the content hash of the source record. Imports dedupe on it, update-available marks compare with it, and a source record that no longer hashes to it is reported as modified. Origins are stored beside the project library, outside revision bodies, so a project reopens offline without its folders.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Where an imported project revision came from: library id, source lineage, source revision and the content hash of the source record. Imports dedupe on it, update-available marks compare with it, and a source record that no longer hashes to it is reported as modified. Origins are stored beside the project library, outside revision bodies, so a project reopens offline without its folders.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/package",
+    "title": "Package",
+    "summary": "A physical component body and its terminal arrangement, independent of the particular PCB land pattern used to mount it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A physical component body and its terminal arrangement, independent of the particular PCB land pattern used to mount it.",
+      "avoid": [
+        "Footprint"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Footprint"
+    ]
+  },
+  {
+    "id": "term/package-datum",
+    "title": "Package datum",
+    "summary": "A datum a package revision declares as explicit geometry in its model frame, such as a connector's opening from the datasheet's panel cutout. One marked external is exported for every placement of the package. Never inferred from a part's name or category.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A datum a package revision declares as explicit geometry in its model frame, such as a connector's opening from the datasheet's panel cutout. One marked external is exported for every placement of the package. Never inferred from a part's name or category.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/package-form",
+    "title": "Package form",
+    "summary": "The authored, typed physical construction of a package (generic, chip, gull-wing, no-lead or pin header) with its dimensions; the only source of `pkg_*` values and of generated 3D models, never inferred from a designator or name.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The authored, typed physical construction of a package (generic, chip, gull-wing, no-lead or pin header) with its dimensions; the only source of `pkg_*` values and of generated 3D models, never inferred from a designator or name.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/package-row",
+    "title": "Package row",
+    "summary": "A revisioned library record holding one typed package form of a family, with aliases, a size code, a suggested skeleton, optional lands, provenance and a citation of the public outline drawing its values were typed from. A row without a citation is *estimated*. New from template and From template build from an exact published row revision, a folder row read with its bundle, or a built-in **starter row** (the compiled-in, read-only tables every install lists).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A revisioned library record holding one typed package form of a family, with aliases, a size code, a suggested skeleton, optional lands, provenance and a citation of the public outline drawing its values were typed from. A row without a citation is *estimated*. New from template and From template build from an exact published row revision, a folder row read with its bundle, or a built-in **starter row** (the compiled-in, read-only tables every install lists).",
+      "avoid": [
+        "Preset (test and sample data only)",
+        "wizard"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Preset (test and sample data only)",
+      "wizard"
+    ]
+  },
+  {
+    "id": "term/package-terminal",
+    "title": "Package terminal",
+    "summary": "A physical electrical connection on a package, such as a lead, ball or exposed pad, with an explicit designation.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A physical electrical connection on a package, such as a lead, ball or exposed pad, with an explicit designation.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/package-value",
+    "title": "Package value",
+    "summary": "A typed value a package offers footprint expressions under the reserved `pkg_` prefix, such as `pkg_L` (a length) or `pkg_n` (a count). Footprint parameters may not use the prefix.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A typed value a package offers footprint expressions under the reserved `pkg_` prefix, such as `pkg_L` (a length) or `pkg_n` (a count). Footprint parameters may not use the prefix.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/packed-asset",
+    "title": "Packed asset",
+    "summary": "File bytes a project carries by content hash (a model file, SVG artwork), so it reopens offline; stored as their own container entries.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "File bytes a project carries by content hash (a model file, SVG artwork), so it reopens offline; stored as their own container entries.",
+      "avoid": [],
+      "developer_only": true
+    }
+  },
+  {
+    "id": "term/pad",
+    "title": "Pad",
+    "summary": "A copper land in a footprint, associated with a package terminal when electrically connected. Several lands may belong to the same terminal without being connected by PCB copper. Its number is a display label, never its identity.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A copper land in a footprint, associated with a package terminal when electrically connected. Several lands may belong to the same terminal without being connected by PCB copper. Its number is a display label, never its identity.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/pad-frame",
+    "title": "Pad frame",
+    "summary": "A pad's own coordinates: origin at the pad position, axes turned by the pad rotation. Shapes, holes, vias and paste windows are stored in it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A pad's own coordinates: origin at the pad position, axes turned by the pad rotation. Shapes, holes, vias and paste windows are stored in it.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/pad-kind",
+    "title": "Pad kind",
+    "summary": "What a pad is for: SMD and plated-through pads land a package terminal; non-plated holes and fiducials never do; a mechanical pad is copper with an explicit decision not to land one. No terminal is inferred from a pad number.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "What a pad is for: SMD and plated-through pads land a package terminal; non-plated holes and fiducials never do; a mechanical pad is copper with an explicit decision not to land one. No terminal is inferred from a pad number.",
+      "avoid": [
+        "Treating a terminal-less pad as unfinished when it is mechanical"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Treating a terminal-less pad as unfinished when it is mechanical"
+    ]
+  },
+  {
+    "id": "term/part-variant",
+    "title": "Part variant",
+    "summary": "One mechanical part set for one part-file revision, values, lands and assembly flags, found again by its key. Editing a placed part's parameters moves the instance to the variant of the new values, made if missing; instances never vary geometry on their own.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One mechanical part set for one part-file revision, values, lands and assembly flags, found again by its key. Editing a placed part's parameters moves the instance to the variant of the new values, made if missing; instances never vary geometry on their own.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/peripheral-resource",
+    "title": "Peripheral resource",
+    "summary": "A named functional resource within a component, such as a UART instance or ADC channel; also called a peripheral instance. Pin functions may refer to that resource and its signal roles, with explicit rules governing compatible selections. Its optional kind (`uart`, `spi`, …) is grouping text and never selects behaviour.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A named functional resource within a component, such as a UART instance or ADC channel; also called a peripheral instance. Pin functions may refer to that resource and its signal roles, with explicit rules governing compatible selections. Its optional kind (`uart`, `spi`, …) is grouping text and never selects behaviour.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/physical-choice",
+    "title": "Physical choice",
+    "summary": "The binding and footprint lineages an instance uses, offered by its pinned component revision. An instance without one can be drawn and wired but not placed on the board.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The binding and footprint lineages an instance uses, offered by its pinned component revision. An instance without one can be drawn and wired but not placed on the board.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/physical-material",
+    "title": "Physical material",
+    "summary": "A built-in material a 3D body is made of (epoxy mould compound, alumina, tin, gold, PBT, …), with cited or estimated optical values; never a colour or a vendor look.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A built-in material a 3D body is made of (epoxy mould compound, alumina, tin, gold, PBT, …), with cited or estimated optical values; never a colour or a vendor look.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/pin",
+    "title": "Pin",
+    "summary": "Where a terminal connects on a symbol unit: a connection end, a direction into the body, a stub length and reading decorations. A pin is identified by its terminal and stores no electrical type and no number; its number comes from the instance's binding.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Where a terminal connects on a symbol unit: a connection end, a direction into the body, a stub length and reading decorations. A pin is identified by its terminal and stores no electrical type and no number; its number comes from the instance's binding.",
+      "avoid": [
+        "Anchor"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "symbol pin",
+      "Anchor"
+    ]
+  },
+  {
+    "id": "term/pin-configuration",
+    "title": "Pin configuration",
+    "summary": "A pin configuration is an instance's chosen values for one terminal, plus an optional firmware name; it is checked against the declared options and never changes electrical checks.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A pin configuration is an instance's chosen values for one terminal, plus an optional firmware name; it is checked against the declared options and never changes electrical checks.",
+      "avoid": [],
+      "developer_only": false
+    },
+    "related": [
+      "term/pin-option"
+    ]
+  },
+  {
+    "id": "term/pin-function",
+    "title": "Pin function",
+    "summary": "A declared capability of an electrical terminal, with its own identity, electrical direction and signal role. A multi-function terminal offers alternative functions without creating additional physical connections.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A declared capability of an electrical terminal, with its own identity, electrical direction and signal role. A multi-function terminal offers alternative functions without creating additional physical connections.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/pin-function-selection",
+    "title": "Pin-function selection",
+    "summary": "The intended active function chosen for a terminal of a particular component instance. It determines that terminal's displayed function and electrical checking behavior without changing its identity or package mapping.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The intended active function chosen for a terminal of a particular component instance. It determines that terminal's displayed function and electrical checking behavior without changing its identity or package mapping.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/pin-option",
+    "title": "Pin option",
+    "summary": "A pin option is a setting a terminal declares with its allowed values: pull, speed, initial level or Schmitt input.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A pin option is a setting a terminal declares with its allowed values: pull, speed, initial level or Schmitt input.",
+      "avoid": [],
+      "developer_only": false
+    },
+    "related": [
+      "term/pin-configuration"
+    ]
+  },
+  {
+    "id": "term/pin-rule",
+    "title": "Pin rule",
+    "summary": "A datasheet restriction on pin-function combinations, stored in the component revision as a short sandboxed Rhai script that reads a read-only view of one assignment and returns ok, forbid, require or warn. Forbid rejects the assignment, require leaves it incomplete and warn is a note; a script that fails to compile, raises an error or exceeds its budget is a finding.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A datasheet restriction on pin-function combinations, stored in the component revision as a short sandboxed Rhai script that reads a read-only view of one assignment and returns ok, forbid, require or warn. Forbid rejects the assignment, require leaves it incomplete and warn is a note; a script that fails to compile, raises an error or exceeds its budget is a finding.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/pinout-document",
+    "title": "Pinout document",
+    "summary": "A typed, format-versioned description of a device's pins, peripherals, functions, options and rules, filled from a datasheet by a person or an agent. Importing it is previewed as a plan, applied against that plan's base and leaves every written row unreviewed; a row flagged uncertain blocks publishing until it is corrected or cleared (import review). The review state is draft-only (publishing drops it) and the gate is advisory against automation: an agent that edits the draft can clear it, so agents clear a flag only after the person confirms the row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A typed, format-versioned description of a device's pins, peripherals, functions, options and rules, filled from a datasheet by a person or an agent. Importing it is previewed as a plan, applied against that plan's base and leaves every written row unreviewed; a row flagged uncertain blocks publishing until it is corrected or cleared (import review). The review state is draft-only (publishing drops it) and the gate is advisory against automation: an agent that edits the draft can clear it, so agents clear a flag only after the person confirms the row.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/place-palette",
+    "title": "Place palette",
+    "summary": "The Schematic editor's searchable sheet for finding a component revision in the catalog and placing it, previewed in the properties card. It runs the same `library.search` query as the CLI and MCP and places through `component.place`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The Schematic editor's searchable sheet for finding a component revision in the catalog and placing it, previewed in the properties card. It runs the same `library.search` query as the CLI and MCP and places through `component.place`.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/placed-definition-mesh",
+    "title": "Placed definition mesh",
+    "summary": "The one mesh a shared native definition (a via size, a package revision) is drawn from, with each placement's rigid move. The 3D view draws it instanced, once per placement with that placement's identity; the saved model and its geometry stay those of every placement.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The one mesh a shared native definition (a via size, a package revision) is drawn from, with each placement's rigid move. The 3D view draws it instanced, once per placement with that placement's identity; the saved model and its geometry stay those of every placement.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/polarity-pad",
+    "title": "Polarity pad",
+    "summary": "The authored pin-1 pad of a footprint. Silkscreen or assembly markers only illustrate it; the pad is the authority.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The authored pin-1 pad of a footprint. Silkscreen or assembly markers only illustrate it; the pad is the authority.",
+      "avoid": [
+        "Pin-1 dot (the marker",
+        "not the rule)"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Pin-1 dot (the marker",
+      "not the rule)"
+    ]
+  },
+  {
+    "id": "term/population",
+    "title": "Population",
+    "summary": "Whether a placed part is fitted at assembly: populated, or not populated (do not populate, DNP). A typed state of the instance for the default build, which an assembly variant may override; never a value text.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Whether a placed part is fitted at assembly: populated, or not populated (do not populate, DNP). A typed state of the instance for the default build, which an assembly variant may override; never a value text.",
+      "avoid": [
+        "\"DNP\" as a value"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "\"DNP\" as a value"
+    ]
+  },
+  {
+    "id": "term/power-port",
+    "title": "Power port",
+    "summary": "A global net label drawn as a ground or supply symbol (GND, +3V3, VBUS). It joins every power port and global label of its name and gives its net the highest-priority name. It is not a component instance and has no BOM line or footprint.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A global net label drawn as a ground or supply symbol (GND, +3V3, VBUS). It joins every power port and global label of its name and gives its net the highest-priority name. It is not a component instance and has no BOM line or footprint.",
+      "avoid": [
+        "Power symbol (for the component kind of that name)"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Power symbol (for the component kind of that name)"
+    ]
+  },
+  {
+    "id": "term/profile-requirement",
+    "title": "Profile requirement",
+    "summary": "What a board needs of its fab profile for a finding to clear: the measured value a profile rule must allow (a clearance at most 0.175 mm, an aspect ratio at least 10:1), a copper layer count or a mask colour. Recorded only when the limit broken is the profile's own rule. Resolved by a profile that allows it or by changing the design, never by a waiver.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "What a board needs of its fab profile for a finding to clear: the measured value a profile rule must allow (a clearance at most 0.175 mm, an aspect ratio at least 10:1), a copper layer count or a mask colour. Recorded only when the limit broken is the profile's own rule. Resolved by a profile that allows it or by changing the design, never by a waiver.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/project-container",
+    "title": "Project container",
+    "summary": "The `.sparksmith` file: a ZIP archive of `project.json` and one raw entry per packed asset under `assets/sha256/<hash>`, read with bounds on the decompressed bytes and written atomically.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The `.sparksmith` file: a ZIP archive of `project.json` and one raw entry per packed asset under `assets/sha256/<hash>`, read with bounds on the decompressed bytes and written atomically.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/project-library-snapshot",
+    "title": "Project library snapshot",
+    "summary": "The exact library definitions and assets needed to reproduce a project's symbols, footprints, mappings and component models.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The exact library definitions and assets needed to reproduce a project's symbols, footprints, mappings and component models.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/property-field-definition",
+    "title": "Property field definition",
+    "summary": "A reusable library definition of a component property's meaning, value type, permitted units and constraints. Component definitions select these fields, allowing their properties to be described without a built-in component-specific schema.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A reusable library definition of a component property's meaning, value type, permitted units and constraints. Component definitions select these fields, allowing their properties to be described without a built-in component-specific schema.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/publish-set",
+    "title": "Publish set",
+    "summary": "Several drafts published together as one transaction, in dependency order (quantity kind, field, package, footprint, binding, symbol, component). References inside the set may name each other's pending revisions; any blocking finding publishes nothing. Publishing a changed definition together with the revisions that must reference it is a _revision cascade_.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Several drafts published together as one transaction, in dependency order (quantity kind, field, package, footprint, binding, symbol, component). References inside the set may name each other's pending revisions; any blocking finding publishes nothing. Publishing a changed definition together with the revisions that must reference it is a _revision cascade_.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/purchasing-completeness",
+    "title": "Purchasing completeness",
+    "summary": "Whether an instance can be bought as designed, derived and never stored: no part (generic), unresolved (a Part is chosen but its component revision, binding or a requirement disagrees, or it is stale) or resolved. Its findings are advisory and block no other stage.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Whether an instance can be bought as designed, derived and never stored: no part (generic), unresolved (a Part is chosen but its component revision, binding or a requirement disagrees, or it is stale) or resolved. Its findings are advisory and block no other stage.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/push-and-shove-routing",
+    "title": "Push-and-shove routing",
+    "summary": "Interactive routing that moves existing tracks to make room while preserving their connections and obeying the board rules and locked-object constraints. The Route tool's Shove mode; see [push-and-shove](docs/push-and-shove.md).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Interactive routing that moves existing tracks to make room while preserving their connections and obeying the board rules and locked-object constraints. The Route tool's Shove mode; see [push-and-shove](docs/push-and-shove.md).",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/quantity-kind",
+    "title": "Quantity kind",
+    "summary": "A library definition of what a quantity measures: a dimension and the units that measure it, with a default unit. Two kinds with the same dimension, such as resistance and reactance, are different kinds; a unit symbol never establishes kind identity.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A library definition of what a quantity measures: a dimension and the units that measure it, with a default unit. Two kinds with the same dimension, such as resistance and reactance, are different kinds; a unit symbol never establishes kind identity.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/rated-spec",
+    "title": "Rated spec",
+    "summary": "One value a manufacturer part is rated at, typed by a field definition and carrying a spec meaning, such as resistance 10 kΩ (exact nominal) or voltage 25 V (minimum rating). It matches an instance requirement by field lineage, never by name.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One value a manufacturer part is rated at, typed by a field definition and carrying a spec meaning, such as resistance 10 kΩ (exact nominal) or voltage 25 V (minimum rating). It matches an instance requirement by field lineage, never by name.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/read-only-preview",
+    "title": "Read-only preview",
+    "summary": "A library-folder item opened in the Component workspace from a scratch engine; nothing it does reaches the project until Edit a copy in this project imports and drafts it as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A library-folder item opened in the Component workspace from a scratch engine; nothing it does reaches the project until Edit a copy in this project imports and drafts it as one undo step.",
+      "avoid": [
+        "Footprint wizard",
+        "generator (the Rhai generator is a different seam)"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Footprint wizard",
+      "generator (the Rhai generator is a different seam)"
+    ]
+  },
+  {
+    "id": "term/reference-link",
+    "title": "Reference link",
+    "summary": "A labeled reference associated with a component, package or manufacturer part, such as a datasheet, application note or product page. A Part's reference is a record with a stable local ID, kind, title, optional URL, document revision, licence, provenance and an optional attached copy named by its SHA-256. A link identifies an external resource; it does not imply that a copy is available offline, and a missing URL removes neither the record nor its attached copy.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A labeled reference associated with a component, package or manufacturer part, such as a datasheet, application note or product page. A Part's reference is a record with a stable local ID, kind, title, optional URL, document revision, licence, provenance and an optional attached copy named by its SHA-256. A link identifies an external resource; it does not imply that a copy is available offline, and a missing URL removes neither the record nor its attached copy.",
+      "avoid": [],
+      "developer_only": false
+    },
+    "keywords": [
+      "reference"
+    ]
+  },
+  {
+    "id": "term/representation",
+    "title": "Representation",
+    "summary": "A symbol lineage a component revision offers for drawing it. An instance chooses one; its units are that symbol's units.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A symbol lineage a component revision offers for drawing it. An instance chooses one; its units are that symbol's units.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/requirement",
+    "title": "Requirement",
+    "summary": "An instance's effective value of one selected field, compared with the rated spec of the same field lineage when a Part is chosen.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An instance's effective value of one selected field, compared with the rated spec of the same field lineage when a Part is chosen.",
+      "avoid": [],
+      "developer_only": false
+    },
+    "keywords": [
+      "part requirement"
+    ]
+  },
+  {
+    "id": "term/resolve-parts",
+    "title": "Resolve parts",
+    "summary": "The view and query (`library.resolve_groups`) that groups instances without an agreeing Part by component revision, footprint and identical requirements, as the BOM groups them, so that one Part is assigned to a whole group with one `instance.assign_part`, one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The view and query (`library.resolve_groups`) that groups instances without an agreeing Part by component revision, footprint and identical requirements, as the BOM groups them, so that one Part is assigned to a whole group with one `instance.assign_part`, one undo step.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/resource-role",
+    "title": "Resource role",
+    "summary": "A part of a peripheral resource, such as a UART's transmit line, with a capacity (how many active functions may take it at once), whether it is required once the resource is used and optionally the datasheet's signal name for it (signal role).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A part of a peripheral resource, such as a UART's transmit line, with a capacity (how many active functions may take it at once), whether it is required once the resource is used and optionally the datasheet's signal name for it (signal role).",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/rkm-shorthand",
+    "title": "RKM shorthand",
+    "summary": "Writing the decimal point as a multiplier or unit letter, as in `4k7` for 4.7 k or `R47` for 0.47 Ω. Unit letters come from the field's unit set, so `R` reads as a decimal point only where the data declares `R`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Writing the decimal point as a multiplier or unit letter, as in `4k7` for 4.7 k or `R47` for 0.47 Ω. Unit letters come from the field's unit set, so `R` reads as a decimal point only where the data declares `R`.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/routed-length",
+    "title": "Routed length",
+    "summary": "A net's track centre-line length plus the via barrels between the layers it uses at each via.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A net's track centre-line length plus the via barrels between the layers it uses at each via.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/rule-override",
+    "title": "Rule override",
+    "summary": "A project's own value for one rule, kept above its profile. A profile switch may keep or drop overrides; one that would break the new profile is refused.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A project's own value for one rule, kept above its profile. A profile switch may keep or drop overrides; one that would break the new profile is refused.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/seating-plane",
+    "title": "Seating plane",
+    "summary": "The plane a package rests on: z = 0 of the model frame, at the top of the land copper. Lead contacts lie on it; a body below it reaches into the board.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The plane a package rests on: z = 0 of the model frame, at the top of the land copper. Lead contacts lie on it; a body below it reaches into the board.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/sheet",
+    "title": "Sheet",
+    "summary": "One page of the schematic, with its own name, paper size and page frame, in a project-wide page order. Symbol occurrences, wires, junctions, labels and sheet furniture each lie on one sheet; a wire never crosses sheets.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "One page of the schematic, with its own name, paper size and page frame, in a project-wide page order. Symbol occurrences, wires, junctions, labels and sheet furniture each lie on one sheet; a wire never crosses sheets.",
+      "avoid": [
+        "Page (as the object)",
+        "schematic (for one sheet)"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Page (as the object)",
+      "schematic (for one sheet)"
+    ]
+  },
+  {
+    "id": "term/sheet-pin",
+    "title": "Sheet pin",
+    "summary": "A connection point on a sheet symbol's edge that joins the hierarchical labels of the same name on the child sheet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A connection point on a sheet symbol's edge that joins the hierarchical labels of the same name on the child sheet.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/sheet-symbol",
+    "title": "Sheet symbol",
+    "summary": "A box on a parent sheet that stands for one child sheet, with sheet pins on its edges. Each sheet has at most one parent symbol; sheets without one are top-level.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A box on a parent sheet that stands for one child sheet, with sheet pins on its edges. Each sheet has at most one parent symbol; sheets without one are top-level.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/shelf",
+    "title": "Shelf",
+    "summary": "A label grouping a folder's lineages for browsing, stored in the folder's `catalog.json`. Not revisioned, never copied into a project and never identity.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A label grouping a folder's lineages for browsing, stored in the folder's `catalog.json`. Not revisioned, never copied into a project and never identity.",
+      "avoid": [
+        "Category"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Category"
+    ]
+  },
+  {
+    "id": "term/shortcut-context",
+    "title": "Shortcut context",
+    "summary": "Where a command's key applies: everywhere, a workspace, one of its views, or an armed tool's mode (Route, Fill, Board shape). A tool mode's keys override its view's while it is active; two commands may not share a key where both could apply.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Where a command's key applies: everywhere, a workspace, one of its views, or an armed tool's mode (Route, Fill, Board shape). A tool mode's keys override its view's while it is active; two commands may not share a key where both could apply.",
+      "avoid": [
+        "Scope",
+        "keymap layer"
+      ],
+      "developer_only": false
+    },
+    "keywords": [
+      "Scope",
+      "keymap layer"
+    ]
+  },
+  {
+    "id": "term/slot",
+    "title": "Slot",
+    "summary": "A datum's position in the board's append-only slot table. The exported design builds slots first and in order, so a slot's face names follow from its number alone. A slot is never reused: removing its datum retires it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A datum's position in the board's append-only slot table. The exported design builds slots first and in order, so a slot's face names follow from its number alone. A slot is never reused: removing its datum retires it.",
+      "avoid": [],
+      "developer_only": false
+    },
+    "keywords": [
+      "interface slot"
+    ]
+  },
+  {
+    "id": "term/spec-meaning",
+    "title": "Spec meaning",
+    "summary": "How a rated spec meets a requirement of the same field: exact nominal (the value is the required one), minimum rating (rated at least the required value, so a 25 V part meets a 16 V requirement) or maximum tolerance (no wider than the required tolerance on either side). One core comparison, `fields::satisfies`, applies it for search, assignment and purchasing completeness.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "How a rated spec meets a requirement of the same field: exact nominal (the value is the required one), minimum rating (rated at least the required value, so a 25 V part meets a 16 V requirement) or maximum tolerance (no wider than the required tolerance on either side). One core comparison, `fields::satisfies`, applies it for search, assignment and purchasing completeness.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/stackup",
+    "title": "Stackup",
+    "summary": "The board's layer build, top to bottom: copper foils and the dielectrics (core or prepreg, with a glass style) between them, plus mask and silkscreen on both sides. It sets the board and copper thicknesses; 2, 4 and 6 copper layers are offered. See [PCB realism](docs/pcb-realism.md).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The board's layer build, top to bottom: copper foils and the dielectrics (core or prepreg, with a glass style) between them, plus mask and silkscreen on both sides. It sets the board and copper thicknesses; 2, 4 and 6 copper layers are offered. See [PCB realism](docs/pcb-realism.md).",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/start-page",
+    "title": "Start page",
+    "summary": "What the Component workspace shows when no component is open: catalog search, Recent and New from template…. The workspace never opens a component the user did not choose.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "What the Component workspace shows when no component is open: catalog search, Recent and New from template…. The workspace never opens a component the user did not choose.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/symbol",
+    "title": "Symbol",
+    "summary": "A schematic representation of a component definition: per unit, drawn graphics and one pin for each of its electrical terminals.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A schematic representation of a component definition: per unit, drawn graphics and one pin for each of its electrical terminals.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/symbol-occurrence",
+    "title": "Symbol occurrence",
+    "summary": "The placement of one symbol unit of a component instance on a schematic sheet. It has its own position and orientation while referring to the component's electrical terminal identities.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The placement of one symbol unit of a component instance on a schematic sheet. It has its own position and orientation while referring to the component's electrical terminal identities.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/symbol-unit",
+    "title": "Symbol unit",
+    "summary": "An independently placeable portion of a component's schematic representation, such as transistor A or an amplifier's power unit. All units of one component instance share its physical implementation and purchasing identity.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An independently placeable portion of a component's schematic representation, such as transistor A or an amplifier's power unit. All units of one component instance share its physical implementation and purchasing identity.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/tag",
+    "title": "Tag",
+    "summary": "A free label on a lineage, kept like a shelf in the owning source's label map. Many tags may apply; none is identity.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A free label on a lineage, kept like a shelf in the owning source's label map. Many tags may apply; none is identity.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/template-gallery",
+    "title": "Template gallery",
+    "summary": "The generator gallery: one searchable sheet over the shipped generators, their presets and custom values (`library.generators`), new-component scope from New and the start page, package scope from the package panel's Change package….",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The generator gallery: one searchable sheet over the shipped generators, their presets and custom values (`library.generators`), new-component scope from New and the start page, package scope from the package panel's Change package….",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/terminal-class",
+    "title": "Terminal class",
+    "summary": "How a component definition classifies a terminal: electrical, with one or more pin functions; device NC, declared by the device as not connected; or reserved. Device-NC and reserved terminals have no functions, cannot be wired and need no project decision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "How a component definition classifies a terminal: electrical, with one or more pin functions; device NC, declared by the device as not connected; or reserved. Device-NC and reserved terminals have no functions, cannot be wired and need no project decision.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/tie",
+    "title": "Tie",
+    "summary": "An intentional join between two to eight distinct nets at a stated place. One component may contain several independent ties. Each has its own terminals, copper bridges and purpose. A copper tie is always closed. A solder jumper or 0 Ω link follows the component’s population in the active assembly variant.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "An intentional join between two to eight distinct nets at a stated place. One component may contain several independent ties. Each has its own terminals, copper bridges and purpose. A copper tie is always closed. A solder jumper or 0 Ω link follows the component’s population in the active assembly variant.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/title-block",
+    "title": "Title block",
+    "summary": "The block in a page frame's corner that shows the project properties (title, revision, date, author, company), the sheet's name and \"sheet n of m\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The block in a page frame's corner that shows the project properties (title, revision, date, author, company), the sheet's name and \"sheet n of m\".",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/unavailable-function",
+    "title": "Unavailable function",
+    "summary": "A pin function that a particular device binding cannot provide. An instance whose active function is unavailable in a binding cannot use that binding.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A pin function that a particular device binding cannot provide. An instance whose active function is unavailable in a binding cannot use that binding.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/unit-set",
+    "title": "Unit set",
+    "summary": "A dimension with its linear units, each with a symbol, aliases, a scale to SI and whether it accepts SI prefixes. Field parsing and scripts scale units through the same set.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A dimension with its linear units, each with a symbol, aliases, a scale to SI and whether it accepts SI prefixes. Field parsing and scripts scale units through the same set.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/unit-state",
+    "title": "Unit state",
+    "summary": "Whether a symbol unit of an instance is placed (has an occurrence), deliberately unused or unplaced. Placed and unused exclude each other; unused never implies a no-connect decision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "Whether a symbol unit of an instance is placed (has an occurrence), deliberately unused or unplaced. Placed and unused exclude each other; unused never implies a no-connect decision.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/value-code",
+    "title": "Value code",
+    "summary": "A marking item that encodes a field value with a cited scheme (3- or 4-digit resistor code, EIA-96, capacitor pF code, tantalum voltage letter, IEC 60062 colour bands); a value the scheme cannot hold exactly gives no code, never a rounded one.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A marking item that encodes a field value with a cited scheme (3- or 4-digit resistor code, EIA-96, capacitor pF code, tantalum voltage letter, IEC 60062 colour bands); a value the scheme cannot hold exactly gives no code, never a rounded one.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/value-template",
+    "title": "Value template",
+    "summary": "What a placed part shows as its value on the schematic, in the BOM and in the placement file: alternatives of text with `{Field}` placeholders over the fields its component selects, the first whose fields all have a value winning (`{Capacitance} {Rated voltage}`, then `{Capacitance}`). A generic family's parts take theirs from the family's data; stored by field lineage.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "What a placed part shows as its value on the schematic, in the BOM and in the placement file: alternatives of text with `{Field}` placeholders over the fields its component selects, the first whose fields all have a value winning (`{Capacitance} {Rated voltage}`, then `{Capacitance}`). A generic family's parts take theirs from the family's data; stored by field lineage.",
+      "avoid": [],
+      "developer_only": false
+    }
+  },
+  {
+    "id": "term/walkaround",
+    "title": "Walkaround",
+    "summary": "The routing mode in which the route head goes round other nets' copper, keepouts and cutouts at the rule clearance, hugging them in its posture, and stops at the last legal point when no way round exists. Shove falls back to it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "The routing mode in which the route head goes round other nets' copper, keepouts and cutouts at the rule clearance, hugging them in its posture, and stops at the last legal point when no way round exists. Shove falls back to it.",
+      "avoid": [],
+      "developer_only": false
+    }
+  }
+]

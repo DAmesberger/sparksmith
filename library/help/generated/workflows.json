@@ -1,0 +1,30 @@
+[
+  {
+    "id": "workflow/datasheet-to-body",
+    "title": "Datasheet → 3D body",
+    "summary": "Give a placed part a 3D body recreated by a generator from the datasheet's drawing, fitted to the footprint it keeps, every value cited.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "workflow"
+    },
+    "keywords": [
+      "give J16 a real 3D body from the datasheet",
+      "replace the placeholder 3D model of U13",
+      "recreate the 3D body of LS1 from its drawing"
+    ]
+  },
+  {
+    "id": "workflow/datasheet-to-component",
+    "title": "Datasheet → component",
+    "summary": "Draft a component, symbol, package, footprint, binding and 3D model from manufacturer datasheets, every value cited, for you to review and publish.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "workflow"
+    },
+    "keywords": [
+      "make a part from this datasheet",
+      "create the component for this part number",
+      "add this chip to my library"
+    ]
+  }
+]

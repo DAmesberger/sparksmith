@@ -1,16 +1,12 @@
 ---
 {
-  "id": "guide/libraries",
-  "kind": "guide",
-  "title": "Find and reuse components",
-  "summary": "Choose a component and its physical implementation, and keep the design tied to the revision you reviewed.",
-  "since": "0.1.0",
   "covers": {
     "entry/instance.set_properties": "7c8e1a4e6a53618d",
     "entry/library.search": "b8b0cb4373806d60",
-    "entry/project.preview_update": "63cf2238a1df0ff3",
+    "entry/project.preview_update": "ddee0d5306fed713",
     "term/component-definition": "594eab48265807fa15f099e00c5985ec68a0abf0a3855318bc81f041adbb346a"
   },
+  "id": "guide/libraries",
   "keywords": [
     "library folders",
     "find parts",
@@ -18,11 +14,15 @@
     "publish",
     "update revisions"
   ],
+  "kind": "guide",
   "related": [
     "panel/libraries",
     "panel/component",
     "workflow/datasheet-to-component"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Choose a component and its physical implementation, and keep the design tied to the revision you reviewed.",
+  "title": "Find and reuse components"
 }
 ---
 

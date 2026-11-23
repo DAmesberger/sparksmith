@@ -359,8 +359,7 @@ The board finish choices a fabricator builds: soldermask colour and finish, pad 
 **Stackup**:
 The board's layer build, top to bottom: copper foils and the dielectrics (core or prepreg, with a glass style) between them, plus mask and silkscreen on both sides. It sets the board and copper thicknesses; 2, 4 and 6 copper layers are offered. See [PCB realism](docs/pcb-realism.md).
 
-**Tie**
-
+**Tie**:
 An intentional join between two to eight distinct nets at a stated place. One component may contain several independent ties. Each has its own terminals, copper bridges and purpose. A copper tie is always closed. A solder jumper or 0 Ω link follows the component’s population in the active assembly variant.
 
 **Copper layer**:

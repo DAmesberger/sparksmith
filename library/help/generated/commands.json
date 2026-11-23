@@ -1,0 +1,5141 @@
+[
+  {
+    "id": "command/app.connect-assistants",
+    "title": "Connect AI assistants…",
+    "summary": "Connect AI assistants from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": null,
+      "reaches": "panel/assistant"
+    },
+    "keywords": [
+      "mcp",
+      "agent",
+      "llm",
+      "claude",
+      "assistant",
+      "ai",
+      "live",
+      "remote",
+      "control"
+    ]
+  },
+  {
+    "id": "command/app.help",
+    "title": "Help",
+    "summary": "Help from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "F1",
+      "reaches": "panel/help"
+    },
+    "keywords": [
+      "manual",
+      "documentation",
+      "guide",
+      "context"
+    ]
+  },
+  {
+    "id": "command/app.palette",
+    "title": "Command palette",
+    "summary": "Command palette from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+P",
+      "reaches": "panel/palette"
+    },
+    "keywords": [
+      "search",
+      "find",
+      "run",
+      "commands"
+    ]
+  },
+  {
+    "id": "command/app.palette-alt",
+    "title": "Command palette",
+    "summary": "Command palette from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Shift+P",
+      "reaches": "panel/palette"
+    },
+    "keywords": [
+      "search",
+      "find",
+      "run",
+      "commands"
+    ]
+  },
+  {
+    "id": "command/app.quit",
+    "title": "Quit Sparksmith",
+    "summary": "Quit Sparksmith from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Q",
+      "reaches": "panel/files"
+    },
+    "keywords": [
+      "exit",
+      "close",
+      "window"
+    ]
+  },
+  {
+    "id": "command/app.settings",
+    "title": "Settings…",
+    "summary": "Settings from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Comma",
+      "reaches": "panel/settings"
+    },
+    "keywords": [
+      "preferences",
+      "options",
+      "keyboard",
+      "keymap",
+      "shortcuts",
+      "rebind",
+      "keys"
+    ]
+  },
+  {
+    "id": "command/app.shortcuts",
+    "title": "Keyboard shortcuts",
+    "summary": "Keyboard shortcuts from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Slash",
+      "reaches": "panel/keyboard-shortcuts"
+    },
+    "keywords": [
+      "keys",
+      "keymap",
+      "hotkeys",
+      "help",
+      "cheat",
+      "sheet"
+    ]
+  },
+  {
+    "id": "command/assistant.toggle",
+    "title": "Show or hide the Assistant",
+    "summary": "Show or hide the Assistant from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Shift+A",
+      "reaches": "panel/assistant"
+    },
+    "keywords": [
+      "ai",
+      "chat",
+      "llm",
+      "agent",
+      "ask",
+      "model",
+      "claude",
+      "conversation"
+    ]
+  },
+  {
+    "id": "command/component.back",
+    "title": "Previous component",
+    "summary": "Component: Previous component.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component",
+      "default_key": "Ctrl+OpenBracket",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/component.forward",
+    "title": "Next component",
+    "summary": "Component: Next component.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component",
+      "default_key": "Ctrl+CloseBracket",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/component.new",
+    "title": "New component…",
+    "summary": "Start a new component with a generator",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component",
+      "default_key": "Ctrl+Shift+N",
+      "reaches": "panel/component"
+    },
+    "keywords": [
+      "generator",
+      "template",
+      "gallery",
+      "part"
+    ]
+  },
+  {
+    "id": "command/component.open",
+    "title": "Open component…",
+    "summary": "Open a component of this project or a library source",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component",
+      "default_key": "Ctrl+Shift+O",
+      "reaches": "panel/component"
+    },
+    "keywords": [
+      "catalog",
+      "library",
+      "find",
+      "part"
+    ]
+  },
+  {
+    "id": "command/component.publish",
+    "title": "Publish component",
+    "summary": "Publish the five drafts as new immutable revisions",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component",
+      "default_key": null,
+      "reaches": "panel/component"
+    },
+    "keywords": [
+      "revision",
+      "release"
+    ]
+  },
+  {
+    "id": "command/edit.copy",
+    "title": "Copy",
+    "summary": "What `schematic.paste` needs to recreate these sheet objects.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+C",
+      "reaches": "entry/schematic.copy"
+    },
+    "keywords": [
+      "clipboard",
+      "text",
+      "field",
+      "schematic",
+      "duplicate"
+    ]
+  },
+  {
+    "id": "command/edit.cut",
+    "title": "Cut",
+    "summary": "Cut from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+X",
+      "reaches": "panel/schematic"
+    },
+    "keywords": [
+      "clipboard",
+      "text",
+      "field",
+      "schematic"
+    ]
+  },
+  {
+    "id": "command/edit.paste",
+    "title": "Paste",
+    "summary": "Create what `clip` (from the `schematic.copy` query) holds on a sheet, shifted by `offset`, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+V",
+      "reaches": "entry/schematic.paste"
+    },
+    "keywords": [
+      "clipboard",
+      "text",
+      "field",
+      "schematic",
+      "duplicate"
+    ]
+  },
+  {
+    "id": "command/edit.redo",
+    "title": "Redo",
+    "summary": "Redo the last undone document change at expected_revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Shift+Z",
+      "reaches": "entry/project.redo"
+    }
+  },
+  {
+    "id": "command/edit.select-all",
+    "title": "Select all",
+    "summary": "Select all from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+A",
+      "reaches": "panel/properties"
+    },
+    "keywords": [
+      "text",
+      "field",
+      "sheet",
+      "schematic",
+      "everything",
+      "group"
+    ]
+  },
+  {
+    "id": "command/edit.undo",
+    "title": "Undo",
+    "summary": "Undo the last document change at expected_revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Z",
+      "reaches": "entry/project.undo"
+    }
+  },
+  {
+    "id": "command/file.clear-recent",
+    "title": "Clear recent projects",
+    "summary": "Clear recent projects from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": null,
+      "reaches": "panel/files"
+    },
+    "keywords": [
+      "open",
+      "recent",
+      "history",
+      "forget",
+      "list"
+    ]
+  },
+  {
+    "id": "command/file.export",
+    "title": "Export to Solidcraft…",
+    "summary": "Export the board as a native parametric .solidcraft 3D model to a new file.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Shift+E",
+      "reaches": "entry/project.export_native"
+    },
+    "keywords": [
+      "solidcraft",
+      "3d",
+      "model",
+      "native",
+      "parametric"
+    ]
+  },
+  {
+    "id": "command/file.export-schematic-pdf",
+    "title": "Export schematic PDF…",
+    "summary": "Print the schematic as a vector PDF, one page per sheet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": null,
+      "reaches": "entry/schematic.export_pdf"
+    },
+    "keywords": [
+      "print",
+      "pdf",
+      "sheets",
+      "schematic",
+      "title",
+      "block"
+    ]
+  },
+  {
+    "id": "command/file.import-kicad",
+    "title": "Import KiCad project…",
+    "summary": "Import KiCad project from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": null,
+      "reaches": "panel/files"
+    },
+    "keywords": [
+      "kicad",
+      "import",
+      "convert",
+      "board",
+      "pcb",
+      "schematic",
+      "project",
+      "kicad_pro",
+      "kicad_pcb"
+    ]
+  },
+  {
+    "id": "command/file.new",
+    "title": "New project",
+    "summary": "Start a new empty project at expected_revision with its board's fab profile, clearing history.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+N",
+      "reaches": "entry/project.new"
+    }
+  },
+  {
+    "id": "command/file.open",
+    "title": "Open project…",
+    "summary": "Open a .sparksmith project file in place of the document at expected_revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+O",
+      "reaches": "entry/project.open"
+    }
+  },
+  {
+    "id": "command/file.save",
+    "title": "Save project",
+    "summary": "Save the project atomically to a .sparksmith file, by default its current path.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+S",
+      "reaches": "entry/project.save"
+    }
+  },
+  {
+    "id": "command/file.save-as",
+    "title": "Save project as…",
+    "summary": "Save the project atomically to a .sparksmith file, by default its current path.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Shift+S",
+      "reaches": "entry/project.save"
+    }
+  },
+  {
+    "id": "command/fill.arc",
+    "title": "Switch lines and arcs",
+    "summary": "PCB › Fill tool: Switch lines and arcs.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Fill tool",
+      "default_key": "A",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/fill.back",
+    "title": "Take back the last point",
+    "summary": "PCB › Fill tool: Take back the last point.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Fill tool",
+      "default_key": "Backspace",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/fill.close",
+    "title": "Close the outline",
+    "summary": "PCB › Fill tool: Close the outline.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Fill tool",
+      "default_key": "Enter",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/fill.drop",
+    "title": "Drop the outline",
+    "summary": "PCB › Fill tool: Drop the outline.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Fill tool",
+      "default_key": "Escape",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/footprint.cancel",
+    "title": "Cancel the tool",
+    "summary": "Component › Footprint: Cancel the tool.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "Escape",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.delete",
+    "title": "Delete selection",
+    "summary": "Component › Footprint: Delete selection.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "Delete, Backspace",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-arc",
+    "title": "Arc",
+    "summary": "Component › Footprint: Arc.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "A",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-array-dual",
+    "title": "Dual row",
+    "summary": "Component › Footprint: Dual row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "Shift+N",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-array-grid",
+    "title": "Grid",
+    "summary": "Component › Footprint: Grid.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-array-linear",
+    "title": "Row",
+    "summary": "Component › Footprint: Row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-array-quad",
+    "title": "Quad",
+    "summary": "Component › Footprint: Quad.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-circle",
+    "title": "Circle",
+    "summary": "Component › Footprint: Circle.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "C",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-coincident",
+    "title": "Coincident",
+    "summary": "Component › Footprint: Coincident.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-dimension",
+    "title": "Dimension",
+    "summary": "Component › Footprint: Dimension.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "D",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-drill",
+    "title": "Drill",
+    "summary": "Component › Footprint: Drill.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "H",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-equal",
+    "title": "Equal",
+    "summary": "Component › Footprint: Equal.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-horizontal",
+    "title": "Horizontal",
+    "summary": "Component › Footprint: Horizontal.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-line",
+    "title": "Line",
+    "summary": "Component › Footprint: Line.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "L",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-pad-circle",
+    "title": "Round",
+    "summary": "Component › Footprint: Round.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-pad-custom",
+    "title": "Custom",
+    "summary": "Component › Footprint: Custom.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-pad-oblong",
+    "title": "Oblong",
+    "summary": "Component › Footprint: Oblong.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-pad-rect",
+    "title": "Pad",
+    "summary": "Component › Footprint: Pad.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "N",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-pad-roundrect",
+    "title": "Rounded",
+    "summary": "Component › Footprint: Rounded.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-rect",
+    "title": "Rectangle",
+    "summary": "Component › Footprint: Rectangle.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "R",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-select",
+    "title": "Select",
+    "summary": "Component › Footprint: Select.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-slot",
+    "title": "Slot",
+    "summary": "Component › Footprint: Slot.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "Shift+H",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-symmetric",
+    "title": "Symmetric",
+    "summary": "Component › Footprint: Symmetric.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.fp-vertical",
+    "title": "Vertical",
+    "summary": "Component › Footprint: Vertical.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.layer",
+    "title": "Switch construction and silkscreen",
+    "summary": "Component › Footprint: Switch construction and silkscreen.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "X",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.repeat",
+    "title": "Repeat the last tool",
+    "summary": "Component › Footprint: Repeat the last tool.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "Shift+R",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/footprint.turn",
+    "title": "Turn the next pad a quarter",
+    "summary": "Component › Footprint: Turn the next pad a quarter.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Footprint",
+      "default_key": "Space",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.0",
+    "title": "Orbit (trackpad)",
+    "summary": "PCB › 3D: Orbit (trackpad).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Shift + two fingers",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.1",
+    "title": "Pan (trackpad)",
+    "summary": "PCB › 3D: Pan (trackpad).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Two fingers",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.10",
+    "title": "Look from that side",
+    "summary": "PCB › 3D: Look from that side.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Click a cube face or corner",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.11",
+    "title": "Turn the view 15° (with Shift: 90°)",
+    "summary": "PCB › 3D: Turn the view 15° (with Shift: 90°).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Arrow keys",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.12",
+    "title": "Fit the board",
+    "summary": "PCB › 3D: Fit the board.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Middle double-click",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.2",
+    "title": "Zoom toward the pointer (trackpad)",
+    "summary": "PCB › 3D: Zoom toward the pointer (trackpad).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Pinch",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.3",
+    "title": "Orbit (mouse)",
+    "summary": "PCB › 3D: Orbit (mouse).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Right-drag",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.4",
+    "title": "Orbit (mouse)",
+    "summary": "PCB › 3D: Orbit (mouse).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Shift + middle-drag",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.5",
+    "title": "Pan (mouse)",
+    "summary": "PCB › 3D: Pan (mouse).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Middle-drag",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.6",
+    "title": "Zoom toward the pointer (mouse)",
+    "summary": "PCB › 3D: Zoom toward the pointer (mouse).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Wheel",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.7",
+    "title": "Orbit",
+    "summary": "PCB › 3D: Orbit.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Cmd/Ctrl + drag on empty space",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.8",
+    "title": "Pan",
+    "summary": "PCB › 3D: Pan.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Space + drag",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/gesture.pcb3d.9",
+    "title": "Orbit",
+    "summary": "PCB › 3D: Orbit.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Drag the cube",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/help.back",
+    "title": "Back in help",
+    "summary": "Help: Back in help.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Help",
+      "default_key": "Alt+Left",
+      "reaches": "panel/help"
+    }
+  },
+  {
+    "id": "command/help.forward",
+    "title": "Forward in help",
+    "summary": "Help: Forward in help.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Help",
+      "default_key": "Alt+Right",
+      "reaches": "panel/help"
+    }
+  },
+  {
+    "id": "command/library.sources",
+    "title": "Library sources…",
+    "summary": "Library sources from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": null,
+      "reaches": "panel/libraries"
+    },
+    "keywords": [
+      "folders",
+      "libraries",
+      "rescan"
+    ]
+  },
+  {
+    "id": "command/list.activate",
+    "title": "Edit the value, or locate the object",
+    "summary": "Lists: Edit the value, or locate the object.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Enter, F2",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.cursor-down",
+    "title": "Move the cursor down only",
+    "summary": "Lists: Move the cursor down only.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Ctrl+Down",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.cursor-up",
+    "title": "Move the cursor up only",
+    "summary": "Lists: Move the cursor up only.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Ctrl+Up",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.delete",
+    "title": "Delete the selected rows",
+    "summary": "Lists: Delete the selected rows.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Backspace, Delete",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.down",
+    "title": "Next row",
+    "summary": "Lists: Next row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Down",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.end",
+    "title": "Last row",
+    "summary": "Lists: Last row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "End",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.escape",
+    "title": "Cancel the edit, then clear the filter, then the selection",
+    "summary": "Lists: Cancel the edit, then clear the filter, then the selection.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Escape",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.extend-down",
+    "title": "Extend the selection down",
+    "summary": "Lists: Extend the selection down.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Shift+Down",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.extend-end",
+    "title": "Extend to the last row",
+    "summary": "Lists: Extend to the last row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Shift+End",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.extend-home",
+    "title": "Extend to the first row",
+    "summary": "Lists: Extend to the first row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Shift+Home",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.extend-up",
+    "title": "Extend the selection up",
+    "summary": "Lists: Extend the selection up.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Shift+Up",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.filter",
+    "title": "Filter this list",
+    "summary": "Lists: Filter this list.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Slash, Ctrl+F",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.fold",
+    "title": "Fold, or go to the parent",
+    "summary": "Lists: Fold, or go to the parent.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Left",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.home",
+    "title": "First row",
+    "summary": "Lists: First row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Home",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.move-down",
+    "title": "Move the row down",
+    "summary": "Lists: Move the row down.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Alt+Down",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.move-up",
+    "title": "Move the row up",
+    "summary": "Lists: Move the row up.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Alt+Up",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.page-down",
+    "title": "A page down",
+    "summary": "Lists: A page down.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "PageDown",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.page-up",
+    "title": "A page up",
+    "summary": "Lists: A page up.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "PageUp",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.select-all",
+    "title": "Select every shown row",
+    "summary": "Lists: Select every shown row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Ctrl+A",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.toggle",
+    "title": "Add or remove the row; fold a group",
+    "summary": "Lists: Add or remove the row; fold a group.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Space",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.unfold",
+    "title": "Unfold, or go to the first child",
+    "summary": "Lists: Unfold, or go to the first child.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Right",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/list.up",
+    "title": "Previous row",
+    "summary": "Lists: Previous row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Lists",
+      "default_key": "Up",
+      "reaches": "panel/keyboard-shortcuts"
+    }
+  },
+  {
+    "id": "command/pcb.3d",
+    "title": "3D view",
+    "summary": "PCB: 3D view.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "view",
+      "model"
+    ]
+  },
+  {
+    "id": "command/pcb.airwires",
+    "title": "Show or hide airwires",
+    "summary": "PCB › Layout: Show or hide airwires.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "ratsnest",
+      "unrouted",
+      "connections"
+    ]
+  },
+  {
+    "id": "command/pcb.align-bottom",
+    "title": "Align bottom edges",
+    "summary": "Line up two or more parts' outlines on one edge (left, right, top, bottom) or centre line, as one undo step with their copper carried.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.align"
+    },
+    "keywords": [
+      "arrange",
+      "line",
+      "up",
+      "selection",
+      "parts",
+      "align",
+      "distribute",
+      "space",
+      "evenly"
+    ]
+  },
+  {
+    "id": "command/pcb.align-centres-x",
+    "title": "Align horizontal centres",
+    "summary": "Line up two or more parts' outlines on one edge (left, right, top, bottom) or centre line, as one undo step with their copper carried.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.align"
+    },
+    "keywords": [
+      "arrange",
+      "line",
+      "up",
+      "selection",
+      "parts",
+      "align",
+      "distribute",
+      "space",
+      "evenly"
+    ]
+  },
+  {
+    "id": "command/pcb.align-centres-y",
+    "title": "Align vertical centres",
+    "summary": "Line up two or more parts' outlines on one edge (left, right, top, bottom) or centre line, as one undo step with their copper carried.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.align"
+    },
+    "keywords": [
+      "arrange",
+      "line",
+      "up",
+      "selection",
+      "parts",
+      "align",
+      "distribute",
+      "space",
+      "evenly"
+    ]
+  },
+  {
+    "id": "command/pcb.align-left",
+    "title": "Align left edges",
+    "summary": "Line up two or more parts' outlines on one edge (left, right, top, bottom) or centre line, as one undo step with their copper carried.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.align"
+    },
+    "keywords": [
+      "arrange",
+      "line",
+      "up",
+      "selection",
+      "parts",
+      "align",
+      "distribute",
+      "space",
+      "evenly"
+    ]
+  },
+  {
+    "id": "command/pcb.align-right",
+    "title": "Align right edges",
+    "summary": "Line up two or more parts' outlines on one edge (left, right, top, bottom) or centre line, as one undo step with their copper carried.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.align"
+    },
+    "keywords": [
+      "arrange",
+      "line",
+      "up",
+      "selection",
+      "parts",
+      "align",
+      "distribute",
+      "space",
+      "evenly"
+    ]
+  },
+  {
+    "id": "command/pcb.align-top",
+    "title": "Align top edges",
+    "summary": "Line up two or more parts' outlines on one edge (left, right, top, bottom) or centre line, as one undo step with their copper carried.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.align"
+    },
+    "keywords": [
+      "arrange",
+      "line",
+      "up",
+      "selection",
+      "parts",
+      "align",
+      "distribute",
+      "space",
+      "evenly"
+    ]
+  },
+  {
+    "id": "command/pcb.board-shape",
+    "title": "Board shape",
+    "summary": "Edit the board outline, cutouts and named edges as a sketch",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "B",
+      "reaches": "entry/board.start_sketch"
+    },
+    "keywords": [
+      "outline",
+      "edge",
+      "cutout",
+      "sketch"
+    ]
+  },
+  {
+    "id": "command/pcb.cancel",
+    "title": "Cancel the tool or gesture, else deselect",
+    "summary": "PCB › Layout: Cancel the tool or gesture, else deselect.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "Escape",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/pcb.delete",
+    "title": "Delete the selection's tracks, vias and fills, or a dimension",
+    "summary": "PCB › Layout: Delete the selection's tracks, vias and fills, or a dimension.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "Delete, Backspace",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/pcb.dimension",
+    "title": "Dimension",
+    "summary": "Dimension a part to a face, edge, hole or board edge",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": "Shift+D",
+      "reaches": "entry/layout.dimension_add"
+    },
+    "keywords": [
+      "measure",
+      "distance",
+      "hold",
+      "face",
+      "edge",
+      "hole",
+      "board",
+      "edge",
+      "parametric"
+    ]
+  },
+  {
+    "id": "command/pcb.dimension-cancel",
+    "title": "Drop the dimension's picks, then end the tool",
+    "summary": "PCB › 3D: Drop the dimension's picks, then end the tool.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Escape",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/pcb.dimension-delete",
+    "title": "Delete the selected dimension",
+    "summary": "PCB › 3D: Delete the selected dimension.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Delete, Backspace",
+      "reaches": "panel/model-3d"
+    }
+  },
+  {
+    "id": "command/pcb.distribute-x",
+    "title": "Distribute horizontally",
+    "summary": "Space three or more parts evenly along an axis: the outermost stay and the gaps between neighbouring outlines become equal.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.distribute"
+    },
+    "keywords": [
+      "arrange",
+      "line",
+      "up",
+      "selection",
+      "parts",
+      "align",
+      "distribute",
+      "space",
+      "evenly"
+    ]
+  },
+  {
+    "id": "command/pcb.distribute-y",
+    "title": "Distribute vertically",
+    "summary": "Space three or more parts evenly along an axis: the outermost stay and the gaps between neighbouring outlines become equal.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.distribute"
+    },
+    "keywords": [
+      "arrange",
+      "line",
+      "up",
+      "selection",
+      "parts",
+      "align",
+      "distribute",
+      "space",
+      "evenly"
+    ]
+  },
+  {
+    "id": "command/pcb.fill",
+    "title": "Fill",
+    "summary": "Draw a copper fill outline; switch to Layout to draw",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "P",
+      "reaches": "entry/fill.add"
+    },
+    "keywords": [
+      "pour",
+      "zone",
+      "plane",
+      "copper",
+      "area"
+    ]
+  },
+  {
+    "id": "command/pcb.from-bottom",
+    "title": "View from bottom",
+    "summary": "PCB › Layout: View from bottom.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "Shift+F",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "flip",
+      "side",
+      "underside"
+    ]
+  },
+  {
+    "id": "command/pcb.high-speed",
+    "title": "High speed…",
+    "summary": "PCB: High speed.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "differential",
+      "diff",
+      "pair",
+      "length",
+      "group",
+      "matching",
+      "skew",
+      "impedance"
+    ]
+  },
+  {
+    "id": "command/pcb.highlight-net",
+    "title": "Highlight complete net",
+    "summary": "PCB › Layout: Highlight complete net.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "H",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "net",
+      "highlight",
+      "selection"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-1",
+    "title": "Switch to stackup layer 1",
+    "summary": "PCB › Layout: Switch to stackup layer 1.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "1",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-10",
+    "title": "Switch to stackup layer 10",
+    "summary": "PCB › Layout: Switch to stackup layer 10.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "0",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-2",
+    "title": "Switch to stackup layer 2",
+    "summary": "PCB › Layout: Switch to stackup layer 2.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "2",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-3",
+    "title": "Switch to stackup layer 3",
+    "summary": "PCB › Layout: Switch to stackup layer 3.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "3",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-4",
+    "title": "Switch to stackup layer 4",
+    "summary": "PCB › Layout: Switch to stackup layer 4.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "4",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-5",
+    "title": "Switch to stackup layer 5",
+    "summary": "PCB › Layout: Switch to stackup layer 5.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "5",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-6",
+    "title": "Switch to stackup layer 6",
+    "summary": "PCB › Layout: Switch to stackup layer 6.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "6",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-7",
+    "title": "Switch to stackup layer 7",
+    "summary": "PCB › Layout: Switch to stackup layer 7.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "7",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-8",
+    "title": "Switch to stackup layer 8",
+    "summary": "PCB › Layout: Switch to stackup layer 8.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "8",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-9",
+    "title": "Switch to stackup layer 9",
+    "summary": "PCB › Layout: Switch to stackup layer 9.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "9",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "copper",
+      "layer",
+      "switch",
+      "via",
+      "stackup"
+    ]
+  },
+  {
+    "id": "command/pcb.layer-focus",
+    "title": "Cycle layer focus (all, dim others, active only)",
+    "summary": "PCB › Layout: Cycle layer focus (all, dim others, active only).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "Shift+L",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "active",
+      "layer",
+      "single",
+      "only",
+      "dim",
+      "others",
+      "solo",
+      "focus"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.assembly",
+    "title": "Show or hide the assembly drawing",
+    "summary": "PCB › Layout: Show or hide the assembly drawing.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.components",
+    "title": "Show or hide component bodies",
+    "summary": "PCB › 3D: Show or hide component bodies.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-0",
+    "title": "Show or hide Top copper",
+    "summary": "PCB: Show or hide Top copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-1",
+    "title": "Show or hide Bottom copper",
+    "summary": "PCB: Show or hide Bottom copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-10",
+    "title": "Show or hide Inner 9 copper",
+    "summary": "PCB: Show or hide Inner 9 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-11",
+    "title": "Show or hide Inner 10 copper",
+    "summary": "PCB: Show or hide Inner 10 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-12",
+    "title": "Show or hide Inner 11 copper",
+    "summary": "PCB: Show or hide Inner 11 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-13",
+    "title": "Show or hide Inner 12 copper",
+    "summary": "PCB: Show or hide Inner 12 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-14",
+    "title": "Show or hide Inner 13 copper",
+    "summary": "PCB: Show or hide Inner 13 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-15",
+    "title": "Show or hide Inner 14 copper",
+    "summary": "PCB: Show or hide Inner 14 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-16",
+    "title": "Show or hide Inner 15 copper",
+    "summary": "PCB: Show or hide Inner 15 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-17",
+    "title": "Show or hide Inner 16 copper",
+    "summary": "PCB: Show or hide Inner 16 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-18",
+    "title": "Show or hide Inner 17 copper",
+    "summary": "PCB: Show or hide Inner 17 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-19",
+    "title": "Show or hide Inner 18 copper",
+    "summary": "PCB: Show or hide Inner 18 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-2",
+    "title": "Show or hide Inner 1 copper",
+    "summary": "PCB: Show or hide Inner 1 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-20",
+    "title": "Show or hide Inner 19 copper",
+    "summary": "PCB: Show or hide Inner 19 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-21",
+    "title": "Show or hide Inner 20 copper",
+    "summary": "PCB: Show or hide Inner 20 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-22",
+    "title": "Show or hide Inner 21 copper",
+    "summary": "PCB: Show or hide Inner 21 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-23",
+    "title": "Show or hide Inner 22 copper",
+    "summary": "PCB: Show or hide Inner 22 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-24",
+    "title": "Show or hide Inner 23 copper",
+    "summary": "PCB: Show or hide Inner 23 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-25",
+    "title": "Show or hide Inner 24 copper",
+    "summary": "PCB: Show or hide Inner 24 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-26",
+    "title": "Show or hide Inner 25 copper",
+    "summary": "PCB: Show or hide Inner 25 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-27",
+    "title": "Show or hide Inner 26 copper",
+    "summary": "PCB: Show or hide Inner 26 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-28",
+    "title": "Show or hide Inner 27 copper",
+    "summary": "PCB: Show or hide Inner 27 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-29",
+    "title": "Show or hide Inner 28 copper",
+    "summary": "PCB: Show or hide Inner 28 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-3",
+    "title": "Show or hide Inner 2 copper",
+    "summary": "PCB: Show or hide Inner 2 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-30",
+    "title": "Show or hide Inner 29 copper",
+    "summary": "PCB: Show or hide Inner 29 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-31",
+    "title": "Show or hide Inner 30 copper",
+    "summary": "PCB: Show or hide Inner 30 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-32",
+    "title": "Show or hide Inner 31 copper",
+    "summary": "PCB: Show or hide Inner 31 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-33",
+    "title": "Show or hide Inner 32 copper",
+    "summary": "PCB: Show or hide Inner 32 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-34",
+    "title": "Show or hide Inner 33 copper",
+    "summary": "PCB: Show or hide Inner 33 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-35",
+    "title": "Show or hide Inner 34 copper",
+    "summary": "PCB: Show or hide Inner 34 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-36",
+    "title": "Show or hide Inner 35 copper",
+    "summary": "PCB: Show or hide Inner 35 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-37",
+    "title": "Show or hide Inner 36 copper",
+    "summary": "PCB: Show or hide Inner 36 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-38",
+    "title": "Show or hide Inner 37 copper",
+    "summary": "PCB: Show or hide Inner 37 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-39",
+    "title": "Show or hide Inner 38 copper",
+    "summary": "PCB: Show or hide Inner 38 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-4",
+    "title": "Show or hide Inner 3 copper",
+    "summary": "PCB: Show or hide Inner 3 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-40",
+    "title": "Show or hide Inner 39 copper",
+    "summary": "PCB: Show or hide Inner 39 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-41",
+    "title": "Show or hide Inner 40 copper",
+    "summary": "PCB: Show or hide Inner 40 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-42",
+    "title": "Show or hide Inner 41 copper",
+    "summary": "PCB: Show or hide Inner 41 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-43",
+    "title": "Show or hide Inner 42 copper",
+    "summary": "PCB: Show or hide Inner 42 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-44",
+    "title": "Show or hide Inner 43 copper",
+    "summary": "PCB: Show or hide Inner 43 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-45",
+    "title": "Show or hide Inner 44 copper",
+    "summary": "PCB: Show or hide Inner 44 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-46",
+    "title": "Show or hide Inner 45 copper",
+    "summary": "PCB: Show or hide Inner 45 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-47",
+    "title": "Show or hide Inner 46 copper",
+    "summary": "PCB: Show or hide Inner 46 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-48",
+    "title": "Show or hide Inner 47 copper",
+    "summary": "PCB: Show or hide Inner 47 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-49",
+    "title": "Show or hide Inner 48 copper",
+    "summary": "PCB: Show or hide Inner 48 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-5",
+    "title": "Show or hide Inner 4 copper",
+    "summary": "PCB: Show or hide Inner 4 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-50",
+    "title": "Show or hide Inner 49 copper",
+    "summary": "PCB: Show or hide Inner 49 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-51",
+    "title": "Show or hide Inner 50 copper",
+    "summary": "PCB: Show or hide Inner 50 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-52",
+    "title": "Show or hide Inner 51 copper",
+    "summary": "PCB: Show or hide Inner 51 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-53",
+    "title": "Show or hide Inner 52 copper",
+    "summary": "PCB: Show or hide Inner 52 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-54",
+    "title": "Show or hide Inner 53 copper",
+    "summary": "PCB: Show or hide Inner 53 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-55",
+    "title": "Show or hide Inner 54 copper",
+    "summary": "PCB: Show or hide Inner 54 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-56",
+    "title": "Show or hide Inner 55 copper",
+    "summary": "PCB: Show or hide Inner 55 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-57",
+    "title": "Show or hide Inner 56 copper",
+    "summary": "PCB: Show or hide Inner 56 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-58",
+    "title": "Show or hide Inner 57 copper",
+    "summary": "PCB: Show or hide Inner 57 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-59",
+    "title": "Show or hide Inner 58 copper",
+    "summary": "PCB: Show or hide Inner 58 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-6",
+    "title": "Show or hide Inner 5 copper",
+    "summary": "PCB: Show or hide Inner 5 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-60",
+    "title": "Show or hide Inner 59 copper",
+    "summary": "PCB: Show or hide Inner 59 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-61",
+    "title": "Show or hide Inner 60 copper",
+    "summary": "PCB: Show or hide Inner 60 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-62",
+    "title": "Show or hide Inner 61 copper",
+    "summary": "PCB: Show or hide Inner 61 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-63",
+    "title": "Show or hide Inner 62 copper",
+    "summary": "PCB: Show or hide Inner 62 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-7",
+    "title": "Show or hide Inner 6 copper",
+    "summary": "PCB: Show or hide Inner 6 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-8",
+    "title": "Show or hide Inner 7 copper",
+    "summary": "PCB: Show or hide Inner 7 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.copper-9",
+    "title": "Show or hide Inner 8 copper",
+    "summary": "PCB: Show or hide Inner 8 copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.courtyard",
+    "title": "Show or hide courtyards",
+    "summary": "PCB › Layout: Show or hide courtyards.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.holes",
+    "title": "Show or hide holes",
+    "summary": "PCB › Layout: Show or hide holes.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.silk-bottom",
+    "title": "Show or hide Bottom silkscreen",
+    "summary": "PCB: Show or hide Bottom silkscreen.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.silk-top",
+    "title": "Show or hide Top silkscreen",
+    "summary": "PCB: Show or hide Top silkscreen.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layer.vias",
+    "title": "Show or hide vias",
+    "summary": "PCB: Show or hide vias.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "show",
+      "hide",
+      "toggle",
+      "layer",
+      "visibility",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.layout",
+    "title": "Layout view",
+    "summary": "PCB: Layout view.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "2d",
+      "view"
+    ]
+  },
+  {
+    "id": "command/pcb.net-classes",
+    "title": "Net classes…",
+    "summary": "PCB: Net classes.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "netclass",
+      "track",
+      "width",
+      "clearance",
+      "via",
+      "drill"
+    ]
+  },
+  {
+    "id": "command/pcb.place",
+    "title": "Place component",
+    "summary": "Place a part without pins (fiducial, mounting hole, logo) on the board; switch to Layout to place",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "C",
+      "reaches": "entry/component.place_board_only"
+    },
+    "keywords": [
+      "add",
+      "part",
+      "footprint",
+      "fiducial",
+      "mounting",
+      "hole",
+      "logo",
+      "board-only",
+      "palette"
+    ]
+  },
+  {
+    "id": "command/pcb.place-part",
+    "title": "Place 3D part…",
+    "summary": "Place a parametric 3D part (nut, spacer, heatsink) from a part file",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "M",
+      "reaches": "entry/layout.place_part_file"
+    },
+    "keywords": [
+      "mechanical",
+      "part",
+      "file",
+      "solidcraft",
+      "nut",
+      "standoff",
+      "spacer",
+      "heatsink",
+      "bracket",
+      "parametric"
+    ]
+  },
+  {
+    "id": "command/pcb.production",
+    "title": "Production files…",
+    "summary": "Check the board and write Gerber, drill, assembly and drawing files",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "entry/project.export_fabrication"
+    },
+    "keywords": [
+      "gerber",
+      "drill",
+      "excellon",
+      "fabrication",
+      "manufacturing",
+      "bom",
+      "pick",
+      "place",
+      "zip"
+    ]
+  },
+  {
+    "id": "command/pcb.refill",
+    "title": "Refill all fills",
+    "summary": "Compute the copper of every fill from the board as it is now",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": "Shift+P",
+      "reaches": "entry/fill.refill"
+    },
+    "keywords": [
+      "pour",
+      "zone",
+      "recompute"
+    ]
+  },
+  {
+    "id": "command/pcb.rotate",
+    "title": "Rotate the selected part 90°",
+    "summary": "PCB › Layout: Rotate the selected part 90°.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "Ctrl+R",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/pcb.route",
+    "title": "Route",
+    "summary": "Route copper from a pad; switch to Layout to route",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "R",
+      "reaches": "entry/layout.route_apply"
+    },
+    "keywords": [
+      "track",
+      "trace",
+      "copper",
+      "wire"
+    ]
+  },
+  {
+    "id": "command/pcb.rules",
+    "title": "Design rules…",
+    "summary": "PCB: Design rules.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "drc",
+      "clearance",
+      "checks",
+      "track",
+      "width",
+      "annular",
+      "ring",
+      "profile"
+    ]
+  },
+  {
+    "id": "command/pcb.select",
+    "title": "Select",
+    "summary": "Select and move placements",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/pcb.stackup",
+    "title": "Stackup…",
+    "summary": "PCB: Stackup.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "copper",
+      "layers",
+      "dielectric",
+      "prepreg",
+      "core",
+      "thickness",
+      "impedance"
+    ]
+  },
+  {
+    "id": "command/pcb.toggle-3d",
+    "title": "Switch Layout and 3D",
+    "summary": "PCB: Switch Layout and 3D.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": "D",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "view",
+      "2d",
+      "3d",
+      "layout"
+    ]
+  },
+  {
+    "id": "command/pcb.tune",
+    "title": "Tune length",
+    "summary": "Meander a track to its length target; switch to Layout to tune",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "T",
+      "reaches": "entry/layout.tune_length"
+    },
+    "keywords": [
+      "meander",
+      "length",
+      "match",
+      "skew",
+      "serpentine",
+      "trombone",
+      "accordion"
+    ]
+  },
+  {
+    "id": "command/pcb.update",
+    "title": "Update PCB from schematic",
+    "summary": "Preview bringing schematic changes to the board",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Shift+U",
+      "reaches": "entry/layout.sync"
+    },
+    "keywords": [
+      "sync",
+      "forward",
+      "annotate"
+    ]
+  },
+  {
+    "id": "command/pcb.variants",
+    "title": "Assembly variants…",
+    "summary": "PCB: Assembly variants.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": null,
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "variant",
+      "dnp",
+      "dnf",
+      "do",
+      "not",
+      "populate",
+      "fitted",
+      "substitute",
+      "bom",
+      "option",
+      "build"
+    ]
+  },
+  {
+    "id": "command/pcb.via",
+    "title": "Via",
+    "summary": "Place a through via on a net; switch to Layout to place",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "V",
+      "reaches": "entry/layout.add_via"
+    },
+    "keywords": [
+      "hole",
+      "through"
+    ]
+  },
+  {
+    "id": "command/route.back",
+    "title": "Remove the last segment",
+    "summary": "PCB › Route tool: Remove the last segment.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Backspace",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.click",
+    "title": "Corner; a pad or track of the net finishes",
+    "summary": "PCB › Route tool: Corner; a pad or track of the net finishes.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Click",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.end",
+    "title": "End the route (or right-click); again: Select",
+    "summary": "PCB › Route tool: End the route (or right-click); again: Select.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Escape",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.finish",
+    "title": "Finish the route (or double-click)",
+    "summary": "PCB › Route tool: Finish the route (or double-click).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Enter",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.flip",
+    "title": "Flip the elbow corner",
+    "summary": "PCB › Route tool: Flip the elbow corner.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "F, Shift+F",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.pair",
+    "title": "Pair routing on or off (a pad of a pair starts both halves)",
+    "summary": "PCB › Route tool: Pair routing on or off (a pad of a pair starts both halves).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "P",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.posture",
+    "title": "Next mode: 45°, 90°, free",
+    "summary": "PCB › Route tool: Next mode: 45°, 90°, free.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Slash",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.router-mode-next",
+    "title": "Next router: shove, walkaround, ignore",
+    "summary": "PCB › Route tool: Next router: shove, walkaround, ignore.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "M",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.router-mode-previous",
+    "title": "Previous router: ignore, walkaround, shove",
+    "summary": "PCB › Route tool: Previous router: ignore, walkaround, shove.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Shift+M",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.via-next",
+    "title": "Via to the next layer",
+    "summary": "PCB › Route tool: Via to the next layer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "V",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.via-previous",
+    "title": "Via to the previous layer",
+    "summary": "PCB › Route tool: Via to the previous layer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Shift+V",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.via-size-next",
+    "title": "Next via size",
+    "summary": "PCB › Route tool: Next via size.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "D",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.via-size-previous",
+    "title": "Previous via size",
+    "summary": "PCB › Route tool: Previous via size.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Shift+D",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.width-next",
+    "title": "Next track width",
+    "summary": "PCB › Route tool: Next track width.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "W",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/route.width-previous",
+    "title": "Previous track width",
+    "summary": "PCB › Route tool: Previous track width.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Route tool",
+      "default_key": "Shift+W",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/schematic.add-sheet",
+    "title": "Add sheet",
+    "summary": "Add a page to the schematic",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": null,
+      "reaches": "entry/sheet.add"
+    },
+    "keywords": [
+      "page",
+      "new"
+    ]
+  },
+  {
+    "id": "command/schematic.annotate",
+    "title": "Annotate designators",
+    "summary": "Number designators across sheets; existing ones stay",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": null,
+      "reaches": "entry/schematic.annotate"
+    },
+    "keywords": [
+      "renumber",
+      "reference",
+      "designator"
+    ]
+  },
+  {
+    "id": "command/schematic.arc-corner",
+    "title": "Round the picked wire corner, or make it sharp",
+    "summary": "Schematic: Round the picked wire corner, or make it sharp.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "A",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/schematic.cancel",
+    "title": "Cancel the tool",
+    "summary": "Schematic: Cancel the tool.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "Escape",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/schematic.delete",
+    "title": "Delete the selected part, wire, wire corner, label, sheet symbol or drawing",
+    "summary": "Schematic: Delete the selected part, wire, wire corner, label, sheet symbol or drawing.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "Delete, Backspace",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/schematic.global-label",
+    "title": "Global label",
+    "summary": "Join same-named labels on every sheet",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "Shift+L",
+      "reaches": "entry/label.place"
+    },
+    "keywords": [
+      "off-sheet",
+      "connector",
+      "port",
+      "net"
+    ]
+  },
+  {
+    "id": "command/schematic.hierarchical-label",
+    "title": "Hierarchical label",
+    "summary": "Join the sheet pin of this name on the parent sheet",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "H",
+      "reaches": "entry/label.place"
+    },
+    "keywords": [
+      "sheet",
+      "port",
+      "net"
+    ]
+  },
+  {
+    "id": "command/schematic.junction",
+    "title": "Junction point",
+    "summary": "Join wires at a point, or remove a junction point",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "J",
+      "reaches": "entry/junction.place"
+    },
+    "keywords": [
+      "dot",
+      "join",
+      "connect",
+      "crossing"
+    ]
+  },
+  {
+    "id": "command/schematic.label",
+    "title": "Net label",
+    "summary": "Join same-named labels on this sheet",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "L",
+      "reaches": "entry/label.place"
+    },
+    "keywords": [
+      "net",
+      "name",
+      "local"
+    ]
+  },
+  {
+    "id": "command/schematic.line",
+    "title": "Line",
+    "summary": "Draw a line: click its two ends",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": null,
+      "reaches": "entry/drawing.add"
+    },
+    "keywords": [
+      "graphic",
+      "drawing"
+    ]
+  },
+  {
+    "id": "command/schematic.mirror",
+    "title": "Mirror symbol",
+    "summary": "Mirror the selected symbol left to right",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "Shift+X",
+      "reaches": "entry/schematic.arrange"
+    }
+  },
+  {
+    "id": "command/schematic.no-connect",
+    "title": "No connect",
+    "summary": "Mark a pin intentionally unused, or clear the mark",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "N",
+      "reaches": "entry/instance.set_no_connect"
+    },
+    "keywords": [
+      "nc",
+      "no-connect",
+      "unused",
+      "unconnected",
+      "not",
+      "connected",
+      "cross",
+      "pin"
+    ]
+  },
+  {
+    "id": "command/schematic.note",
+    "title": "Note",
+    "summary": "Add a text note",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "T",
+      "reaches": "entry/drawing.add"
+    },
+    "keywords": [
+      "text",
+      "comment"
+    ]
+  },
+  {
+    "id": "command/schematic.place",
+    "title": "Place component",
+    "summary": "Find a component and place it",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "P",
+      "reaches": "entry/component.place"
+    },
+    "keywords": [
+      "add",
+      "symbol",
+      "part"
+    ]
+  },
+  {
+    "id": "command/schematic.power",
+    "title": "Power port",
+    "summary": "Place a power or ground port: GND, +3V3, VBUS",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "Shift+P",
+      "reaches": "entry/label.place"
+    },
+    "keywords": [
+      "ground",
+      "gnd",
+      "supply",
+      "vcc",
+      "rail"
+    ]
+  },
+  {
+    "id": "command/schematic.rect",
+    "title": "Rectangle",
+    "summary": "Draw a rectangle: click two corners",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": null,
+      "reaches": "entry/drawing.add"
+    },
+    "keywords": [
+      "graphic",
+      "drawing",
+      "box"
+    ]
+  },
+  {
+    "id": "command/schematic.resolve",
+    "title": "Resolve parts",
+    "summary": "Resolve parts: choose one manufacturer part per group of instances",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": null,
+      "reaches": "panel/schematic"
+    },
+    "keywords": [
+      "manufacturer",
+      "part",
+      "bom"
+    ]
+  },
+  {
+    "id": "command/schematic.rotate",
+    "title": "Rotate symbol",
+    "summary": "Turn the selected symbol or label 90° counter-clockwise",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "Ctrl+R",
+      "reaches": "entry/schematic.arrange"
+    }
+  },
+  {
+    "id": "command/schematic.select",
+    "title": "Select",
+    "summary": "Select and move symbols and wires",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": null,
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/schematic.sheet-symbol",
+    "title": "Sheet symbol",
+    "summary": "Draw a sheet symbol for a new child sheet",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "Shift+S",
+      "reaches": "entry/sheet_symbol.place"
+    },
+    "keywords": [
+      "hierarchy",
+      "child",
+      "sheet"
+    ]
+  },
+  {
+    "id": "command/schematic.split-wire",
+    "title": "Split the selected wire at the segment under the pointer",
+    "summary": "Schematic: Split the selected wire at the segment under the pointer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "Shift+Delete, Shift+Backspace",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/schematic.wire",
+    "title": "Wire",
+    "summary": "Connect two terminals",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic",
+      "default_key": "W",
+      "reaches": "entry/wire.draw"
+    },
+    "keywords": [
+      "connect",
+      "net"
+    ]
+  },
+  {
+    "id": "command/shape.bs-arc",
+    "title": "Arc",
+    "summary": "PCB › Board shape: Arc.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "A",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-circle",
+    "title": "Circle",
+    "summary": "PCB › Board shape: Circle.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "C",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-conic",
+    "title": "Conic",
+    "summary": "PCB › Board shape: Conic.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Shift+A",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-cutout",
+    "title": "Cutout",
+    "summary": "PCB › Board shape: Cutout.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "U",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-dimension",
+    "title": "Dimension",
+    "summary": "PCB › Board shape: Dimension.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "D",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-ellipse",
+    "title": "Ellipse",
+    "summary": "PCB › Board shape: Ellipse.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Shift+C",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-fillet",
+    "title": "Fillet",
+    "summary": "PCB › Board shape: Fillet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "F",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-hole",
+    "title": "Mounting hole",
+    "summary": "PCB › Board shape: Mounting hole.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "H",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-line",
+    "title": "Line",
+    "summary": "PCB › Board shape: Line.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "L",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-name-edge",
+    "title": "Name edge",
+    "summary": "PCB › Board shape: Name edge.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "E",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-rect",
+    "title": "Rectangle",
+    "summary": "PCB › Board shape: Rectangle.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "R",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-select",
+    "title": "Select",
+    "summary": "PCB › Board shape: Select.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": null,
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-slot",
+    "title": "Slot",
+    "summary": "PCB › Board shape: Slot.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Shift+H",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-spline",
+    "title": "Spline",
+    "summary": "PCB › Board shape: Spline.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "S",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.cancel",
+    "title": "Cancel the tool",
+    "summary": "PCB › Board shape: Cancel the tool.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Escape",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.construction",
+    "title": "Construction geometry on or off",
+    "summary": "PCB › Board shape: Construction geometry on or off.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "X",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.delete",
+    "title": "Delete selection",
+    "summary": "PCB › Board shape: Delete selection.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Delete, Backspace",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.finish",
+    "title": "Finish the spline",
+    "summary": "PCB › Board shape: Finish the spline.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Enter",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/symbol.arrange-delete",
+    "title": "Delete",
+    "summary": "Remove the selected graphics and pins; terminals stay",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Delete, Backspace",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.arrange-duplicate",
+    "title": "Duplicate",
+    "summary": "Copy the selected graphics; pins are not copied",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Ctrl+D",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.arrange-mirror",
+    "title": "Mirror",
+    "summary": "Mirror the selection left to right",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Shift+X",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.arrange-rotate",
+    "title": "Rotate",
+    "summary": "Turn the selection 90° counter-clockwise",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Ctrl+R",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.cancel",
+    "title": "Cancel the tool",
+    "summary": "Component › Symbol: Cancel the tool.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Escape",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-arc",
+    "title": "Arc",
+    "summary": "Arc: centre, start, end; runs the way the pointer turns",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "A",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-circle",
+    "title": "Circle",
+    "summary": "Circle: centre, then radius",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "C",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-field",
+    "title": "Field",
+    "summary": "Field: place designator, name or a field value",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Shift+F",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-line",
+    "title": "Line",
+    "summary": "Line: two clicks; chains from its end",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "L",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-pin",
+    "title": "Pin",
+    "summary": "Pin: place an unplaced terminal's connection end, or a new one",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "N",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-polygon",
+    "title": "Polygon",
+    "summary": "Closed polygon: click the first point, press Enter or double-click",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Shift+P",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-polyline",
+    "title": "Polyline",
+    "summary": "Polyline: one multi-segment line; Enter, double-click or Finish ends it",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Shift+L",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-rect",
+    "title": "Rectangle",
+    "summary": "Rectangle from two corners",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "R",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-rounded-rect",
+    "title": "Rounded",
+    "summary": "Rectangle with rounded corners; set the radius in Properties",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-select",
+    "title": "Select",
+    "summary": "Select, box-select and drag (Esc)",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": null,
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.draw-text",
+    "title": "Text",
+    "summary": "Text: click to place, then type in Properties",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Shift+T",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.finish",
+    "title": "Finish the chain",
+    "summary": "Component › Symbol: Finish the chain.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Enter",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/symbol.repeat",
+    "title": "Repeat the last tool",
+    "summary": "Component › Symbol: Repeat the last tool.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Component › Symbol",
+      "default_key": "Shift+R",
+      "reaches": "panel/component"
+    }
+  },
+  {
+    "id": "command/tune.amplitude-down",
+    "title": "Lower the amplitude limit",
+    "summary": "PCB › Tune tool: Lower the amplitude limit.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Tune tool",
+      "default_key": "Shift+A",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/tune.amplitude-up",
+    "title": "Raise the amplitude limit",
+    "summary": "PCB › Tune tool: Raise the amplitude limit.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Tune tool",
+      "default_key": "A",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/tune.click",
+    "title": "Tune the segment under the pointer",
+    "summary": "PCB › Tune tool: Tune the segment under the pointer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Tune tool",
+      "default_key": "Click",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/tune.flip",
+    "title": "Flip the trombone's side",
+    "summary": "PCB › Tune tool: Flip the trombone's side.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Tune tool",
+      "default_key": "F",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/tune.spacing-narrower",
+    "title": "Narrow the leg spacing",
+    "summary": "PCB › Tune tool: Narrow the leg spacing.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Tune tool",
+      "default_key": "Shift+S",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/tune.spacing-wider",
+    "title": "Widen the leg spacing",
+    "summary": "PCB › Tune tool: Widen the leg spacing.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Tune tool",
+      "default_key": "S",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/tune.style",
+    "title": "Switch trombone and accordion",
+    "summary": "PCB › Tune tool: Switch trombone and accordion.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Tune tool",
+      "default_key": "Slash",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/view.back",
+    "title": "Back view",
+    "summary": "PCB › 3D: Back view.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "2",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "orbit",
+      "rotate",
+      "turn",
+      "camera",
+      "standard",
+      "view",
+      "cube",
+      "3d"
+    ]
+  },
+  {
+    "id": "command/view.bottom",
+    "title": "Bottom view",
+    "summary": "PCB › 3D: Bottom view.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "6",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "orbit",
+      "rotate",
+      "turn",
+      "camera",
+      "standard",
+      "view",
+      "cube",
+      "3d"
+    ]
+  },
+  {
+    "id": "command/view.browser",
+    "title": "Show or hide the Browser",
+    "summary": "Show or hide the Browser from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+B",
+      "reaches": "panel/browser"
+    },
+    "keywords": [
+      "project",
+      "tree",
+      "sidebar",
+      "panel"
+    ]
+  },
+  {
+    "id": "command/view.fit",
+    "title": "Fit view",
+    "summary": "Fit view from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "F",
+      "reaches": "panel/properties"
+    },
+    "keywords": [
+      "zoom",
+      "extents",
+      "frame",
+      "all"
+    ]
+  },
+  {
+    "id": "command/view.follow-net",
+    "title": "Follow net (see-through)",
+    "summary": "PCB › 3D: Follow net (see-through).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Shift+N",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "transparent",
+      "translucent",
+      "x-ray",
+      "ghost",
+      "fade",
+      "dim",
+      "isolate",
+      "net",
+      "track",
+      "via",
+      "layers"
+    ]
+  },
+  {
+    "id": "command/view.front",
+    "title": "Front view",
+    "summary": "PCB › 3D: Front view.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "1",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "orbit",
+      "rotate",
+      "turn",
+      "camera",
+      "standard",
+      "view",
+      "cube",
+      "3d"
+    ]
+  },
+  {
+    "id": "command/view.import-report",
+    "title": "KiCad import report",
+    "summary": "KiCad import report from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": null,
+      "reaches": "panel/files"
+    },
+    "keywords": [
+      "kicad",
+      "import",
+      "report",
+      "rules",
+      "refused",
+      "tracks",
+      "looser",
+      "counts"
+    ]
+  },
+  {
+    "id": "command/view.iso",
+    "title": "Home view (isometric)",
+    "summary": "PCB › 3D: Home view (isometric).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "7",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "orbit",
+      "rotate",
+      "turn",
+      "camera",
+      "standard",
+      "view",
+      "cube",
+      "3d"
+    ]
+  },
+  {
+    "id": "command/view.issues",
+    "title": "Show or hide Issues",
+    "summary": "Show or hide Issues from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Shift+I",
+      "reaches": "panel/issues"
+    },
+    "keywords": [
+      "problems",
+      "checks",
+      "erc",
+      "drc",
+      "errors",
+      "warnings"
+    ]
+  },
+  {
+    "id": "command/view.left",
+    "title": "Left view",
+    "summary": "PCB › 3D: Left view.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "3",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "orbit",
+      "rotate",
+      "turn",
+      "camera",
+      "standard",
+      "view",
+      "cube",
+      "3d"
+    ]
+  },
+  {
+    "id": "command/view.look",
+    "title": "Realistic look",
+    "summary": "PCB › 3D: Realistic look.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Shift+R",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "standard",
+      "photoreal",
+      "materials",
+      "studio",
+      "lighting",
+      "render",
+      "shading"
+    ]
+  },
+  {
+    "id": "command/view.messages",
+    "title": "Messages…",
+    "summary": "Messages from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+Shift+M",
+      "reaches": "panel/messages"
+    },
+    "keywords": [
+      "log",
+      "history",
+      "notifications"
+    ]
+  },
+  {
+    "id": "command/view.parts",
+    "title": "Show or hide Parts and vias",
+    "summary": "PCB: Show or hide Parts and vias.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB",
+      "default_key": "Ctrl+Shift+L",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "table",
+      "list",
+      "parts",
+      "vias",
+      "designators",
+      "placement",
+      "band",
+      "panel"
+    ]
+  },
+  {
+    "id": "command/view.right",
+    "title": "Right view",
+    "summary": "PCB › 3D: Right view.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "4",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "orbit",
+      "rotate",
+      "turn",
+      "camera",
+      "standard",
+      "view",
+      "cube",
+      "3d"
+    ]
+  },
+  {
+    "id": "command/view.selection",
+    "title": "Fit and orbit around selection",
+    "summary": "PCB › 3D: Fit and orbit around selection.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "Shift+F",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "zoom",
+      "selected",
+      "frame",
+      "orbit",
+      "pivot",
+      "focus"
+    ]
+  },
+  {
+    "id": "command/view.top",
+    "title": "Top view",
+    "summary": "PCB › 3D: Top view.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › 3D",
+      "default_key": "5",
+      "reaches": "panel/model-3d"
+    },
+    "keywords": [
+      "orbit",
+      "rotate",
+      "turn",
+      "camera",
+      "standard",
+      "view",
+      "cube",
+      "3d"
+    ]
+  },
+  {
+    "id": "command/window.close",
+    "title": "Close window",
+    "summary": "Close window from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+W",
+      "reaches": "panel/files"
+    },
+    "keywords": [
+      "exit",
+      "quit"
+    ]
+  },
+  {
+    "id": "command/wire.arc",
+    "title": "Round new corners, or not",
+    "summary": "Schematic › Wire tool: Round new corners, or not.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic › Wire tool",
+      "default_key": "A",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/wire.back",
+    "title": "Remove the last corner",
+    "summary": "Schematic › Wire tool: Remove the last corner.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic › Wire tool",
+      "default_key": "Backspace",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/wire.click",
+    "title": "Corner; a pin, label, junction or wire ends the wire",
+    "summary": "Schematic › Wire tool: Corner; a pin, label, junction or wire ends the wire.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic › Wire tool",
+      "default_key": "Click",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/wire.end",
+    "title": "End here; with no corner, cancel; again: Select",
+    "summary": "Schematic › Wire tool: End here; with no corner, cancel; again: Select.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic › Wire tool",
+      "default_key": "Escape",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/wire.finish",
+    "title": "End here with a free end (or double-click)",
+    "summary": "Schematic › Wire tool: End here with a free end (or double-click).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic › Wire tool",
+      "default_key": "Enter",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/wire.flip",
+    "title": "Flip the elbow corner",
+    "summary": "Schematic › Wire tool: Flip the elbow corner.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Schematic › Wire tool",
+      "default_key": "F",
+      "reaches": "panel/schematic"
+    }
+  },
+  {
+    "id": "command/workspace.component",
+    "title": "Go to Component",
+    "summary": "Go to Component from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+1",
+      "reaches": "panel/component"
+    },
+    "keywords": [
+      "workspace",
+      "symbol",
+      "footprint",
+      "part",
+      "editor"
+    ]
+  },
+  {
+    "id": "command/workspace.pcb",
+    "title": "Go to PCB",
+    "summary": "Go to PCB from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+3",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "workspace",
+      "board",
+      "layout"
+    ]
+  },
+  {
+    "id": "command/workspace.schematic",
+    "title": "Go to Schematic",
+    "summary": "Go to Schematic from any workspace.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "Everywhere",
+      "default_key": "Ctrl+2",
+      "reaches": "panel/schematic"
+    },
+    "keywords": [
+      "workspace"
+    ]
+  }
+]

@@ -952,6 +952,14 @@
     "developer_only": false
   },
   {
+    "id": "term/tie",
+    "title": "Tie",
+    "aliases": [],
+    "definition": "An intentional join between two to eight distinct nets at a stated place. One component may contain several independent ties. Each has its own terminals, copper bridges and purpose. A copper tie is always closed. A solder jumper or 0 Ω link follows the component’s population in the active assembly variant.",
+    "avoid": [],
+    "developer_only": false
+  },
+  {
     "id": "term/copper-layer",
     "title": "Copper layer",
     "aliases": [],
@@ -984,6 +992,25 @@
       "Rule profile",
       "fab preset"
     ],
+    "developer_only": false
+  },
+  {
+    "id": "term/fabricator",
+    "title": "Fabricator",
+    "aliases": [],
+    "definition": "A board house, as a record of data: its id, name, website and where they were read (`fabricators/<id>.json`, shipped or the user's). A fab profile names its fabricator by id, so fabricator → profiles is a hierarchy of data, never text in a profile's name; profile suggestions prefer the board's own fabricator. Distinct from a part's manufacturer (Manufacturer part).",
+    "avoid": [
+      "Manufacturer (for a board house)",
+      "fab house"
+    ],
+    "developer_only": false
+  },
+  {
+    "id": "term/profile-requirement",
+    "title": "Profile requirement",
+    "aliases": [],
+    "definition": "What a board needs of its fab profile for a finding to clear: the measured value a profile rule must allow (a clearance at most 0.175 mm, an aspect ratio at least 10:1), a copper layer count or a mask colour. Recorded only when the limit broken is the profile's own rule. Resolved by a profile that allows it or by changing the design, never by a waiver.",
+    "avoid": [],
     "developer_only": false
   },
   {

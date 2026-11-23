@@ -1,25 +1,25 @@
 ---
 {
-  "id": "panel/help",
-  "kind": "panel",
-  "title": "Help",
-  "summary": "Search the installed manual or open the topic for the control you are using.",
-  "since": "0.1.0",
   "covers": {
-    "entry/project.schema": "7e398ef3b2cf4d96",
+    "entry/project.schema": "4d65dac5f3c7299e",
     "term/footprint": "40ea9c3fb8d9cac9528b7bb7e4cc9b8377a67129f2e4990c96384e6da939ea02"
   },
+  "id": "panel/help",
   "keywords": [
     "F1",
     "context help",
     "search docs",
     "offline manual"
   ],
+  "kind": "panel",
   "related": [
     "guide/first-board",
     "panel/keyboard-shortcuts",
     "panel/palette"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Search the installed manual or open the topic for the control you are using.",
+  "title": "Help"
 }
 ---
 

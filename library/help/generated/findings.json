@@ -1605,6 +1605,21 @@
     }
   },
   {
+    "id": "finding/erc.power_output_conflict",
+    "title": "Power outputs in conflict",
+    "summary": "Power outputs in conflict",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Power outputs in conflict",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
     "id": "finding/erc.power_port_undriven",
     "title": "Power nets without a source",
     "summary": "Power nets without a source",
@@ -4404,6 +4419,246 @@
       "severity": "error",
       "blocks": "publish",
       "group": "Too long",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.assembly",
+    "title": "Tie assembly",
+    "summary": "Tie assembly",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Tie assembly",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.body",
+    "title": "Tie body",
+    "summary": "Tie body",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Tie body",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.bridge",
+    "title": "Tie bridge",
+    "summary": "Tie bridge",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Tie bridge",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.bridge_contact",
+    "title": "Copper touching a tie bridge",
+    "summary": "Copper touching a tie bridge",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Copper touching a tie bridge",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.bridge_lands",
+    "title": "Bridge lands",
+    "summary": "Bridge lands",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Bridge lands",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.current_exceeded",
+    "title": "Tie current above capacity",
+    "summary": "Tie current above capacity",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Tie current above capacity",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.current_unchecked",
+    "title": "Tie current unchecked",
+    "summary": "Tie current unchecked",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "info",
+      "blocks": null,
+      "group": "Tie current unchecked",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.ends",
+    "title": "Tie terminals",
+    "summary": "Tie terminals",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Tie terminals",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.kelvin_off_anchor",
+    "title": "Kelvin contacts off the anchor",
+    "summary": "Kelvin contacts off the anchor",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Kelvin contacts off the anchor",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.loop",
+    "title": "Loops through ties",
+    "summary": "Loops through ties",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Loops through ties",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.other_bridge",
+    "title": "Parts spanning a star ground",
+    "summary": "Parts spanning a star ground",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "info",
+      "blocks": null,
+      "group": "Parts spanning a star ground",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.package",
+    "title": "Tie package",
+    "summary": "Tie package",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Tie package",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.same_net",
+    "title": "Tie ends on the same net",
+    "summary": "Tie ends on the same net",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Tie ends on the same net",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.second_join",
+    "title": "Extra copper joins",
+    "summary": "Extra copper joins",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Extra copper joins",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.star_points",
+    "title": "Extra star-ground joins",
+    "summary": "Extra star-ground joins",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Extra star-ground joins",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/tie.unowned_bridge",
+    "title": "Bridge on an ordinary part",
+    "summary": "Bridge on an ordinary part",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Bridge on an ordinary part",
       "fix": "",
       "fixed_by": [],
       "checks": null

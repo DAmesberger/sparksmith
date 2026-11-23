@@ -1,1 +1,4272 @@
-[]
+[
+  {
+    "id": "entry/assembly.follow",
+    "title": "Follow assembly geometry",
+    "summary": "Make the board follow a linked design face or length parameter.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "17fdb7c01b03424b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.preview",
+    "title": "Preview a linked design update",
+    "summary": "Preview updating the board from the linked design: what moves, what is lost.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "read",
+      "entry_kind": "action",
+      "schema_digest": "d81d9ab4c291ff99",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.record_binding",
+    "title": "Bind a board parameter to the assembly",
+    "summary": "Bind a board parameter to a linked design parameter the host read (`assembly.bind`), setting it to the value.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a5c5d22903ed2827",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.record_link",
+    "title": "Link a linked design",
+    "summary": "Link the linked design the host read (`assembly.link`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "558c0444e3fd306e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.record_reference",
+    "title": "Follow assembly geometry",
+    "summary": "Add a followed face the host traced (`assembly.add_reference`): its trace enters the board sketch as fixed geometry it owns.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3b2d48c60d96f04b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.record_update",
+    "title": "Update from the linked design",
+    "summary": "Apply what the host read of the linked design.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2d8e1ce40911f2af",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.remove_reference",
+    "title": "Stop following assembly geometry",
+    "summary": "Remove a followed face and the geometry it owns, with every board-sketch dimension to it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3f2391b6cb734ef8",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.status",
+    "title": "Check the assembly link",
+    "summary": "The assembly link's state from the document: none, a broken reference (publishing is blocked) or linked, with the findings.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.unbind",
+    "title": "Unbind a board parameter",
+    "summary": "Stop setting a board parameter from the linked design; it keeps its value.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a095715d5be964a6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.unlink",
+    "title": "Unlink the linked design",
+    "summary": "Forget the link.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "144198d580686714",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assembly.update",
+    "title": "Update from the linked design",
+    "summary": "Link the linked design, or update or relink the board from it as previewed.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "05e7ddbdc95a5da5",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.ask",
+    "title": "Ask the person in the chat",
+    "summary": "Ask the person what you need to know, as one card of questions in the chat; their answers are the reply.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "assist",
+      "class": "show",
+      "entry_kind": "show",
+      "schema_digest": "1e55c84494331d45",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.document_page",
+    "title": "See a page of an attached document",
+    "summary": "See one page of a document attached to this run, rendered as an image.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "assist",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "f4a74bbffa04b3c9",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.document_text",
+    "title": "Read an attached document's text",
+    "summary": "Read the text of pages of a document attached to this run, by its title.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "assist",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "e25142077f5a6f5b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.offer",
+    "title": "Offer a workflow in the chat",
+    "summary": "Offer a workflow in the chat as one card with every input the conversation gives; the person accepts and continues, or just chats.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "assist",
+      "class": "show",
+      "entry_kind": "show",
+      "schema_digest": "6c7f56cbbf2d7f25",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.pinout_apply",
+    "title": "Apply a working pinout document",
+    "summary": "Import exactly the working pinout document last previewed, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "0d7d675e0f3e0c08",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.pinout_edit",
+    "title": "Edit a working pinout document",
+    "summary": "Build a working pinout document in chunks behind a handle; the project does not change.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "assist",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "3943579687fc2dbb",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.pinout_preview",
+    "title": "Preview a working pinout document",
+    "summary": "Preview importing the working pinout document: changes, findings, review items and rule checks.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "assist",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "fa1f64e041f99fab",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.step_result",
+    "title": "Answer a workflow step",
+    "summary": "Answer the workflow step you are working on; the answer is checked against the step's output.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "assist",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "62d1f9b0c9d2a315",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/assist.workflows",
+    "title": "List workflows",
+    "summary": "List the workflows this host offers: refined processes for a request, with their inputs.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "assist",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "d2a6eaec77fd86c3",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/board.edit",
+    "title": "Edit the board outline",
+    "summary": "Edit the board sketch and re-solve it; constrained targets follow.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "61a6f30290e0b1f2",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/board.set_rectangle",
+    "title": "Set a rectangular outline",
+    "summary": "Back to a plain rectangle of `size` (drops the sketch).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a40811035afccce6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/board.shape",
+    "title": "Board shape",
+    "summary": "The solved board outline, cutouts, holes and named edges.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/board.start_sketch",
+    "title": "Start an outline sketch",
+    "summary": "Turn the rectangle into an editable sketch (needs the evaluator).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "011f97f53f8e6cc2",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/component.check",
+    "title": "Check a definition",
+    "summary": "Publish findings of exactly one draft or published revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "97f39db6c630611f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/component.check_drafts",
+    "title": "Check all drafts",
+    "summary": "`component.check` of every draft, in draft order, staged once.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "5e6b8a03d7e6acfa",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/component.inspect",
+    "title": "Inspect an instance",
+    "summary": "Exact pins, resolved choices, unit states and completeness.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "d0db1335626b7e65",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/component.place",
+    "title": "Place a component",
+    "summary": "Create one instance and the occurrence of its first unit.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c33c11f7baa52915",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/component.place_board_only",
+    "title": "Place a board-only part",
+    "summary": "Create one board-only instance: a fiducial, mounting hole or logo.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5b2fe2e033739b9f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/component.remove",
+    "title": "Remove a component",
+    "summary": "Remove a component instance with its units.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d0db1335626b7e65",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/diff_pair.add",
+    "title": "Add a differential pair",
+    "summary": "Make two nets a differential pair with an explicit polarity; the outcome names it (`Outcome::DiffPairAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "bf5c123f3396b43a",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/diff_pair.delete",
+    "title": "Delete a differential pair",
+    "summary": "Delete a pair; length groups drop it (and a group left empty goes).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "1f30a56c76e66751",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/diff_pair.edit",
+    "title": "Edit a differential pair",
+    "summary": "Replace one pair's name or nets (its id stays).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "0b164a92325527eb",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/diff_pair.suggest",
+    "title": "Suggest differential pairs",
+    "summary": "Differential pairs proposed from net names (`USB_D+`/`USB_D-`, `_P`/`_N`, `DP`/`DM`); `diff_pair.add` makes one.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/drawing.add",
+    "title": "Add a drawing",
+    "summary": "Add a note, line or rectangle.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "99db693d57763415",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/drawing.edit",
+    "title": "Edit a drawing",
+    "summary": "Replace a drawing's item.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "8d58c4b58821c2d3",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/drawing.remove",
+    "title": "Remove a drawing",
+    "summary": "Remove a drawing.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6dc1d709138aa33a",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fabrication.preflight",
+    "title": "Production check",
+    "summary": "The production check before fabrication export: the design and production findings under a fab profile.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "checks",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "24b87f4a5d0237d7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fabrication.profile_suggestions",
+    "title": "Suggest fab profiles",
+    "summary": "What the board needs of a fab profile and which installed profiles allow it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "checks",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "67b21fdd1e45f298",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fabrication.unwaive",
+    "title": "Withdraw a waiver",
+    "summary": "Remove the waiver of a key.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "checks",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "232b613e54233060",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fabrication.waive",
+    "title": "Waive a production finding",
+    "summary": "Accept pre-flight findings for fabrication, by their keys, with one optional reason, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "checks",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "6426510821e7b240",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fill.add",
+    "title": "Add a copper fill",
+    "summary": "Add a fill; the outcome names it (`Outcome::FillAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "dc27fe15e5c1dc6d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fill.delete",
+    "title": "Delete a copper fill",
+    "summary": "Delete a copper fill.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "244adef7c3868093",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fill.edit",
+    "title": "Edit a copper fill",
+    "summary": "Replace a fill's definition (identity kept; computed copper cleared).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b6d4fe97ef9f8fdc",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fill.refill",
+    "title": "Refill copper",
+    "summary": "Compute and store the copper of the target fills now.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3995183b00d92f49",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fill.set_pad_override",
+    "title": "Set how fills join pads",
+    "summary": "Set how fills join a placed part's pads, over each fill's settings.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "9932c63ca1b5c5a0",
+      "examples": [
+        {
+          "entry": "entry/fill.set_pad_override",
+          "params": {
+            "instance": 7,
+            "pad": 1,
+            "settings": {
+              "connection": "solid"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry/fill.status",
+    "title": "Fill status",
+    "summary": "Per fill: whether its computed copper is stale.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fill.store",
+    "title": "Store a fill",
+    "summary": "Store copper the host computed with [`compute`]; refused unless `copper.key` equals the fill's current [`inputs_key`].",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c539a5a143c73477",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/fill.store_all",
+    "title": "Store all fills",
+    "summary": "Store copper the host computed for several fills, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "f33d56e8e295e093",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/firmware.export",
+    "title": "Export firmware pin configuration",
+    "summary": "Write a firmware pin-configuration export to a new file.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "fab",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "f95242d5ae761fe0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/firmware.export_preview",
+    "title": "Preview a firmware export",
+    "summary": "Emit an instance's firmware pin configuration as JSON, C, a Zephyr overlay, Rust or a template.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "fab",
+      "class": "read",
+      "entry_kind": "action",
+      "schema_digest": "f95242d5ae761fe0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/functions.suggest",
+    "title": "Suggest pin assignments",
+    "summary": "C2: ranked complete assignments that enable peripherals on one instance, or the rules that block them.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "d909e8b0615b28a9",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/help.search",
+    "title": "Search offline help",
+    "summary": "Find help by words and kind.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "help",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "1f140fc7181dbb28",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/help.topic",
+    "title": "Read a help topic",
+    "summary": "Read the facts, examples and text of a help topic.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "help",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "882ef413e4e63145",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/impedance.calculate",
+    "title": "Calculate impedance",
+    "summary": "Z0 (and, with a gap, the edge-coupled Zdiff) of a trace on a stackup layer or an explicit structure, with the model's accuracy.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "b2a4e59ec9c55da7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/impedance.table",
+    "title": "Impedance table",
+    "summary": "Every layer's line structure and the width and pair gap each impedance target needs on each layer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.assign_part",
+    "title": "Assign a manufacturer part",
+    "summary": "Pin one exact Part on 1–256 instances atomically, or clear it with `None`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "4a8d59fb7785d471",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.assign_peripheral",
+    "title": "Assign a peripheral",
+    "summary": "C2: enable (or clear) one peripheral: its roles placed explicitly or by the solver, compiled to one `select_functions` batch, one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b84f39638fdc014c",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.marking",
+    "title": "Resolve an instance's marking",
+    "summary": "D4: one instance's resolved marking layout (none when unmarked).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "d0db1335626b7e65",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.select_functions",
+    "title": "Select pin functions",
+    "summary": "Apply 1–256 function selection edits atomically.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c5dd642036031d5f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.set_designator",
+    "title": "Set a designator",
+    "summary": "Set an instance's designator.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "f794e6d7d6261713",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.set_marking",
+    "title": "Set an instance marking",
+    "summary": "D4: the instance's marking choices (hide, variables, replace).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2c0794104adc2725",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.set_no_connect",
+    "title": "Mark a pin no-connect",
+    "summary": "Mark terminals of an instance no-connect, or clear the mark.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "30b15b2247f1851b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.set_physical",
+    "title": "Choose the binding and footprint",
+    "summary": "Choose an instance's physical implementation (its binding and footprint).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c32278d10a56dcd5",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.set_pin_config",
+    "title": "Set pin configuration",
+    "summary": "C2: set or clear 1–256 terminals' pin configuration, validated against their declared options.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d4bf806106990d69",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.set_properties",
+    "title": "Set instance properties",
+    "summary": "Apply 1–64 typed field edits atomically.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "7c8e1a4e6a53618d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.set_text_placement",
+    "title": "Place designator text",
+    "summary": "Move or turn one footprint text on this instance only, such as a designator a rotated part prints off the board.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "635c2729db0cdb35",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/instance.set_unit_unused",
+    "title": "Mark a unit unused",
+    "summary": "Mark one unit of an instance unused, or used again.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ae21c567c6b2da7e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/interface.auto",
+    "title": "Switch an automatic export",
+    "summary": "Switch an automatic export rule on or off.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a2f859dc7c551627",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/interface.export",
+    "title": "Export to the linked design",
+    "summary": "Export a feature, package datum, part frame or envelope, or board parameter, allocating a new slot.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "05d7ea349015c3f7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/interface.list",
+    "title": "List the board interface",
+    "summary": "The board interface's exported datums, rules and retired slots.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/interface.publish",
+    "title": "Publish the board interface",
+    "summary": "Publish the board interface: write the .solidcraft design an assembly links and its sidecar, atomically.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "6609a1e45512ad08",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/interface.publish_preview",
+    "title": "Preview publishing the board interface",
+    "summary": "Preview publishing the board interface: each exported datum unchanged, moved (by how much), reshaped, added or removed.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "read",
+      "entry_kind": "action",
+      "schema_digest": "c5d68723ec82a718",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/interface.record_publish",
+    "title": "Record a published interface",
+    "summary": "Record a publish the host has written.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "0f2a893b0b12043c",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/interface.rename",
+    "title": "Rename an exported datum",
+    "summary": "Set a datum's display name, or with `None` go back to the derived one.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a69afd1d463fc9bc",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/interface.unexport",
+    "title": "Stop exporting a datum",
+    "summary": "Stop exporting a datum and retire its slot, which is never used again.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b1db68629e39603d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/junction.place",
+    "title": "Place a junction",
+    "summary": "Put a junction point on the wires at `position`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "271363a5a95c4bfd",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/junction.remove",
+    "title": "Remove a junction",
+    "summary": "Remove a junction point where straight wires pass through it, so a crossing stops joining.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "636015e2b514a86b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/keepout.add",
+    "title": "Add a keep-out",
+    "summary": "Add a keepout; the outcome names it (`Outcome::KeepoutAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ecdadc61edde2063",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/keepout.delete",
+    "title": "Delete a keep-out",
+    "summary": "Delete a keepout.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "244adef7c3868093",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/keepout.edit",
+    "title": "Edit a keep-out",
+    "summary": "Replace a keepout with an edited one of the same id.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c8578dc526a9cb49",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/label.edit",
+    "title": "Edit a label",
+    "summary": "Rename, change the kind of, or turn a label.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "9521ac23a95f8480",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/label.move",
+    "title": "Move a label",
+    "summary": "Move a label to `position`: presentation only; wires follow.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "8acd2005b7d715bc",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/label.place",
+    "title": "Place a label",
+    "summary": "Place a net label or power port.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d3d1e7c87cfc5a80",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/label.remove",
+    "title": "Remove a label",
+    "summary": "Remove a label; wires through it stay joined.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "8afde988bbc9781c",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.add_via",
+    "title": "Add a via",
+    "summary": "Add a board via; the outcome names it (`Outcome::ViaAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "e525b7f0deb5d2eb",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.align",
+    "title": "Align parts",
+    "summary": "Line up two or more parts' outlines on one edge (left, right, top, bottom) or centre line, as one undo step with their copper carried.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "724cb61944b83a6f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.delete_objects",
+    "title": "Delete several board objects",
+    "summary": "Delete several tracks, vias and fills as one undo step (a multi-selection's Delete, or a dangling stub's tracks).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6c8097f70202f63c",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.dimension_add",
+    "title": "Dimension a part",
+    "summary": "Add a part dimension and solve the parts it names; the outcome names it (`Outcome::DimensionAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3e44b6de33f1ea93",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.dimension_delete",
+    "title": "Delete a part dimension",
+    "summary": "Delete a part dimension; the parts it named keep their poses.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "244adef7c3868093",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.dimension_edit",
+    "title": "Edit a part dimension",
+    "summary": "Replace a part dimension, by id, and re-solve.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "19f1c7b975aabdcf",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.dimension_order",
+    "title": "Reorder part dimensions",
+    "summary": "Put part dimensions in the order `ids` lists them (the Dimensions list's order: a drag or ⌥↑/⌥↓).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "869f9ab107d4c073",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.distribute",
+    "title": "Distribute parts evenly",
+    "summary": "Space three or more parts evenly along an axis: the outermost stay and the gaps between neighbouring outlines become equal.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "7a7675670bb584ac",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.edit_stackup",
+    "title": "Edit the layer stackup",
+    "summary": "Replace the board's stackup and move copper between layers, as one undo step ([`restack::StackupEdit`]).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "39bad372224d0be3",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.length_report",
+    "title": "Length report",
+    "summary": "Every routed, paired or grouped net's length with its target and deviation, and every pair's skew.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.lock_objects",
+    "title": "Lock or unlock several board objects",
+    "summary": "Lock or unlock several parts, tracks, vias and fills as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "1ca883f37b52de86",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.move",
+    "title": "Move a placed part",
+    "summary": "Move a placed instance to a new `position`, `rotation_deg` and `layer`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "29400de56d6ae471",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.move_parts",
+    "title": "Move several parts together",
+    "summary": "Move several placed parts to new poses as one undo step (a group drag or flip).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "e178623f217ad117",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.pads",
+    "title": "List the pads to route between",
+    "summary": "The placed parts' connected pads: designator, pad number, net and board position (mm), where `layout.route` starts and ends.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "deaad234cf53d43d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.place",
+    "title": "Place a part on the board",
+    "summary": "Place an instance's footprint on the board at `position`, `rotation_deg` and `layer`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "29400de56d6ae471",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.place_part",
+    "title": "Place a mechanical part",
+    "summary": "Place a new instance of a mechanical part spec, finding or making its variant, as one undo step (`Outcome::PartPlaced`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2ba4f521a54bd792",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.place_part_file",
+    "title": "Place a part file on the board",
+    "summary": "Place a parametric 3D part such as a nut, standoff, spacer or heatsink on the board.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "action",
+      "schema_digest": "1dd382c6db40a241",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.placement_lock",
+    "title": "Lock or unlock a placement",
+    "summary": "Lock or unlock an instance's placement.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "57fae435fb9f7c4b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.remove_part",
+    "title": "Remove a mechanical part",
+    "summary": "Remove a mechanical part with no sheet occurrence and no connected terminal, with its placement, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d0db1335626b7e65",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.route",
+    "title": "Route a track",
+    "summary": "Route one track of a net from `start` to `end` at `width` on one copper layer, checked against other nets' copper.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3c87657af8d29399",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.route_apply",
+    "title": "Apply a routed path",
+    "summary": "Apply a route edit set (tracks and vias to add, replace and remove) as one transaction, checked as a whole.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "724da2ace9afd477",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.route_layer_change",
+    "title": "Change layer while routing",
+    "summary": "Route to a via, change layer there and route on, as one undo step; the outcome names the via (`Outcome::ViaAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5557badc10c3a318",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.route_pair",
+    "title": "Route a differential pair",
+    "summary": "Route both halves of a differential pair along a centre line, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "40b1d78f24bcca75",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.route_preview",
+    "title": "Preview a route",
+    "summary": "What `layout.route_step` would do, without applying it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "6ced55688f581884",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.route_step",
+    "title": "Route one step",
+    "summary": "One interactive route step in a routing mode: ignore, walkaround or shove (the default).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6ced55688f581884",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.set_board_size",
+    "title": "Set the board size",
+    "summary": "Resize the rectangular board outline (mm, origin at the lower-left corner).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a40811035afccce6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.set_fabrication",
+    "title": "Set fabrication settings",
+    "summary": "Replace the board's fabrication attributes (mask colour and finish, pad finish, silkscreen colour) as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2201492ae3fbb523",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.set_part",
+    "title": "Change a mechanical part",
+    "summary": "Move a placed mechanical part to the variant of another spec, found or made, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "f8bc169417c5d955",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.set_part_file_values",
+    "title": "Change a placed part file",
+    "summary": "Give a placed mechanical part new parameter values, pads or BOM flags.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6696ffb13b21b467",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.set_refused_import_tracks",
+    "title": "Record tracks an import refused",
+    "summary": "Record the track pieces an import refused, replacing those recorded: copper left ending where one ran says why (`board.track_dangling`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "42af348dada9f3e7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.set_stackup",
+    "title": "Set the layer stackup",
+    "summary": "Replace the board's stackup as one undo step; copper layers keep their names.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d84846ff47dae125",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.sync",
+    "title": "Sync the board with the schematic",
+    "summary": "Stage every board-placeable instance without a placement on the top side, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "8c0ca73827fa1a28",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.track_delete",
+    "title": "Delete a track",
+    "summary": "Delete a track.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "244adef7c3868093",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.track_drag",
+    "title": "Drag a track with shove",
+    "summary": "Drag a track segment along its normal by `offset` mm, shoving other nets' copper aside.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2131f394854afcfe",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.track_drag_preview",
+    "title": "Preview a track drag",
+    "summary": "What `layout.track_drag` would do, without applying it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2131f394854afcfe",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.track_lock",
+    "title": "Lock or unlock a track",
+    "summary": "Lock or unlock a track.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "07f4ac02b6cea050",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.track_set",
+    "title": "Change a track",
+    "summary": "Change one track's width, copper layer or both, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "adc104abc5a2a161",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.tune_length",
+    "title": "Tune a track's length",
+    "summary": "Meander one straight track segment to add an exact length, or to bring its net to a target length, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "aafa0f8c78f2a7f6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.tune_preview",
+    "title": "Preview length tuning",
+    "summary": "What `layout.tune_length` would build, without applying it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "aafa0f8c78f2a7f6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.via_delete",
+    "title": "Delete a via",
+    "summary": "Delete a via.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "244adef7c3868093",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.via_lock",
+    "title": "Lock or unlock a via",
+    "summary": "Lock or unlock a via.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "07f4ac02b6cea050",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.via_move",
+    "title": "Move a via",
+    "summary": "Move a via to `position`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "78bde29ebb4389c8",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.via_tent",
+    "title": "Tent or untent a via",
+    "summary": "Cover a via with solder mask (`tented`) or leave it open.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d8b2a8db428c23ff",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/length_group.add",
+    "title": "Add a length group",
+    "summary": "Add a length-matching group; the outcome names it (`Outcome::LengthGroupAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6b6b285d76a84ec2",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/length_group.delete",
+    "title": "Delete a length group",
+    "summary": "Delete a length group.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b1fe91e785dbb61c",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/length_group.edit",
+    "title": "Edit a length group",
+    "summary": "Replace one group's values (its id stays).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3bd8eed22d6b3266",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.account",
+    "title": "Online library sign-in",
+    "summary": "Name the online library and who is signed in to it; downloading parts needs a free account, searching does not.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.assign_terminals",
+    "title": "Assign pads to terminals",
+    "summary": "Land package terminals on footprint pads by an explicit rule.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5c64246ba0ee3906",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.body_fit",
+    "title": "Fit a generated body to a part",
+    "summary": "A placed part's package and pads by designator; with a generator, the 3D body it makes fitted to those pads, changing nothing.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "generators",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "cb50547ec8956657",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.bundle",
+    "title": "Read a folder bundle",
+    "summary": "Read one revision of a folder lineage with its dependency closure and packed assets.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "8cb5d213832bdf52",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.check_part_file",
+    "title": "Check a part file",
+    "summary": "Evaluate a SolidCraft part file at given parameter values and report its convention check.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "read",
+      "entry_kind": "action",
+      "schema_digest": "e6906bb8a1a9ac06",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.discard_draft",
+    "title": "Discard a draft",
+    "summary": "Drop a draft.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "e0357fa9beb2049d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.draft_closure",
+    "title": "Draft a definition and its parts",
+    "summary": "Draft a published component revision's working set wherever a lineage has no draft yet, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c71754a3f84779fb",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.draft_from",
+    "title": "Draft from a revision",
+    "summary": "Draft an existing lineage starting from one of its revisions.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "36131b1f89f9c533",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.draft_part",
+    "title": "Draft a component's manufacturer Part",
+    "summary": "Draft a component's manufacturer Part with its manufacturer and complete part number.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "4876e6eda22cb0d9",
+      "examples": [
+        {
+          "entry": "entry/library.draft_part",
+          "params": {
+            "component": 2,
+            "manufacturer": "Texas Instruments",
+            "mpn": "INA3221AIRGVR"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry/library.duplicate",
+    "title": "Duplicate a definition",
+    "summary": "D6: copy a component revision with its symbols and bindings into new draft lineages named `name`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "88e8cae3d25e4c0b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.edit",
+    "title": "Edit drafts",
+    "summary": "Replace 1–16 draft bodies atomically, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "296910126c0cd0f5",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.edit_copy",
+    "title": "Edit a copy",
+    "summary": "\"Edit a copy in this project\": import a folder bundle of a component or Part and draft its working set, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "08e315f1b263b133",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.edit_footprint",
+    "title": "Edit a footprint",
+    "summary": "Apply 1–256 parametric edits to one footprint draft in order, evaluated once, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "bf4b07f150bf9400",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.edit_graphics",
+    "title": "Edit symbol graphics",
+    "summary": "Apply 1–256 graphic and pin edits to one symbol draft, in order, as one undo step; any failure leaves the draft unchanged.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "4ffc24914e40fe8a",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.edit_package",
+    "title": "Edit a package",
+    "summary": "Apply 1–256 package edits (form, model, placement, quick action) to one package draft in order, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "359bcf35a67db619",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.facets",
+    "title": "List search filters",
+    "summary": "The fields, package labels and completeness badges that the entries matching a query carry, with value counts.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "caf74935a6200ee7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.favourite",
+    "title": "Mark a favourite",
+    "summary": "Mark or unmark a library lineage as a favourite, which ranks search results.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "never",
+      "entry_kind": null,
+      "schema_digest": "3ff8583314827b86",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.fit_leads",
+    "title": "Fit leads to pads",
+    "summary": "Fit the package draft's model leads onto footprint pads.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "be3d7c96f0edcefa",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.footprint_from_pads",
+    "title": "Footprint from pads",
+    "summary": "Build a footprint draft from a datasheet's pad table, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6d3c6f5d6ac3bb09",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.footprint_preview",
+    "title": "Preview a footprint",
+    "summary": "What `library.edit_footprint` would produce for these edits, without changing the document.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "bf4b07f150bf9400",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.generate",
+    "title": "Generate a part",
+    "summary": "GP1: make a part with a generator module, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "generators",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "70d1edddb75bbd71",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.generate_part",
+    "title": "Generate a part",
+    "summary": "Make a part (component or package) with a generator module, e.g.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "generators",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d32cc5d806b69903",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.generators",
+    "title": "List generator modules",
+    "summary": "List generator modules (shipped and embedded) and the project's generated parts; generator: <name> for one in full.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "generators",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "0f1858a3d3cc6c0d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.import",
+    "title": "Import a bundle",
+    "summary": "Import a library bundle (a root revision and its closure) into the project as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "08e315f1b263b133",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.import_from_folder",
+    "title": "Import from a folder",
+    "summary": "Import a folder lineage's revision and its closure into the project in one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b838e09342a80a14",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.import_from_project",
+    "title": "Import from another project",
+    "summary": "Copy one published revision and its closure from another .sparksmith file into this project.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "85041577a2324bf4",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.import_model",
+    "title": "Import a 3D model",
+    "summary": "D1: pack a model's asset bytes and create a Model draft; with `assign`, also use it in a package draft, one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6686ba7af4dd3505",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.import_standard_fields",
+    "title": "Import standard fields",
+    "summary": "Import the built-in standard fields (SI quantity kinds and their fields) as `library.import` does, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.import_svg",
+    "title": "Import SVG artwork",
+    "summary": "Add a .svg file's drawing to a symbol unit or footprint layer as editable graphics.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "5e616e9635c0ad60",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.inspect",
+    "title": "Inspect a lineage",
+    "summary": "One published component revision (the latest when `revision` is omitted) with its revisions, symbols, implementations and badges.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "a0ccc893572a0161",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.inspect_model_file",
+    "title": "Inspect a model file",
+    "summary": "Read a STEP, GLB or .solidcraft model file and report its bodies, materials and bounds.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "cb75eabd03469295",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.make_body",
+    "title": "Make a part's 3D body",
+    "summary": "Give a placed part a generator's 3D body fitted to its existing footprint; every part that uses the package changes.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "generators",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d88726b2591ba8b0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.marking_surfaces",
+    "title": "List marking surfaces",
+    "summary": "List where a package can be marked: the model area, box faces and named anchors.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "86267001d8dfd939",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.models",
+    "title": "Find 3D models",
+    "summary": "D1: 3D library models (and generated families) for a query, ranked by fit when `fits` names the package draft the chooser serves.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "540a2c5ef6b68e5b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.new_draft",
+    "title": "New draft",
+    "summary": "Reserve a new lineage of any kind and draft it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ee7f44821262d6ef",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.open_preview",
+    "title": "Preview a folder entry",
+    "summary": "Inspect one revision of a folder lineage without importing it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "8cb5d213832bdf52",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.pack_artwork",
+    "title": "Pack marking artwork",
+    "summary": "Apply `library.edit`'s draft edits and pack the SVG artwork their markings name, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "61ab806d09deb2c6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.package_from_generator",
+    "title": "Package from a generator",
+    "summary": "D1: give a working set's package and footprint a generator's package, terminals matched by number.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "generators",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3528f263fef87fa5",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.part_files",
+    "title": "List part files",
+    "summary": "List the SolidCraft part files this project can place or use.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.pinout_apply",
+    "title": "Apply a pinout import",
+    "summary": "Apply a pinout document as `library.pinout_preview` previewed it, atomically, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b5ee61657a184835",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.pinout_preview",
+    "title": "Preview a pinout import",
+    "summary": "C3: the plan `library.pinout_apply` would apply: changes, findings and review items.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "1b5b3083a39e7081",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.pinout_schema",
+    "title": "Pinout document schema",
+    "summary": "The schema of the pinout document an agent fills from a datasheet, with its pin-rule API.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.place_from",
+    "title": "Import and place a bundle",
+    "summary": "Import if needed, then place the component, as one transaction and one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "1fccc4e244f72f65",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.place_from_folder",
+    "title": "Place from a folder",
+    "summary": "Import a folder component if needed and place it, in one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5860ac04beada37f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.promote",
+    "title": "Promote to a library",
+    "summary": "Record the origins of `library.promote_preview` with the same arguments after io wrote its bundle to the folder.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "9bf3709b8989b66e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.promote_preview",
+    "title": "Preview a promotion",
+    "summary": "What `library.promote` would write to the library `library` and record in the project: the export bundle of `root` and its closure.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "9bf3709b8989b66e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.publish",
+    "title": "Publish drafts",
+    "summary": "Publish 1–32 drafts together, in dependency order.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "9dfb1b2b5f7bdd6b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.publish_to_folder",
+    "title": "Publish to a folder",
+    "summary": "Promote a published project revision and its closure to a writable library folder.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "67de595740cdba21",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.publish_with_parts",
+    "title": "Publish drafts and their Parts",
+    "summary": "Publish drafts and republish their component's listed Parts.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "21eff86f8c4eb631",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.replace_body",
+    "title": "Replace a part's 3D body",
+    "summary": "Give a placed part's package a generator's body, keeping its footprint.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "generators",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "cea96374be10ce9e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.rescan",
+    "title": "Rescan library folders",
+    "summary": "Re-read every library source's manifest and index, then list the sources.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.resolve_groups",
+    "title": "Group instances for purchasing",
+    "summary": "Groups of instances without a resolved Part, each with the `library.search` query that finds Parts for it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.restyle_symbol",
+    "title": "Restyle a symbol",
+    "summary": "Redraw one symbol draft as another kind, such as a pinout import's IC box as an LED, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "8f29a5c0d3476d52",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.review_check",
+    "title": "Check a datasheet review report",
+    "summary": "Check a datasheet part's review report against the drafts: citations, confidence and open questions.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "3fd7c89b2b88c852",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.search",
+    "title": "List or search library components",
+    "summary": "List or search library components and Parts, ranked, at their latest revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "b8b0cb4373806d60",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.set_grid",
+    "title": "Set the symbol grid",
+    "summary": "Replace the authoring grid (an undoable editor setting saved with the drafts).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "f86d929ad0d17490",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.set_marking",
+    "title": "Set a component marking",
+    "summary": "Set or clear a component draft's display-only 3D marking: text, artwork or polarity marks.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "da3a639a426d2d9e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.set_part_values",
+    "title": "Set part file values",
+    "summary": "Set new parameter values for the part file a package draft uses.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a9454bb7d4ac01b0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.set_symbol_conventions",
+    "title": "Set symbol conventions",
+    "summary": "Replace the project's symbol drawing conventions, such as the resistor style new generated symbols use.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "e9d4cc90734298b8",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.sign_out",
+    "title": "Sign out of the online library",
+    "summary": "Sign out of the online library: the registry revokes the token and this computer forgets it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.source.add",
+    "title": "Add a library folder",
+    "summary": "Add a library folder as a source in the person's settings.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "41a3f1fbba71c1a3",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.source.create",
+    "title": "Create a library folder",
+    "summary": "Create an empty library folder and add it as a writable source.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "348c210b2ea04566",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.source.enable",
+    "title": "Turn a library folder on or off",
+    "summary": "Turn a library source on or off.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "eb310df9c90dc313",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.source.remove",
+    "title": "Remove a library folder",
+    "summary": "Remove a library source from the settings; the folder stays untouched.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "56319848fbfcad06",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.sources",
+    "title": "List library folders",
+    "summary": "List the configured library folders with their state, or why one is disabled.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.standard_fields",
+    "title": "List standard fields",
+    "summary": "The built-in standard fields as a bundle `library.import` takes (`library.import_standard_fields` does both in one step).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.updates_available",
+    "title": "List library updates",
+    "summary": "Project lineages copied from a library source that now holds a newer revision, or whose recorded revision changed on disk.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/library.use_part_file",
+    "title": "Use a part file as the model",
+    "summary": "Make a SolidCraft part file a package draft's 3D model, at literal parameter values.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "edit",
+      "entry_kind": "action",
+      "schema_digest": "0c9c07c7bf83b70d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/net_class.add",
+    "title": "Add a net class",
+    "summary": "Add a net class; the outcome names it (`Outcome::NetClassAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3a3901c35e02c0e2",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/net_class.assign",
+    "title": "Assign nets to a class",
+    "summary": "Assign nets to a class explicitly (`None`: remove the explicit assignment, so patterns apply again).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2ce39511303777ae",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/net_class.delete",
+    "title": "Delete a net class",
+    "summary": "Delete a class with its assignments, patterns and pairs.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "4df081606e90394d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/net_class.edit",
+    "title": "Edit a net class",
+    "summary": "Replace one class's values (its id stays).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "eb675be7edbdeb33",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/net_class.list",
+    "title": "List net classes",
+    "summary": "Every net class with its resolved width, via and clearance, and every net with its class and how it got it (explicit or pattern).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/net_class.preview_patterns",
+    "title": "Preview net class patterns",
+    "summary": "The nets whose class `net_class.set_patterns` with `patterns` would change.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "37451a6b99daf41e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/net_class.set_clearance",
+    "title": "Set a class-to-class clearance",
+    "summary": "Set (`Some`) or remove (`None`) a class-to-class clearance.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "e48de1810a0f89ff",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/net_class.set_patterns",
+    "title": "Set net class patterns",
+    "summary": "Replace the ordered name-pattern rules.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "37451a6b99daf41e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.apply",
+    "title": "Apply an operation",
+    "summary": "Apply one typed document operation at expected_revision; a stale revision or invalid input changes nothing.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "cd3aab914e3b2641",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.apply_all",
+    "title": "Apply operations as one step",
+    "summary": "Apply typed document operations in order at expected_revision as one undo step; any failure changes nothing.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "801191a00d2237f0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.apply_update",
+    "title": "Apply an update",
+    "summary": "Apply a previewed update at its revision, optionally removing the listed conflicting tracks.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "acb71994d3e80997",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.bom",
+    "title": "Bill of materials",
+    "summary": "The project BOM, with resolved instances grouped by Part and unresolved lines marked.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.export_fabrication",
+    "title": "Export fabrication files",
+    "summary": "Check the board for production, then write Gerber, drill, pick-and-place, BOM and drawing files.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "fab",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "f0b41d7ede081315",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.export_native",
+    "title": "Export the 3D model",
+    "summary": "Export the board as a native parametric .solidcraft 3D model to a new file.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "model3d",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "ee897275b361b97f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.inspect",
+    "title": "Inspect the project",
+    "summary": "Read the revision, object counts, drafts and open findings; at reads one part of the document.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "249aa00f4b2dbec1",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.issues",
+    "title": "List issues",
+    "summary": "Every issue of the project and its drafts in `scope`, most severe first, with its severity, group and title.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "checks",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "8179456145cb1eba",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.new",
+    "title": "New project",
+    "summary": "Start a new empty project at expected_revision with its board's fab profile, clearing history.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "files",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "107a4137e5aca5f6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.open",
+    "title": "Open a project",
+    "summary": "Open a .sparksmith project file in place of the document at expected_revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "files",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "7317cdb697af20e5",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.pin_config",
+    "title": "Firmware pin configuration",
+    "summary": "C4: the firmware pin-configuration IR of one instance.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "fab",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "d0db1335626b7e65",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.pin_report",
+    "title": "Pin report",
+    "summary": "Per terminal of one instance: pads, GPIO, active function, peripheral, role, mux code, pin config and net.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "d0db1335626b7e65",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.preview_replace",
+    "title": "Preview replacing a part's component",
+    "summary": "Preview replacing placed parts' component by a component of another lineage, with an explicit terminal mapping.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "82299feaac768986",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.preview_update",
+    "title": "Preview an update",
+    "summary": "Preview a component-revision, instance, schematic or board-sync change and its routed-copper impact.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "ddee0d5306fed713",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.query",
+    "title": "Run a query",
+    "summary": "Answer one read-only query by name, such as project.issues, library.search or component.inspect.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "e503c9e37010bc8c",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.redo",
+    "title": "Redo",
+    "summary": "Redo the last undone document change at expected_revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5d360ab06dd84fb0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.rename",
+    "title": "Rename the project",
+    "summary": "Name the project: the name fabrication outputs, drawings and the title block's Project cell show.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "92c2e30151865925",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.replace_component",
+    "title": "Replace a part's component",
+    "summary": "Replace placed parts' component by another lineage's at expected_revision, terminals mapped explicitly; one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "0f62d586fbe2b558",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.save",
+    "title": "Save the project",
+    "summary": "Save the project atomically to a .sparksmith file, by default its current path.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "files",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "d6b27c72606417bf",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.schema",
+    "title": "Look up a schema",
+    "summary": "Look up one operation, query or command's exact schema and how to send it; without a name, the index.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "4d65dac5f3c7299e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.set_properties",
+    "title": "Set project properties",
+    "summary": "Set the title-block properties.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b70e7ac8f35fea84",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.turn_begin",
+    "title": "Begin a turn",
+    "summary": "Open a turn: calls naming its handle in turn undo as one step under label.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "c3b32c54c0444881",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.turn_end",
+    "title": "End a turn",
+    "summary": "Close a turn.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "8ba67b5506a8d9ac",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/project.undo",
+    "title": "Undo",
+    "summary": "Undo the last document change at expected_revision.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5d360ab06dd84fb0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/rules.clear_override",
+    "title": "Clear a rule override",
+    "summary": "Drop the project override of one rule (back to the profile value).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3e405f3e26fad2ec",
+      "examples": [
+        {
+          "entry": "entry/rules.clear_override",
+          "params": {
+            "key": {
+              "rule": "mask_web_min"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry/rules.effective",
+    "title": "Effective rules",
+    "summary": "Every effective design rule with its profile value and source, and the net classes.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/rules.fab_profiles",
+    "title": "List fab profiles",
+    "summary": "The fab profiles by id, with their options, choices and defaults.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "331da7beea28b429",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/rules.preview_fab_options",
+    "title": "Preview fab profile options",
+    "summary": "What `rules.set_fab_options` with these choices would change: rules and the board issues that would appear or go.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "6a43df16908119a8",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/rules.preview_fab_profile",
+    "title": "Preview a fab profile",
+    "summary": "What `rules.set_fab_profile` with these arguments would change: rules and the board issues that would appear or go.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "f1a7c7f6aebffc96",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/rules.set_fab_options",
+    "title": "Choose fab profile options",
+    "summary": "Choose manufacturing options of the board's profile.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6a43df16908119a8",
+      "examples": [
+        {
+          "entry": "entry/rules.set_fab_options",
+          "params": {
+            "options": {
+              "limits": "minimum"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry/rules.set_fab_profile",
+    "title": "Set the fab profile",
+    "summary": "Replace the project's profile snapshot (or choose the first).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "f1a7c7f6aebffc96",
+      "examples": [
+        {
+          "entry": "entry/rules.set_fab_profile",
+          "params": {
+            "options": {
+              "limits": "minimum"
+            },
+            "profile": "pcbway-4-layer"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry/rules.set_override",
+    "title": "Override a rule",
+    "summary": "Set (or replace) the project override of one rule.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "322bdecdad7aea56",
+      "examples": [
+        {
+          "entry": "entry/rules.set_override",
+          "params": {
+            "key": {
+              "a": "track",
+              "b": "via",
+              "rule": "clearance"
+            },
+            "value": {
+              "kind": "length",
+              "value": 0.15
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry/rules.set_project_source",
+    "title": "Name the project rules' source",
+    "summary": "Say where the project's own rule set comes from.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b89c3f26a45bbcd2",
+      "examples": [
+        {
+          "entry": "entry/rules.set_project_source",
+          "params": {
+            "source": "From the KiCad project"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry/rules.set_tie_current",
+    "title": "Set the tie current table and temperature rise",
+    "summary": "Snapshot a sourced IPC-2152 table supplied by the person or a library and the allowed rise.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "rules",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a1deb1826e75ea81",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.annotate",
+    "title": "Annotate designators",
+    "summary": "Number designators across sheets; existing annotated designators stay unless `mode` is `all`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "941d746547307838",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.arrange",
+    "title": "Arrange symbols",
+    "summary": "Move, turn or mirror several sheet objects together, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "237d8966db6528a5",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.connect",
+    "title": "Connect pins",
+    "summary": "Draw a wire between two targets: terminals, junctions, labels, sheet pins or points on wires.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b7e09bfd74ef037e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.copy",
+    "title": "Copy schematic objects",
+    "summary": "What `schematic.paste` needs to recreate these sheet objects.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "fd9bfb654bc066a6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.disconnect",
+    "title": "Remove a wire",
+    "summary": "Remove a wire, disconnecting what it joined.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "b56ac9373ad1f979",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.export_pdf",
+    "title": "Export the schematic as PDF",
+    "summary": "Print the schematic as a vector PDF, one page per sheet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "fab",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "25eb940b6114128a",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.net_places",
+    "title": "Find a net on the sheets",
+    "summary": "Where a net appears across sheets: its labels, sheet pins and placed terminals, in page order.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "1cae6f693afb7b2c",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.net_rename",
+    "title": "Rename a net",
+    "summary": "Relabel a net.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d0b91a176a61140e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.paste",
+    "title": "Paste schematic objects",
+    "summary": "Create what `clip` (from the `schematic.copy` query) holds on a sheet, shifted by `offset`, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3bfd9a8822c636c5",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.pins",
+    "title": "List parts' pins",
+    "summary": "The named parts' pins, one compact row each: terminal id, pads, name and net.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "8649c33cede45de9",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.scene",
+    "title": "Sheet scene",
+    "summary": "Everything one sheet draws, resolved to shapes and text in sheet millimetres.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "fddf9f4757d4470d",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.set_net_disagreements",
+    "title": "Record net disagreements",
+    "summary": "Record where an imported board and its schematic disagree on nets.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "7b5542040b839eaa",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.sheets",
+    "title": "List sheets",
+    "summary": "Every schematic sheet in page order with its place in the hierarchy (parent sheet symbol, depth) and what it holds.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet.add",
+    "title": "Add a sheet",
+    "summary": "Append a sheet (\"Sheet n\", A4 landscape unless given).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "be5f91b7a67a819c",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet.delete",
+    "title": "Delete a sheet",
+    "summary": "Delete a sheet and what is drawn on it (its units return to unplaced) and the sheet symbol that uses it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d25f03721ddf4c75",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet.rename",
+    "title": "Rename a sheet",
+    "summary": "Rename a sheet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "0bc8580cea2b9555",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet.reorder",
+    "title": "Reorder sheets",
+    "summary": "Move a sheet to page `index` (from 0).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "0d7b750904a6dd24",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet.set_page",
+    "title": "Set a sheet's page",
+    "summary": "Set a sheet's paper size and orientation.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "cb36c26860b802b7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_pin.add",
+    "title": "Add a sheet pin",
+    "summary": "Add a pin to a sheet symbol, on one `side` at `offset` along it.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2c88990a93b3d175",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_pin.edit",
+    "title": "Edit a sheet pin",
+    "summary": "Change a sheet pin's name, shape, side or offset; omitted fields stay.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "6d1dde171ab7f4df",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_pin.remove",
+    "title": "Remove a sheet pin",
+    "summary": "Remove a sheet pin.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c2f060ce44a5d78f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_symbol.move",
+    "title": "Move a sheet symbol",
+    "summary": "Move a sheet symbol to `position`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "fa57b44b67679257",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_symbol.place",
+    "title": "Place a sheet symbol",
+    "summary": "Draw a sheet symbol for an existing sheet, or for a new one.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "08f2edc90ca84d48",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_symbol.remove",
+    "title": "Remove a sheet symbol",
+    "summary": "Remove a sheet symbol, keeping its child definition available.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "22acf7b0aeadaf4f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_symbol.rename",
+    "title": "Rename a sheet symbol",
+    "summary": "Give this use of a child definition its own display name.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5dfa128556ac9a8f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_symbol.resize",
+    "title": "Resize a sheet symbol",
+    "summary": "Resize a sheet symbol; `size` is its width and height in mm.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c5115fd04ca6e80f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_symbol.set_child",
+    "title": "Set a sheet symbol's sheet",
+    "summary": "Point a sheet symbol at another child sheet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3dabe7e166e80950",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/sheet_symbol.sync_pins",
+    "title": "Sync sheet symbol pins",
+    "summary": "Add a pin for every hierarchical label name of the child sheet the symbol lacks.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "22acf7b0aeadaf4f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/symbol.move_to_sheet",
+    "title": "Move a unit to another sheet",
+    "summary": "Move a unit to another sheet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a1494d6fe87cc618",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/symbol.move_unit",
+    "title": "Move a symbol unit",
+    "summary": "Move a unit; wires follow its pins, the segment on each pin staying horizontal or vertical.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "bb12bf9eceb17fce",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/symbol.orient_unit",
+    "title": "Rotate or mirror a unit",
+    "summary": "Set an occurrence's orientation about its origin.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "c908b5be7bdf5ba4",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/symbol.place_unit",
+    "title": "Place a symbol unit",
+    "summary": "Draw an unplaced unit of an instance.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5bd27e9d70b8f72f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/symbol.unplace_unit",
+    "title": "Take a unit off the sheet",
+    "summary": "Remove a unit from the sheet.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "aa090650ee1a3aa0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/tie.list",
+    "title": "List deliberate net ties",
+    "summary": "The distinct nets of every deliberate tie, active state, contacts and current margin.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/tie.set_anchor",
+    "title": "Set or clear a Kelvin anchor",
+    "summary": "",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "4fac49c7f6da9995",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/tie.set_purpose",
+    "title": "Set the purpose of a tie",
+    "summary": "",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "db878a4ccd0f7f85",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/update",
+    "title": "Apply an update",
+    "summary": "Apply a previewed update at its revision, optionally removing the conflicting tracks its preview listed.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "library",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "acb71994d3e80997",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.add",
+    "title": "Add an assembly variant",
+    "summary": "Add an assembly variant named `name` (unique, case-insensitively), empty or, with `copy_of`, a copy of that variant's overrides.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a18777c986f561df",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.list",
+    "title": "List assembly variants",
+    "summary": "The assembly variants, the active one, and every bought part's population and fitted Part in the default and in each variant.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.remove",
+    "title": "Delete an assembly variant",
+    "summary": "Delete a variant and its overrides.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "a499d5444d4119e7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.rename",
+    "title": "Rename an assembly variant",
+    "summary": "Rename a variant.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "61bf1e901cac957f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.review_substitute",
+    "title": "Review a variant's substitute part",
+    "summary": "Record a person's review of a variant's substitute part.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "ask",
+      "entry_kind": "action",
+      "schema_digest": "642a01551916b27a",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.set_active",
+    "title": "Choose the active assembly variant",
+    "summary": "Choose the variant the 3D view, BOM, pick-and-place and fabrication output follow; none (null) is the default.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "5c99c92efe040582",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.set_exclusions",
+    "title": "Keep parts off the BOM or pick-and-place",
+    "summary": "Keep parts off the BOM or out of the pick-and-place files, in every variant.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "14994962ed99c1fa",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.set_part",
+    "title": "Fit another part in a variant",
+    "summary": "Fit another manufacturer part on a part's footprint in one variant; null fits the default part again.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ca2a716c58863821",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.set_population",
+    "title": "Set whether parts are fitted",
+    "summary": "Set whether parts are fitted: in the default (no `variant`) or in one variant.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "f4a0d51125490c0e",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/variant.substitutes",
+    "title": "Parts that fit a footprint",
+    "summary": "The Parts of the project library that can be fitted on a part's footprint in a variant: the same land pattern and pad grouping.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "d0db1335626b7e65",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/view.context",
+    "title": "What the window shows",
+    "summary": "What the window shows: workspace, PCB view, sheet and the selection with ids.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "view",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/view.open",
+    "title": "Open a workspace or view",
+    "summary": "Show a workspace: the PCB in layout or 3d, a schematic sheet, or a component draft.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "view",
+      "class": "show",
+      "entry_kind": "show",
+      "schema_digest": "f138f09bd022744a",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/view.select",
+    "title": "Select in the window",
+    "summary": "Select and frame objects in the window by id; never the document, no undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "view",
+      "class": "show",
+      "entry_kind": "show",
+      "schema_digest": "74fda399933448fc",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.draw",
+    "title": "Draw a wire",
+    "summary": "Draw a wire along a given path: from `from` through `corners` to `to`, each a target or a free end `{\"free\": [x, y]}`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "383b2085a8f570bb",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.insert_corner",
+    "title": "Insert a wire corner",
+    "summary": "Add a corner at `at`, a point on the wire, without changing its shape.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "689a637a4f4453c6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.move_corner",
+    "title": "Move a wire corner",
+    "summary": "Move corner `index` (from 0, counted from the wire's `from` end) to `to`.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2888072ad53da157",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.move_end",
+    "title": "Move a wire end",
+    "summary": "Move or re-attach the wire's `from` or `to` end, rubber-banding its path.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "0eed11dc49b78cb9",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.move_segment",
+    "title": "Move a wire segment",
+    "summary": "Move one wire segment along its normal by `offset` mm.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "be84fbba9543b912",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.remove_corner",
+    "title": "Remove a wire corner",
+    "summary": "Remove corner `index`, merging its two segments; the result may slant.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ec14844ce708888f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.remove_segment",
+    "title": "Remove a wire segment",
+    "summary": "Remove segment `index`: the wire splits in two, with free ends at the gap.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ec14844ce708888f",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.set_path",
+    "title": "Set a wire's path",
+    "summary": "Replace a wire's geometry: its corners and, when given, either end (a target or a free end).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "705ecb1ce27bb5a3",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/wire.set_radius",
+    "title": "Round a wire corner",
+    "summary": "Round corner `index` by an arc of `radius` mm tangent to both of its segments; 0 makes it sharp.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "e42e553e7eecee31",
+      "examples": []
+    }
+  }
+]

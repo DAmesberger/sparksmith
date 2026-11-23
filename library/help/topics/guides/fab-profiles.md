@@ -1,16 +1,12 @@
 ---
 {
-  "id": "guide/fab-profiles",
-  "kind": "guide",
-  "title": "Choose a fabrication profile",
-  "summary": "Match the board to a fabrication process, then trace each design rule to its source.",
-  "since": "0.1.0",
   "covers": {
     "entry/rules.effective": "2c692f52f8c0092b",
     "entry/rules.fab_profiles": "331da7beea28b429",
-    "entry/rules.preview_fab_profile": "7f6df267290929e6",
+    "entry/rules.preview_fab_profile": "f1a7c7f6aebffc96",
     "term/fab-profile": "74fba9de1b184729b6de8167c3801028d50fe7643a3f0aec3dd371936efc11dc"
   },
+  "id": "guide/fab-profiles",
   "keywords": [
     "design rules",
     "manufacturer",
@@ -19,11 +15,15 @@
     "stackup",
     "profile options"
   ],
+  "kind": "guide",
   "related": [
     "guide/fab-output",
     "guide/routing",
     "panel/settings"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Match the board to a fabrication process, then trace each design rule to its source.",
+  "title": "Choose a fabrication profile"
 }
 ---
 
