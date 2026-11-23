@@ -901,3 +901,59 @@ fn a_twelve_layer_board_names_every_layer_and_spans_its_drills() -> Fallible<()>
     assert_eq!(job["GeneralSpecs"]["LayerNumber"], 12);
     Ok(())
 }
+
+#[test]
+fn the_stencil_preserves_each_asymmetric_window_corner() -> Fallible<()> {
+    use crate::library::{ApertureId, PasteRule, PasteWindow, ShapeNm};
+    use crate::tests::support::{nm, pt};
+    for low in [0.02, 0.12] {
+        let mut source = Engine::demo()?.to_file();
+        let pad = &mut source.project.library.footprints[0].definition.pads[0];
+        pad.paste = PasteRule::Windows(vec![PasteWindow {
+            id: ApertureId(1),
+            shape: ShapeNm::Polygon {
+                points: [[-0.25, -0.25], [0.25, -0.25], [0.25, 0.25], [-0.25, 0.25]]
+                    .map(pt)
+                    .to_vec(),
+                radii_nm: [low, 0.20, 0., 0.].map(nm).to_vec(),
+            },
+        }]);
+        let engine = Engine::from_file(source)?;
+        let project = engine.project();
+        let layers = fabrication::artwork::layers(
+            project,
+            &Default::default(),
+            &Default::default(),
+            "stencil",
+        )?;
+        let file = layers
+            .iter()
+            .find(|f| f.name.ends_with("-paste-top.gbr"))
+            .ok_or("missing top stencil")?;
+        let frame = crate::layout::placed_pads(project)[0].pad_transform();
+        let [x, y] = frame.translate;
+        let image = rendered(
+            &reader::parse(std::str::from_utf8(&file.bytes)?)?,
+            &Bitmap::new([x - 0.27, y - 0.27], [x + 0.27, y + 0.27], 0.001)?,
+        )?;
+        for (point, inside) in [
+            ([-0.23, -0.23], low == 0.02),
+            ([0.23, -0.23], false),
+            ([0.24, 0.24], true),
+            ([-0.24, 0.24], true),
+        ] {
+            assert_eq!(
+                image.at(frame.apply(point)),
+                inside,
+                "corner {point:?} at radius {low}"
+            );
+        }
+        let area = 0.25 - (1. - std::f64::consts::FRAC_PI_4) * (low * low + 0.20_f64.powi(2));
+        assert!(
+            (image.area_mm2() - area).abs() < 0.0005,
+            "expected {area}, read {}",
+            image.area_mm2()
+        );
+    }
+    Ok(())
+}

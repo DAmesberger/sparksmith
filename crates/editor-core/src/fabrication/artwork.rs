@@ -683,28 +683,31 @@ fn land(
         let (start, segs) = outline_path(outline, t);
         return w.region(function, start, &segs);
     }
-    match shape {
-        Shape::Circle { center, radius } => {
-            let d = w.aperture(Aperture::circle(2.0 * radius)?, function);
-            w.flash(d, t.apply(*center))
+    if let Shape::Circle { center, radius } = shape {
+        let d = w.aperture(Aperture::circle(2.0 * radius)?, function);
+        return w.flash(d, t.apply(*center));
+    }
+    if let Shape::Polygon { points, radii } = shape
+        && let Some(size) = box_size(points)
+    {
+        let mut corners = [0.0; 4];
+        for (corner, value) in corners.iter_mut().zip(radii) {
+            *corner = *value;
         }
-        Shape::Polygon { points, radii } if box_size(points).is_some() => {
-            let size = box_size(points).unwrap_or([0.0, 0.0]);
-            let mut r = [0.0; 4];
-            for (k, v) in radii.iter().take(4).enumerate() {
-                r[k] = *v;
-            }
-            let aperture = box_aperture(size, r, t.rotation_deg, t.mirror)?;
+        // The flash macro uses a single fillet radius. Other windows use
+        // the polygon's fitted tangent arcs, including after a side flip.
+        let radius = corners.iter().copied().fold(0.0, f64::max);
+        if radius <= size[0].min(size[1]) / 2.0 && corners.iter().all(|r| *r == 0.0 || *r == radius)
+        {
+            let aperture = box_aperture(size, corners, t.rotation_deg, t.mirror)?;
             let d = w.aperture(aperture, function);
-            w.flash(d, t.translate)
-        }
-        other => {
-            for (start, segs, _) in shape_paths(&other.transformed(t)) {
-                w.region(function, start, &segs)?;
-            }
-            Ok(())
+            return w.flash(d, t.translate);
         }
     }
+    for (start, segs, _) in shape_paths(&shape.transformed(t)) {
+        w.region(function, start, &segs)?;
+    }
+    Ok(())
 }
 
 /// The full size of a box centred on the origin with corners
