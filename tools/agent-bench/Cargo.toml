@@ -17,6 +17,8 @@ sparksmith-io.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+rmcp = { workspace = true, features = ["client","transport-io"] }
+tokio = { workspace = true, features = ["rt","time","io-util","process"] }
 
 [dev-dependencies]
 tempfile.workspace = true

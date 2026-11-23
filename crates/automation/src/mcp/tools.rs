@@ -386,6 +386,24 @@ pub fn dispatch(desk: &mut dyn Calls, name: &str, arguments: Value) -> Option<Va
     })
 }
 
+/// Select the default contract view for an agent or a traced MCP session.
+pub fn set_default_detail(verb: &str, args: &mut JsonObject, detail: crate::session::SchemaDetail) {
+    if detail == crate::session::SchemaDetail::Input {
+        return;
+    }
+    let fields = match verb {
+        DESCRIBE => Some(args),
+        QUERY if args.get("name").and_then(Value::as_str) == Some("project.schema") => args
+            .entry("params")
+            .or_insert_with(|| Value::Object(Default::default()))
+            .as_object_mut(),
+        _ => None,
+    };
+    if let Some(fields) = fields {
+        fields.entry("detail").or_insert_with(|| json!(detail));
+    }
+}
+
 fn find_tool(arguments: Value, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
     match parse::<FindArgs>(FIND, arguments) {
         Ok(args) => find(args, reaches),

@@ -147,24 +147,8 @@ impl SurfaceStrategy for SurfaceView {
     /// An explicit detail belongs to the caller. Omitted detail uses the
     /// server default unless this connection selected the full contract.
     fn apply(self, verb: &str, args: &mut serde_json::Value) {
-        if self.strategy != SchemaDetail::Full {
-            return;
-        }
-        let contract = match verb {
-            crate::verbs::DESCRIBE => args.as_object_mut(),
-            crate::verbs::QUERY if args["name"] == "project.schema" => {
-                args.as_object_mut().and_then(|args| {
-                    args.entry("params")
-                        .or_insert_with(|| Value::Object(Default::default()))
-                        .as_object_mut()
-                })
-            }
-            _ => None,
-        };
-        if let Some(fields) = contract {
-            fields
-                .entry("detail")
-                .or_insert_with(|| serde_json::json!(self.strategy));
+        if let Some(fields) = args.as_object_mut() {
+            sparksmith_automation::mcp::tools::set_default_detail(verb, fields, self.strategy);
         }
     }
 }

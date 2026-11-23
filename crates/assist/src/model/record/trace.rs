@@ -42,10 +42,13 @@ pub enum Row {
         metrics: Metrics,
         usage: Option<crate::usage::Usage>,
         success: bool,
+        artifact_verified: Option<bool>,
+        verification_reason: Option<String>,
+        turn_end: Option<String>,
         reason: Option<String>,
         wall_ms: f64,
-        revision: u64,
-        saved_sha256: String,
+        revision: Option<u64>,
+        saved_sha256: Option<String>,
     },
 }
 

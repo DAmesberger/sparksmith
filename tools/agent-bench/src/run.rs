@@ -58,6 +58,16 @@ pub struct Arm {
 }
 
 pub fn run(task: &Task, dir: &Path, arm: Arm, gate: bool) -> Result<Row> {
+    run_with_prompt(task, dir, arm, gate, None, None)
+}
+pub fn run_with_prompt(
+    task: &Task,
+    dir: &Path,
+    arm: Arm,
+    gate: bool,
+    system: Option<&str>,
+    goal: Option<&str>,
+) -> Result<Row> {
     let mut create = std::fs::DirBuilder::new();
     #[cfg(unix)]
     {
@@ -85,6 +95,10 @@ pub fn run(task: &Task, dir: &Path, arm: Arm, gate: bool) -> Result<Row> {
     let lib = ChatLibrary::locate()?;
     let mut cfg = ChatConfig::new(&lib, arm.profile, arm.budget)?;
     cfg.surface_view.strategy = arm.detail;
+    if let Some(system) = system {
+        cfg.system = system.to_owned();
+    }
+
     let mut grant = lib.reach.grant();
     grant.mode = task.spec.mode;
     grant.folders = vec![dir.clone()];
@@ -125,7 +139,7 @@ pub fn run(task: &Task, dir: &Path, arm: Arm, gate: bool) -> Result<Row> {
         &cfg,
         &mut model,
         &mut Vec::new(),
-        vec![Part::text(task.goal.trim_end())],
+        vec![Part::text(goal.unwrap_or(task.goal.trim_end()))],
         &mut calls,
         &mut |e| {
             if io_result.is_ok() {
@@ -140,8 +154,13 @@ pub fn run(task: &Task, dir: &Path, arm: Arm, gate: bool) -> Result<Row> {
         sparksmith_io::write_project(&path, &session.engine().to_file())?;
     }
     let metrics = std::mem::take(&mut *trace.metrics.borrow_mut());
+
+    let verification = task.expected.verify(task.start.as_deref(), &path);
+    let artifact_verified = verification.is_ok();
+    let verification_reason = verification.as_ref().err().map(ToString::to_string);
     let status = (|| -> Result<()> {
-        task.expected.verify(task.start.as_deref(), &path)?;
+        verification?;
+
         if outcome.end != End::Answered {
             return Err(format!("turn ended: {}", outcome.end).into());
         }
@@ -154,11 +173,14 @@ pub fn run(task: &Task, dir: &Path, arm: Arm, gate: bool) -> Result<Row> {
         Ok(())
     })();
     let row = Row::Finish {
+        artifact_verified: Some(artifact_verified),
+        verification_reason,
+        turn_end: Some(outcome.end.to_string()),
         success: status.is_ok(),
         reason: status.as_ref().err().map(ToString::to_string),
         wall_ms: started.elapsed().as_secs_f64() * 1000.0,
-        revision: session.engine().revision(),
-        saved_sha256: trace::digest(&std::fs::read(path)?),
+        revision: Some(session.engine().revision()),
+        saved_sha256: Some(trace::digest(&std::fs::read(path)?)),
         usage: arm.reports_usage.then_some(outcome.usage.reported),
         metrics,
     };

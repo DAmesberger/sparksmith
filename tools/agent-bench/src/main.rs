@@ -1,5 +1,9 @@
 //! Developer-only evaluation of the six verbs against original generic fixtures.
+mod batch;
+mod external;
+mod live;
 mod run;
+mod spend;
 mod trace;
 mod verify;
 
@@ -276,6 +280,30 @@ fn measure(dir: &Path) -> Result<()> {
 
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    match args.as_slice() {
+        [command, operator] if command == "plan" => return batch::plan(Path::new(operator)),
+        [command, operator, out, binary] if command == "batch" => {
+            return batch::execute(Path::new(operator), Path::new(out), Path::new(binary));
+        }
+        [command, operator, out] if command == "report" => {
+            return batch::print_report(Path::new(operator), Path::new(out));
+        }
+        [command, binary, out] if command == "external-probe" => {
+            return external::probe(Path::new(binary), Path::new(out));
+        }
+        [command, task, saved, wire, rest @ ..]
+            if command == "external-report" && rest.len() <= 1 =>
+        {
+            return external::external_report(
+                &Task::load(task)?,
+                Path::new(saved),
+                Path::new(wire),
+                rest.first().map(Path::new),
+            );
+        }
+        _ => (),
+    }
+
     if let [kind, dir] = args.as_slice()
         && kind == "measure"
     {

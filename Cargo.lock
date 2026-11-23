@@ -6954,6 +6954,7 @@ dependencies = [
 name = "sparksmith-agent-bench"
 version = "0.1.0"
 dependencies = [
+ "rmcp",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -6962,6 +6963,7 @@ dependencies = [
  "sparksmith-core",
  "sparksmith-io",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -7710,6 +7712,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

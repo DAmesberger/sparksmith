@@ -41,6 +41,7 @@ pub mod desk;
 pub mod fields;
 pub mod lenient;
 pub mod prompts;
+mod tap;
 pub mod tools;
 pub mod trace;
 pub mod wire;
@@ -134,6 +135,7 @@ fn instructions_for(
 /// The `2026-07-28` server, over headless projects or the open window.
 pub struct Server {
     desk: desk::Handle,
+    bench: Option<(tap::Tap, crate::session::SchemaDetail)>,
     instructions: String,
     /// The workflows its prompts are made from.
     workflows: Vec<Loaded>,
@@ -156,6 +158,7 @@ impl Server {
     ) -> Result<Self, String> {
         Ok(Self {
             instructions: instructions(false)?,
+            bench: None,
             desk: Desk::start(session, policy, new_session)?,
             workflows: load::available(&load::host()),
         })
@@ -166,9 +169,20 @@ impl Server {
     pub fn live(client: live::Client) -> Result<Self, String> {
         Ok(Self {
             instructions: instructions(true)?,
+            bench: None,
             desk: Desk::start_live(client)?,
             workflows: load::available(&load::host()),
         })
+    }
+
+    /// Capture this headless run's tool-call traffic into a new trace.
+    pub fn with_bench_trace(
+        mut self,
+        path: &std::path::Path,
+        detail: crate::session::SchemaDetail,
+    ) -> std::io::Result<Self> {
+        self.bench = Some((tap::Tap::new(std::fs::File::create_new(path)?), detail));
+        Ok(self)
     }
 
     /// This server with its prompts made from `workflows` instead of the
@@ -198,6 +212,18 @@ impl Server {
     /// Serves one client until `read` closes, or the client stops before
     /// sending anything but discovery.
     pub async fn serve<R, W>(self, read: R, write: W) -> Result<(), String>
+    where
+        R: AsyncRead + Send + Unpin + 'static,
+        W: AsyncWrite + Send + Unpin + 'static,
+    {
+        if let Some((tap, _)) = &self.bench {
+            let (read, write) = (tap.stream(read), tap.stream(write));
+            return self.serve_pipes(read, write).await;
+        }
+        self.serve_pipes(read, write).await
+    }
+
+    async fn serve_pipes<R, W>(self, read: R, write: W) -> Result<(), String>
     where
         R: AsyncRead + Send + Unpin + 'static,
         W: AsyncWrite + Send + Unpin + 'static,
@@ -298,7 +324,13 @@ impl ServerHandler for Server {
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        tools::call(&self.desk, &request.name, request.arguments)
+        let mut args = request.arguments;
+        if let Some((_, detail)) = &self.bench
+            && let Some(fields) = args.as_mut()
+        {
+            tools::set_default_detail(&request.name, fields, *detail);
+        }
+        tools::call(&self.desk, &request.name, args)
             .await
             .map(CallToolResponse::from)
     }
