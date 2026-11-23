@@ -1678,6 +1678,7 @@ fn bridge_source(body: &plan::PlanBody, pick_id: u64, component: u64) -> Result<
 /// are the exact build's, in its order. A part design not held is built
 /// on every core, stopping with [`Error::Cancelled`] at its next native
 /// command once `cancel` is set.
+#[cfg_attr(target_arch = "wasm32", deny(unused_variables))]
 fn build_meshed(
     project: &Project,
     kept: Kept,
@@ -1750,9 +1751,10 @@ fn build_meshed(
     let meshed = |meshes: &mut mesh::Memo| -> Result<Vec<Geometry>> {
         #[cfg(not(target_arch = "wasm32"))]
         let started = std::time::Instant::now();
-        let (bodies, stats) = mesh::bodies(&plan, &sources, meshes)?;
+        let result = mesh::bodies(&plan, &sources, meshes)?;
         #[cfg(not(target_arch = "wasm32"))]
         if std::env::var_os("SPARKSMITH_TIMINGS").is_some() {
+            let stats = &result.1;
             eprintln!(
                 "sparksmith: {} flat bodies meshed in {:.1} ms ({} meshes made, {} reused)",
                 stats.bodies,
@@ -1761,6 +1763,7 @@ fn build_meshed(
                 stats.reused
             );
         }
+        let (bodies, _) = result;
         Ok(bodies.into_iter().map(|m| m.geometry).collect())
     };
     #[cfg(not(target_arch = "wasm32"))]
