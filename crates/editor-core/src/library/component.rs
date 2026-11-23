@@ -394,10 +394,17 @@ impl ComponentDefinition {
                 .iter()
                 .map(|m| m.terminal)
                 .collect();
+            let anchored_ends: BTreeSet<_> =
+                if super::tie::anchored(self, &binding.definition, library) {
+                    self.ties
+                        .iter()
+                        .flat_map(|tie| tie.ends.iter().copied())
+                        .collect()
+                } else {
+                    BTreeSet::new()
+                };
             for terminal in &self.terminals {
-                if !mapped.contains(&terminal.id)
-                    && !super::tie::anchored(self, &binding.definition, library)
-                {
+                if !mapped.contains(&terminal.id) && !anchored_ends.contains(&terminal.id) {
                     out.push(issue(
                         "component.mapping_missing",
                         format!(

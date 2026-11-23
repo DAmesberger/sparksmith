@@ -503,10 +503,16 @@ pub fn paste(
     let mut pasted = Pasted::default();
     let mut new_instances = BTreeMap::new();
     let mut new_labels = BTreeMap::new();
+    let mut copied_anchors = Vec::new();
     for mut symbol in clip.symbols {
         let source = symbol.instance.id;
         if let Some(map) = &mut map {
             remap(&mut symbol.instance, map)?;
+        }
+        for (&group, usage) in &mut symbol.instance.ties {
+            for (end, anchor) in std::mem::take(&mut usage.anchors) {
+                copied_anchors.push((source, group, end, anchor));
+            }
         }
         let pads = std::mem::take(&mut symbol.pads);
         let (id, occurrence) = paste_symbol(project, sheet, symbol, offset)?;
@@ -519,7 +525,9 @@ pub fn paste(
                 placed.designator
             )));
         }
-        new_instances.insert(source, id);
+        if new_instances.insert(source, id).is_some() {
+            return Err(invalid("A symbol appears twice in the pasted clip."));
+        }
         pasted.symbols.push(PastedSymbol {
             instance: id,
             occurrence,
@@ -528,6 +536,47 @@ pub fn paste(
                 .map(|i| i.designator.clone())
                 .unwrap_or_default(),
         });
+    }
+    // An anchor belongs to a use, and a source Id can mean a completely
+    // different part in another project. Restore only references within
+    // this paste, after every copied instance has its new identity.
+    let mut anchored = BTreeSet::new();
+    for (source, group, end, anchor) in copied_anchors {
+        let (Some(&owner), Some(&target)) = (
+            new_instances.get(&source),
+            new_instances.get(&anchor.instance),
+        ) else {
+            continue;
+        };
+        let physical = project
+            .instance(target)
+            .and_then(|i| instances::resolve(&project.library, i).ok()?.physical);
+        if !physical.is_some_and(|view| {
+            view.footprint
+                .definition
+                .pad(anchor.pad)
+                .and_then(|p| p.terminal)
+                .and_then(|t| view.binding.definition.terminal_of(t))
+                .is_some()
+        }) {
+            continue;
+        }
+        if let Some(usage) = instances::instance_mut(project, owner)?
+            .ties
+            .get_mut(&group)
+        {
+            usage.anchors.insert(
+                end,
+                crate::library::tie::Anchor {
+                    instance: target,
+                    ..anchor
+                },
+            );
+            anchored.insert(owner);
+        }
+    }
+    for owner in anchored {
+        instances::check_instance(project, owner)?;
     }
     for label in clip.labels {
         let id = labels::place(

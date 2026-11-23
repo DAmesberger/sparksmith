@@ -83,7 +83,8 @@ pub(super) fn anchored(
     binding: &BindingDefinition,
     lib: &Library,
 ) -> bool {
-    component.ties.iter().any(|t| t.form == TieForm::Copper)
+    !component.ties.is_empty()
+        && component.ties.iter().all(|t| t.form == TieForm::Copper)
         && lib.package(binding.package).is_some_and(|p| {
             p.definition.terminals.is_empty() && matches!(p.definition.model, PackageModel::NoBody)
         })
