@@ -93,6 +93,9 @@ fn default_drill(pad: &Pad) -> f64 {
 /// A terminal is never inferred from the pad number.
 pub fn set_kind(pad: &mut Pad, kind: PadKind, fallback: Option<PackageTerminalId>) {
     pad.kind = kind;
+    if kind != PadKind::Fiducial {
+        pad.fiducial_role = None;
+    }
     match kind {
         PadKind::Smd => {
             pad.hole = None;
@@ -198,6 +201,7 @@ pub fn new_pad(
         hole: None,
         mask: MaskRule::Inherit,
         paste: PasteRule::Inherit,
+        fiducial_role: None,
         vias: Vec::new(),
     };
     let round = |diameter_nm: Nm, plated: bool| Hole {

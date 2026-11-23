@@ -40,6 +40,57 @@ fn assert_pair(design: &Path, revision: u32) -> TestResult {
 }
 
 #[test]
+fn an_assembly_replaced_after_payload_staging_refuses_the_commit() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = initial(dir.path())?;
+    let baseline = Publication::open(&design)?.baseline()?;
+    let assembly = dir.path().join("assembly.solidcraft");
+    let temporary = dir.path().join("new.solidcraft");
+    std::fs::write(&temporary, b"2")?;
+    std::fs::write(&assembly, b"reviewed")?;
+    let linked = (assembly.clone(), file_hash(b"reviewed"));
+    let result = put_reviewed_with(
+        &design,
+        &temporary,
+        &sidecar(2)?,
+        &baseline,
+        Some(&linked),
+        &mut |at| {
+            if at == Boundary::Staged {
+                atomic_write(&assembly, b"saved with wall")?;
+            }
+            Ok(())
+        },
+    );
+    assert!(
+        matches!(result, Err(Error::Document(sparksmith_core::Error::Conflict(m))) if m.contains("interface.preview_changed"))
+    );
+    assert_pair(&design, 1)?;
+    assert!(!sibling(&design, "publish-journal").exists());
+    let writer = OpenOptions::new().read(true).write(true).open(&assembly)?;
+    let latest = (assembly, file_hash(b"saved with wall"));
+    put_reviewed_with(
+        &design,
+        &temporary,
+        &sidecar(2)?,
+        &baseline,
+        Some(&latest),
+        &mut |at| {
+            if at == Boundary::Committed {
+                assert!(matches!(
+                    writer.try_lock(),
+                    Err(std::fs::TryLockError::WouldBlock)
+                ));
+            }
+            Ok(())
+        },
+    )?;
+    writer.try_lock()?;
+    assert_pair(&design, 2)?;
+    Ok(())
+}
+
+#[test]
 fn failure_before_commit_preserves_pair_and_after_commit_recovers() -> TestResult {
     for stop in [
         Boundary::Staged,

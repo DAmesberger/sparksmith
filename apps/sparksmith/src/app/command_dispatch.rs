@@ -396,6 +396,7 @@ impl App {
         // The focus as the 3D view sets it each frame, for the hint below.
         self.scene.highlight(
             &self.pcb.selected(),
+            self.pcb.selected_hole(),
             self.pcb.highlighted_net(),
             &self.pcb.lit(),
             &self.pcb.tie_focus(),
@@ -420,7 +421,12 @@ impl App {
             V::Right => S::Right,
             V::Iso => S::Iso,
             V::Selection => {
-                let items = self.scene.selected_items(&self.pcb.selected());
+                let mut items = self.scene.selected_items(&self.pcb.selected());
+                items.extend(
+                    self.pcb
+                        .selected_hole()
+                        .and_then(|id| self.scene.hole_pick(id)),
+                );
                 if !self.scene.viewport.fit_items(&items) {
                     self.say(Level::Info, "Select something to frame");
                 }

@@ -136,7 +136,17 @@ fn a_stored_bundle_is_reused_offline_and_a_changed_cache_file_is_refused() -> Re
     mirror.store_bundle(&bundle, &shard.catalog)?;
     // A second mirror over the same directory (a later, offline session).
     let offline = Mirror::open(dir.path(), "http://localhost:8787/")?;
-    assert_eq!(offline.shards().len(), 1);
+    let mut index = offline
+        .index()
+        .ok_or_else(|| Error::Invalid("missing index".into()))?
+        .index;
+    assert_eq!(offline.shards(&index, MAX_CATALOG_BYTES)?.len(), 1);
+    index.shards.push(index.shards[0].clone());
+    let total = 2 * bytes.len() as u64;
+    assert_eq!(offline.shards(&index, total)?.len(), 2);
+    assert!(
+        matches!(offline.shards(&index, total - 1), Err(Error::TooLarge(m)) if m.contains("registry catalog budget"))
+    );
     let again = offline
         .bundle(bundle.root, &shard.catalog)?
         .ok_or_else(|| Error::Invalid("not mirrored".into()))?;
@@ -152,5 +162,45 @@ fn a_stored_bundle_is_reused_offline_and_a_changed_cache_file_is_refused() -> Re
     changed.meta.name.push('!');
     std::fs::write(&path, serde_json::to_vec(&changed)?)?;
     assert!(offline.bundle(bundle.root, &shard.catalog).is_err());
+    Ok(())
+}
+
+#[test]
+fn offline_indexes_belong_to_the_exact_registry_origin() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let open = |url: &str| Mirror::open(dir.path(), url);
+    let https = open("https://Parts.Example/")?;
+    let index = RegistryIndex {
+        format: FORMAT,
+        snapshot: "private snapshot".into(),
+        shards: vec![],
+    };
+    https.store_index(&index, 1)?;
+    assert_eq!(
+        open("https://parts.example:443")?.index().map(|m| m.index),
+        Some(index)
+    );
+    for url in [
+        "http://parts.example",
+        "http://parts.example:443",
+        "https://parts.example:8443",
+    ] {
+        let other = open(url)?;
+        assert_ne!(other.root(), https.root());
+        assert!(other.index().is_none());
+        std::fs::create_dir_all(other.root())?;
+        std::fs::copy(
+            https.root().join("index.json"),
+            other.root().join("index.json"),
+        )?;
+        assert!(
+            other.index().is_none(),
+            "misfiled index from another origin"
+        );
+    }
+    assert_eq!(
+        open("http://[::1]")?.root(),
+        open("http://[0:0:0:0:0:0:0:1]:80")?.root()
+    );
     Ok(())
 }

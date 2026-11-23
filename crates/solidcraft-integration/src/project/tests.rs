@@ -511,11 +511,25 @@ fn placed_body_follows_the_package_body_not_the_designator() -> Result<()> {
     Ok(())
 }
 
+fn native_scale_context() -> Result<sparksmith_core::library::standards::Scope> {
+    Ok(crate::looks::test_context()?.enter())
+}
+
+#[test]
+fn native_scale_fixture_has_shipped_materials_and_a_four_layer_stack() -> Result<()> {
+    let _scope = native_scale_context()?;
+    crate::looks::get()?;
+    let board = via_board(1)?;
+    assert_eq!(board.stackup.layers().len(), 4);
+    Ok(())
+}
+
 /// Build timings for docs/editor-evidence.md:
 /// `cargo test --profile ci -p sparksmith-solidcraft build_timings -- --ignored --nocapture`.
 #[test]
 #[ignore = "benchmark"]
 fn build_timings() -> Result<()> {
+    let _scope = native_scale_context()?;
     let demo = Engine::demo()
         .map_err(|error| Error::Verification(error.to_string()))?
         .project()
@@ -676,6 +690,7 @@ fn with_tracks(count: usize, total: usize) -> Result<Project> {
 #[test]
 #[ignore = "benchmark"]
 fn via_build_profile() -> Result<()> {
+    let _scope = native_scale_context()?;
     let count = std::env::var("SPARKSMITH_VIAS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -698,6 +713,42 @@ fn via_build_profile() -> Result<()> {
             native(&model).count(),
             start.elapsed().as_secs_f64() * 1e3
         );
+    }
+    Ok(())
+}
+
+/// Isolate the exact substrate stage sampled by the native export review.
+/// Run the small case first so its measurements survive a large-case timeout.
+#[test]
+#[ignore = "benchmark"]
+fn four_layer_exact_slab_profile() -> Result<()> {
+    let _scope = native_scale_context()?;
+    for (added, total_vias, tracks) in [(100, 121, 108), (10_000, 10_021, 258)] {
+        let project = via_board(added)?;
+        assert_eq!(project.vias.len(), total_vias);
+        assert_eq!(project.tracks.len(), tracks);
+        let board = plan::of(&project)?;
+        assert_eq!(board.laminate.len(), 5);
+
+        let mut builder = Builder::new("Laminate timing", &SourceCache::default())?;
+        builder.native.defer_evaluation()?;
+        stackup_params(&mut builder, &project)?;
+        builder.native.component("PCB substrate", true)?;
+        for slab in &board.laminate {
+            eprintln!(
+                "{total_vias} vias, {tracks} tracks: starting {}, {} contours",
+                slab.name,
+                slab.loops.len()
+            );
+            let start = std::time::Instant::now();
+            laminate(&mut builder, &project, std::slice::from_ref(slab))?;
+            eprintln!("{} built in {:?}", slab.name, start.elapsed());
+            assert_eq!(builder.bodies.get(&slab.name), Some(&BodyKind::Substrate));
+        }
+        eprintln!("Evaluating {total_vias}-via laminate");
+        let start = std::time::Instant::now();
+        builder.native.evaluate_deferred()?;
+        eprintln!("Laminate evaluated in {:?}", start.elapsed());
     }
     Ok(())
 }
@@ -1923,6 +1974,7 @@ fn a_cancelled_build_stops_and_an_uncancelled_one_completes() -> Result<()> {
 #[test]
 #[ignore = "builds a 10,000-via board"]
 fn ten_thousand_vias_and_many_tracks_survive_reopening() -> Result<()> {
+    let _scope = native_scale_context()?;
     let mut project = via_board(10_000)?;
     let net = project.nets[0].id;
     let columns = 64;
@@ -2414,6 +2466,101 @@ fn with_washer(mut project: Project) -> Project {
         idle: Vec::new(),
     }));
     project
+}
+
+/// The two rings and the barrel all select their mounting hole. Loading the
+/// source table from disk must recover the same picks without the PCB project.
+#[test]
+fn mounting_hole_picks_survive_native_reopening() -> Result<()> {
+    use sparksmith_core::model::board::{BoardFeatureId, BoardShape};
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let mut project = with_washer(fixture()?);
+    let BoardShape::Sketch(sketch) = &mut project.board_shape else {
+        return Err(Error::Verification("expected a board sketch".into()));
+    };
+    let first = sketch.solved.holes[0];
+    let mut second = first;
+    second.id = BoardFeatureId(17);
+    second.at = [6.0, 6.0];
+    sketch.solved.holes.push(second);
+    sketch.next_feature = 18;
+    let plan = plan::of(&project)?;
+    let expected = [None, Some(CopperLayer::Top), Some(CopperLayer::Bottom)];
+    let sources = mesh::plan_sources(&plan);
+    let (meshed, _) = mesh::bodies(&plan, &sources, &mut mesh::Memo::default())?;
+    for hole in [first, second] {
+        let mut from_plan = Vec::new();
+        for body in &meshed {
+            if let plan::Origin::Washer { hole: id, layer } = body.source
+                && id == hole.id
+            {
+                let source = sources
+                    .iter()
+                    .find(|s| Some(s.pick_id) == body.geometry.item);
+                assert_eq!(
+                    source.and_then(|s| s.hole.as_ref()).map(|h| h.id),
+                    Some(hole.id)
+                );
+                from_plan.push(layer);
+            }
+        }
+        assert_eq!(from_plan, expected);
+    }
+    let check = |model: &NativeModel| -> Result<Vec<u64>> {
+        assert!(
+            model
+                .geometry
+                .iter()
+                .filter(|g| g.kind == BodyKind::Substrate)
+                .all(|g| g.item.is_none())
+        );
+        let mut picks = Vec::new();
+        for hole in [first, second] {
+            let sources: Vec<_> = model
+                .sources
+                .iter()
+                .filter(|s| s.hole.as_ref().is_some_and(|h| h.id == hole.id))
+                .collect();
+            let [source] = sources.as_slice() else {
+                return Err(Error::Verification(format!(
+                    "expected one source for hole {:?}",
+                    hole.id
+                )));
+            };
+            let mut layers = Vec::new();
+            let [x, y] = hole.at;
+            for g in model
+                .geometry
+                .iter()
+                .filter(|g| g.item == Some(source.pick_id))
+            {
+                assert_eq!(g.kind, BodyKind::PadCopper);
+                // The circle mesh starts at its eastern edge and is symmetric
+                // about Y = y. An odd chord count can miss its western extreme.
+                let outer_radius = if g.layer.is_some() { 3.0 } else { 1.525 };
+                near(g.max[0] - outer_radius, x);
+                near((g.min[1] + g.max[1]) / 2.0, y);
+                layers.push(g.layer);
+            }
+            layers.sort();
+            assert_eq!(layers, expected);
+            picks.push(source.pick_id);
+        }
+        assert_ne!(picks[0], picks[1]);
+        Ok(picks)
+    };
+    let live = build_flat(&project, &SourceCache::default(), None, Flat::Meshed)?;
+    let picks = check(&live)?;
+    let exact = build(&project)?;
+    assert_eq!(check(&exact)?, picks);
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("plated-hole.solidcraft");
+    let path = path.to_string_lossy();
+    exact.save(crate::native::files::test_file(&path))?;
+    let reopened = Native::open(&path)?;
+    let restored = saved_sources(&reopened)?;
+    assert_eq!(check(&finish(reopened, restored)?)?, picks);
+    Ok(())
 }
 
 /// A plated mounting hole's washer is copper of the board's physical

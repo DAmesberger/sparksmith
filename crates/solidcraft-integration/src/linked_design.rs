@@ -50,8 +50,17 @@ pub struct LinkUpdate {
 /// A feature that does not evaluate, by its name in the linked design.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FeatureNote {
+    pub feature_id: u64,
     pub feature: String,
     pub error: String,
+}
+
+fn new_feature_errors(before: Vec<FeatureNote>, after: Vec<FeatureNote>) -> Vec<FeatureNote> {
+    let mut seen: BTreeSet<_> = before.into_iter().map(|note| note.feature_id).collect();
+    after
+        .into_iter()
+        .filter(|note| seen.insert(note.feature_id))
+        .collect()
 }
 
 /// Whether a projected sketch adds a body or cuts the bodies it meets.
@@ -214,7 +223,11 @@ impl LinkedDesign {
                     .iter()
                     .find(|f| f.id == r.id)
                     .map_or_else(|| r.name.clone(), |f| f.name.clone());
-                Some(FeatureNote { feature, error })
+                Some(FeatureNote {
+                    feature_id: r.id,
+                    feature,
+                    error,
+                })
             })
             .collect()
     }
@@ -843,11 +856,7 @@ impl LinkedDesign {
     ) -> Result<Vec<AssemblyEffect>> {
         let uses = self.uses(link, published);
         let unexported = self.unexported(link, published);
-        let before_errors: BTreeSet<String> = self
-            .feature_errors()
-            .into_iter()
-            .map(|e| e.feature)
-            .collect();
+        let before_errors = self.feature_errors();
         let mut before = BTreeMap::new();
         self.visit_own_faces(link, |body, faces| {
             let geometry: BTreeMap<_, _> = faces
@@ -868,20 +877,38 @@ impl LinkedDesign {
                 // that uses them fails.
                 let text = error.to_string();
                 for u in &uses {
-                    effects.push(failure(u, &text, published, candidate));
+                    effects.push(failure(
+                        u,
+                        &u.feature,
+                        (u.via != UseKind::Joint).then_some(u.feature_id),
+                        &text,
+                        published,
+                        candidate,
+                    ));
                 }
                 return Ok(effects);
             }
         };
         let mut reported = BTreeSet::new();
-        for note in self.feature_errors() {
-            if before_errors.contains(&note.feature) || !reported.insert(note.feature.clone()) {
-                continue;
-            }
-            effects.push(match uses.iter().find(|u| u.feature == note.feature) {
-                Some(u) => failure(u, &note.error, published, candidate),
+        for note in new_feature_errors(before_errors, self.feature_errors()) {
+            reported.insert(note.feature_id);
+            let sketch = self.source_sketch(note.feature_id);
+            let used = uses.iter().find(|u| {
+                u.via != UseKind::Joint
+                    && (u.feature_id == note.feature_id || u.feature_id == sketch)
+            });
+            let effect = match used {
+                Some(u) => failure(
+                    u,
+                    &note.feature,
+                    Some(note.feature_id),
+                    &note.error,
+                    published,
+                    candidate,
+                ),
                 None => AssemblyEffect {
                     feature: note.feature.clone(),
+                    feature_id: Some(note.feature_id),
                     effect: EffectKind::Fails,
                     datum: None,
                     message: format!(
@@ -889,11 +916,13 @@ impl LinkedDesign {
                         note.feature, note.error
                     ),
                 },
-            });
+            };
+            effects.push(effect);
         }
         for joint in strings(&reply["joint_errors"]) {
             effects.push(AssemblyEffect {
                 feature: joint.clone(),
+                feature_id: None,
                 effect: EffectKind::JointUnsolved,
                 datum: None,
                 message: format!("Joint ‘{joint}’ would no longer solve"),
@@ -915,6 +944,7 @@ impl LinkedDesign {
             };
             effects.push(AssemblyEffect {
                 feature: u.feature.clone(),
+                feature_id: None,
                 effect: EffectKind::UnexportedReference,
                 datum: None,
                 message: sparksmith_core::interface::findings::assembly_unexported_face(
@@ -966,13 +996,13 @@ impl LinkedDesign {
             let name = self
                 .feature_name(feature)
                 .unwrap_or_else(|| format!("F{feature}"));
-            if reported.contains(&name) {
+            if reported.contains(&feature) {
                 continue;
             }
             let sketch = self.source_sketch(feature);
-            let used = uses
-                .iter()
-                .find(|u| u.feature_id == sketch || u.feature_id == feature);
+            let used = uses.iter().find(|u| {
+                u.via != UseKind::Joint && (u.feature_id == sketch || u.feature_id == feature)
+            });
             let named = used.and_then(|u| published.datums.iter().find(|d| d.token == u.token));
             let message = match (used, named) {
                 (_, Some(datum)) => format!(
@@ -989,6 +1019,7 @@ impl LinkedDesign {
             };
             effects.push(AssemblyEffect {
                 feature: name,
+                feature_id: Some(feature),
                 effect: EffectKind::Moves,
                 datum: named.map(|d| d.id),
                 message,
@@ -1011,25 +1042,50 @@ fn link_body(source: &LinkSource) -> Option<&str> {
 
 /// A feature that would fail, in the user's words: the datum it uses and
 /// why.
-fn failure(u: &Use, error: &str, published: &Sidecar, candidate: &Sidecar) -> AssemblyEffect {
+fn failure(
+    u: &Use,
+    feature: &str,
+    feature_id: Option<u64>,
+    error: &str,
+    published: &Sidecar,
+    candidate: &Sidecar,
+) -> AssemblyEffect {
     let named = published.datums.iter().find(|d| d.token == u.token);
     let name = named.map_or_else(|| u.token.clone(), |d| d.name.clone());
     let gone = !candidate.datums.iter().any(|d| d.token == u.token);
     let message = if gone {
         format!(
             "The linked design's ‘{}’ uses {name}, which this publish removes, so it would fail",
-            u.feature
+            feature
         )
     } else {
         format!(
             "The linked design's ‘{}’ uses {name} and would fail: {error}",
-            u.feature
+            feature
         )
     };
     AssemblyEffect {
-        feature: u.feature.clone(),
+        feature: feature.to_owned(),
+        feature_id,
         effect: EffectKind::Fails,
         datum: named.map(|d| d.id),
         message,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn same_named_features_enter_failure_by_native_id() {
+        let note = |id| FeatureNote {
+            feature_id: id,
+            feature: "Opening".into(),
+            error: "projection failed".into(),
+        };
+        let previous = vec![note(17)];
+        let failures = new_feature_errors(previous, vec![note(17), note(23), note(23), note(31)]);
+        assert_eq!(failures, [note(23), note(31)]);
     }
 }

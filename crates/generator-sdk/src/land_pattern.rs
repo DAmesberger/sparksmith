@@ -160,7 +160,7 @@ pub fn apply(
                 "Land \"{}\" lands terminal \"{}\", which this package does not have.",
                 pad.key, pad.terminal
             )));
-        } else if pad.kind == Some(PadKind::Fiducial) {
+        } else if pad.kind.is_some_and(PadKind::is_fiducial) {
             return Err(problem(format!(
                 "Land \"{}\" is a fiducial, which lands no terminal.",
                 pad.key

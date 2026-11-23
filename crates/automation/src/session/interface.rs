@@ -28,6 +28,7 @@ type Linked = (PathBuf, ContentHash);
 /// linked design file's identity and bytes. Anything else about the
 /// request may differ; any of these differing refuses the publish.
 fn publish_token(
+    project: &sparksmith_core::model::Project,
     revision: u64,
     tier: Tier,
     candidate: ContentHash,
@@ -36,7 +37,22 @@ fn publish_token(
     linked: Option<&Linked>,
 ) -> Result<String> {
     use sha2::{Digest, Sha256};
+    // Packed assets already carry their content hashes. Bind them by those
+    // hashes without encoding their potentially large bodies as base64.
+    let mut document = project.clone();
+    for asset in &mut document.library.assets {
+        asset.data = Default::default();
+    }
+    let mut contents = Sha256::new();
+    serde_json::to_writer(&mut contents, &document)?;
+    if tier == Tier::Full {
+        // Computed copper is exported but omitted from the persisted project.
+        for fill in project.fills.iter() {
+            serde_json::to_writer(&mut contents, &fill.computed)?;
+        }
+    }
     let bound = json!({
+        "project": ContentHash(contents.finalize().into()),
         "revision": revision,
         "tier": tier,
         "candidate": candidate,
@@ -142,21 +158,25 @@ impl Session {
             preview.dry_run = dry_run;
             dry_run_read = Some(read);
         }
+        let Some(destination) = params.path.as_deref() else {
+            return Ok(serde_json::to_value(preview)?);
+        };
+        if (project.assembly_link.is_some() || params.assembly_path.is_some())
+            && preview.dry_run.is_none()
+        {
+            return Ok(serde_json::to_value(preview)?);
+        }
         // The token binds the linked design's bytes the dry run read.
         let linked = match params.assembly_path.as_deref() {
             Some(path) => Some(self.linked_file(path, dry_run_read)?),
             None => None,
         };
-        let destination = params
-            .path
-            .as_deref()
-            .map(Path::new)
-            .unwrap_or(Path::new(""));
         preview.token = Some(publish_token(
+            &project,
             self.engine.revision(),
             preview.tier,
             preview.hash,
-            destination,
+            Path::new(destination),
             baseline
                 .as_ref()
                 .map_or((None, None), files::Baseline::identity),
@@ -191,7 +211,7 @@ impl Session {
         &self,
         params: &PublishParams,
         baseline: &files::Baseline,
-    ) -> Result<()> {
+    ) -> Result<Option<Linked>> {
         let linked_project = self.engine.project().assembly_link.is_some();
         let refuse = |message: &str| -> crate::Error {
             sparksmith_core::diagnostics::Error::Conflict(message.to_owned()).into()
@@ -209,7 +229,7 @@ impl Session {
                      linked design",
                 ));
             }
-            return Ok(());
+            return Ok(None);
         };
         let linked = match params.assembly_path.as_deref() {
             Some(path) => Some(self.linked_file(path, None)?),
@@ -221,6 +241,7 @@ impl Session {
         let source = project.interface.source_id.unwrap_or_default();
         let candidate = publish::candidate(project, params.tier, source)?;
         let now = publish_token(
+            project,
             self.engine.revision(),
             params.tier,
             candidate.hash,
@@ -234,7 +255,18 @@ impl Session {
                  the linked design differ from the preview; preview again",
             ));
         }
-        Ok(())
+        if let Some(path) = params.assembly_path.as_deref() {
+            let link = project.assembly_link.as_deref().ok_or_else(|| {
+                refuse("interface.token: the reviewed assembly is no longer linked")
+            })?;
+            self.same_files(link, Some(path), &params.path)?;
+            if baseline.sidecar.is_none() || project.interface.source_id.is_none() {
+                return Err(refuse(
+                    "interface.token: preview the linked design against its published board",
+                ));
+            }
+        }
+        Ok(linked)
     }
 
     /// Write the interface design and its sidecar at `path`, then record
@@ -267,7 +299,7 @@ impl Session {
             return Err(sparksmith_core::interface::findings::publish_blocked(&blockers).into());
         }
         let baseline = files::Publication::open(design)?.baseline()?;
-        self.check_publish_token(params, &baseline)?;
+        let reviewed = self.check_publish_token(params, &baseline)?;
         let previous = baseline.sidecar.as_ref();
         let recorded = project.interface.source_id;
         let source_id = match (recorded, previous) {
@@ -364,8 +396,13 @@ impl Session {
         // What the preview approved is checked again at installation: the
         // linked design or the destination may have changed while the
         // native design was built.
-        self.check_publish_token(params, &files::Publication::open(design)?.baseline()?)?;
-        files::put_in_place(design, temporary.path(), &text, &baseline)?;
+        files::put_reviewed_in_place(
+            design,
+            temporary.path(),
+            &text,
+            &baseline,
+            reviewed.as_ref(),
+        )?;
         Ok((
             Operation::Interface(InterfaceCommand::RecordPublish { source_id, record }),
             published,

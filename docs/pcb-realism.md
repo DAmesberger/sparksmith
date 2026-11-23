@@ -402,6 +402,22 @@ from the GUI. The core warning that restated them is no longer shown twice.
 
 ## Build cost (measured)
 
+At revision `8dea4ac3`, the four-layer showcase with 100 added vias (121 total,
+108 tracks) built 881 native bodies in 39.585 s. With 10,000 added vias (10,021
+total, 258 tracks), the exact build was still running when the probe stopped at
+120 s. Both observations used the optimized CI profile on an Apple M5 Max.
+All 400 main-thread stack samples in a two-second window of the large run were
+inside substrate slab extrusion. Total build time and the share spent in extrusion
+remain unknown.
+
+To reproduce the full builds, run `via_build_profile` with `SPARKSMITH_VIAS=100`
+and then `10000`. To time the five substrate slabs individually for the same two
+boards, run `cargo test --locked --profile ci -p sparksmith-solidcraft --lib
+four_layer_exact_slab_profile -- --ignored --nocapture`. This probe uses the
+board plan and native slab builder and reports deferred evaluation separately.
+
+### Historical via-scaling measurements
+
 `build_timings` (`cargo test --profile ci -p sparksmith-solidcraft build_timings -- --ignored
 --nocapture`, one 18-core machine shared with other builds, release-like `ci` profile). The
 via boards are `via_board` in `project/tests.rs`: the showcase on 4 layers with that many
@@ -454,8 +470,8 @@ in a design of thousands of features and occurrences, which the fork no longer p
 - each evaluated feature compared every body with every body of the state before it;
 - placing the components looked up every body, sketch and occurrence for each placement.
 
-The 10,000-via benchmark board (about 260 tracks) now builds in 2.8 s, under the 3 s
-target. At the layout's 2,000 tracks it takes 8.5 s, about 3 ms a track: the extrusions
+In those runs the 10,000-via benchmark board (about 260 tracks) built in 2.8 s, under
+the 3 s target. At the layout's 2,000 tracks it took 8.5 s, about 3 ms a track: the extrusions
 themselves (Solidcraft's B-rep extrude, one by one, about 1.2 ms each), each track's
 component and joint, and features added to a timeline of thousands. The target is not met
 there; see Open.

@@ -135,6 +135,13 @@ impl ShippedLibrary {
     /// manifest. A missing bundle names the folder it was looked for in; a
     /// missing or changed file of the bundle is named.
     pub fn generator(&self, name: &str) -> Result<GeneratorBundle> {
+        self.generator_with_budget(
+            name,
+            sparksmith_core::library::bundle::MAX_PACKED_BYTES as u64,
+        )
+    }
+
+    fn generator_with_budget(&self, name: &str, mut remaining: u64) -> Result<GeneratorBundle> {
         if !valid_name(name) {
             return Err(Error::Invalid(format!(
                 "{name:?} is not a generator name: lower-case letters, digits, - and _."
@@ -180,7 +187,7 @@ impl ShippedLibrary {
         }
         let module_limit = u64::try_from(sparksmith_core::library::generated::MAX_MODULE_BYTES)
             .unwrap_or(u64::MAX);
-        let module = self.checked(name, &manifest.module, module_limit)?;
+        let module = self.checked(name, &manifest.module, module_limit, &mut remaining)?;
         let mut parts = Vec::with_capacity(manifest.parts.len());
         for entry in &manifest.parts {
             let file = ManifestFile {
@@ -188,7 +195,7 @@ impl ShippedLibrary {
                 sha256: entry.sha256,
             };
             parts.push(BundledPart {
-                bytes: self.checked(name, &file, PART_BYTES)?,
+                bytes: self.checked(name, &file, PART_BYTES, &mut remaining)?,
                 entry: entry.clone(),
             });
         }
@@ -202,11 +209,19 @@ impl ShippedLibrary {
 
     /// The bytes of `file` in bundle `name`, refused when missing or not
     /// what the manifest records.
-    fn checked(&self, name: &str, file: &ManifestFile, limit: u64) -> Result<Vec<u8>> {
+    fn checked(
+        &self,
+        name: &str,
+        file: &ManifestFile,
+        limit: u64,
+        remaining: &mut u64,
+    ) -> Result<Vec<u8>> {
         let path = format!("{name}/{}", file.file);
         let bytes = self
-            .read(Shelf::Generators, &path, limit)
+            .read(Shelf::Generators, &path, limit.min(*remaining))
             .map_err(|e| match e {
+                Error::TooLarge(_) if *remaining < limit =>
+                    Error::TooLarge(format!("The generator payload budget was exceeded reading {path}.")),
                 Error::Io(_) => Error::Invalid(format!(
                     "The generator {name} lacks {}, which its manifest names. Reinstall Sparksmith.",
                     file.file
@@ -220,6 +235,7 @@ impl ShippedLibrary {
                 file.file, file.sha256
             )));
         }
+        *remaining -= bytes.len() as u64;
         Ok(bytes)
     }
 }
@@ -253,6 +269,18 @@ mod tests {
             dir.join(MANIFEST),
             serde_json::to_vec_pretty(&manifest).map_err(|e| Error::Invalid(e.to_string()))?,
         )?;
+        Ok(())
+    }
+
+    #[test]
+    fn generator_payload_budget_counts_module_and_parts() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        std::fs::write(temp.path().join(MARKER), r#"{"format":1}"#)?;
+        bundle(temp.path())?;
+        let shipped = ShippedLibrary::at(temp.path())?;
+        assert_eq!(shipped.generator_with_budget("chip", 6)?.parts.len(), 1);
+        assert!(matches!(shipped.generator_with_budget("chip", 5),
+            Err(Error::TooLarge(m)) if m.contains("generator payload budget")));
         Ok(())
     }
 

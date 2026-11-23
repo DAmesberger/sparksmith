@@ -24,6 +24,7 @@ use sparksmith_core::{
         PlacedPad, WorldPad,
     },
     library::{PadKind, PlacedText, TextMetric},
+    model::board::BoardFeatureId,
     updates::Change,
 };
 use sparksmith_ui::theme::{self as theme, Tokens};
@@ -350,6 +351,7 @@ struct FieldErrors(std::collections::BTreeMap<Field, String>);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Inspected {
     Board,
+    Hole(BoardFeatureId),
     Placement(Id),
     Unplaced(Id),
     Track(Id),
@@ -375,6 +377,8 @@ pub struct PcbEditor {
     /// clearance issue); cleared by any other selection.
     also: Vec<Id>,
     track: Option<Id>,
+    /// The inspected mounting hole in the board sketch.
+    hole: Option<BoardFeatureId>,
     /// The selected board via.
     via: Option<Id>,
     net: Option<Id>,
@@ -603,6 +607,7 @@ impl Default for PcbEditor {
             instance: None,
             also: Vec::new(),
             track: None,
+            hole: None,
             via: None,
             net: None,
             highlighted: None,
@@ -786,6 +791,9 @@ impl PcbEditor {
     pub fn selected_instance(&self) -> Option<Id> {
         self.instance
     }
+    pub fn selected_hole(&self) -> Option<BoardFeatureId> {
+        self.hole
+    }
     pub fn selected_track(&self) -> Option<Id> {
         self.track
     }
@@ -829,6 +837,7 @@ impl PcbEditor {
         // A dimension is selected with its part (`select_dimension`).
         self.dimension = None;
         self.track = track;
+        self.hole = None;
         self.via = None;
         self.fill = None;
         self.fill_drag = None;
@@ -911,6 +920,12 @@ impl PcbEditor {
             self.cancel_drag();
             if !continued {
                 self.reset_route();
+            }
+            if self
+                .hole
+                .is_some_and(|id| !engine.project().board().holes.iter().any(|h| h.id == id))
+            {
+                self.hole = None;
             }
             self.stack = engine.project().stackup.layers();
             if !self.stack.contains(&self.layer) {
@@ -1315,6 +1330,9 @@ impl PcbEditor {
         if !self.group.is_empty() {
             return Inspected::Group;
         }
+        if let Some(id) = self.hole {
+            return Inspected::Hole(id);
+        }
         if let Some(id) = self.instance.filter(|id| project.instance(*id).is_some()) {
             return if project.placements.iter().any(|p| p.instance == id) {
                 Inspected::Placement(id)
@@ -1398,6 +1416,7 @@ impl PcbEditor {
                 });
                 Header::new("polygon", title, "Fill")
             }
+            Inspected::Hole(_) => Header::new("circle", "Mounting hole", "Board feature"),
             Inspected::Board => Header::new("plane", "Board", "Board"),
             Inspected::Group => Header::new(
                 "select",
@@ -1642,6 +1661,24 @@ impl PcbEditor {
             Inspected::Fill(id) => {
                 let fill = project.fill(id)?;
                 self.fill_section(ui, project, engine.revision(), fill)
+            }
+            Inspected::Hole(id) => {
+                let board = project.board();
+                let hole = board.holes.iter().find(|h| h.id == id)?;
+                kit::section(ui, "pcb-hole", "Geometry", true, None, |ui| {
+                    let mm = |v: f64| format!("{} mm", kit::number_text(v));
+                    kit::value_row(
+                        ui,
+                        "Position",
+                        &format!("{}, {}", mm(hole.at[0]), mm(hole.at[1])),
+                    );
+                    kit::value_row(ui, "Drill", &mm(hole.drill));
+                    kit::value_row(ui, "Plated", if hole.plated { "Yes" } else { "No" });
+                    if let Some(diameter) = hole.pad_diameter {
+                        kit::value_row(ui, "Washer diameter", &mm(diameter));
+                    }
+                });
+                None
             }
             Inspected::Group => self.group_section(ui, project),
             Inspected::Board | Inspected::Review => {
@@ -2539,6 +2576,17 @@ impl PcbEditor {
                     .and_then(|instance| pass(Hit::Part(instance)))
             })
             .or_else(|| {
+                board_shape_ui::sketch_of(project)?
+                    .solved
+                    .holes
+                    .iter()
+                    .find(|h| {
+                        sparksmith_core::geometry::distance(h.at, at)
+                            <= h.pad_diameter.unwrap_or(h.drill) / 2.0
+                    })
+                    .map(|h| Hit::Hole(h.id))
+            })
+            .or_else(|| {
                 self.pick_fill(project, at, tolerance)
                     .and_then(|fill| pass(Hit::Fill(fill.id, fill.net)))
             })
@@ -2562,6 +2610,9 @@ impl PcbEditor {
         let Some(s) = self.selectable_body(along) else {
             return self.select_hit(Hit::Nothing);
         };
+        if let Some(hole) = &s.hole {
+            return self.select_hit(Hit::Hole(hole.id));
+        }
         if let (Some(instance), Some(tie)) = (s.instance, &s.tie) {
             return self.select_hit(Hit::Tie(instance, tie.group));
         }
@@ -2622,6 +2673,10 @@ impl PcbEditor {
             }
             Hit::Part(instance) => self.set_selection(Some(instance), None, None),
             Hit::Fill(id, net) => self.select_fill(id, net),
+            Hit::Hole(id) => {
+                self.set_selection(None, None, None);
+                self.hole = Some(id);
+            }
             Hit::Nothing => self.set_selection(None, None, None),
         }
     }
@@ -2704,6 +2759,7 @@ impl PcbEditor {
                 painter,
                 &view,
                 &project.board(),
+                self.hole,
                 &ink,
                 Stroke::new(1.5, t.body_edge),
             );
@@ -3615,6 +3671,12 @@ fn issue_slot_of(
             },
             "on this via".to_owned(),
         ),
+        Inspected::Hole(id) => (
+            IssueScope::Selection {
+                objects: vec![ObjectRef::BoardFeature { feature: id.0 }],
+            },
+            "on this mounting hole".to_owned(),
+        ),
         // Findings do not name fills yet: the slot stays empty.
         Inspected::Fill(_) => return None,
         // A group's findings are on its objects' own cards.
@@ -3804,9 +3866,12 @@ impl crate::issues::Locate for PcbEditor {
             let feature = layout::physical::board_holes(project)
                 .into_iter()
                 .find(|h| refs.contains(&h.object()))
-                .and_then(|h| h.feature.ring().bounds);
-            if let Some(b) = feature {
+                .and_then(|h| Some((h.owner, h.feature.ring().bounds?)));
+            if let Some((owner, b)) = feature {
                 self.set_selection(None, None, None);
+                if let layout::physical::HoleOwner::MountingHole(id) = owner {
+                    self.hole = Some(id);
+                }
                 let margin = 2.0;
                 self.frame_request = Some([
                     [b.min[0] - margin, b.min[1] - margin],

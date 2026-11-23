@@ -1,0 +1,19 @@
+name: Native scale correctness
+on:
+  schedule:
+    - cron: '27 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  reopen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: Save and reopen the four-layer 10,000-via assembly
+        run: >-
+          cargo test --locked --profile ci -p sparksmith-solidcraft --lib
+          project::tests::ten_thousand_vias_and_many_tracks_survive_reopening
+          -- --exact --ignored --nocapture

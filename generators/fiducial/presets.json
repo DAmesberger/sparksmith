@@ -9,6 +9,7 @@
   ],
   "description": "A global fiducial: a Ø1.0 mm bare copper dot in a Ø2.0 mm solder mask opening, the clear area the opening.",
   "params": {
+   "role": "global",
    "copper_diameter": 1000000,
    "mask_diameter": 2000000,
    "clear_diameter": 2000000,
@@ -30,6 +31,7 @@
   ],
   "description": "The Ø1.0 mm global fiducial with a second dot opposite it on the far side, for boards assembled on both sides.",
   "params": {
+   "role": "global",
    "copper_diameter": 1000000,
    "mask_diameter": 2000000,
    "clear_diameter": 2000000,
@@ -51,6 +53,7 @@
   ],
   "description": "A global fiducial: a Ø1.0 mm bare copper dot in a Ø3.0 mm solder mask opening and clear area (three times the dot's radius).",
   "params": {
+   "role": "global",
    "copper_diameter": 1000000,
    "mask_diameter": 3000000,
    "clear_diameter": 3000000,
@@ -72,6 +75,7 @@
   ],
   "description": "A local fiducial for a fine-pitch part (0.5 mm pitch or less), placed in pairs diagonally across its land pattern: a Ø1.0 mm dot in a Ø2.0 mm opening and clear area.",
   "params": {
+   "role": "local",
    "copper_diameter": 1000000,
    "mask_diameter": 2000000,
    "clear_diameter": 2000000,

@@ -7,7 +7,9 @@ use crate::instances;
 use crate::library::graphics::{
     DrawingLayer, Fill, Item, PlacedText, Side, TextContent, TextMetric,
 };
-use crate::library::{Datum, PAD_ARC_TOLERANCE_MM, PackageDefinition, Pad, PadSide};
+use crate::library::{
+    Datum, FiducialRole, PAD_ARC_TOLERANCE_MM, PackageDefinition, Pad, PadKind, PadSide,
+};
 use crate::model::fill::PadFillOverride;
 use crate::model::{CopperLayer, Layer, Placement, Project, Stackup};
 use schemars::JsonSchema;
@@ -124,6 +126,10 @@ pub fn placed_pads(project: &Project) -> Vec<PlacedPad> {
         };
         let footprint = &physical.footprint.definition;
         let transform = placement_transform(placement, &footprint.datum);
+        let marks_only = footprint
+            .pads
+            .iter()
+            .all(|pad| pad.kind == PadKind::Fiducial);
         for pad in &footprint.pads {
             let terminal = pad
                 .terminal
@@ -136,14 +142,24 @@ pub fn placed_pads(project: &Project) -> Vec<PlacedPad> {
                 PadSide::Top => placement.layer,
                 PadSide::Bottom => opposite(placement.layer),
             };
+            // Older footprints recorded an unqualified mark. A mark on a
+            // package aligns that package. A footprint of only marks aligns the board.
+            let mut pad = pad.clone();
+            if pad.kind == PadKind::Fiducial {
+                pad.fiducial_role.get_or_insert(if marks_only {
+                    FiducialRole::Global
+                } else {
+                    FiducialRole::Local
+                });
+            }
             result.push(PlacedPad {
                 instance: instance.id,
-                pad: pad.clone(),
                 transform,
                 layer,
                 net: terminal.and_then(|t| nets.get(&t).copied()),
                 terminal,
                 fill_override: placement.fill_override_of(pad.id),
+                pad,
             });
         }
     }

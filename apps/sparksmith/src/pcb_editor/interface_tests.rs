@@ -491,6 +491,7 @@ fn preview(engine: &Engine, name: &str) -> PublishPreview {
             effects: vec![
                 AssemblyEffect {
                     feature: "USB opening".into(),
+                    feature_id: Some(17),
                     effect: EffectKind::Moves,
                     datum: Some(DatumId(1)),
                     message: format!(
@@ -499,6 +500,7 @@ fn preview(engine: &Engine, name: &str) -> PublishPreview {
                 },
                 AssemblyEffect {
                     feature: "Lid rib".into(),
+                    feature_id: Some(23),
                     effect: EffectKind::Fails,
                     datum: None,
                     message: "The linked design's ‘Lid rib’ would fail".into(),

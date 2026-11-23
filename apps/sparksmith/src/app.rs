@@ -1650,6 +1650,7 @@ impl App {
             self.scene.highlight(
                 &Default::default(),
                 None,
+                None,
                 &Default::default(),
                 &Default::default(),
             );
@@ -1674,6 +1675,7 @@ impl App {
             self.scene.viewport.set_layers(self.pcb.layer_view());
             self.scene.highlight(
                 &self.pcb.selected(),
+                self.pcb.selected_hole(),
                 self.pcb.highlighted_net(),
                 &self.pcb.lit(),
                 &self.pcb.tie_focus(),

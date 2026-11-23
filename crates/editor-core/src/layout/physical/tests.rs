@@ -122,6 +122,7 @@ pub(crate) fn gate_board_with(with: &[&str]) -> Result<(Engine, Gate)> {
             hole: None,
             mask: Default::default(),
             paste: Default::default(),
+            fiducial_role: None,
             vias: Vec::new(),
         });
     }
@@ -674,5 +675,27 @@ fn engine_computed_fill_copper_raises_no_clearance_finding() -> Result<()> {
     let showcase = Engine::showcase()?;
     let found = findings(&showcase, "fill.clearance");
     assert!(found.is_empty(), "{found:?}");
+    Ok(())
+}
+
+#[test]
+fn an_unqualified_mark_on_a_package_is_local() -> crate::Result<()> {
+    let (engine, gate) = gate_board()?;
+    let project = engine.project();
+    let marks = crate::layout::fiducial::placed_fiducials(project);
+    let embedded: Vec<_> = marks.iter().filter(|f| f.instance == gate.r1).collect();
+    assert_eq!(embedded.len(), 1);
+    assert_eq!(embedded[0].role, crate::library::FiducialRole::Local);
+    let films = crate::fabrication::artwork::layers(
+        project,
+        &Default::default(),
+        &Default::default(),
+        "marks",
+    )?;
+    assert!(films.iter().any(|f| {
+        f.name.ends_with("top.gbr")
+            && std::str::from_utf8(&f.bytes)
+                .is_ok_and(|s| s.contains("%TA.AperFunction,FiducialPad,Local*%"))
+    }));
     Ok(())
 }

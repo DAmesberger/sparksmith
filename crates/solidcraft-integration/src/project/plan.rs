@@ -961,6 +961,7 @@ fn laminate(
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Object {
     Board,
+    Hole(BoardFeatureId),
     Bridge(Id, sparksmith_core::TieId, sparksmith_core::BridgeId),
     Pad(Id, PadId),
     Track(Id),
@@ -980,8 +981,7 @@ impl Origin {
             } => Object::Bridge(instance, group, bridge),
             Self::Track(track) => Object::Track(track),
             Self::Via { via, .. } => Object::Via(via),
-            // A washer belongs to the board's sketch, which no pick names.
-            Self::Washer { .. } => Object::Board,
+            Self::Washer { hole, .. } => Object::Hole(hole),
             Self::Fill { fill, .. } => Object::Fill(fill),
         }
     }
@@ -1068,7 +1068,7 @@ pub enum Source {
 impl From<Object> for Source {
     fn from(object: Object) -> Self {
         match object {
-            Object::Board => Self::Board,
+            Object::Board | Object::Hole(_) => Self::Board,
             Object::Bridge(instance, group, bridge) => Self::Bridge {
                 instance,
                 group,
@@ -1297,6 +1297,9 @@ pub fn check(
         else {
             return Object::Board;
         };
+        if let Some(hole) = &source.hole {
+            return Object::Hole(hole.id);
+        }
         if let (Some(instance), Some(tie)) = (source.instance, &source.tie) {
             return Object::Bridge(instance, tie.group, tie.bridge);
         }
@@ -1374,7 +1377,7 @@ pub fn check(
             kind: body.kind,
             object: body.source.object(),
             layer: match body.source {
-                Origin::Via { .. } | Origin::Washer { .. } => None,
+                Origin::Via { .. } => None,
                 _ => body.layer,
             },
             min,

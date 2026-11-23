@@ -1,5 +1,5 @@
 //! The offline mirror of an online parts registry (part-search §6.4,
-//! registry R0 §10): `<cache>/registry/<host>/` holds the last index the
+//! registry R0 §10): `<cache>/registry/origins/<origin-digest>/` holds the last index the
 //! registry named, its shards (each a `SourceCatalog` by SHA-256 of its
 //! bytes), and every revision record and asset a placed or previewed part
 //! needed, by content hash. Never authoritative and never part of a
@@ -33,6 +33,40 @@ pub const FORMAT: u32 = 1;
 pub const MAX_SHARDS: usize = 4096;
 /// Bytes of one shard file.
 pub const MAX_SHARD_BYTES: u64 = 64 * 1024 * 1024;
+/// Aggregate shard inputs retained for one catalog, using the project packed-data budget.
+pub const MAX_CATALOG_BYTES: u64 = sparksmith_core::library::bundle::MAX_PACKED_BYTES as u64;
+
+pub struct ShardBudget(pub u64);
+
+impl ShardBudget {
+    pub fn charge(&mut self, bytes: usize) -> Result<()> {
+        self.0 = self
+            .0
+            .checked_sub(bytes as u64)
+            .ok_or_else(|| Error::TooLarge("registry catalog budget exceeded".into()))?;
+        Ok(())
+    }
+
+    /// Missing or damaged files can be fetched again. A valid file consumes the
+    /// same budget as a fresh download, including repeated index entries.
+    pub fn cached(&mut self, mirror: &Mirror, hash: ContentHash) -> Result<Option<Shard>> {
+        let Ok(bytes) = read_limited(&mirror.shard_path(hash), MAX_SHARD_BYTES) else {
+            return Ok(None);
+        };
+        if asset_hash(&bytes) != hash {
+            return Ok(None);
+        }
+        self.charge(bytes.len())?;
+        match parse_shard(&bytes) {
+            Ok(shard) => Ok(Some(shard)),
+            Err(_) => {
+                self.0 += bytes.len() as u64;
+                Ok(None)
+            }
+        }
+    }
+}
+
 /// Bytes of the index file.
 pub const MAX_INDEX_BYTES: u64 = 4 * 1024 * 1024;
 /// Bytes of one mirrored record file.
@@ -106,6 +140,40 @@ struct BundleFile {
 #[derive(Clone, Debug)]
 pub struct Mirror {
     root: PathBuf,
+    origin: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct IndexFile {
+    origin: String,
+    snapshot: MirroredIndex,
+}
+
+/// Canonical scheme, host and effective port of an already checked registry URL.
+fn origin(url: &str) -> Result<String> {
+    let bad = || Error::Invalid("The registry URL needs a valid host and port".into());
+    let uri = url.parse::<http::Uri>().map_err(|_| bad())?;
+    let authority = uri.authority().ok_or_else(bad)?;
+    let scheme = uri.scheme_str().ok_or_else(bad)?;
+    let host = authority.host();
+    let port = match authority.as_str().strip_prefix(host).ok_or_else(bad)? {
+        "" if scheme == "https" => 443,
+        "" => 80,
+        suffix => suffix
+            .strip_prefix(':')
+            .ok_or_else(bad)?
+            .parse::<u16>()
+            .map_err(|_| bad())?,
+    };
+    let host = if let Some(literal) = host.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        format!(
+            "[{}]",
+            literal.parse::<std::net::Ipv6Addr>().map_err(|_| bad())?
+        )
+    } else {
+        host.to_ascii_lowercase()
+    };
+    Ok(format!("{scheme}://{host}:{port}"))
 }
 
 /// The folder name for a registry URL: its host and port, lower case,
@@ -164,6 +232,10 @@ pub fn decode_shard(bytes: &[u8], expected: ContentHash) -> Result<Shard> {
             "registry shard {expected} does not match its hash (it hashes to {actual})"
         )));
     }
+    parse_shard(bytes)
+}
+
+fn parse_shard(bytes: &[u8]) -> Result<Shard> {
     let mut shard: Shard = serde_json::from_slice(bytes)?;
     if shard.format != FORMAT {
         return Err(Error::Invalid(format!(
@@ -287,10 +359,16 @@ fn write_verified(path: &Path, bytes: &[u8]) -> Result<()> {
 
 impl Mirror {
     /// The mirror of the registry at `url` under `cache` (the user cache
-    /// directory): `<cache>/registry/<host>/`. Nothing is created yet.
+    /// directory): `<cache>/registry/origins/<origin-digest>/`. Nothing is created yet.
     pub fn open(cache: &Path, url: &str) -> Result<Self> {
+        crate::settings::check_registry_url(url)?;
+        let origin = origin(url)?;
         Ok(Self {
-            root: cache.join("registry").join(host_key(url)?),
+            root: cache
+                .join("registry")
+                .join("origins")
+                .join(asset_hash(origin.as_bytes()).to_string()),
+            origin,
         })
     }
 
@@ -317,14 +395,18 @@ impl Mirror {
     /// The last index stored, if any and readable.
     pub fn index(&self) -> Option<MirroredIndex> {
         let bytes = read_limited(&self.root.join("index.json"), MAX_INDEX_BYTES).ok()?;
-        serde_json::from_slice(&bytes).ok()
+        let file: IndexFile = serde_json::from_slice(&bytes).ok()?;
+        (file.origin == self.origin).then_some(file.snapshot)
     }
 
     /// Keep `index` as the mirror's current one.
     pub fn store_index(&self, index: &RegistryIndex, fetched: u64) -> Result<()> {
-        let bytes = serde_json::to_vec(&MirroredIndex {
-            index: index.clone(),
-            fetched,
+        let bytes = serde_json::to_vec(&IndexFile {
+            origin: self.origin.clone(),
+            snapshot: MirroredIndex {
+                index: index.clone(),
+                fetched,
+            },
         })?;
         std::fs::create_dir_all(&self.root)?;
         atomic_write_with(&self.root.join("index.json"), |file| {
@@ -354,16 +436,15 @@ impl Mirror {
 
     /// Every shard of the stored index that is mirrored and still checks,
     /// in index order. Missing or changed ones are left out.
-    pub fn shards(&self) -> Vec<Shard> {
-        self.index()
-            .map(|m| {
-                m.index
-                    .shards
-                    .iter()
-                    .filter_map(|s| self.shard(s.sha256).ok())
-                    .collect()
-            })
-            .unwrap_or_default()
+    pub fn shards(&self, index: &RegistryIndex, limit: u64) -> Result<Vec<Shard>> {
+        let mut budget = ShardBudget(limit);
+        let mut shards = Vec::new();
+        for info in &index.shards {
+            if let Some(shard) = budget.cached(self, info.sha256)? {
+                shards.push(shard);
+            }
+        }
+        Ok(shards)
     }
 
     /// Check `bundle` against `catalog` ([`verify_bundle`]) and keep its

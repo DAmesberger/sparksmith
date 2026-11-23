@@ -5,7 +5,7 @@ mod support;
 use sparksmith_core::CopperLayer;
 use sparksmith_core::model::fill::IslandRemoval;
 use sparksmith_core::rules::PadConnection;
-use sparksmith_kicad::report::Case;
+use sparksmith_kicad::report::{Case, Fidelity};
 use support::{Board, Footprint, Pad, import};
 
 type Fallible<T> = Result<T, Box<dyn std::error::Error>>;
@@ -98,6 +98,48 @@ fn rule_areas_become_keepouts_on_their_layers() -> Fallible<()> {
     let b = sparksmith_core::geometry::Bounds::of(own.outline.flatten(1e-3)).ok_or("box")?;
     assert!((b.min[0] - 4.0).abs() < 1e-9 && (b.min[1] - 4.0).abs() < 1e-9);
     assert!((b.max[0] - 6.0).abs() < 1e-9 && (b.max[1] - 6.0).abs() < 1e-9);
+    Ok(())
+}
+
+#[test]
+fn omitted_footprint_prohibitions_are_reported_with_or_without_a_copper_rule() -> Fallible<()> {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    for (track_rule, forbids_tracks) in [("allowed", false), ("not_allowed", true)] {
+        let board = Board {
+            copper: 2,
+            origin: None,
+            setup: String::new(),
+            footprints: vec![],
+            items: format!(
+                r#"
+                (gr_rect (start 0 0) (end 14 12) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))
+                (zone (net 0) (layer "F.Cu")
+                  (keepout (tracks {track_rule}) (vias allowed) (pads allowed)
+                           (copperpour allowed) (footprints not_allowed))
+                  (polygon (pts (xy 2 3) (xy 8 3) (xy 8 7) (xy 2 7))))
+                "#
+            ),
+        };
+        let imported = import(board.text().as_bytes())?;
+        let project = imported.engine.project();
+        assert_eq!(project.keepouts.len(), 1);
+        let rules = project.keepouts[0].forbid;
+        assert_eq!(rules.tracks, forbids_tracks);
+        assert!(!rules.vias && !rules.pads && !rules.fills);
+
+        let zone_rows: Vec<_> = imported
+            .report
+            .rows()
+            .into_iter()
+            .filter(|row| row.code == "Z1")
+            .collect();
+        assert_eq!(zone_rows.len(), 1);
+        let row = &zone_rows[0];
+        assert_eq!(row.count, 1);
+        assert_eq!(row.fidelity, Fidelity::Approximate);
+        assert!(row.title.contains("footprint placement restriction"));
+        assert!(row.title.contains("omitted"));
+    }
     Ok(())
 }
 

@@ -239,6 +239,7 @@ fn row_pad(id: PadId, row: &PadRow, package: &PackageDefinition) -> Result<Pad> 
         hole,
         mask: MaskRule::Inherit,
         paste: PasteRule::Inherit,
+        fiducial_role: None,
         vias: Vec::new(),
     };
     pad.fold_rotation()?;
@@ -298,6 +299,7 @@ fn slot_pad(id: PadId, row: &SlotRow, package: &PackageDefinition) -> Result<Pad
         hole: Some(slot_hole(row.slot, row.plated)),
         mask: MaskRule::Inherit,
         paste: PasteRule::Inherit,
+        fiducial_role: None,
         vias: Vec::new(),
     })
 }
@@ -323,6 +325,7 @@ fn hole_pad(id: PadId, row: &HoleRow) -> Pad {
         }),
         mask: MaskRule::Inherit,
         paste: PasteRule::Inherit,
+        fiducial_role: None,
         vias: Vec::new(),
     }
 }

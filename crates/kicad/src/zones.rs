@@ -143,6 +143,17 @@ pub(crate) fn fills(
     if board.items.zones.is_empty() {
         return Ok(());
     }
+    // Count lost placement restrictions per source area, even when its
+    // geometry is refused or its outline splits into multiple keepouts.
+    report.add_n(
+        Case::FootprintRestrictionOmitted,
+        board
+            .items
+            .zones
+            .iter()
+            .filter(|zone| matches!(zone.keepout, Some([.., true])))
+            .count(),
+    );
     if session.engine.project().rules.require().is_err() {
         report.add_n(Case::ZoneRefused, board.items.zones.len());
         return Ok(());
@@ -167,7 +178,7 @@ pub(crate) fn fills(
             report.add(Case::ZonePolygons);
         }
         let layers = layers(board, zone);
-        if let Some([tracks, vias, pads, pour, _footprints]) = zone.keepout {
+        if let Some([tracks, vias, pads, pour, footprints]) = zone.keepout {
             for outline in outlines {
                 ops.push(Operation::Fill(FillCommand::AddKeepout {
                     keepout: Box::new(KeepoutSpec {
@@ -182,7 +193,9 @@ pub(crate) fn fills(
                         },
                     }),
                 }));
-                report.add(Case::Keepout);
+                if !footprints {
+                    report.add(Case::Keepout);
+                }
             }
             continue;
         }

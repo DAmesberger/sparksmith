@@ -97,6 +97,20 @@ fn description_with(presets: Vec<Preset>) -> Description {
             2 * MM,
         ),
         Param {
+            key: "role".into(),
+            label: "Registration".into(),
+            help: None,
+            ty: ParamType::Enum {
+                choices: vec![
+                    Choice { key: "global".into(), label: "Board (global)".into() },
+                    Choice { key: "local".into(), label: "Component (local)".into() },
+                ],
+            },
+            default: ParamValue::Text("global".into()),
+            group: Some("fiducial".into()),
+            context: None,
+        },
+        Param {
             key: "sides".into(),
             label: "Sides".into(),
             help: Some(
@@ -162,6 +176,7 @@ struct Dims {
     mask: i64,
     clear: i64,
     both: bool,
+    local: bool,
 }
 
 fn half(v: i64) -> i64 {
@@ -175,6 +190,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         copper: int("copper_diameter")?,
         mask: int("mask_diameter")?,
         clear: int("clear_diameter")?,
+        local: args.text("role").map_err(one)? == "local",
         both: args.text("sides").map_err(one)? == "both",
     };
     let mut problems = Vec::new();
@@ -255,7 +271,11 @@ fn dot(key: &str, side: Side, d: &Dims) -> Pad {
         mask: Opening::Expansion(half(d.mask - d.copper)),
         paste: Opening::None,
         number: None,
-        kind: Some(PadKind::Fiducial),
+        kind: Some(if d.local {
+            PadKind::LocalFiducial
+        } else {
+            PadKind::Fiducial
+        }),
     }
 }
 

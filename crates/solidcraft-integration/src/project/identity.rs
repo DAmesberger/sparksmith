@@ -54,6 +54,8 @@ enum Record {
 #[serde(deny_unknown_fields)]
 struct Sources {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    holes: BTreeMap<usize, super::HoleSource>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     bridges: BTreeMap<usize, super::BridgeSource>,
     picks: Column,
     components: Column,
@@ -294,6 +296,11 @@ impl Sources {
         }
         let column = |f: &dyn Fn(&Source) -> i128| Column::deltas(rows.iter().map(|s| f(s)));
         Self {
+            holes: rows
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| Some((i, s.hole.clone()?)))
+                .collect(),
             bridges: rows
                 .iter()
                 .enumerate()
@@ -322,6 +329,13 @@ impl Sources {
     fn read(&self, budget: usize) -> Result<Vec<Source>> {
         let picks = self.picks.read_deltas(budget)?;
         let rows = picks.len();
+        if self
+            .holes
+            .iter()
+            .any(|(i, h)| *i >= rows || h.bodies.is_empty())
+        {
+            return Err(broken());
+        }
         if self.bridges.iter().any(|(i, b)| {
             *i >= rows
                 || b.group.0 == 0
@@ -392,6 +406,7 @@ impl Sources {
                 .map(|p| u32::try_from(p).map(PadId).map_err(|_| broken()))
                 .transpose()?;
             out.push(Source {
+                hole: self.holes.get(&row).cloned(),
                 tie: self.bridges.get(&row).cloned(),
                 pick_id: exact(at(&picks)?)?,
                 instance: unopt(at(&instances)?)?,

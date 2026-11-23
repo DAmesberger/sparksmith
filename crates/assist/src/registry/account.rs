@@ -8,11 +8,11 @@
 //!
 //! The token is a [`Secret`]: never written to a file, a log, an error or
 //! a recording. The device code that can be exchanged for it is one too.
-use super::{RegistryClient, Reply, unreachable};
+use super::{RegistryClient, Reply, Request, unreachable};
 use crate::model::Secret;
 use crate::model::keys::{Keychain, Store};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 use sparksmith_automation::session::online::{OnlineAccount, SignOut};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -63,13 +63,64 @@ pub struct DeviceCode {
     device_code: Secret,
     /// What the person types or checks ("BCDF-GHJK").
     pub user_code: String,
-    pub verification_uri: String,
-    /// The page with the code filled in: what the browser opens.
-    pub verification_uri_complete: String,
+    pub pages: VerificationPages,
     /// Seconds the code is valid.
     pub expires_in: u64,
     /// Seconds between polls.
     pub interval: u64,
+}
+
+/// Both addresses use the browser URL parser. The button names the origin
+/// of the very URL it opens, including a separate identity provider.
+#[derive(Clone, Debug)]
+pub struct VerificationPages {
+    manual: url::Url,
+    browser: url::Url,
+}
+
+impl VerificationPages {
+    pub(super) fn parse(manual: &str, complete: &str) -> Result<Self, String> {
+        fn page(input: &str) -> Result<url::Url, String> {
+            const INVALID: &str = "The registry supplied an invalid sign-in address.";
+            let url = url::Url::parse(input).map_err(|_| INVALID)?;
+            if !matches!(url.scheme(), "http" | "https")
+                || !url.username().is_empty()
+                || url.password().is_some()
+            {
+                return Err(INVALID.into());
+            }
+            let origin = url.origin().ascii_serialization();
+            let endpoint = crate::model::Endpoint::parse(&origin).map_err(|_| INVALID)?;
+            if !endpoint.allows_credentials() {
+                return Err("The registry sign-in page needs HTTPS or a loopback address.".into());
+            }
+            Ok(url)
+        }
+        let manual = page(manual)?;
+        let browser = if complete.is_empty() {
+            manual.clone()
+        } else {
+            page(complete)?
+        };
+        Ok(Self { manual, browser })
+    }
+
+    pub fn manual(&self) -> &url::Url {
+        &self.manual
+    }
+    pub fn browser(&self) -> &url::Url {
+        &self.browser
+    }
+
+    pub fn button_label(&self) -> String {
+        let destination = self.browser.origin();
+        let origin = destination.ascii_serialization();
+        if self.manual.origin() == destination {
+            format!("Open {origin}")
+        } else {
+            format!("Open identity provider {origin}")
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -220,7 +271,7 @@ impl RegistryClient {
     /// Whether a token may travel to this registry: HTTPS, or plain HTTP
     /// to this computer.
     pub fn may_sign_in(&self) -> bool {
-        self.base.starts_with("https://") || self.loopback
+        self.endpoint.allows_credentials()
     }
 
     /// The kept token, read from the keychain once.
@@ -236,7 +287,7 @@ impl RegistryClient {
             let read = self
                 .auth
                 .store
-                .get(SERVICE, &self.base)
+                .get(SERVICE, self.endpoint.base())
                 .ok()
                 .flatten()
                 .and_then(|text| Secret::new(&text));
@@ -255,7 +306,7 @@ impl RegistryClient {
         }
         self.auth
             .store
-            .delete(SERVICE, &self.base)
+            .delete(SERVICE, self.endpoint.base())
             .map_err(|e| e.to_string())
     }
 
@@ -299,17 +350,15 @@ impl RegistryClient {
             return Ok(None);
         };
         let reply = self.send(
-            super::Method::Get,
+            Request::Read(Some(&token)),
             "/v1/account",
-            None,
-            Some(&token),
             ACCOUNT_TIMEOUT,
             MAX_ACCOUNT_BYTES,
         )?;
         match reply.status {
             200..=299 => {
                 let account: Account = serde_json::from_slice(&reply.bytes)
-                    .map_err(|e| format!("the registry's account reply is unreadable: {e}"))?;
+                    .map_err(|_| "the registry's account reply is unreadable")?;
                 if let Ok(mut held) = self.auth.account.lock() {
                     *held = Some(account.clone());
                 }
@@ -325,19 +374,10 @@ impl RegistryClient {
 
     /// Ask for a sign-in code (`POST /v1/device/code`) under `client_name`.
     pub fn start_sign_in(&self, client_name: &str) -> Result<DeviceCode, String> {
-        if !self.may_sign_in() {
-            return Err(format!(
-                "Signing in to {} needs https://: a sign-in never travels over plain HTTP to \
-                 another computer.",
-                self.host
-            ));
-        }
         let name: String = client_name.chars().take(MAX_CLIENT_NAME).collect();
         let reply = self.send(
-            super::Method::Post,
+            Request::SignIn(&name),
             "/v1/device/code",
-            Some(&json!({"client_name": name})),
-            None,
             ACCOUNT_TIMEOUT,
             MAX_ACCOUNT_BYTES,
         )?;
@@ -345,19 +385,15 @@ impl RegistryClient {
             return Err(self.refusal(&reply));
         }
         let wire: WireCode = serde_json::from_slice(&reply.bytes)
-            .map_err(|e| format!("the registry's sign-in code is unreadable: {e}"))?;
+            .map_err(|_| "the registry's sign-in code is unreadable")?;
         let device_code =
             Secret::new(&wire.device_code).ok_or("the registry sent an empty sign-in code")?;
-        let complete = if wire.verification_uri_complete.is_empty() {
-            wire.verification_uri.clone()
-        } else {
-            wire.verification_uri_complete
-        };
+        let pages =
+            VerificationPages::parse(&wire.verification_uri, &wire.verification_uri_complete)?;
         Ok(DeviceCode {
             device_code,
             user_code: wire.user_code.chars().take(32).collect(),
-            verification_uri: wire.verification_uri,
-            verification_uri_complete: complete,
+            pages,
             expires_in: wire.expires_in,
             interval: wire.interval,
         })
@@ -367,10 +403,8 @@ impl RegistryClient {
     /// token goes to the keychain before this returns.
     pub fn poll_sign_in(&self, code: &DeviceCode) -> Result<Poll, String> {
         let reply = self.send(
-            super::Method::Post,
+            Request::Poll(&code.device_code),
             "/v1/device/token",
-            Some(&json!({"device_code": code.device_code.expose()})),
-            None,
             ACCOUNT_TIMEOUT,
             MAX_ACCOUNT_BYTES,
         )?;
@@ -382,8 +416,12 @@ impl RegistryClient {
                     Secret::new(&wire.access_token).ok_or("the registry sent an empty sign-in")?;
                 self.auth
                     .store
-                    .set(SERVICE, &self.base, token.expose())
-                    .map_err(|e| format!("The system keychain did not keep the sign-in: {e}"))?;
+                    .set(SERVICE, self.endpoint.base(), token.expose())
+                    .map_err(|e| {
+                        token.redact(&format!(
+                            "The system keychain did not keep the sign-in: {e}"
+                        ))
+                    })?;
                 if let Ok(mut held) = self.auth.token.lock() {
                     *held = Some(Some(token));
                 }
@@ -447,10 +485,8 @@ impl RegistryClient {
             return Ok(SignOut::default());
         };
         let revoked = self.send(
-            super::Method::Delete,
+            Request::Revoke(&token),
             "/v1/auth/token",
-            None,
-            Some(&token),
             REVOKE_TIMEOUT,
             MAX_ACCOUNT_BYTES,
         );

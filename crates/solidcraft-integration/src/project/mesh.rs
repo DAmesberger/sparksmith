@@ -98,11 +98,13 @@ enum Object {
     Track(Id),
     Via(Id),
     Fill(Id),
+    Hole(sparksmith_core::model::board::BoardFeatureId),
 }
 
 fn object(origin: &Origin) -> Option<Object> {
     match *origin {
-        Origin::Laminate(_) | Origin::Washer { .. } => None,
+        Origin::Laminate(_) => None,
+        Origin::Washer { hole, .. } => Some(Object::Hole(hole)),
         Origin::Pad { instance, pad, .. } => Some(Object::Pad(instance, pad)),
         Origin::Bridge {
             instance,
@@ -119,6 +121,10 @@ fn object(origin: &Origin) -> Option<Object> {
 fn picks(sources: &[Source]) -> HashMap<Object, u64> {
     let mut out = HashMap::new();
     for s in sources {
+        if let Some(hole) = &s.hole {
+            out.insert(Object::Hole(hole.id), s.pick_id);
+            continue;
+        }
         if let (Some(instance), Some(tie)) = (s.instance, &s.tie) {
             out.insert(Object::Bridge(instance, tie.group, tie.bridge), s.pick_id);
             continue;
@@ -148,6 +154,7 @@ pub fn plan_sources(plan: &BoardPlan) -> Vec<Source> {
             continue;
         }
         let mut source = Source {
+            hole: None,
             tie: None,
             pick_id: out.len() as u64 + 1,
             instance: None,
@@ -177,9 +184,11 @@ pub fn plan_sources(plan: &BoardPlan) -> Vec<Source> {
             Object::Track(track) => source.track = Some(track),
             Object::Via(via) => source.via = Some(via),
             Object::Fill(fill) => source.fill = Some(fill),
+            Object::Hole(_) => continue, // Added together below the vias, as in the native build.
         }
         out.push(source);
     }
+    super::washer_sources(&plan.washers, super::NO_COMPONENT, &mut out);
     out
 }
 

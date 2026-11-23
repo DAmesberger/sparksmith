@@ -218,7 +218,7 @@ fn footprint(
     for pad in &footprint.pads {
         // A non-plated hole, a mechanical pad or a fiducial may land none.
         let free = pad.kind.is_some() || pad.hole.as_ref().is_some_and(|h| !h.plated);
-        if pad.kind == Some(PadKind::Fiducial) && !pad.terminal.is_empty() {
+        if pad.kind.is_some_and(PadKind::is_fiducial) && !pad.terminal.is_empty() {
             return Err(invalid(format!(
                 "The generator's fiducial {} lands terminal \"{}\"; a fiducial lands none.",
                 pad.key, pad.terminal

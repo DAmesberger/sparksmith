@@ -245,6 +245,7 @@ fn mark(
         format!("Fill · {}", fill.name)
     };
     sources.push(Source {
+        hole: None,
         tie: None,
         pick_id: pick,
         instance: None,

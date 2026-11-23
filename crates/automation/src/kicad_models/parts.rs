@@ -190,7 +190,11 @@ fn abi_pad(pad: &Pad, key: String, terminal: String) -> Result<v1::Pad, String> 
     };
     let kind = match pad.kind {
         PadKind::Mechanical => Some(v1::PadKind::Mechanical),
-        PadKind::Fiducial => Some(v1::PadKind::Fiducial),
+        PadKind::Fiducial => Some(match pad.fiducial_role {
+            Some(sparksmith_core::library::FiducialRole::Global) => v1::PadKind::GlobalFiducial,
+            Some(sparksmith_core::library::FiducialRole::Local) => v1::PadKind::LocalFiducial,
+            None => v1::PadKind::Fiducial,
+        }),
         PadKind::Smd | PadKind::PlatedThrough | PadKind::NonPlatedHole => None,
     };
     Ok(v1::Pad {

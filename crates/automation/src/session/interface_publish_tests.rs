@@ -912,3 +912,54 @@ fn a_preview_token_binds_its_destination_and_its_candidate() -> TestResult {
     assert_eq!(reply["ok"], true, "{reply}");
     Ok(())
 }
+
+#[test]
+fn equal_revision_tokens_bind_copper_and_board_lineage_even_with_equal_datums() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let original = open(dir.path())?;
+    let file = original.engine().to_file();
+    let candidate = |width: f64, guid: &str| -> TestResult<Session> {
+        let mut file = file.clone();
+        file.project.production.project_id = Some(guid.to_owned());
+        file.project
+            .tracks
+            .first_mut()
+            .ok_or("expected routed copper")?
+            .width = width;
+        Ok(Session::new(Engine::from_file(file)?))
+    };
+    let preview = |session: &mut Session| {
+        ok(
+            session,
+            json!({
+                "command":"interface.publish_preview","params":{"path":design,"tier":"full"}
+            }),
+        )
+    };
+    let id = "00000000-0000-4000-8000-000000000001";
+    let mut reviewed = candidate(0.2, id)?;
+    let approved = preview(&mut reviewed)?;
+    for mut other in [
+        candidate(0.3, id)?,
+        candidate(0.2, "00000000-0000-4000-8000-000000000002")?,
+    ] {
+        assert_eq!(other.engine().revision(), reviewed.engine().revision());
+        let changed = preview(&mut other)?;
+        assert_eq!(
+            approved["hash"], changed["hash"],
+            "datum geometry is identical"
+        );
+        assert_ne!(approved["token"], changed["token"]);
+        let reply = other.dispatch(json!({"command":"interface.publish","params":{
+            "path":design, "tier":"full", "token":approved["token"], "expected_revision":other.engine().revision()
+        }}));
+        assert_eq!(
+            reply["error"]["rule"], "interface.preview_changed",
+            "{reply}"
+        );
+        assert!(!design.exists());
+        assert!(!sparksmith_io::interface::sidecar_path(&design).exists());
+    }
+    Ok(())
+}

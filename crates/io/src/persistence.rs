@@ -232,7 +232,7 @@ pub(crate) fn replace_checked(
 
 /// Whether the locked `file` is still the one `path` names.
 #[cfg(unix)]
-fn still_at(file: &File, path: &Path) -> Result<bool> {
+pub(crate) fn still_at(file: &File, path: &Path) -> Result<bool> {
     use std::os::unix::fs::MetadataExt;
     let locked = file.metadata()?;
     match std::fs::metadata(path) {
@@ -245,7 +245,7 @@ fn still_at(file: &File, path: &Path) -> Result<bool> {
 /// Compare file identity while both Windows handles remain open. The path
 /// can name a replacement even while another writer holds the old handle.
 #[cfg(windows)]
-fn still_at(file: &File, path: &Path) -> Result<bool> {
+pub(crate) fn still_at(file: &File, path: &Path) -> Result<bool> {
     let locked = same_file::Handle::from_file(file.try_clone()?)?;
     match same_file::Handle::from_path(path) {
         Ok(named) => Ok(locked == named),
@@ -254,8 +254,9 @@ fn still_at(file: &File, path: &Path) -> Result<bool> {
     }
 }
 
+/// Elsewhere the check is the identity comparison alone.
 #[cfg(not(any(unix, windows)))]
-fn still_at(_file: &File, path: &Path) -> Result<bool> {
+pub(crate) fn still_at(_file: &File, path: &Path) -> Result<bool> {
     Ok(path.exists())
 }
 

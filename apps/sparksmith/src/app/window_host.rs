@@ -150,6 +150,10 @@ fn selection(
                 .chain(group.vias.iter().map(|&id| ObjectRef::Via { id }))
                 .chain(group.fills.iter().map(|&id| ObjectRef::Fill { id }));
             objects
+                .chain(
+                    pcb.selected_hole()
+                        .map(|id| ObjectRef::BoardFeature { feature: id.0 }),
+                )
                 .chain(pcb.highlighted_net().map(|id| ObjectRef::Net { id }))
                 .collect()
         }

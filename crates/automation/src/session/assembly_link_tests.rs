@@ -296,6 +296,7 @@ fn b4_the_dry_run_names_the_feature_that_follows() -> TestResult {
     };
     assert_eq!(moves["effect"], "moves");
     assert_eq!(moves["feature"], "USB opening");
+    assert!(moves["feature_id"].is_u64(), "{moves}");
     assert_eq!(
         moves["message"],
         "The linked design's ‘USB opening’ follows J1 opening: it moves 2 mm along X"
@@ -848,12 +849,34 @@ fn a_preview_without_a_path_publishes_nowhere() -> TestResult {
         json!({"command": "interface.publish_preview", "params": {
             "tier": "interface", "assembly_path": assembly.display().to_string()}}),
     )?;
-    let reply = session.dispatch(bound_publish(
+    assert!(preview["dry_run"].is_null(), "{preview}");
+    assert!(
+        preview["token"].is_null(),
+        "no authorization without a dry run: {preview}"
+    );
+    let unreviewed = session.dispatch(bound_publish(
         &session,
         &elsewhere,
         &assembly,
         "interface",
         &preview["token"],
+    ));
+    assert_eq!(unreviewed["ok"], false, "{unreviewed}");
+    assert!(!elsewhere.exists());
+    let complete = ok(
+        &mut session,
+        json!({"command":"interface.publish_preview","params":{
+            "path":design.display().to_string(),"assembly_path":assembly.display().to_string(),"tier":"interface"
+        }}),
+    )?;
+    assert!(complete["dry_run"]["effects"].is_array());
+    assert!(complete["token"].is_string());
+    let reply = session.dispatch(bound_publish(
+        &session,
+        &elsewhere,
+        &assembly,
+        "interface",
+        &complete["token"],
     ));
     assert_eq!(reply["ok"], false, "{reply}");
     assert!(

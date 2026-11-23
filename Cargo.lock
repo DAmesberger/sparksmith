@@ -7023,6 +7023,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "ureq",
+ "url",
 ]
 
 [[package]]
@@ -7311,6 +7312,7 @@ version = "0.1.0"
 dependencies = [
  "cap-std",
  "getrandom 0.3.4",
+ "http",
  "pdf-writer",
  "same-file",
  "schemars",

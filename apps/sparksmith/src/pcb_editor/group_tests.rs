@@ -629,6 +629,7 @@ fn picking_a_bridge_selects_only_its_tie_group_in_both_views() -> Fallible {
     }
     let group = TieId(1);
     let source = Source {
+        hole: None,
         pick_id: 4,
         instance: Some(instance),
         pad: None,
@@ -748,5 +749,60 @@ fn picking_an_anchor_land_in_layout_emits_the_selected_group_and_end() -> Fallib
     })) if instance == r1 && group == anchor.group && end == anchor.end && target.instance == r2 && target.pad == land)
     );
     assert!(editor.anchor_pick.is_none());
+    Ok(())
+}
+
+#[test]
+fn picking_a_washer_inspects_the_board_hole_in_both_views() -> Fallible {
+    use sparksmith_core::model::board::{
+        BoardFeatureId, BoardShape, BoardSketch, SolvedBoard, SolvedMountingHole,
+    };
+    use sparksmith_solidcraft::project::{mesh, plan};
+    let engine = board(&[])?;
+    let mut project = engine.project().clone();
+    let hole = BoardFeatureId(17);
+    let center = [18.0, 16.0];
+    let mut solved = SolvedBoard::rectangle(project.board_size);
+    solved.holes.push(SolvedMountingHole {
+        id: hole,
+        at: center,
+        drill: 1.0,
+        plated: true,
+        pad_diameter: Some(2.0),
+    });
+    project.board_shape = BoardShape::Sketch(Box::new(BoardSketch {
+        evaluator: Default::default(),
+        sketch: Default::default(),
+        parameters: vec![],
+        cutouts: vec![],
+        holes: vec![],
+        edges: vec![],
+        next_feature: 18,
+        solve: Default::default(),
+        solved,
+        outline_fit: 0.01,
+        fault: None,
+        idle: vec![],
+    }));
+    let engine = super::super::raster_tests::with_project(&engine, project)?;
+    let _context = engine.enter_context();
+    let sources = mesh::plan_sources(&plan::copper(engine.project(), &mut plan::Memo::default())?);
+    let source = sources
+        .iter()
+        .find(|s| s.hole.as_ref().is_some_and(|h| h.id == hole))
+        .ok_or("missing mounting hole")?;
+    let (mut editor, ctx) = setup(&engine);
+    editor.set_3d(true);
+    editor.select_picked(&[source]);
+    assert_eq!(editor.hole, Some(hole));
+    assert_eq!(editor.inspected(engine.project()), Inspected::Hole(hole));
+    assert_eq!(editor.highlighted_net(), None);
+    editor.set_3d(false);
+    assert_eq!(editor.hole, Some(hole));
+    editor.select_hit(super::super::menu::Hit::Nothing);
+    assert_eq!(editor.hole, None);
+    let at = view_of(&editor, &engine).screen([center[0] + 0.75, center[1]]);
+    click(&mut editor, &engine, &ctx, at, egui::Modifiers::NONE);
+    assert_eq!(editor.inspected(engine.project()), Inspected::Hole(hole));
     Ok(())
 }

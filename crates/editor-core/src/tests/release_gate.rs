@@ -538,6 +538,7 @@ fn holes_board(features: &[(Kind, [f64; 2])]) -> Result<(Project, Vec<ObjectRef>
                 footprint.pads.push(Pad {
                     id,
                     kind: pad_kind,
+                    fiducial_role: None,
                     terminal: None,
                     number: String::new(),
                     position: pt(r1_local(*at)),
@@ -812,6 +813,7 @@ fn two_undersized_holes_of_one_pad_are_two_findings() -> Result<()> {
         hole: None,
         mask: Default::default(),
         paste: Default::default(),
+        fiducial_role: None,
         vias: vec![
             PadVia {
                 id: a,

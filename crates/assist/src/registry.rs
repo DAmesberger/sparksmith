@@ -16,7 +16,7 @@
 //! requests carry the sign-in's token, searches and the catalog never do.
 pub mod account;
 
-use crate::model::Secret;
+use crate::model::{Endpoint, Secret};
 use account::{Auth, DeviceCode};
 use serde::Deserialize;
 use sparksmith_automation::session::online::{
@@ -102,10 +102,8 @@ impl Synced {
 
 /// A blocking client of one registry.
 pub struct RegistryClient {
-    base: String,
+    endpoint: Endpoint,
     host: String,
-    /// The registry is on this computer.
-    loopback: bool,
     agent: ureq::Agent,
     /// The sign-in: its keychain and what is known of it.
     auth: Auth,
@@ -116,7 +114,7 @@ pub struct RegistryClient {
 impl std::fmt::Debug for RegistryClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RegistryClient")
-            .field("base", &self.base)
+            .field("base", &self.endpoint.base())
             .finish_non_exhaustive()
     }
 }
@@ -155,12 +153,24 @@ pub fn index_date(seconds: u64) -> String {
     format!("index of {day} {name}")
 }
 
-/// The HTTP methods the client sends.
+/// Only a read without a bearer may use plaintext transport off this computer.
 #[derive(Clone, Copy)]
-enum Method {
-    Get,
-    Post,
-    Delete,
+enum Request<'a> {
+    Read(Option<&'a Secret>),
+    SignIn(&'a str),
+    Poll(&'a Secret),
+    Revoke(&'a Secret),
+}
+
+impl Request<'_> {
+    fn clean(self, message: &str) -> String {
+        match self {
+            Self::Read(Some(secret)) | Self::Poll(secret) | Self::Revoke(secret) => {
+                secret.redact(message)
+            }
+            Self::Read(None) | Self::SignIn(_) => message.to_owned(),
+        }
+    }
 }
 
 /// A reply of any status.
@@ -169,6 +179,30 @@ pub(crate) struct Reply {
     /// `Retry-After`, in seconds.
     retry_after: Option<u64>,
     bytes: Vec<u8>,
+    diagnostic: Option<String>,
+}
+
+impl Reply {
+    fn received(
+        request: Request<'_>,
+        status: u16,
+        retry_after: Option<u64>,
+        bytes: Vec<u8>,
+    ) -> Self {
+        let diagnostic = if status >= 300 {
+            serde_json::from_slice::<serde_json::Value>(&bytes)
+                .ok()
+                .and_then(|v| v["error"]["message"].as_str().map(|m| request.clean(m)))
+        } else {
+            None
+        };
+        Self {
+            status,
+            retry_after,
+            bytes,
+            diagnostic,
+        }
+    }
 }
 
 fn get_err(error: ureq::Error) -> String {
@@ -209,17 +243,13 @@ impl RegistryClient {
 
     fn with_auth(url: &str, cache: Option<&Path>, auth: Auth) -> Result<Self, String> {
         sparksmith_io::settings::check_registry_url(url).map_err(|e| e.to_string())?;
-        let base = url.trim_end_matches('/').to_owned();
-        let host = base
-            .split_once("://")
-            .map_or(base.as_str(), |(_, h)| h)
-            .to_owned();
-        let loopback =
-            host.starts_with("localhost") || host.starts_with("127.") || host.starts_with("[::1]");
+        let endpoint = Endpoint::parse(url).map_err(|e| e.to_string())?;
+        let base = endpoint.base();
+        let host = base.split_once("://").map_or(base, |(_, h)| h).to_owned();
         let mut config = ureq::Agent::config_builder()
             .http_status_as_error(false)
             .max_redirects(0);
-        if loopback {
+        if endpoint.is_loopback() {
             config = config.proxy(None);
         }
         let mirror = cache
@@ -227,9 +257,8 @@ impl RegistryClient {
             .transpose()
             .map_err(|e| e.to_string())?;
         Ok(Self {
-            base,
+            endpoint,
             host,
-            loopback,
             agent: config.build().into(),
             auth,
             mirror,
@@ -242,51 +271,50 @@ impl RegistryClient {
         &self.host
     }
 
-    /// One request to this registry, with `token` as its bearer when
-    /// given; the reply whatever its status. Nothing the token could reach
-    /// comes back in an error.
+    fn request_url(&self, request: Request<'_>, path: &str) -> Result<String, String> {
+        if !path.starts_with('/') {
+            return Err("A registry request path must start with /.".into());
+        }
+        if !matches!(request, Request::Read(None)) && !self.may_sign_in() {
+            return Err(format!(
+                "Signing in to {} needs https://: a sign-in never travels over plain HTTP to \
+                 another computer.",
+                self.host
+            ));
+        }
+        Ok(format!("{}{path}", self.endpoint.base()))
+    }
+
+    /// Check the destination before constructing or sending the HTTP request.
     fn send(
         &self,
-        method: Method,
+        request: Request<'_>,
         path: &str,
-        body: Option<&serde_json::Value>,
-        token: Option<&Secret>,
         timeout: Duration,
         limit: u64,
     ) -> Result<Reply, String> {
-        let url = format!("{}{path}", self.base);
-        let bearer = token.map(|t| format!("Bearer {}", t.expose()));
-        let clean = |error: ureq::Error| {
-            let message = get_err(error);
-            match token {
-                Some(token) => token.redact(&message),
-                None => message,
-            }
+        let url = self.request_url(request, path)?;
+        let clean = |error| request.clean(&get_err(error));
+        let post = |body: serde_json::Value| {
+            self.agent
+                .post(&url)
+                .config()
+                .timeout_global(Some(timeout))
+                .build()
+                .send_json(body)
         };
-        let sent = match method {
-            Method::Post => {
-                let mut request = self
-                    .agent
-                    .post(&url)
-                    .config()
-                    .timeout_global(Some(timeout))
-                    .build();
-                if let Some(bearer) = &bearer {
-                    request = request.header("authorization", bearer);
-                }
-                request.send_json(body.cloned().unwrap_or_else(|| serde_json::json!({})))
+        let read = |req: ureq::RequestBuilder<_>, token: Option<&Secret>| {
+            let mut req = req.config().timeout_global(Some(timeout)).build();
+            if let Some(token) = token {
+                req = req.header("authorization", format!("Bearer {}", token.expose()));
             }
-            Method::Get | Method::Delete => {
-                let request = match method {
-                    Method::Delete => self.agent.delete(&url),
-                    _ => self.agent.get(&url),
-                };
-                let mut request = request.config().timeout_global(Some(timeout)).build();
-                if let Some(bearer) = &bearer {
-                    request = request.header("authorization", bearer);
-                }
-                request.call()
-            }
+            req.call()
+        };
+        let sent = match request {
+            Request::SignIn(name) => post(serde_json::json!({"client_name": name})),
+            Request::Poll(code) => post(serde_json::json!({"device_code": code.expose()})),
+            Request::Read(token) => read(self.agent.get(&url), token),
+            Request::Revoke(token) => read(self.agent.delete(&url), Some(token)),
         };
         let mut response = sent.map_err(clean)?;
         let status = response.status().as_u16();
@@ -301,11 +329,7 @@ impl RegistryClient {
             .limit(limit)
             .read_to_vec()
             .map_err(clean)?;
-        Ok(Reply {
-            status,
-            retry_after,
-            bytes,
-        })
+        Ok(Reply::received(request, status, retry_after, bytes))
     }
 
     /// A refusal in words: the sign-in a download needs, when to try again
@@ -315,9 +339,9 @@ impl RegistryClient {
             401 => account::SIGN_IN_NEEDED.into(),
             429 => account::rate_limited(reply),
             status => {
-                let message = serde_json::from_slice::<serde_json::Value>(&reply.bytes)
-                    .ok()
-                    .and_then(|v| v["error"]["message"].as_str().map(str::to_owned))
+                let message = reply
+                    .diagnostic
+                    .clone()
                     .unwrap_or_else(|| format!("status {status}"));
                 format!("the registry refused: {message}")
             }
@@ -328,7 +352,7 @@ impl RegistryClient {
     /// need no account, so a 401 here is the server closed to the public
     /// (a password in front of it), not a missing sign-in.
     fn get(&self, path: &str, timeout: Duration, limit: u64) -> Result<Vec<u8>, String> {
-        let reply = self.send(Method::Get, path, None, None, timeout, limit)?;
+        let reply = self.send(Request::Read(None), path, timeout, limit)?;
         if reply.status == 401 {
             return Err(format!(
                 "{} is not open to the public: it asked for a password to search, which needs no account. Use another online library, or wait until this one opens",
@@ -345,7 +369,7 @@ impl RegistryClient {
     /// one. A token the registry refuses is forgotten.
     fn download(&self, path: &str, timeout: Duration, limit: u64) -> Result<Vec<u8>, String> {
         let token = self.token();
-        let reply = self.send(Method::Get, path, None, token.as_ref(), timeout, limit)?;
+        let reply = self.send(Request::Read(token.as_ref()), path, timeout, limit)?;
         if reply.status >= 300 {
             if reply.status == 401 && token.is_some() {
                 self.token_refused();
@@ -359,9 +383,9 @@ impl RegistryClient {
     /// checked and mirrored), else the mirror's last ones when the registry
     /// cannot be reached.
     pub fn sync(&self) -> Result<Arc<Synced>, String> {
-        match self.fetch_sync() {
+        match self.fetch_sync(mirror::MAX_CATALOG_BYTES) {
             Ok(synced) => Ok(self.keep(synced)),
-            Err(error) if unreachable(&error) => match self.mirrored() {
+            Err(error) if unreachable(&error) => match self.mirrored()? {
                 Some(synced) => Ok(self.keep(synced)),
                 None => Err(error),
             },
@@ -386,14 +410,15 @@ impl RegistryClient {
         }
     }
 
-    fn fetch_sync(&self) -> Result<Synced, String> {
+    fn fetch_sync(&self, limit: u64) -> Result<Synced, String> {
         let index =
             mirror::decode_index(&self.get("/v1/index", SYNC_TIMEOUT, mirror::MAX_INDEX_BYTES)?)
                 .map_err(|e| e.to_string())?;
         let mut shards = Vec::with_capacity(index.shards.len());
+        let mut budget = mirror::ShardBudget(limit);
         for info in &index.shards {
             let shard = match &self.mirror {
-                Some(m) if m.has_shard(info.sha256) => m.shard(info.sha256).ok(),
+                Some(m) => budget.cached(m, info.sha256).map_err(|e| e.to_string())?,
                 _ => None,
             };
             let shard = match shard {
@@ -404,6 +429,7 @@ impl RegistryClient {
                         SYNC_TIMEOUT,
                         mirror::MAX_SHARD_BYTES,
                     )?;
+                    budget.charge(bytes.len()).map_err(|e| e.to_string())?;
                     match &self.mirror {
                         Some(m) => m.store_shard(&bytes, info.sha256),
                         None => mirror::decode_shard(&bytes, info.sha256),
@@ -425,16 +451,24 @@ impl RegistryClient {
         })
     }
 
-    fn mirrored(&self) -> Option<Synced> {
-        let m = self.mirror.as_ref()?;
-        let MirroredIndex { index, fetched } = m.index()?;
-        let shards = m.shards().into_iter().map(Arc::new).collect();
-        Some(Synced {
+    fn mirrored(&self) -> Result<Option<Synced>, String> {
+        let Some((m, MirroredIndex { index, fetched })) =
+            self.mirror.as_ref().and_then(|m| Some((m, m.index()?)))
+        else {
+            return Ok(None);
+        };
+        let shards = m
+            .shards(&index, mirror::MAX_CATALOG_BYTES)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+        Ok(Some(Synced {
             index,
             shards,
             fetched,
             offline: true,
-        })
+        }))
     }
 
     /// `library.search` of `text` on the registry; offline, on the mirror.
@@ -477,7 +511,7 @@ impl RegistryClient {
     ) -> Result<OnlineReport, String> {
         let synced = match self.synced.lock().ok().and_then(|s| s.clone()) {
             Some(s) => s,
-            None => Arc::new(self.mirrored().ok_or_else(String::new)?),
+            None => Arc::new(self.mirrored()?.ok_or_else(String::new)?),
         };
         let mut report = search_shards(&synced.shards, text, limit, offset)?;
         report.source = self.host.clone();
@@ -505,8 +539,8 @@ impl RegistryClient {
             BUNDLE_TIMEOUT,
             MAX_BUNDLE_BYTES,
         )?;
-        let wire: WireBundle = serde_json::from_slice(&bytes)
-            .map_err(|e| format!("the registry's bundle is unreadable: {e}"))?;
+        let wire: WireBundle =
+            serde_json::from_slice(&bytes).map_err(|_| "the registry's bundle is unreadable")?;
         if wire.format != mirror::FORMAT {
             return Err(format!(
                 "registry bundle format {} is not supported",

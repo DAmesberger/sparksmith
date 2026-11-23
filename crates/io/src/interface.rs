@@ -62,7 +62,7 @@ pub fn read_sidecar(design: &Path) -> Result<Option<Sidecar>> {
 }
 
 mod transaction;
-pub use transaction::{Baseline, Publication, design_hash, put_in_place};
+pub use transaction::{Baseline, Publication, design_hash, put_in_place, put_reviewed_in_place};
 
 /// A fresh sibling name for unpublished native output. StagedNew owns the
 /// actual scratch file; this name is never committed to the public destination.

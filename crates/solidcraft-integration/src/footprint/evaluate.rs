@@ -508,6 +508,7 @@ fn classify_roles(
         let pad = Pad {
             id: role.pad,
             kind: role.kind,
+            fiducial_role: role.fiducial_role,
             terminal: role.terminal,
             number: role.number.clone(),
             position: stored(PointNm::from_mm_f64_rounded([anchor.x, anchor.y]))?,

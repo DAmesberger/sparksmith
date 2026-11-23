@@ -367,6 +367,18 @@ fn plain(url: &str, cache: Option<&Path>) -> std::result::Result<RegistryClient,
 }
 
 #[test]
+fn sync_charges_downloaded_and_cached_shards() -> TestResult {
+    let registry = registry(None)?;
+    let size = registry.shard_bytes.len() as u64;
+    let cache = tempfile::tempdir()?;
+    let client = plain(&serve(registry)?, Some(cache.path()))?;
+    assert!(matches!(client.fetch_sync(size - 1), Err(m) if m.contains("registry catalog budget")));
+    assert!(client.fetch_sync(size).is_ok());
+    assert!(matches!(client.fetch_sync(size - 1), Err(m) if m.contains("registry catalog budget")));
+    Ok(())
+}
+
+#[test]
 fn online_search_reads_the_same_query_and_marks_rows_online() -> TestResult {
     let registry = registry(None)?;
     let client = plain(&serve(registry.clone())?, None)?;
@@ -624,6 +636,40 @@ fn a_refused_token_is_forgotten() -> TestResult {
     Ok(())
 }
 
+#[test]
+fn sign_in_button_names_the_origin_of_its_parsed_destination() -> TestResult {
+    use account::VerificationPages;
+    let manual = "https://parts.example/device";
+    for (complete, origin, separate) in [
+        ("", "https://parts.example", false),
+        (
+            "https://PARTS.example:443/approve?c=123",
+            "https://parts.example",
+            false,
+        ),
+        (
+            "https://identity.example:8443/approve?c=123",
+            "https://identity.example:8443",
+            true,
+        ),
+    ] {
+        let pages = VerificationPages::parse(manual, complete)?;
+        assert_eq!(pages.browser().origin().ascii_serialization(), origin);
+        assert!(pages.button_label().contains(origin));
+        assert_eq!(pages.button_label().contains("identity provider"), separate);
+    }
+    for invalid in [
+        "file:///device",
+        "https://user@example.org/device",
+        "http://remote.example/device",
+        "/relative",
+    ] {
+        assert!(VerificationPages::parse(invalid, manual).is_err());
+        assert!(VerificationPages::parse(manual, invalid).is_err());
+    }
+    Ok(())
+}
+
 /// The device flow: a code under the client's name, polled at the
 /// registry's interval, 5 s longer after `slow_down`, until approved; the
 /// token goes to the keychain and the account is known.
@@ -644,7 +690,7 @@ fn signing_in_polls_until_approved_and_keeps_the_token() -> TestResult {
     let code = client.start_sign_in("Sparksmith on bench")?;
     assert_eq!(code.user_code, "BCDF-GHJK");
     assert_eq!(
-        code.verification_uri_complete,
+        code.pages.browser().as_str(),
         "https://parts.example/device?code=BCDF-GHJK"
     );
     assert!(!format!("{code:?}").contains("dev-secret-code"));
@@ -781,6 +827,53 @@ fn no_token_travels_over_plain_http_to_another_computer() -> TestResult {
     Ok(())
 }
 
+/// Prepare the same destinations as the HTTP sender, without DNS, sockets
+/// or a system keychain. Only an anonymous read is public.
+#[test]
+fn registry_credentials_follow_the_parsed_endpoint() -> TestResult {
+    let token = Secret::new("inert-test-marker").ok_or("missing marker")?;
+    let poll = Secret::new("inert-code-marker").ok_or("missing marker")?;
+    for (base, local, allowed) in [
+        ("http://LOCALHOST:8787", true, true),
+        ("http://127.1.2.3", true, true),
+        ("http://[::1]:8787", true, true),
+        ("http://[::ffff:127.0.0.1]", true, true),
+        ("http://localhost.parts.example", false, false),
+        ("http://127.0.0.1.parts.example", false, false),
+        ("http://parts.example", false, false),
+        ("http://192.0.2.1", false, false),
+        ("https://parts.example", false, true),
+    ] {
+        let client = plain(base, None)?;
+        assert_eq!(client.endpoint.is_loopback(), local, "{base}");
+        assert_eq!(client.may_sign_in(), allowed, "{base}");
+        assert!(
+            client
+                .request_url(Request::Read(Some(&token)), "parts.example")
+                .is_err()
+        );
+        assert_eq!(
+            client.request_url(Request::Read(None), "/v1/index")?,
+            format!("{base}/v1/index")
+        );
+        for (request, path) in [
+            (Request::SignIn("test"), "/v1/device/code"),
+            (Request::Poll(&poll), "/v1/device/token"),
+            (Request::Read(Some(&token)), "/v1/bundles/1/1"),
+            (Request::Read(Some(&token)), "/v1/account"),
+            (Request::Revoke(&token), "/v1/auth/token"),
+        ] {
+            let url = client.request_url(request, path);
+            if allowed {
+                assert_eq!(url?, format!("{base}{path}"));
+            } else {
+                assert!(url.is_err_and(|e| e.contains("https://")), "{base}{path}");
+            }
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn the_client_name_names_this_computer_within_its_bound() {
     let product = sparksmith_core::product::NAME;
@@ -876,5 +969,30 @@ fn a_registry_behind_a_password_says_it_is_not_open()
     let refused = client.search("resistor", 5, 0).err().unwrap_or_default();
     assert!(refused.contains("is not open to the public"), "{refused}");
     assert_ne!(refused, account::SIGN_IN_NEEDED);
+    Ok(())
+}
+
+#[test]
+fn registry_diagnostics_redact_device_codes_and_bearers_in_memory() -> TestResult {
+    let marker = Secret::new("fixture-sensitive-text").ok_or("missing marker")?;
+    let message = "could not use fixture-sensitive-text";
+    let client = plain("https://parts.example", None)?;
+    for request in [
+        Request::Poll(&marker),
+        Request::Read(Some(&marker)),
+        Request::Revoke(&marker),
+    ] {
+        assert_eq!(request.clean(message), "could not use [redacted]");
+        let reply = Reply::received(
+            request,
+            403,
+            None,
+            serde_json::to_vec(&serde_json::json!({"error": {"message": message}}))?,
+        );
+        assert_eq!(
+            client.refusal(&reply),
+            "the registry refused: could not use [redacted]"
+        );
+    }
     Ok(())
 }

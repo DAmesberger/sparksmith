@@ -55,7 +55,10 @@ pub fn hash(path: &Path) -> Result<Option<ContentHash>> {
 }
 
 fn read(path: &Path) -> Result<Vec<u8>> {
-    let file = std::fs::File::open(path)?;
+    read_file(&std::fs::File::open(path)?)
+}
+
+fn read_file(file: &std::fs::File) -> Result<Vec<u8>> {
     if file.metadata()?.len() > MAX_LINKED_DESIGN_BYTES {
         return Err(Error::TooLarge("the linked design exceeds 512 MiB".into()));
     }
@@ -66,6 +69,29 @@ fn read(path: &Path) -> Result<Vec<u8>> {
         return Err(Error::TooLarge("the linked design exceeds 512 MiB".into()));
     }
     Ok(bytes)
+}
+
+/// Hold a shared lock on the reviewed assembly through the publication decision.
+/// A replacing writer must take the exclusive lock on the current file, check
+/// that the name still identifies it, and hold the lock across its rename.
+pub(crate) fn hold_reviewed(path: &Path, expected: ContentHash) -> Result<std::fs::File> {
+    let changed = || {
+        Error::Document(sparksmith_core::Error::Conflict(
+            "interface.preview_changed: the linked design changed; preview the publication again"
+                .into(),
+        ))
+    };
+    let file = std::fs::File::open(path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => changed(),
+        _ => e.into(),
+    })?;
+    file.lock_shared()?;
+    if sparksmith_core::interface::assembly_link::file_hash(&read_file(&file)?) != expected
+        || !crate::persistence::still_at(&file, path)?
+    {
+        return Err(changed());
+    }
+    Ok(file)
 }
 
 /// Read the linked design at `path` once and copy it into a new scratch folder.

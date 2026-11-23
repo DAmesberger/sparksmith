@@ -12,6 +12,9 @@
 //! places ([`Alignment`]); `keep_origin` keeps position and rotation.
 //! Copper the new footprint no longer reaches stays where it is, listed by
 //! the preview.
+mod copper;
+pub(super) use copper::copper_identity;
+
 use super::{invalid, not_found};
 use crate::diagnostics::{Error, Result};
 use crate::fields::FieldOverride;
@@ -713,76 +716,6 @@ pub fn suggest_by_name(
                 .map(|n| n.id)
                 .collect();
             (t.id, t.name.clone(), same)
-        })
-        .collect()
-}
-
-/// Two board pads are the same copper: shape, layer, side and through-hole
-/// alike, centres within a micrometre and the same turn.
-fn same_copper(a: &layout::WorldPad, b: &layout::WorldPad) -> bool {
-    const EPS: f64 = 1e-6;
-    let turn = (a.rotation_deg - b.rotation_deg).rem_euclid(360.0);
-    a.shape == b.shape
-        && a.layer == b.layer
-        && a.through == b.through
-        && a.mirrored == b.mirrored
-        && (a.position[0] - b.position[0]).abs() < EPS
-        && (a.position[1] - b.position[1]).abs() < EPS
-        && (turn < EPS || 360.0 - turn < EPS)
-}
-
-/// Per replaced instance: whether its copper on the board stays the same.
-pub(super) fn copper_identity(
-    project: &Project,
-    next: &Project,
-    ids: &[Id],
-) -> Vec<super::CopperIdentity> {
-    let (before, after) = (layout::pads(project), layout::pads(next));
-    let (old_labels, new_labels) = (layout::pad_labels(project), layout::pad_labels(next));
-    let label = |labels: &BTreeMap<(Id, crate::ids::PadId), String>, pad: &layout::WorldPad| {
-        labels
-            .get(&(pad.instance, pad.pad))
-            .cloned()
-            .unwrap_or_else(|| pad.pad.to_string())
-    };
-    ids.iter()
-        .filter_map(|id| {
-            let designator = next.instance(*id)?.designator.clone();
-            let old: Vec<&layout::WorldPad> = before.iter().filter(|p| p.instance == *id).collect();
-            let new: Vec<&layout::WorldPad> = after.iter().filter(|p| p.instance == *id).collect();
-            let mut matched = vec![false; new.len()];
-            let (mut old_only, mut renumbered) = (Vec::new(), Vec::new());
-            for pad in &old {
-                let found = new.iter().enumerate().find(|(i, n)| {
-                    !matched.get(*i).copied().unwrap_or(true) && same_copper(pad, n)
-                });
-                match found {
-                    Some((i, n)) => {
-                        if let Some(slot) = matched.get_mut(i) {
-                            *slot = true;
-                        }
-                        let (a, b) = (label(&old_labels, pad), label(&new_labels, n));
-                        if a != b {
-                            renumbered.push(format!("{a} → {b}"));
-                        }
-                    }
-                    None => old_only.push(label(&old_labels, pad)),
-                }
-            }
-            let new_only: Vec<String> = new
-                .iter()
-                .zip(&matched)
-                .filter(|(_, m)| !**m)
-                .map(|(n, _)| label(&new_labels, n))
-                .collect();
-            Some(super::CopperIdentity {
-                instance: *id,
-                designator,
-                identical: old_only.is_empty() && new_only.is_empty(),
-                old_only,
-                new_only,
-                renumbered,
-            })
         })
         .collect()
 }

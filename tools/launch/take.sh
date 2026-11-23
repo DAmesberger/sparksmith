@@ -47,9 +47,8 @@ done
 export FFMPEG="${FFMPEG:-$(nix build nixpkgs#ffmpeg-full.bin --print-out-paths --no-link)/bin/ffmpeg}"
 
 # A fresh, private app state for every take.
-state="$repo/target/launch/state"
-rm -rf "$state"; mkdir -p "$state/recovery" "$state/config" "$state/cache" "$state/home"
-export SPARKSMITH_RECOVERY_DIR="$state/recovery" SPARKSMITH_CONFIG_DIR="$state/config" SPARKSMITH_CACHE_DIR="$state/cache"
+source "$here/state.sh"
+capture_state "$repo/target/launch" "$out"
 
 app_pid=""; rec_pid=""
 cleanup() {
