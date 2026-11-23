@@ -63,6 +63,18 @@ fn the_committed_dev_board_is_what_its_replay_builds() -> Fallible {
         assert_eq!(reply["ok"], true, "line {}: {reply}", n + 1);
     }
     assert_eq!(saves, 1);
+    let marks = sparksmith_core::layout::fiducial::placed_fiducials(session.engine().project());
+    assert_eq!(marks.len(), 3);
+    assert!(
+        marks
+            .iter()
+            .all(|mark| mark.role == sparksmith_core::library::FiducialRole::Global)
+    );
+    let film = std::fs::read_to_string(
+        root.join("examples/esp32-s31-devboard/fab/esp32-s31-devboard-copper-l1-top.gbr"),
+    )?;
+    assert!(film.contains("%TA.AperFunction,FiducialPad,Global*%"));
+    assert!(!film.contains("%TA.AperFunction,FiducialPad,Local*%"));
     let built = std::fs::read(&saved)?;
     let committed = std::fs::read(root.join(EXAMPLE))?;
     assert!(

@@ -285,6 +285,8 @@ pub struct PadRole {
     /// The pad-centre point: the identity carrier.
     pub anchor: SketchPointId,
     pub geometry: PadGeometry,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fiducial_role: Option<super::FiducialRole>,
     /// A construction line whose angle is the pad rotation; `None` is 0°.
     pub orientation: Option<SketchCurveId>,
     pub kind: PadKind,

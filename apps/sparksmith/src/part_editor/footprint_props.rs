@@ -334,6 +334,19 @@ fn pad_rows(
     if kit::choice_row(ui, "Kind", &mut kind, &kinds) {
         geo::set_kind(pad, kind, fallback);
     }
+    if pad.kind == PadKind::Fiducial {
+        use sparksmith_core::library::FiducialRole;
+        kit::choice_row(
+            ui,
+            "Registration",
+            &mut pad.fiducial_role,
+            &[
+                (None, "From footprint".into()),
+                (Some(FiducialRole::Global), "Board (global)".into()),
+                (Some(FiducialRole::Local), "Component (local)".into()),
+            ],
+        );
+    }
     kit::text_row(ui, "Number", &mut pad.number);
     let terminals = package
         .terminals

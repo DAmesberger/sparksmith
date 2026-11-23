@@ -216,7 +216,7 @@ fn pad_or_refusal(
                 (true, false) => PadSide::Top,
                 (false, true) => PadSide::Bottom,
             };
-            let kind = if kpad.fiducial {
+            let kind = if kpad.fiducial.is_some() {
                 PadKind::Fiducial
             } else if kpad.number.trim().is_empty() {
                 PadKind::Mechanical
@@ -280,6 +280,7 @@ fn pad_or_refusal(
         hole,
         mask,
         paste,
+        fiducial_role: kpad.fiducial,
         vias: Vec::new(),
     };
     // A non-plated hole needs a land at least as large as the hole.

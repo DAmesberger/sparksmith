@@ -356,6 +356,7 @@ fn apply_one(
             let drawn = evaluator.add_template_pad(source, &values, *template, *at, params)?;
             source.sketch = drawn.outcome.sketch;
             source.pads.push(PadRole {
+                fiducial_role: None,
                 pad: id,
                 anchor: drawn.anchor,
                 geometry: PadGeometry::Template {

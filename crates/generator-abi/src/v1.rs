@@ -1119,6 +1119,17 @@ pub enum PadKind {
     Mechanical,
     /// An optical alignment mark: copper, no terminal, no paste.
     Fiducial,
+    GlobalFiducial,
+    LocalFiducial,
+}
+
+impl PadKind {
+    pub fn is_fiducial(self) -> bool {
+        matches!(
+            self,
+            Self::Fiducial | Self::GlobalFiducial | Self::LocalFiducial
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

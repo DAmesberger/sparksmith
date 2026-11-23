@@ -58,6 +58,7 @@ const CHORD_MM: f64 = 0.005;
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlacedFiducial {
     pub instance: Id,
+    pub role: crate::library::FiducialRole,
     /// The copper layer of its dot.
     pub layer: Layer,
     /// Its centre on the board, mm.
@@ -101,6 +102,10 @@ pub fn placed_fiducials(project: &Project) -> Vec<PlacedFiducial> {
         }
         out.push(PlacedFiducial {
             instance: pad.instance,
+            role: pad
+                .pad
+                .fiducial_role
+                .unwrap_or(crate::library::FiducialRole::Local),
             layer: pad.layer,
             at,
             clear,
@@ -157,7 +162,9 @@ pub fn findings(project: &Project) -> Vec<Finding> {
     let on = |top: bool| -> Vec<&PlacedFiducial> {
         fiducials
             .iter()
-            .filter(|f| (f.layer == Layer::Top) == top)
+            .filter(|f| {
+                f.role == crate::library::FiducialRole::Global && (f.layer == Layer::Top) == top
+            })
             .collect()
     };
     if let Some(min) = effective.assembly.fiducial_count_min.filter(|n| *n > 0) {

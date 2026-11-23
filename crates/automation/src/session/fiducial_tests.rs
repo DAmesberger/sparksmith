@@ -136,6 +136,10 @@ fn a_side_with_surface_parts_needs_three_fiducials_not_symmetric() -> TestResult
     )?;
     let r1 = placed["outcome"]["instance"].as_u64().ok_or("no R1")?;
     place(&mut session, r1, c, "Top")?;
+    // The local preset uses the same dot dimensions as the global preset.
+    // Placing it must leave the board-registration count and symmetry alone.
+    let local = make(&mut session, "fiducial", "fiducial-local-1mm", json!({}))?;
+    fiducial(&mut session, &local, [c[0] + 8.0, c[1] + 6.0], "Top")?;
     // R1 is on the top only: the top needs three fiducials, the bottom none.
     assert_eq!(
         messages(&session, TOO_FEW),
@@ -154,6 +158,20 @@ fn a_side_with_surface_parts_needs_three_fiducials_not_symmetric() -> TestResult
                 .to_string()
         ]
     );
+    let films = sparksmith_core::fabrication::artwork::layers(
+        session.engine().project(),
+        &Default::default(),
+        &Default::default(),
+        "marks",
+    )?;
+    let top = films
+        .iter()
+        .find(|f| f.name == "marks-copper-l1-top.gbr")
+        .ok_or("top copper")?;
+    let copper = std::str::from_utf8(&top.bytes)?;
+    for role in ["Global", "Local"] {
+        assert!(copper.contains(&format!("%TA.AperFunction,FiducialPad,{role}*%")));
+    }
     let symmetric = findings(&session, SYMMETRIC);
     assert_eq!(symmetric.len(), 1, "{symmetric:?}");
     assert!(

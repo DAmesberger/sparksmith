@@ -733,6 +733,7 @@ fn footprint_definition(
             hole: None,
             mask: super::MaskRule::Inherit,
             paste: PasteRule::Inherit,
+            fiducial_role: None,
             vias: Vec::new(),
         };
         let round = |d: Nm| Hole {

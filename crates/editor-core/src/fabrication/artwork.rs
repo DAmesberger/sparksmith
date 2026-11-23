@@ -251,7 +251,10 @@ pub fn layers(
 fn pad_function(pad: &PlacedPad) -> &'static str {
     match pad.pad.kind {
         PadKind::PlatedThrough => "ComponentPad",
-        PadKind::Fiducial => "FiducialPad,Local",
+        PadKind::Fiducial => match pad.pad.fiducial_role {
+            Some(crate::library::FiducialRole::Global) => "FiducialPad,Global",
+            _ => "FiducialPad,Local",
+        },
         PadKind::Smd | PadKind::Mechanical | PadKind::NonPlatedHole => {
             if pad.pad.hole.is_some() {
                 "ComponentPad"

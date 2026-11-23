@@ -115,6 +115,7 @@ fn connector_board(board: RuleProfile) -> Fallible<Project> {
         }),
         mask: MaskRule::default(),
         paste: PasteRule::default(),
+        fiducial_role: None,
         vias: Vec::new(),
     });
     project.rules.profile = Some(board);

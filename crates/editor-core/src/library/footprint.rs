@@ -225,6 +225,10 @@ impl From<PadDefaultsParams> for PadDefaults {
 pub struct Pad {
     pub id: PadId,
     pub kind: PadKind,
+    /// Registration scope for a fiducial. An unqualified mark on a package
+    /// is local. A footprint made entirely of marks defaults to board registration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fiducial_role: Option<FiducialRole>,
     /// The package terminal landed. Required for `Smd` and `PlatedThrough`,
     /// forbidden for `NonPlatedHole` and `Fiducial`, optional for
     /// `Mechanical`; never inferred from `number`.
@@ -245,6 +249,14 @@ pub struct Pad {
     pub paste: PasteRule,
     /// Pad-owned plated holes; they inherit the pad's terminal.
     pub vias: Vec<PadVia>,
+}
+
+/// The area the assembler registers using an optical mark.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FiducialRole {
+    Global,
+    Local,
 }
 
 /// What a pad is for.
@@ -733,6 +745,7 @@ impl Pad {
             hole: None,
             mask: MaskRule::Inherit,
             paste: PasteRule::Inherit,
+            fiducial_role: None,
             vias: Vec::new(),
         }
     }

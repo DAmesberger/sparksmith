@@ -792,7 +792,14 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
         let hole = pad.hole.as_ref().map(hole).transpose()?;
         let kind = match (&hole, pad.kind) {
             (None, Some(v1::PadKind::Mechanical)) => PadKind::Mechanical,
-            (None, Some(v1::PadKind::Fiducial)) => PadKind::Fiducial,
+            (
+                None,
+                Some(
+                    v1::PadKind::Fiducial
+                    | v1::PadKind::LocalFiducial
+                    | v1::PadKind::GlobalFiducial,
+                ),
+            ) => PadKind::Fiducial,
             (None, None) => PadKind::Smd,
             (Some(h), _) if h.plated => PadKind::PlatedThrough,
             (Some(_), _) => PadKind::NonPlatedHole,
@@ -851,6 +858,11 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
                         })
                         .collect::<Result<_>>()?,
                 ),
+            },
+            fiducial_role: match pad.kind {
+                Some(v1::PadKind::LocalFiducial) => Some(crate::library::FiducialRole::Local),
+                Some(v1::PadKind::GlobalFiducial) => Some(crate::library::FiducialRole::Global),
+                _ => None,
             },
             vias: Vec::new(),
         };

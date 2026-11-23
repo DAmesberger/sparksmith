@@ -376,6 +376,10 @@ fn a_fiducial_is_a_part_without_terminals() -> Fallible<()> {
     assert_eq!(placed.len(), 1);
     // No made-up terminal: the pad stays a fiducial and lands none.
     assert_eq!(placed[0].pad.kind, PadKind::Fiducial);
+    assert_eq!(
+        placed[0].pad.fiducial_role,
+        Some(sparksmith_core::library::FiducialRole::Local)
+    );
     assert_eq!(placed[0].terminal, None);
     let instance = project.instance_by_designator("U1").ok_or("U1")?;
     let component = project

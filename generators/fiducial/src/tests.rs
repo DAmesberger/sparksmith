@@ -42,6 +42,12 @@ fn every_preset_generates() -> Result<(), Vec<Problem>> {
     for p in description.presets() {
         let overrides: Vec<(String, ParamValue)> = p.params.clone().into_iter().collect();
         let g = Fiducial::generate(&request(Scope::Component, &overrides))?;
+        let role = if p.key == "fiducial-local-1mm" {
+            PadKind::LocalFiducial
+        } else {
+            PadKind::Fiducial
+        };
+        assert!(g.footprint.pads.iter().all(|pad| pad.kind == Some(role)));
         let both = p.params.get("sides") == Some(&ParamValue::Text("both".into()));
         assert_eq!(
             g.footprint.pads.len(),

@@ -291,7 +291,7 @@ pub struct KPad {
     pub primitives: Vec<Primitive>,
     /// Primitives this importer cannot draw (arcs, curves).
     pub unsupported_primitives: usize,
-    pub fiducial: bool,
+    pub fiducial: Option<sparksmith_core::library::FiducialRole>,
     /// The pad's net number and name (`None`: no net).
     pub net: Option<(u32, String)>,
     /// Per-pad zone connection, clearance and thermal overrides.
@@ -864,10 +864,12 @@ fn pad(node: &Node) -> Result<KPad> {
             }
             "primitives" => primitives(item, &mut pad)?,
             "property" => {
-                pad.fiducial = matches!(
-                    item.arg(0),
-                    Some("pad_prop_fiducial_glob" | "pad_prop_fiducial_loc")
-                );
+                use sparksmith_core::library::FiducialRole;
+                match item.arg(0) {
+                    Some("pad_prop_fiducial_glob") => pad.fiducial = Some(FiducialRole::Global),
+                    Some("pad_prop_fiducial_loc") => pad.fiducial = Some(FiducialRole::Local),
+                    _ => {}
+                }
             }
             "zone_connect"
             | "clearance"
