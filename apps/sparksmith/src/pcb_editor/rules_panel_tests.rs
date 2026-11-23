@@ -667,6 +667,7 @@ fn board_rule_findings_offer_show_rule() {
         detail: IssueDetail::default(),
         finding: sparksmith_core::Finding::new(code, String::new(), Vec::new()),
         also: Default::default(),
+        needs: Vec::new(),
     };
     match crate::issues::fix(&row("board.via_hole_spacing")) {
         Some(crate::issues::Fix::Open {
@@ -677,7 +678,9 @@ fn board_rule_findings_offer_show_rule() {
     }
     assert!(crate::issues::fix(&row("board.unrouted")).is_none());
     assert_eq!(
-        crate::issues::fix(&row("board.unplaced")).map(|f| f.label()),
+        crate::issues::fix(&row("board.unplaced"))
+            .map(|f| f.label().to_owned())
+            .as_deref(),
         Some("Update PCB…")
     );
 }

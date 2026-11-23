@@ -585,6 +585,17 @@ impl App {
                     );
                 }
             }
+            Fix::Switch { operation, .. } => {
+                let before = self.engine.revision();
+                self.apply(ctx, crate::refusal::Origin::Command, Some(*operation));
+                if self.engine.revision() != before {
+                    self.say_with(
+                        crate::kit::severity::Level::Ok,
+                        "Switched the fab profile",
+                        vec![crate::kit::toast::ToastAction::Undo],
+                    );
+                }
+            }
             Fix::Open { dialog, .. } => match dialog {
                 FixDialog::UpdatePcb => {
                     self.workspace = Workspace::Pcb;

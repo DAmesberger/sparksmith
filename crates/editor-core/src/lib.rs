@@ -504,6 +504,30 @@ pub enum Query {
         #[serde(default)]
         profile: Option<fabrication::ProfileChoice>,
     },
+    /// What the board needs of a fab profile and which installed profiles
+    /// allow it. Under `profile` (an id, a whole profile, or the board's
+    /// own when omitted) each profile-limited finding's measurement is a
+    /// need: the rule, the measured value, the profile's limit and its
+    /// source. The board is then checked, as an export checks it, under
+    /// every installed profile (hosts with a profile library add the
+    /// user's and the shipped ones to `candidates`), and those that clear
+    /// every need are suggested: the board's own fabricator's first, then
+    /// other fabricators', then profiles that name none. Switch with
+    /// `rules.set_fab_profile` and the suggestion's id. No suggestion
+    /// means no installed profile allows the board: the needs say what
+    /// one must.
+    #[serde(rename = "fabrication.profile_suggestions")]
+    ProfileSuggestions {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        profile: Option<fabrication::ProfileChoice>,
+        /// Profiles to check besides the host's library.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        candidates: Vec<rules::RuleProfile>,
+        /// Fabricator records naming the candidates' fabricators, besides
+        /// the host's.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fabricators: Vec<rules::Fabricator>,
+    },
     /// The board interface's exported datums, rules and retired slots.
     /// Each datum has its id, slot, token, display name, role, kind,
     /// source, geometry (board millimetres), status and whether it changed
@@ -562,6 +586,7 @@ declare_entries!(Query in project {
     TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link, returns(route_preview)],
     TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link, returns(tune_preview)],
     Preflight "fabrication.preflight" Read "Production check" [in checks, long, link, returns(preflight)],
+    ProfileSuggestions "fabrication.profile_suggestions" Read "Suggest fab profiles" [in checks, long, link, since(1, 5), returns(profile_suggestions)],
     InterfaceList "interface.list" Read "List the board interface" [in model3d, returns(interface_list)],
     AssemblyStatus "assembly.status" Read "Check the assembly link" [in model3d, returns(assembly_status)],
 });
@@ -612,6 +637,7 @@ pub enum QueryResult {
     TunePreview(Box<layout::meander::TunePreview>),
     RoutePreview(Box<layout::router::RoutePlan>),
     Preflight(Box<fabrication::PreflightReport>),
+    ProfileSuggestions(Box<fabrication::ProfileSuggestions>),
     InterfaceList(Box<interface::InterfaceList>),
     AssemblyStatus(Box<interface::assembly_link::AssemblyStatus>),
 }
@@ -2023,6 +2049,14 @@ impl Engine {
                 }
             }
             Operation::Fabrication(command) => {
+                if let fabrication::FabricationCommand::Waive { keys, .. } = &command {
+                    fabrication::preflight::refuse_needed(
+                        &candidate.project,
+                        &self.document.drafts,
+                        &self.check_settings,
+                        keys,
+                    )?;
+                }
                 let mut next = candidate.project.production.clone();
                 fabrication::preflight::apply(&mut next, command, self.waiver_reason_required)?;
                 if next != candidate.project.production {
@@ -2332,6 +2366,25 @@ impl Engine {
                         &self.document.drafts,
                         profile.as_ref(),
                         &self.check_settings,
+                    )?,
+                )))
+            }
+            Query::ProfileSuggestions {
+                profile,
+                candidates,
+                fabricators,
+            } => {
+                let profile = profile
+                    .map(fabrication::ProfileChoice::into_profile)
+                    .transpose()?;
+                Ok(QueryResult::ProfileSuggestions(Box::new(
+                    fabrication::suggest::suggest(
+                        &self.document.project,
+                        &self.document.drafts,
+                        &self.check_settings,
+                        profile.as_ref(),
+                        &candidates,
+                        &fabricators,
                     )?,
                 )))
             }

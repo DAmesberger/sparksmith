@@ -1416,6 +1416,17 @@
               "$ref": "#/$defs/ObjectRef"
             },
             "type": "array"
+          },
+          "requirement": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Requirement"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the board needs of a fab profile for this finding to clear,\nwhen its limit is the fab profile's own (not an override's or a net\nclass's): the measured value the profile's rule would have to\nallow. Another profile that allows it clears the finding."
           }
         },
         "required": [
@@ -2014,6 +2025,95 @@
           }
         ]
       },
+      "Requirement": {
+        "description": "What a board needs of its fab profile: a profile-limited finding's\nmeasured value, as the bound a profile rule must allow. The rule is\nnamed as fab profile files name it (`rules::RuleKey::name`,\n`clearance_pad_npth_hole`); `rules::requirement` reads it against a\nprofile.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "A minimum rule (a clearance, a width, a ring, a drill) the board's\ngeometry is below: the profile's value must be at most `value`.",
+            "properties": {
+              "kind": {
+                "const": "at_most",
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "value": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "kind",
+              "rule",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A maximum rule (an aspect ratio) the board is above: the profile's\nvalue must be at least `value`.",
+            "properties": {
+              "kind": {
+                "const": "at_least",
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "value": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "kind",
+              "rule",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A board of `count` copper layers: the profile must be for it.",
+            "properties": {
+              "count": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "copper_layers",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "count"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A board with a solder mask of `colour` (its id): the profile must\noffer it.",
+            "properties": {
+              "colour": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "mask_colour",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "colour"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "SheetId": {
         "description": "A schematic sheet, in its own allocation space (`Project.sheets.next`).\nEvery project has at least one sheet; a new project's is\n[`SheetId::FIRST`].",
         "format": "uint32",
@@ -2187,6 +2287,17 @@
               "$ref": "#/$defs/ObjectRef"
             },
             "type": "array"
+          },
+          "requirement": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Requirement"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the board needs of a fab profile for this finding to clear,\nwhen its limit is the fab profile's own (not an override's or a net\nclass's): the measured value the profile's rule would have to\nallow. Another profile that allows it clears the finding."
           }
         },
         "required": [
@@ -2681,6 +2792,95 @@
         "format": "uint32",
         "minimum": 0,
         "type": "integer"
+      },
+      "Requirement": {
+        "description": "What a board needs of its fab profile: a profile-limited finding's\nmeasured value, as the bound a profile rule must allow. The rule is\nnamed as fab profile files name it (`rules::RuleKey::name`,\n`clearance_pad_npth_hole`); `rules::requirement` reads it against a\nprofile.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "A minimum rule (a clearance, a width, a ring, a drill) the board's\ngeometry is below: the profile's value must be at most `value`.",
+            "properties": {
+              "kind": {
+                "const": "at_most",
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "value": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "kind",
+              "rule",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A maximum rule (an aspect ratio) the board is above: the profile's\nvalue must be at least `value`.",
+            "properties": {
+              "kind": {
+                "const": "at_least",
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "value": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "kind",
+              "rule",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A board of `count` copper layers: the profile must be for it.",
+            "properties": {
+              "count": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "copper_layers",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "count"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A board with a solder mask of `colour` (its id): the profile must\noffer it.",
+            "properties": {
+              "colour": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "mask_colour",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "colour"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "SheetId": {
         "description": "A schematic sheet, in its own allocation space (`Project.sheets.next`).\nEvery project has at least one sheet; a new project's is\n[`SheetId::FIRST`].",

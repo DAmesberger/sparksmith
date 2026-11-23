@@ -15,7 +15,7 @@ use super::{
     BoardCopper, CopperRing, EPS, Error, Result, RouteEditSet, RouteRequest, WorldPad,
     check_pair_budget, distance, invalid,
 };
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, ObjectRef, Requirement};
 use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::Id;
 use crate::library::names::capitalised;
@@ -582,15 +582,18 @@ impl<'a> ViaCx<'a> {
         let me = ObjectRef::Via { id: via.id };
         let name = project.net_name(via.net);
         if via.annular_ring() < ring_min.mm - EPS {
-            issues.push(Finding::new(
-                "board.via_annular_ring",
-                format!(
-                    "A via on {name}: annular ring {:.3} mm is under the minimum; {}",
-                    via.annular_ring(),
-                    ring_min.text()
-                ),
-                vec![me],
-            ));
+            issues.push(
+                Finding::new(
+                    "board.via_annular_ring",
+                    format!(
+                        "A via on {name}: annular ring {:.3} mm is under the minimum; {}",
+                        via.annular_ring(),
+                        ring_min.text()
+                    ),
+                    vec![me],
+                )
+                .requiring(ring_min.at_most(via.annular_ring())),
+            );
         }
         if let Some(max) = aspect_max
             && via.drill > 0.0
@@ -607,20 +610,28 @@ impl<'a> ViaCx<'a> {
                     super::limits::cite(limits.project(), RuleKey::AspectRatioMax)
                 ),
                 vec![me],
-            ));
+            )
+            .requiring(super::limits::at_least(
+                limits.project(),
+                RuleKey::AspectRatioMax,
+                thickness / via.drill,
+            )));
         }
         if let EdgeVerdict::TooClose { gap, near } = self.edges.verdict(drill, edge) {
             let need = limits.clearance_need(hole, None, CopperObject::BoardEdge, None);
-            issues.push(Finding::new(
-                "board.edge_clearance",
-                format!(
-                    "A via on {name}: drill is {} mm from {}; {}",
-                    mm_against(gap, need.mm),
-                    near.describe(),
-                    need.text()
-                ),
-                vec![me],
-            ));
+            issues.push(
+                Finding::new(
+                    "board.edge_clearance",
+                    format!(
+                        "A via on {name}: drill is {} mm from {}; {}",
+                        mm_against(gap, need.mm),
+                        near.describe(),
+                        need.text()
+                    ),
+                    vec![me],
+                )
+                .requiring(need.at_most(gap)),
+            );
         }
         if drill.bounds.is_none() {
             return Ok(0);
@@ -634,16 +645,20 @@ impl<'a> ViaCx<'a> {
             let need = limits.clearance(hole, Some(via.net), shape.kind, shape.net);
             if drill.closer_than(shape.ring, need) {
                 let need = limits.clearance_need(hole, Some(via.net), shape.kind, shape.net);
-                issues.push(Finding::new(
-                    "board.via_drill_clearance",
-                    format!(
-                        "A via on {name}: drill is {} mm from {}; {}",
-                        mm_against(drill.gap(shape.ring, need.mm + 1.0), need.mm),
-                        shape.words(project),
-                        need.text()
-                    ),
-                    vec![me, shape.object],
-                ));
+                let gap = drill.gap(shape.ring, need.mm + 1.0);
+                issues.push(
+                    Finding::new(
+                        "board.via_drill_clearance",
+                        format!(
+                            "A via on {name}: drill is {} mm from {}; {}",
+                            mm_against(gap, need.mm),
+                            shape.words(project),
+                            need.text()
+                        ),
+                        vec![me, shape.object],
+                    )
+                    .requiring(need.at_most(gap)),
+                );
             }
         }
         for (other, other_drill) in near_holes
@@ -654,16 +669,20 @@ impl<'a> ViaCx<'a> {
             over()?;
             if drill.closer_than(other_drill, spacing) {
                 let need = limits.clearance_need(hole, None, hole, None);
-                issues.push(Finding::new(
-                    "board.via_hole_spacing",
-                    format!(
-                        "Vias on {name} and {}: drills are {} mm apart; {}",
-                        project.net_name(other.net),
-                        mm_against(drill.gap(other_drill, need.mm + 1.0), need.mm),
-                        need.text()
-                    ),
-                    vec![me, ObjectRef::Via { id: other.id }],
-                ));
+                let gap = drill.gap(other_drill, need.mm + 1.0);
+                issues.push(
+                    Finding::new(
+                        "board.via_hole_spacing",
+                        format!(
+                            "Vias on {name} and {}: drills are {} mm apart; {}",
+                            project.net_name(other.net),
+                            mm_against(gap, need.mm),
+                            need.text()
+                        ),
+                        vec![me, ObjectRef::Via { id: other.id }],
+                    )
+                    .requiring(need.at_most(gap)),
+                );
             }
         }
         Ok(pairs)
@@ -699,13 +718,12 @@ impl<'a> ViaCx<'a> {
         // A plated board slot is itself an edge of the board shape: the
         // outline check measures it against the others.
         if washer.is_some()
-            && let Some(text) = edge_text(&self.edges, ring, limits, kind)
+            && let Some((text, needs)) = edge_text(&self.edges, ring, limits, kind)
         {
-            issues.push(Finding::new(
-                "board.edge_clearance",
-                format!("{name} {text}"),
-                vec![me],
-            ));
+            issues.push(
+                Finding::new("board.edge_clearance", format!("{name} {text}"), vec![me])
+                    .requiring(needs),
+            );
         }
         if ring.bounds.is_none() {
             return Ok(0);
@@ -728,11 +746,14 @@ impl<'a> ViaCx<'a> {
                 } else {
                     format!("is {} mm from {what}", mm_against(gap, need.mm))
                 };
-                issues.push(Finding::new(
-                    "board.hole_clearance",
-                    format!("{name} {how}; {}", need.text()),
-                    vec![me, shape.object],
-                ));
+                issues.push(
+                    Finding::new(
+                        "board.hole_clearance",
+                        format!("{name} {how}; {}", need.text()),
+                        vec![me, shape.object],
+                    )
+                    .requiring(need.at_most(gap)),
+                );
             }
         }
         for (via, drill) in near_holes
@@ -743,16 +764,20 @@ impl<'a> ViaCx<'a> {
             let spacing = limits.clearance(kind, None, hole, None);
             if ring.closer_than(drill, spacing) {
                 let need = limits.clearance_need(kind, None, hole, None);
-                issues.push(Finding::new(
-                    HOLE_SPACING,
-                    format!(
-                        "{name} and a via on {}: drills are {} mm apart; {}",
-                        project.net_name(via.net),
-                        mm_against(ring.gap(drill, need.mm + 1.0), need.mm),
-                        need.text()
-                    ),
-                    vec![me, ObjectRef::Via { id: via.id }],
-                ));
+                let gap = ring.gap(drill, need.mm + 1.0);
+                issues.push(
+                    Finding::new(
+                        HOLE_SPACING,
+                        format!(
+                            "{name} and a via on {}: drills are {} mm apart; {}",
+                            project.net_name(via.net),
+                            mm_against(gap, need.mm),
+                            need.text()
+                        ),
+                        vec![me, ObjectRef::Via { id: via.id }],
+                    )
+                    .requiring(need.at_most(gap)),
+                );
             }
         }
         // Every later board hole: each pair of the board's own holes once.
@@ -774,11 +799,14 @@ impl<'a> ViaCx<'a> {
                 } else {
                     format!("are {} mm apart", mm_against(gap, need.mm))
                 };
-                issues.push(Finding::new(
-                    HOLE_SPACING,
-                    format!("{name} and {}: holes {how}; {}", other.name, need.text()),
-                    vec![me, other.object()],
-                ));
+                issues.push(
+                    Finding::new(
+                        HOLE_SPACING,
+                        format!("{name} and {}: holes {how}; {}", other.name, need.text()),
+                        vec![me, other.object()],
+                    )
+                    .requiring(need.at_most(gap)),
+                );
             }
         }
         Ok(pairs)
@@ -792,29 +820,36 @@ pub const HOLE_SPACING: &str = "board.hole_spacing";
 
 /// What a drilled or routed hole's outline does against the board shape,
 /// as the end of a sentence naming it ("is 0.1 mm from the board edge;
-/// needs …", "extends beyond the board edge"), or `None` when it keeps the
-/// hole kind's board-edge clearance inside the board.
+/// needs …", "extends beyond the board edge"), with what a hole too close
+/// to an edge needs of the fab profile; `None` when it keeps the hole
+/// kind's board-edge clearance inside the board.
 pub(super) fn edge_text(
     edges: &BoardEdges,
     ring: &CopperRing,
     limits: &BoardRules<'_>,
     kind: CopperObject,
-) -> Option<String> {
+) -> Option<(String, Option<Requirement>)> {
     let edge = limits.clearance(kind, None, CopperObject::BoardEdge, None);
     match edges.verdict(ring, edge) {
         EdgeVerdict::Clear => None,
-        EdgeVerdict::Outside => Some("extends beyond the board edge".into()),
-        EdgeVerdict::Inside(kind) => Some(format!(
-            "lies in {}",
-            super::board_edge::EdgeLoopKind::Cutout(kind).describe()
+        EdgeVerdict::Outside => Some(("extends beyond the board edge".into(), None)),
+        EdgeVerdict::Inside(kind) => Some((
+            format!(
+                "lies in {}",
+                super::board_edge::EdgeLoopKind::Cutout(kind).describe()
+            ),
+            None,
         )),
         EdgeVerdict::TooClose { gap, near } => {
             let need = limits.clearance_need(kind, None, CopperObject::BoardEdge, None);
-            Some(format!(
-                "is {} mm from {}; {}",
-                mm_against(gap, need.mm),
-                near.describe(),
-                need.text()
+            Some((
+                format!(
+                    "is {} mm from {}; {}",
+                    mm_against(gap, need.mm),
+                    near.describe(),
+                    need.text()
+                ),
+                need.at_most(gap),
             ))
         }
     }

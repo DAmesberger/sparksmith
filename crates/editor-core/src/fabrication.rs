@@ -23,6 +23,7 @@ pub mod gerber;
 pub mod job;
 pub mod preflight;
 pub mod snapshot;
+pub mod suggest;
 #[cfg(test)]
 mod tests;
 
@@ -31,6 +32,7 @@ pub use drawing::DrawingData;
 pub use drill::{DrillHole, DrillTable, DrillTool, HoleFeature, HoleFunction};
 pub use preflight::{FabricationCommand, PreflightItem, PreflightReport, ProfileChoice};
 pub use snapshot::{Identity, ProductionSnapshot};
+pub use suggest::{ProfileSuggestions, Suggestion};
 
 /// Files in one fabrication set (a target bound on the output, well above
 /// a 32-layer board's).

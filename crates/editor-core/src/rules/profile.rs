@@ -300,6 +300,10 @@ pub struct RuleProfile {
     pub id: String,
     /// Shown name ("JLCPCB 2-layer").
     pub name: String,
+    /// The fabricator whose profile it is, by its record's id
+    /// ([`super::fabricator::Fabricator`]): profile suggestions prefer the
+    /// board's own fabricator. `None` for a profile that names none.
+    pub fabricator: Option<String>,
     pub source: ProfileSource,
     pub drill_files: DrillFiles,
     /// The boards its numbers are for, when it says.
@@ -342,6 +346,7 @@ impl RuleProfile {
         let mut profile = Self {
             id: id.into(),
             name: name.into(),
+            fabricator: None,
             source,
             drill_files,
             boards: None,
@@ -790,6 +795,10 @@ impl RuleProfile {
         let printable = |t: &str| !t.chars().any(|c| c.is_control() && c != '\n');
         if self.id.trim().is_empty()
             || self.name.trim().is_empty()
+            || self
+                .fabricator
+                .as_ref()
+                .is_some_and(|f| !super::fabricator::valid_id(f))
             || short
                 .iter()
                 .any(|t| t.len() > MAX_PROFILE_TEXT || !printable(t))
@@ -798,7 +807,7 @@ impl RuleProfile {
                 .any(|t| t.len() > MAX_PROFILE_NOTES || !printable(t))
         {
             return Err(Error::Invalid(
-                "rules.fab_profile_text: a profile needs an id and a name; texts are bounded and printable"
+                "rules.fab_profile_text: a profile needs an id and a name; texts are bounded and printable; a fabricator is named by its record's id (lower-case letters, digits and dashes)"
                     .into(),
             ));
         }
@@ -877,6 +886,10 @@ pub struct ProfileFile {
 pub struct ProfileData {
     pub id: String,
     pub name: String,
+    /// The fabricator record's id (`fabricators/<id>.json`); left out, the
+    /// profile names no fabricator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fabricator: Option<String>,
     pub source: ProfileSource,
     pub drill_files: DrillFiles,
     /// The boards its numbers are for: `{"copper_layers": [2], "source":
@@ -1009,6 +1022,7 @@ impl From<RuleProfile> for ProfileData {
         Self {
             id: p.id,
             name: p.name,
+            fabricator: p.fabricator,
             source: p.source,
             drill_files: p.drill_files,
             boards: p.boards,
@@ -1086,6 +1100,7 @@ impl TryFrom<ProfileData> for RuleProfile {
         // own; then the options, their cases and the stored choices.
         let mut profile = Self::new(&data.id, &data.name, data.source, data.drill_files, entries)?;
         profile.boards = data.boards;
+        profile.fabricator = data.fabricator;
         profile.validate()?;
         if data.options.is_empty() && cases.is_empty() && data.chosen.is_empty() {
             return Ok(profile);

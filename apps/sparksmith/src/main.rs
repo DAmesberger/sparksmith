@@ -5,6 +5,7 @@ mod assistant;
 mod bundle_tests;
 mod commands;
 mod context_menu;
+mod fab_suggestions;
 mod file_ui;
 mod fill_worker;
 mod generator_form;

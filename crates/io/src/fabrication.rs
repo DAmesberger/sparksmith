@@ -304,6 +304,37 @@ pub fn resolve_profile(id: &str) -> Result<RuleProfile> {
     crate::rule_profiles::ProfileLibrary::from_dirs(&dirs)?.get(id)
 }
 
+/// Every installed fab profile (the user's, then the shipped ones no user
+/// profile replaces) and every fabricator record (the user's over the
+/// shipped ones): what profile suggestions check a board under
+/// (`fabrication.profile_suggestions`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Installed {
+    pub profiles: Vec<RuleProfile>,
+    pub fabricators: Vec<sparksmith_core::rules::Fabricator>,
+}
+
+/// [`Installed`] of the user folders `dirs` over the located shipped
+/// library.
+pub fn installed(dirs: &crate::settings::UserDirs) -> Result<Installed> {
+    let listing = crate::rule_profiles::ProfileLibrary::from_dirs(dirs)?.list()?;
+    Ok(Installed {
+        profiles: listing
+            .profiles
+            .into_iter()
+            .chain(listing.builtins)
+            .collect(),
+        fabricators: crate::fabricators::FabricatorLibrary::from_dirs(dirs)?
+            .list()?
+            .fabricators,
+    })
+}
+
+/// [`installed`] of the user folders the environment names.
+pub fn installed_from_env() -> Result<Installed> {
+    installed(&crate::settings::UserDirs::from_env()?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

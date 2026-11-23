@@ -1512,6 +1512,28 @@ impl Session {
                             sparksmith_io::fabrication::resolve_profile(&id)?,
                         ))),
                     },
+                    // Suggestions check the board under every installed
+                    // profile and name their fabricators from the records.
+                    Query::ProfileSuggestions {
+                        profile,
+                        mut candidates,
+                        mut fabricators,
+                    } => {
+                        let profile = match profile {
+                            Some(ProfileChoice::Id(id)) => Some(ProfileChoice::Profile(Box::new(
+                                sparksmith_io::fabrication::resolve_profile(&id)?,
+                            ))),
+                            other => other,
+                        };
+                        let installed = sparksmith_io::fabrication::installed_from_env()?;
+                        candidates.extend(installed.profiles);
+                        fabricators.extend(installed.fabricators);
+                        Query::ProfileSuggestions {
+                            profile,
+                            candidates,
+                            fabricators,
+                        }
+                    }
                     other => other,
                 };
                 let searched = match &query {

@@ -95,6 +95,11 @@ type Wanted = (ReportKey, Pick, Option<RuleProfile>);
 /// A pre-flight report and what it was computed for.
 type Checked = (Wanted, Result<PreflightReport, String>);
 
+use crate::fab_suggestions::Suggested;
+
+/// Suggestions and what they were computed for.
+type SuggestedFor = (Wanted, Suggested);
+
 enum ExportMessage {
     Progress(Progress),
     Done(Result<ExportReport, String>),
@@ -114,6 +119,10 @@ pub(super) struct ProductionDialog {
     /// The current report and what it was computed for.
     pub(super) report: Option<Checked>,
     checking: Option<(Wanted, Receiver<Checked>)>,
+    /// The profiles that allow what the current report needs, once
+    /// checked, and the check running for them.
+    pub(super) suggested: Option<SuggestedFor>,
+    suggesting: Option<(Wanted, Receiver<SuggestedFor>)>,
     /// Ticked findings and the reason being typed.
     pub(super) waiving: Waiving,
     picking: Option<Receiver<Option<PathBuf>>>,
@@ -142,6 +151,8 @@ impl ProductionDialog {
             options: FabricationOptions::default(),
             report: None,
             checking: None,
+            suggested: None,
+            suggesting: None,
             waiving: Waiving::default(),
             picking: None,
             exporting: None,
@@ -234,6 +245,79 @@ impl ProductionDialog {
                     Err(format!("The production check could not start: {error}")),
                 ));
             }
+        }
+    }
+
+    /// Start or take the profile suggestions for the current report's
+    /// needs, off the UI thread: the board is checked under every
+    /// installed profile (the user's library, the shipped ones) as an
+    /// export would check it. Nothing runs while no finding needs more of
+    /// the profile; a result for another state is dropped.
+    fn suggest(&mut self, ctx: &egui::Context, engine: &Engine) {
+        let wanted = self.wanted(engine);
+        if let Some((pending, receiver)) = &self.suggesting {
+            match receiver.try_recv() {
+                Ok(done) => {
+                    self.suggesting = None;
+                    if done.0 == wanted {
+                        self.suggested = Some(done);
+                    }
+                }
+                Err(TryRecvError::Disconnected) => self.suggesting = None,
+                Err(TryRecvError::Empty) if *pending == wanted => return,
+                Err(TryRecvError::Empty) => self.suggesting = None,
+            }
+        }
+        let needs = matches!(
+            self.current(engine),
+            Some(Ok(report)) if report.items.iter().any(|i| i.needs.is_some())
+        );
+        let current = self.suggested.as_ref().is_some_and(|(w, _)| *w == wanted);
+        if !needs || current || self.suggesting.is_some() {
+            return;
+        }
+        let document = engine.document().clone();
+        let checks = *engine.check_settings();
+        let library = self.library.clone();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let repaint = ctx.clone();
+        let computed = wanted.clone();
+        let spawned = std::thread::Builder::new()
+            .name("sparksmith-profile-suggestions".into())
+            .spawn(sparksmith_core::library::standards::carried(move || {
+                let suggested = crate::fab_suggestions::compute(
+                    &document,
+                    computed.2.as_ref(),
+                    &checks,
+                    library.as_ref(),
+                );
+                let _ = sender.send((computed, suggested));
+                repaint.request_repaint();
+            }));
+        if spawned.is_ok() {
+            self.suggesting = Some((wanted, receiver));
+        }
+    }
+
+    /// The suggestions for the current report, if computed.
+    pub(super) fn current_suggestions(&self, engine: &Engine) -> Option<&Suggested> {
+        let wanted = self.wanted(engine);
+        self.suggested
+            .as_ref()
+            .filter(|(w, _)| *w == wanted)
+            .map(|(_, s)| s)
+    }
+
+    /// Block until the suggestions for the current state arrive (tests).
+    #[cfg(test)]
+    pub(super) fn wait_suggestions(&mut self, ctx: &egui::Context, engine: &Engine) {
+        for _ in 0..4000 {
+            self.check(ctx, engine);
+            self.suggest(ctx, engine);
+            if self.current_suggestions(engine).is_some() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }
 
@@ -523,6 +607,18 @@ pub(super) fn export_blocked(
     match report {
         None => return Some("Checking the design…".into()),
         Some(Err(error)) => return Some(error.clone()),
+        // Errors only a profile that allows the board resolves are not
+        // waived: say so.
+        Some(Ok(report))
+            if report.blocking > 0
+                && report
+                    .items
+                    .iter()
+                    .filter(|i| i.blocks())
+                    .all(|i| !i.offers_waiver()) =>
+        {
+            return Some("Fix the design or switch to a fab profile that allows it first".into());
+        }
         Some(Ok(report)) if report.blocking == 1 => {
             return Some("Fix or waive the error first".into());
         }
@@ -603,6 +699,7 @@ impl PcbEditor {
             dialog.refusal = Some(text);
         }
         dialog.check(&ctx, engine);
+        dialog.suggest(&ctx, engine);
         if let Some(folder) = dialog.poll_picker() {
             self.chosen_production_folder = Some(folder);
         }
@@ -702,6 +799,9 @@ fn body(
                 Some(Ok(report)) => {
                     kit::value_row(ui, "Result", &report_summary(report));
                     op = findings(dialog, ui, report, engine.waiver_reason_required());
+                    if let Some(switch) = needs(dialog, ui, engine, report) {
+                        op = Some(switch);
+                    }
                 }
             }
         },
@@ -855,11 +955,106 @@ impl Waiving {
 }
 
 /// A finding that can be waived now: an error or warning nobody waived,
-/// of a kind core lets be waived (never an unrouted connection).
+/// of a kind core offers a waiver for (never an unrouted connection, never
+/// a finding the board needs more of its fab profile for).
 fn waivable(item: &PreflightItem) -> bool {
     item.waiver.is_none()
         && matches!(item.severity, Severity::Error | Severity::Warning)
-        && sparksmith_core::fabrication::preflight::can_waive(&item.code)
+        && item.offers_waiver()
+}
+
+/// What the board needs of its fab profile, from the report's findings,
+/// and the installed profiles that allow it, each with "Switch to …":
+/// one `rules.set_fab_profile` as the production check resolved it, so the
+/// board is then made as it was checked. Returns that switch.
+fn needs(
+    dialog: &mut ProductionDialog,
+    ui: &mut Ui,
+    engine: &Engine,
+    report: &PreflightReport,
+) -> Option<Operation> {
+    let requirements = sparksmith_core::rules::requirement::tightest(
+        report
+            .items
+            .iter()
+            .filter_map(|i| i.needs.as_ref().map(|n| &n.requirement)),
+    );
+    if requirements.is_empty() {
+        return None;
+    }
+    // The words are core's, for the profile checked under: one line for
+    // each rule's tightest need.
+    for requirement in &requirements {
+        if let Some(need) = report
+            .items
+            .iter()
+            .filter_map(|i| i.needs.as_ref())
+            .find(|n| n.requirement == *requirement)
+        {
+            kit::hint(ui, &need.text, &need_tip(need));
+        }
+    }
+    let Some(suggested) = dialog.current_suggestions(engine).cloned() else {
+        ui.horizontal(|ui| {
+            ui.add(egui::Spinner::new().size(Tokens::get().font_small));
+            kit::note(ui, "Checking the installed fab profiles…");
+        });
+        return None;
+    };
+    let found = match &suggested.result {
+        Err(error) => {
+            kit::hint(ui, error, "");
+            return None;
+        }
+        Ok(found) => found,
+    };
+    if found.suggestions.is_empty() {
+        kit::hint(
+            ui,
+            "No installed fab profile allows this; add one that does",
+            "",
+        );
+        return None;
+    }
+    let mut picked = None;
+    kit::list_frame(ui, found.suggestions.len(), LIST_ROWS, |ui, index| {
+        let Some(s) = found.suggestions.get(index) else {
+            return;
+        };
+        let maker = s
+            .fabricator_name
+            .as_deref()
+            .unwrap_or("No fabricator named");
+        if kit::summary_row(ui, maker, Some(&format!("Switch to {}", s.name))) {
+            picked = Some(s.id.clone());
+        }
+    });
+    let id = picked?;
+    match suggested.switch(engine, &id) {
+        Ok(operation) => {
+            // The board's own rules are now the ones to check.
+            dialog.pick = Pick::Board;
+            dialog.waiving = Waiving::default();
+            Some(operation)
+        }
+        Err(error) => {
+            dialog.refusal = Some(error);
+            None
+        }
+    }
+}
+
+/// A need's hover: the profile's limit and where the profile says it
+/// comes from.
+fn need_tip(need: &sparksmith_core::rules::requirement::Needed) -> String {
+    let mut tip = Vec::new();
+    if let Some(limit) = &need.limit {
+        tip.push(format!("{}: {limit}", need.profile));
+    }
+    if !need.source.is_empty() {
+        tip.push(need.source.clone());
+    }
+    tip.join("\n")
 }
 
 /// The report's findings by code, in report order (most severe first).
@@ -1128,9 +1323,17 @@ fn findings(
     op
 }
 
-/// A row's hover after its title: what fixes it, and its waiver.
+/// A row's hover after its title: what it needs of the fab profile, what
+/// fixes it, and its waiver.
 fn row_tip(item: &PreflightItem) -> String {
     let mut tip = Vec::new();
+    if let Some(need) = &item.needs {
+        tip.push(need.text.clone());
+        let more = need_tip(need);
+        if !more.is_empty() {
+            tip.push(more);
+        }
+    }
     if let Some(waiver) = &item.waiver {
         tip.push(if waiver.reason.is_empty() {
             "Waived".to_owned()

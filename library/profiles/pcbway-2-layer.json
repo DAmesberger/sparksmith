@@ -3,6 +3,7 @@
   "fab_profile": {
     "id": "pcbway-2-layer",
     "name": "PCBWay 2-layer",
+    "fabricator": "pcbway",
     "source": {
       "publisher": "PCBWay",
       "document": "PCB Manufacturing tolerances; PCB Capabilities",

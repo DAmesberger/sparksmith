@@ -25,11 +25,14 @@ use crate::diagnostics::{Error, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub mod fabricator;
 pub mod formula;
 pub mod netclass;
 pub mod profile;
+pub mod requirement;
 pub mod signal;
 
+pub use fabricator::{FABRICATOR_FILE_FORMAT, Fabricator, FabricatorFile};
 pub use profile::{
     BoardSetting, ChoiceRequires, DrillFiles, FabChoice, FabOption, PROFILE_FILE_FORMAT,
     ProfileBoards, ProfileFile, ProfileSource, RuleCase, RuleEntry, RuleProfile, Setting,
@@ -1898,6 +1901,9 @@ pub struct RulesReport {
 pub struct ProfileBrief {
     pub id: String,
     pub name: String,
+    /// Its fabricator's record id, when it names one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fabricator: Option<String>,
     /// The board's own profile (its snapshot), listed first.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub board: bool,
@@ -1927,6 +1933,7 @@ impl ProfileBrief {
         Self {
             id: profile.id.clone(),
             name: profile.name.clone(),
+            fabricator: profile.fabricator.clone(),
             board,
             options: profile
                 .options()

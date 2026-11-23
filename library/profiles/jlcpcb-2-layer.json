@@ -3,6 +3,7 @@
   "fab_profile": {
     "id": "jlcpcb-2-layer",
     "name": "JLCPCB 2-layer",
+    "fabricator": "jlcpcb",
     "source": {
       "publisher": "JLCPCB",
       "document": "PCB Manufacturing & Assembly Capabilities",

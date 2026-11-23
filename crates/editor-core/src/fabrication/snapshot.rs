@@ -70,22 +70,14 @@ impl<'a> ProductionSnapshot<'a> {
             });
         };
         let mut candidate = project.clone();
-        let options = foil_choice(project, p).map_err(|reason| refused(&p.name, &reason))?;
-        rules::apply(
-            &mut candidate.rules,
-            RulesCommand::SetProfile {
-                profile: ProfileChoice::Profile(Box::new(p.clone())),
-                options,
-                keep_overrides: true,
-            },
-        )
-        .and_then(|_| {
-            crate::layout::restack::reconcile_rules(
-                &mut candidate,
-                crate::layout::restack::Foils::Keep,
-            )
-        })
-        .map_err(|e| refused(&p.name, &e.to_string()))?;
+        rules::apply(&mut candidate.rules, switch(project, p)?)
+            .and_then(|_| {
+                crate::layout::restack::reconcile_rules(
+                    &mut candidate,
+                    crate::layout::restack::Foils::Keep,
+                )
+            })
+            .map_err(|e| refused(&p.name, &e.to_string()))?;
         Ok(Self {
             project: Cow::Owned(candidate),
         })
@@ -95,6 +87,22 @@ impl<'a> ProductionSnapshot<'a> {
     pub fn project(&self) -> &Project {
         &self.project
     }
+}
+
+/// The rules edit that puts `profile` in place of the board's own as the
+/// snapshot does: overrides and net classes kept, its copper weight the
+/// choice that orders the board's outer foils. Switching the board to a
+/// suggested profile (`rules.set_fab_profile`) sends this, so the board is
+/// then made exactly as it was checked. Refused
+/// (`fabrication.profile_refused`) when no copper weight orders the foils.
+pub fn switch(project: &Project, profile: &RuleProfile) -> Result<RulesCommand> {
+    let options =
+        foil_choice(project, profile).map_err(|reason| refused(&profile.name, &reason))?;
+    Ok(RulesCommand::SetProfile {
+        profile: ProfileChoice::Profile(Box::new(profile.clone())),
+        options,
+        keep_overrides: true,
+    })
 }
 
 /// The refusal of a profile the design cannot take.

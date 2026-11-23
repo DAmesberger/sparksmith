@@ -586,6 +586,12 @@ fn track_width(project: &Project, track: &crate::model::Track) -> Option<Finding
             ),
             vec![ObjectRef::Track { id: track.id }],
         )
+        .requiring(super::limits::at_most(
+            &project.rules,
+            &min.source,
+            RuleKey::TrackWidthMin,
+            track.width,
+        ))
     })
 }
 
@@ -624,7 +630,7 @@ fn drill_size(project: &Project, drill_min: &super::limits::Need, hole: &Hole) -
             ),
         ),
     };
-    Some(Finding::new(code, text, vec![hole.object()]))
+    Some(Finding::new(code, text, vec![hole.object()]).requiring(drill_min.at_most(size)))
 }
 
 /// A closed outline that is a straight slot (two half-turn arcs joined by

@@ -144,12 +144,28 @@ pub struct PreflightItem {
     /// The saved waiver, when the user accepted this finding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waiver: Option<Waiver>,
+    /// What the board needs of the fab profile for this finding to clear,
+    /// when the limit it breaks is the profile's own rule: the measured
+    /// value, the profile's limit and its source. Such a finding is
+    /// resolved by a profile that allows it (`fabrication.profile_suggestions`)
+    /// or by changing the design, never by a waiver
+    /// ([`Self::offers_waiver`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub needs: Option<crate::rules::requirement::Needed>,
 }
 
 impl PreflightItem {
     /// An error nobody waived: it blocks export.
     pub fn blocks(&self) -> bool {
         self.severity == Severity::Error && self.waiver.is_none()
+    }
+
+    /// Whether a host offers to waive this finding: not one that may not
+    /// be waived ([`can_waive`]), and not one the board's geometry asks
+    /// more of the fab profile for ([`Self::needs`]): a part drawn to its
+    /// datasheet is made by a profile that allows it, not waived.
+    pub fn offers_waiver(&self) -> bool {
+        self.needs.is_none() && can_waive(&self.code)
     }
 }
 
@@ -185,6 +201,34 @@ pub use crate::issues::{NO_WAIVER, can_waive};
 fn unwaivable(key: &str) -> bool {
     let code = key.split_whitespace().next().unwrap_or_default();
     !can_waive(code)
+}
+
+/// Refuse waiving any of `keys` that names a finding `project` needs more
+/// of its fab profile for (`fabrication.not_waivable`, naming the need): a
+/// profile that allows it, or a change to the design, resolves it. The
+/// engine runs this before [`apply`] of a waiver.
+pub(crate) fn refuse_needed(
+    project: &Project,
+    drafts: &Drafts,
+    settings: &crate::layout::CheckSettings,
+    keys: &[String],
+) -> Result<()> {
+    let keys: BTreeSet<&str> = keys.iter().map(|k| k.trim()).collect();
+    for row in crate::issues::production_rows(project, drafts, settings)? {
+        let Some(requirement) = &row.finding.requirement else {
+            continue;
+        };
+        let k = key(&row.finding.code, &row.finding.objects);
+        if keys.contains(k.as_str()) {
+            let need =
+                crate::rules::requirement::describe(requirement, project.rules.profile.as_ref())
+                    .map_or_else(String::new, |n| format!("{}; ", n.text));
+            return Err(Error::Conflict(format!(
+                "fabrication.not_waivable: `{k}` cannot be waived. {need}switch to a fab profile                  that allows it (fabrication.profile_suggestions) or change the design"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// What resolves a finding of `code` instead of a waiver, for the refusal.
@@ -267,13 +311,19 @@ pub fn check(
         let Some(severity) = severity(row) else {
             continue;
         };
-        items.push(item(
+        let mut found = item(
             &row.finding.code,
             severity,
             row.title.clone(),
             row.detail.fix.clone(),
             row.finding.objects.clone(),
-        ));
+        );
+        found.needs = row
+            .finding
+            .requirement
+            .as_ref()
+            .and_then(|r| crate::rules::requirement::describe(r, p.rules.profile.as_ref()));
+        items.push(found);
     }
     production_findings(p, drafts, &mut items);
     if p.rules.profile.is_none() {
@@ -325,6 +375,7 @@ fn item(
         fix,
         objects,
         waiver: None,
+        needs: None,
     }
 }
 

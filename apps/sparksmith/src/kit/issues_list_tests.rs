@@ -79,6 +79,7 @@ impl IssueSource for Rows {
             fix: self.fix,
             waive: true,
             detail: &self.detail,
+            needs: "",
             objects: &self.objects,
         }
     }

@@ -176,6 +176,7 @@ fn report_with_error(engine: &Engine) -> PreflightReport {
             fix: Some("Move one via".into()),
             objects: Vec::new(),
             waiver,
+            needs: None,
         }],
         errors: 1,
         warnings: 0,
@@ -483,6 +484,7 @@ fn report_like_the_run(engine: &Engine) -> PreflightReport {
             fix: Some(fix.into()),
             objects: Vec::new(),
             waiver,
+            needs: None,
         }
     };
     let mut items = vec![item(
@@ -835,5 +837,168 @@ fn an_edited_profile_is_checked_again() -> TestResult {
     );
     d.wait_check(&ctx, &engine);
     assert!(d.current(&engine).is_some());
+    Ok(())
+}
+
+/// The test prototype as `id` of `fabricator`, its via annular ring
+/// minimum `ring` (its default via keeping it).
+fn ring_profile(
+    id: &str,
+    fabricator: &str,
+    ring: f64,
+) -> Result<RuleProfile, Box<dyn std::error::Error>> {
+    use sparksmith_core::rules::{RuleEntry, RuleKey, RuleValue};
+    let mut p = sparksmith_core::rules::fixtures::prototype()?;
+    p.id = id.into();
+    p.name = format!("Profile {id}");
+    p.fabricator = Some(fabricator.into());
+    p.set(
+        RuleKey::ViaDiameterDefault,
+        RuleEntry::value(RuleValue::Length(0.3 + 2.0 * ring + 0.1), "Invented"),
+    )?;
+    p.set(
+        RuleKey::ViaAnnularRingMin,
+        RuleEntry::value(RuleValue::Length(ring), "Invented row: via ring"),
+    )?;
+    Ok(p)
+}
+
+/// The showcase on `profile`.
+fn showcase_on(profile: RuleProfile) -> Result<Engine, Box<dyn std::error::Error>> {
+    let mut engine = Engine::showcase()?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(sparksmith_core::rules::RulesCommand::set_profile(
+            profile, false,
+        )),
+    )?;
+    Ok(engine)
+}
+
+/// A finding the board needs more of its fab profile for states what it
+/// needs, offers no Waive…, and "Switch to …" sends the one rules edit the
+/// production check resolved the suggested profile with; Export says to
+/// fix the design or switch, not to waive.
+#[test]
+fn a_profile_limited_finding_says_what_it_needs_and_switches_instead_of_waiving() -> TestResult {
+    let engine = showcase_on(ring_profile("strict", "fab-a", 0.25)?)?;
+    let other = ring_profile("relaxed", "fab-a", 0.1)?;
+    let mut editor = open(&engine)?;
+    let ctx = context();
+    let tmp = tempfile::tempdir()?;
+    let report = fabrication::preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?;
+    let need = report
+        .items
+        .iter()
+        .find_map(|i| i.needs.clone())
+        .ok_or("a via ring needs the profile")?;
+    let title = report
+        .items
+        .iter()
+        .find(|i| i.needs.is_some())
+        .map(|i| i.title.clone())
+        .ok_or("title")?;
+    let found = fabrication::suggest::suggest(
+        engine.project(),
+        engine.drafts(),
+        engine.check_settings(),
+        None,
+        std::slice::from_ref(&other),
+        &[],
+    )?;
+    assert_eq!(found.suggestions.len(), 1);
+    {
+        let d = dialog(&mut editor)?;
+        let wanted = (engine.report_key(), Pick::Board, None);
+        d.report = Some((wanted.clone(), Ok(report)));
+        d.suggested = Some((
+            wanted,
+            crate::fab_suggestions::Suggested {
+                result: Ok(found),
+                profiles: vec![other.clone()],
+            },
+        ));
+        d.location = Some(tmp.path().to_path_buf());
+    }
+    let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+    let shown = texts(&output);
+    assert!(shown.iter().any(|t| *t == need.text), "{shown:?}");
+    {
+        // The showcase has other errors too; with only the ones a profile
+        // resolves, Export says to fix or switch, never to waive.
+        let d = dialog(&mut editor)?;
+        let mut only = match d.current(&engine).cloned() {
+            Some(Ok(report)) => report,
+            other => return Err(format!("{other:?}").into()),
+        };
+        only.items.retain(|i| i.needs.is_some());
+        only.blocking = only.items.iter().filter(|i| i.blocks()).count();
+        assert!(only.blocking > 0);
+        assert_eq!(
+            export_blocked(d, Some(&Ok(only)), true, d.output("x").as_ref()).as_deref(),
+            Some("Fix the design or switch to a fab profile that allows it first")
+        );
+    }
+    // Hovering the finding offers no Waive….
+    if positions(&output, &title).is_empty() {
+        // A group of several: unfold it to reach its rows.
+        click(
+            &mut editor,
+            &engine,
+            &ctx,
+            &sparksmith_core::issues::group_title("board.via_annular_ring"),
+        )?;
+    }
+    hover(&mut editor, &engine, &ctx, &title)?;
+    let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(
+        !texts(&output)
+            .iter()
+            .any(|t| t == "Waive…" || t == "Waive all…"),
+        "{:?}",
+        texts(&output)
+    );
+    let op = click(&mut editor, &engine, &ctx, "Switch to Profile relaxed")?.ok_or("no switch")?;
+    let want = fabrication::snapshot::switch(engine.project(), &other)?;
+    assert_eq!(
+        serde_json::to_value(&op)?,
+        serde_json::to_value(Operation::Rules(want))?
+    );
+    assert_eq!(dialog(&mut editor)?.pick, Pick::Board);
+    Ok(())
+}
+
+/// The suggestions come from a worker over the installed profiles: the
+/// user's library in a temporary config folder and the shipped ones.
+#[test]
+fn suggestions_are_checked_off_the_ui_thread_against_the_installed_profiles() -> TestResult {
+    let tmp = tempfile::tempdir()?;
+    let library = ProfileLibrary::new(
+        tmp.path().join("fab-profiles"),
+        sparksmith_io::shipped::ShippedLibrary::locate()?,
+    );
+    let strict = ring_profile("strict", "fab-a", 0.25)?;
+    library.create(&strict)?;
+    library.create(&ring_profile("relaxed", "fab-a", 0.1)?)?;
+    let engine = showcase_on(strict)?;
+    let mut editor = PcbEditor::default();
+    editor.open_production_in(Some(library));
+    let ctx = context();
+    let d = dialog(&mut editor)?;
+    d.wait_check(&ctx, &engine);
+    d.wait_suggestions(&ctx, &engine);
+    let suggested = d.current_suggestions(&engine).ok_or("no suggestions")?;
+    let found = suggested.result.as_ref().map_err(|e| e.clone())?;
+    assert_eq!(
+        found.suggestions.first().map(|s| s.id.as_str()),
+        Some("relaxed"),
+        "{found:?}"
+    );
+    assert!(found.suggestions[0].same_fabricator);
     Ok(())
 }

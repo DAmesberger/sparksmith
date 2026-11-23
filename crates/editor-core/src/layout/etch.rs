@@ -98,19 +98,27 @@ fn acute(project: &Project, graph: &CopperGraph, below: f64, out: &mut Vec<Findi
     let labels = Labels::new();
     for w in graph.wedges(project, below) {
         let [a, b] = w.objects;
-        out.push(Finding::new(
-            "board.acute_copper",
-            format!(
-                "Copper angle {}° < {}°: {} / {} on {} at {} ({rule})",
-                mm(w.angle_deg),
-                mm(below),
-                describe(project, &labels, &a),
-                describe(project, &labels, &b),
-                w.layer.name(),
-                at(w.at),
-            ),
-            vec![a, b],
-        ));
+        out.push(
+            Finding::new(
+                "board.acute_copper",
+                format!(
+                    "Copper angle {}° < {}°: {} / {} on {} at {} ({rule})",
+                    mm(w.angle_deg),
+                    mm(below),
+                    describe(project, &labels, &a),
+                    describe(project, &labels, &b),
+                    w.layer.name(),
+                    at(w.at),
+                ),
+                vec![a, b],
+            )
+            .requiring(super::limits::at_most(
+                &project.rules,
+                &project.rules.source_of(RuleKey::CopperAngleMin),
+                RuleKey::CopperAngleMin,
+                w.angle_deg,
+            )),
+        );
     }
 }
 
@@ -445,19 +453,27 @@ fn slivers(project: &Project, graph: &CopperGraph, min: f64, out: &mut Vec<Findi
                         continue;
                     }
                     reported.push((a.object, other));
-                    out.push(Finding::new(
-                        "board.copper_sliver",
-                        format!(
-                            "Unfilled gap {} mm < {} mm: {} / {} in {} at {} ({rule})",
-                            mm_against(gap, min),
-                            mm(min),
-                            describe(project, &labels, &a.object),
-                            describe(project, &labels, &other),
-                            describe(project, &labels, &ObjectRef::Fill { id: area.id }),
-                            at(m),
-                        ),
-                        objects,
-                    ));
+                    out.push(
+                        Finding::new(
+                            "board.copper_sliver",
+                            format!(
+                                "Unfilled gap {} mm < {} mm: {} / {} in {} at {} ({rule})",
+                                mm_against(gap, min),
+                                mm(min),
+                                describe(project, &labels, &a.object),
+                                describe(project, &labels, &other),
+                                describe(project, &labels, &ObjectRef::Fill { id: area.id }),
+                                at(m),
+                            ),
+                            objects,
+                        )
+                        .requiring(super::limits::at_most(
+                            &project.rules,
+                            &project.rules.source_of(RuleKey::SliverWidthMin),
+                            RuleKey::SliverWidthMin,
+                            gap,
+                        )),
+                    );
                 }
             }
         }

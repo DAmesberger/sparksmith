@@ -367,6 +367,13 @@ The limits a board is checked and routed against: clearances between copper obje
 The file that holds a fabricator's design rules: a named, complete set of every rule, each citing its source (the fabricator's capability page and the date it was read). The shipped library holds sourced profiles (`library/profiles/`), read-only; others are imported or saved by the user, and a user profile with a shipped profile's id takes its place. A project keeps a snapshot of its fab profile, so a changed library profile does not change the project until it is switched. The rules themselves stay "design rules". A profile may offer manufacturing options: choices the fabricator publishes other limits for (a mask colour, the smallest drill, the outer copper weight, its recommended or minimum values). The snapshot keeps the board's choice of each; the outer copper weight also sets the stackup's outer foils.
 _Avoid_: Rule profile, fab preset
 
+**Fabricator**:
+A board house, as a record of data: its id, name, website and where they were read (`fabricators/<id>.json`, shipped or the user's). A fab profile names its fabricator by id, so fabricator → profiles is a hierarchy of data, never text in a profile's name; profile suggestions prefer the board's own fabricator. Distinct from a part's manufacturer (Manufacturer part).
+_Avoid_: Manufacturer (for a board house), fab house
+
+**Profile requirement**:
+What a board needs of its fab profile for a finding to clear: the measured value a profile rule must allow (a clearance at most 0.175 mm, an aspect ratio at least 10:1), a copper layer count or a mask colour. Recorded only when the limit broken is the profile's own rule. Resolved by a profile that allows it or by changing the design, never by a waiver.
+
 **Rule override**:
 A project's own value for one rule, kept above its profile. A profile switch may keep or drop overrides; one that would break the new profile is refused.
 

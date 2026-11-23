@@ -8,6 +8,7 @@
 //! `(net class Power: clearance)` when a class sets it, after a `; ` so an
 //! issue's title (its first clause) stays the same across profile
 //! switches while its cause names the rule, value and source.
+use crate::diagnostics::Requirement;
 use crate::ids::Id;
 use crate::model::Project;
 use crate::rules::{
@@ -25,9 +26,25 @@ pub struct Need {
     pub source: String,
     /// The rule's name: `min mask web`, `clearance`.
     pub rule: String,
+    /// The fab profile's rule this limit is, when the board's fab profile
+    /// sets it (not an override, a net class or a class pair): what a
+    /// finding against it needs of a profile ([`Self::at_most`]).
+    pub profile_rule: Option<RuleKey>,
 }
 
 impl Need {
+    /// What a board measuring `measured` against this minimum needs of a
+    /// fab profile: a profile rule of at most `measured`. `None` when the
+    /// limit is not the profile's own, or nothing was measured (copper
+    /// that touches or overlaps, a missing ring): no profile allows that.
+    pub fn at_most(&self, measured: f64) -> Option<Requirement> {
+        let key = self.profile_rule?;
+        (measured.is_finite() && measured > super::EPS).then(|| Requirement::AtMost {
+            rule: key.name(),
+            value: measured,
+        })
+    }
+
     /// `Fine 4/4: min mask web`.
     pub fn cite(&self) -> String {
         format!("{}: {}", self.source, self.rule)
@@ -48,13 +65,7 @@ impl Need {
 /// A length for a message: at most three decimals, no trailing zeros
 /// (`0.2`, `0.102`, `0`).
 pub fn mm(value: f64) -> String {
-    let text = format!("{value:.3}");
-    let text = text.trim_end_matches('0').trim_end_matches('.');
-    if text.is_empty() || text == "-" || text == "-0" {
-        "0".into()
-    } else {
-        text.into()
-    }
+    crate::rules::requirement::number(value)
 }
 
 /// A measured length for a message that compares it with `limit`: as
@@ -62,20 +73,7 @@ pub fn mm(value: f64) -> String {
 /// limit itself, so a gap just under its rule does not read as meeting
 /// it (`0.1996`, not `0.2`, against 0.2).
 pub fn mm_against(value: f64, limit: f64) -> String {
-    let fixed = |v: f64, places: usize| {
-        let text = format!("{v:.places$}");
-        let text = text.trim_end_matches('0').trim_end_matches('.').to_owned();
-        if text.is_empty() || text == "-" || text == "-0" {
-            "0".to_owned()
-        } else {
-            text
-        }
-    };
-    (3..=6)
-        .map(|places| fixed(value, places))
-        .zip((3..=6).map(|places| fixed(limit, places)))
-        .find(|(v, l)| v != l)
-        .map_or_else(|| mm(value), |(v, _)| v)
+    crate::rules::requirement::number_against(value, limit)
 }
 
 /// When the board's profile, under another choice of one of its
@@ -125,11 +123,47 @@ pub fn need(rules: &ProjectRules, effective: &DesignRules, key: RuleKey) -> Need
         RuleValue::Length(mm) | RuleValue::Area(mm) => mm,
         _ => 0.0,
     };
+    let source = rules.source_of(key);
     Need {
         mm,
-        source: rules.source_of(key).describe(),
+        profile_rule: profile_rule(rules, &source, key),
+        source: source.describe(),
         rule: key.label(),
     }
+}
+
+/// `key` when `source` is the board's fab profile.
+fn profile_rule(rules: &ProjectRules, source: &RuleSource, key: RuleKey) -> Option<RuleKey> {
+    (rules.profile.is_some() && matches!(source, RuleSource::Profile { .. })).then_some(key)
+}
+
+/// What a board measuring `measured` against the scalar maximum `key`
+/// needs of a fab profile: a profile rule of at least `measured`, when the
+/// profile sets `key` (no override does).
+pub fn at_least(rules: &ProjectRules, key: RuleKey, measured: f64) -> Option<Requirement> {
+    profile_rule(rules, &rules.source_of(key), key)
+        .filter(|_| measured.is_finite())
+        .map(|key| Requirement::AtLeast {
+            rule: key.name(),
+            value: measured,
+        })
+}
+
+/// What a board measuring `measured` against the scalar minimum `key`
+/// resolved as `source` needs of a fab profile ([`Need::at_most`]).
+pub fn at_most(
+    rules: &ProjectRules,
+    source: &RuleSource,
+    key: RuleKey,
+    measured: f64,
+) -> Option<Requirement> {
+    Need {
+        mm: 0.0,
+        source: String::new(),
+        rule: String::new(),
+        profile_rule: profile_rule(rules, source, key),
+    }
+    .at_most(measured)
 }
 
 /// How many kinds of clearance object there are.
@@ -314,6 +348,7 @@ impl<'a> BoardRules<'a> {
             mm: pair.mm,
             source: format!("net classes {} and {}", name(pair.a), name(pair.b)),
             rule: "isolation".into(),
+            profile_rule: None,
         })
     }
 
@@ -329,14 +364,14 @@ impl<'a> BoardRules<'a> {
             return self.need(RuleKey::Clearance { a, b }.normalized());
         }
         let resolved = self.project.clearance(self.side(a, an), self.side(b, bn));
+        let key = RuleKey::Clearance { a, b }.normalized();
         let rule = match &resolved.source {
-            RuleSource::Profile { .. } | RuleSource::Override => {
-                RuleKey::Clearance { a, b }.normalized().label()
-            }
+            RuleSource::Profile { .. } | RuleSource::Override => key.label(),
             _ => "clearance".into(),
         };
         Need {
             mm: resolved.value,
+            profile_rule: profile_rule(self.project, &resolved.source, key),
             source: resolved.source.describe(),
             rule,
         }

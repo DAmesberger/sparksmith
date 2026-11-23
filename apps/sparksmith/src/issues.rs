@@ -77,12 +77,20 @@ pub enum Fix {
         label: &'static str,
         dialog: FixDialog,
     },
+    /// Switch the board to a fab profile that allows what a row needs
+    /// ("Switch to …", computed by `fabrication.profile_suggestions`):
+    /// one `rules.set_fab_profile`, toasted with Undo.
+    Switch {
+        label: String,
+        operation: Box<Operation>,
+    },
 }
 
 impl Fix {
-    pub fn label(&self) -> &'static str {
+    pub fn label(&self) -> &str {
         match self {
             Self::Apply { label, .. } | Self::Open { label, .. } => label,
+            Self::Switch { label, .. } => label,
         }
     }
 
@@ -513,9 +521,44 @@ fn findings(row: &IssueRow) -> impl Iterator<Item = &sparksmith_core::Finding> {
 }
 
 /// Whether a row offers Waive…: no finding of it blocks a stage (a waiver
-/// is for production only) or is one core never lets be waived.
+/// is for production only) or is one core never lets be waived, and the
+/// row needs nothing more of the fab profile (a profile that allows it, or
+/// a design change, resolves that; never a waiver).
 fn waivable(row: &IssueRow) -> bool {
-    row.blocks().is_none() && findings(row).all(|f| preflight::can_waive(&f.code))
+    row.blocks().is_none()
+        && row.needs.is_empty()
+        && findings(row).all(|f| preflight::can_waive(&f.code))
+}
+
+/// The "Switch to …" of a row that needs more of the fab profile: to the
+/// first installed profile that allows the whole board.
+fn switch(
+    row: &IssueRow,
+    engine: &Engine,
+    suggested: Option<&crate::fab_suggestions::Suggested>,
+) -> Option<Fix> {
+    if row.needs.is_empty() {
+        return None;
+    }
+    let suggested = suggested?;
+    let first = suggested.first()?;
+    let operation = suggested.switch(engine, &first.id).ok()?;
+    Some(Fix::Switch {
+        label: switch_label(&first.name),
+        operation: Box::new(operation),
+    })
+}
+
+/// The label of a Fix [`fix`] gives (never a switch).
+fn static_label(fix: &Fix) -> &'static str {
+    match fix {
+        Fix::Apply { label, .. } | Fix::Open { label, .. } => label,
+        Fix::Switch { .. } => "",
+    }
+}
+
+fn switch_label(profile: &str) -> String {
+    format!("Switch to {profile}")
 }
 
 /// The waiver keys of every finding of a row, so waiving it removes the
@@ -617,6 +660,8 @@ pub struct Surface {
     waiving: Option<Waiving>,
     /// A row's right-click menu, by the row's key.
     menu: crate::context_menu::State<String>,
+    /// The installed fab profiles that allow what rows need, per state.
+    pub(crate) suggestions: crate::fab_suggestions::Cache,
 }
 
 /// An issue row menu's actions: the row's own Locate and Fix.
@@ -952,6 +997,32 @@ impl Surface {
             .collect();
         self.names(engine, report);
         let ctx = ui.ctx().clone();
+        let suggested = if report.rows.iter().any(|r| !r.needs.is_empty()) {
+            self.suggestions.get(&ctx, engine)
+        } else {
+            None
+        };
+        let switch_labels: Vec<Option<String>> = report
+            .rows
+            .iter()
+            .map(|r| {
+                (!r.needs.is_empty())
+                    .then(|| suggested.as_deref().and_then(|s| s.first()))
+                    .flatten()
+                    .map(|f| switch_label(&f.name))
+            })
+            .collect();
+        let needs: Vec<String> = report
+            .rows
+            .iter()
+            .map(|r| {
+                r.needs
+                    .iter()
+                    .map(|n| n.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            })
+            .collect();
         // The waive sent last frame: refused, the field stays with why;
         // applied, its row has left the list.
         if let Some(w) = self.waiving.as_mut().filter(|w| w.sent) {
@@ -986,6 +1057,8 @@ impl Surface {
             views,
             names,
             open: &self.open,
+            needs: &needs,
+            switches: &switch_labels,
         };
         let reason = match (self.waiving.as_mut(), waiving_at) {
             (Some(w), Some((group, row))) => Some(Reason {
@@ -1035,6 +1108,22 @@ impl Surface {
         }
         let mut request = None;
         for event in out.events {
+            // A row that needs more of the profile: its Fix is the switch.
+            if let IssueListEvent::Row {
+                group,
+                row,
+                action: RowAction::Fix,
+            } = &event
+                && let Some(issue) = groups
+                    .get(*group)
+                    .and_then(|g| g.rows.get(*row))
+                    .and_then(|i| report.rows.get(*i))
+                && !issue.needs.is_empty()
+            {
+                request = request
+                    .or_else(|| switch(issue, engine, suggested.as_deref()).map(Request::Fix));
+                continue;
+            }
             let asked = self.on_event(&ctx, event, report, &groups, &keys, waiving_at, &waived);
             request = request.or(asked);
         }
@@ -1338,6 +1427,10 @@ struct Listed<'a> {
     views: Vec<IssueGroupView>,
     names: &'a Names,
     open: &'a BTreeSet<RowKey>,
+    /// Each row's needs of the fab profile, in core's words ("" for none).
+    needs: &'a [String],
+    /// Each row's "Switch to …", when a profile allows what it needs.
+    switches: &'a [Option<String>],
 }
 
 /// The detail of a row the list cannot find (never shown).
@@ -1375,7 +1468,10 @@ impl IssueSource for Listed<'_> {
     fn disclosed(&self, group: usize, row: usize) -> Option<bool> {
         let (i, issue) = self.issue(group, row)?;
         let objects = self.names.rows.get(i).is_some_and(|n| !n.is_empty());
-        (issue.detail.cause.is_some() || issue.detail.fix.is_some() || objects)
+        (issue.detail.cause.is_some()
+            || issue.detail.fix.is_some()
+            || !issue.needs.is_empty()
+            || objects)
             .then(|| self.open.contains(&self.key(group, row)))
     }
 
@@ -1388,6 +1484,7 @@ impl IssueSource for Listed<'_> {
                 fix: None,
                 waive: false,
                 detail: &NO_DETAIL,
+                needs: "",
                 objects: &[],
             };
         };
@@ -1396,13 +1493,16 @@ impl IssueSource for Listed<'_> {
             level: issue.severity.into(),
             title: &issue.title,
             count: issue.findings(),
-            fix: if group_fix {
+            fix: if !issue.needs.is_empty() {
+                self.switches.get(i).and_then(|s| s.as_deref())
+            } else if group_fix {
                 None
             } else {
-                fix(issue).map(|f| f.label())
+                fix(issue).map(|f| static_label(&f))
             },
             waive: waivable(issue),
             detail: &issue.detail,
+            needs: self.needs.get(i).map_or("", String::as_str),
             objects: self.names.rows.get(i).map_or(&[], Vec::as_slice),
         }
     }
