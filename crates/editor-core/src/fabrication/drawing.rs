@@ -414,26 +414,6 @@ fn box_loop(b: Bounds) -> Vec<Point> {
     vec![b.min, [b.max[0], b.min[1]], b.max, [b.min[0], b.max[1]]]
 }
 
-/// Pick the middle of a copper span on the bridge's middle scanline. The
-/// bounding-box centre alone can fall in empty space on a bent bridge.
-fn cut_position(ring: &[Point]) -> Option<Point> {
-    let [cx, y] = Bounds::of(ring.iter().copied())?.center();
-    if crate::geometry::polygon_contains(ring, [cx, y]) {
-        return Some([cx, y]);
-    }
-    let mut crossings: Vec<_> = ring
-        .iter()
-        .zip(ring.iter().cycle().skip(1))
-        .filter(|(a, b)| (a[1] > y) != (b[1] > y))
-        .map(|(a, b)| a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]))
-        .collect();
-    crossings.sort_by(f64::total_cmp);
-    crossings
-        .chunks_exact(2)
-        .max_by(|a, b| (a[1] - a[0]).total_cmp(&(b[1] - b[0])))
-        .map(|span| [(span[0] + span[1]) / 2.0, y])
-}
-
 fn trace_cuts(project: &Project) -> Vec<(Layer, TraceCut)> {
     use crate::library::tie::{JumperBridge, TieForm};
     layout::placed_bridges(project)
@@ -474,7 +454,7 @@ fn trace_cuts(project: &Project) -> Vec<(Layer, TraceCut)> {
                 label.push_str(" pads ");
                 label.push_str(&numbers.join("–"));
             }
-            let at = cut_position(&bridge.outline.flatten(DRAWING_CHORD_MM))?;
+            let at = crate::geometry::polygon_marker(&bridge.outline.flatten(DRAWING_CHORD_MM))?;
             Some((
                 bridge.layer.side()?,
                 TraceCut {
@@ -733,7 +713,7 @@ mod tests {
     #[test]
     fn cut_marker_is_on_copper_for_a_bent_bridge() {
         let ring = [[0., 0.], [4., 0.], [4., 1.], [1., 1.], [1., 4.], [0., 4.]];
-        assert_eq!(cut_position(&ring), Some([0.5, 2.0]));
+        assert_eq!(crate::geometry::polygon_marker(&ring), Some([0.5, 2.0]));
     }
 
     #[test]

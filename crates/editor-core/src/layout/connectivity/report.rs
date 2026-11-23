@@ -1,9 +1,10 @@
 //! Placed joins and current margins for the project query and inspectors.
 use crate::diagnostics::ObjectRef;
+use crate::geometry::Bounds;
 use crate::ids::{Endpoint, TerminalId};
 use crate::instances::ties::{TieRow, rows};
 use crate::library::tie::TiePurpose;
-use crate::model::Project;
+use crate::model::{Layer, Project};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -32,9 +33,25 @@ pub struct AnchorReport {
     pub points: Vec<(crate::geometry::Point, crate::model::CopperLayer)>,
 }
 
+/// Include unassigned lands, which have a physical position before they have a copper island.
+fn land_sites(project: &Project) -> BTreeMap<(Endpoint, Layer), Bounds> {
+    let mut sites = BTreeMap::new();
+    for pad in crate::layout::placed_pads(project) {
+        if let Some(end) = pad.terminal {
+            let here = Bounds::point(pad.center());
+            sites
+                .entry((end, pad.layer))
+                .and_modify(|b: &mut Bounds| *b = b.union(here))
+                .or_insert(here);
+        }
+    }
+    sites
+}
+
 pub fn report(project: &Project, graph: &crate::layout::CopperGraph) -> Vec<TieReport> {
     let rows = rows(project);
     let mut currents = graph.tie_currents(project, &rows);
+    let sites = std::cell::OnceCell::new();
     rows.into_iter()
         .map(|tie| {
             let mut joins: Vec<_> = graph
@@ -44,7 +61,7 @@ pub fn report(project: &Project, graph: &crate::layout::CopperGraph) -> Vec<TieR
                 .filter_map(|b| {
                     let ring = b.bridge.outline.flatten(crate::layout::CURVE_SLACK_MM);
                     Some(JoinPoint {
-                        at: crate::geometry::Bounds::of(ring)?.center(),
+                        at: crate::geometry::polygon_marker(&ring)?,
                         layer: b.bridge.layer,
                         bridge: Some(b.bridge.bridge),
                         islands: b.islands.clone(),
@@ -53,30 +70,47 @@ pub fn report(project: &Project, graph: &crate::layout::CopperGraph) -> Vec<TieR
                 .collect();
             let pads = graph.pads();
             if joins.is_empty()
-                && let Some(p) = project.placement_of(tie.instance)
+                && !tie.form.needs_bridge()
                 && tie.purpose != TiePurpose::KelvinSense
             {
-                let islands = pads
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, pad)| {
-                        pad.instance == tie.instance
-                            && tie.ends.contains_key(&pad.terminal.terminal)
-                    })
-                    .filter_map(|(i, p)| {
-                        Some(crate::layout::connectivity::TieIsland {
-                            net: p.net,
-                            pad: p.pad,
-                            island: graph.pad_island(i)?,
+                let sites = sites.get_or_init(|| land_sites(project));
+                for layer in [Layer::Top, Layer::Bottom] {
+                    let site = tie
+                        .ends
+                        .keys()
+                        .filter_map(|&terminal| {
+                            let end = Endpoint {
+                                instance: tie.instance,
+                                terminal,
+                            };
+                            sites.get(&(end, layer)).copied()
                         })
-                    })
-                    .collect();
-                joins.push(JoinPoint {
-                    at: p.position,
-                    layer: p.layer.into(),
-                    bridge: None,
-                    islands,
-                });
+                        .reduce(Bounds::union);
+                    let Some(site) = site else { continue };
+                    let islands = pads
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, p)| {
+                            p.terminal.instance == tie.instance
+                                && p.instance == tie.instance
+                                && tie.ends.contains_key(&p.terminal.terminal)
+                                && p.on(layer)
+                        })
+                        .filter_map(|(i, p)| {
+                            Some(super::TieIsland {
+                                net: p.net,
+                                pad: p.pad,
+                                island: graph.pad_island(i)?,
+                            })
+                        })
+                        .collect();
+                    joins.push(JoinPoint {
+                        at: site.center(),
+                        layer: layer.into(),
+                        bridge: None,
+                        islands,
+                    });
+                }
             }
             let mut anchors = BTreeMap::new();
             if let Some(usage) = project

@@ -142,6 +142,32 @@ fn centre(engine: &Engine, instance: Id, pad: u32) -> Result<[f64; 2]> {
 }
 
 #[test]
+fn unconnected_jumper_groups_have_separate_board_locations() -> Result<()> {
+    let mut engine = Engine::profiled()?;
+    let fixture = two_groups(
+        &mut engine,
+        TieForm::SolderJumper {
+            default: JumperState::Open,
+            bridge: JumperBridge::Solder,
+        },
+    )?;
+    let (id, _) = place(&mut engine, &fixture, "JP1", 1, [40., 24.])?;
+    sync_onto_board(&mut engine)?;
+    let reports = crate::layout::connectivity::report(engine.project(), &engine.copper_graph());
+    assert_eq!(reports.len(), 2);
+    for (row, ends) in reports.iter().zip([[1, 2], [3, 4]]) {
+        let a = centre(&engine, id, ends[0])?;
+        let b = centre(&engine, id, ends[1])?;
+        let expected = [(a[0] + b[0]) / 2., (a[1] + b[1]) / 2.];
+        assert_eq!(row.joins.len(), 1);
+        assert_eq!(row.joins[0].at, expected);
+        assert!(row.joins[0].islands.is_empty());
+    }
+    assert_ne!(reports[0].joins[0].at, reports[1].joins[0].at);
+    Ok(())
+}
+
+#[test]
 fn foreign_pad_on_first_bridge_reports_the_contact_and_undo_restores_both_groups() -> Result<()> {
     let mut engine = Engine::profiled()?;
     let tie = two_groups(&mut engine, TieForm::Copper)?;
