@@ -25,9 +25,9 @@
 //! and, headless, for each `project.new` or `project.open`, which open
 //! another project rather than replacing one, so clients that share this
 //! process across conversations keep their work apart. A handle lasts until
-//! the process exits. A call may leave the handle out only while one
-//! project is open; with several, it must name one. Live, the one project is
-//! the window's.
+//! the process exits. With several open projects, edits and file actions
+//! must name their project. Reads may follow the current project. Live,
+//! the one project is the window's.
 use crate::front::{self, Call, CallCx, NoOne, Surface};
 use crate::gate::{Decision, Grant, Principal};
 use crate::live;
@@ -65,7 +65,7 @@ enum Projects {
         policy: Grant,
         new_session: NewSession,
         /// The current project: the one last opened or named by a call,
-        /// which a call that names none goes to.
+        /// used for reads that omit their handle.
         current: Option<String>,
     },
     /// The project open in the window, under the handle `handle`; its
@@ -179,21 +179,13 @@ impl Desk {
     }
 
     /// The handle of the project `project` names, or, when it names none,
-    /// of the only one open, else of the current one (the project last
-    /// opened or named by a call). The failure is the transport envelope
+    /// of the only one open. The failure is the transport envelope
     /// of an error, as [`super::outcome`] reads it.
     pub fn project(&self, project: Option<&str>) -> Result<String, Value> {
-        let (open, current): (Vec<&String>, Option<&String>) = match &self.projects {
-            Projects::Headless {
-                projects, current, ..
-            } => (projects.keys().collect(), current.as_ref()),
-            Projects::Live { handle, .. } => (vec![handle], None),
+        let open: Vec<&String> = match &self.projects {
+            Projects::Headless { projects, .. } => projects.keys().collect(),
+            Projects::Live { handle, .. } => vec![handle],
         };
-        if project.is_none()
-            && let Some(current) = current.filter(|c| open.contains(c))
-        {
-            return Ok(current.clone());
-        }
         match project {
             Some(handle) if open.iter().any(|h| h.as_str() == handle) => Ok(handle.to_owned()),
             Some(handle) => Err(failure(
@@ -211,17 +203,29 @@ impl Desk {
                 )),
                 _ => Err(failure(
                     "project.ambiguous",
-                    "several projects are open: pass project, the handle from your last reply"
+                    "several projects are open: pass the handle of the project you intend to change"
                         .into(),
                 )),
             },
         }
     }
 
+    /// Only a query can use the project another caller last inspected.
+    fn project_for_call(&self, project: Option<&str>, call: &Call) -> Result<String, Value> {
+        if project.is_none()
+            && let Projects::Headless { current, .. } = &self.projects
+            && super::catalog::entry(&call.entry)
+                .is_some_and(|entry| entry.kind == Some(crate::session::metadata::Kind::Query))
+        {
+            return self.project(current.as_deref());
+        }
+        self.project(project)
+    }
+
     /// Runs `call` on `project` through the front door and answers in the
     /// transport envelope, with the project's handle in the result.
     pub fn call(&mut self, project: Option<&str>, call: Call) -> Value {
-        let handle = match self.project(project) {
+        let handle = match self.project_for_call(project, &call) {
             Ok(handle) => handle,
             Err(failure) => return failure,
         };
@@ -324,7 +328,7 @@ impl Desk {
     /// What the gate would decide for `call` on `project`, without running
     /// it. Live, the window decides when the call arrives.
     pub fn decide(&self, project: Option<&str>, call: &Call) -> Result<Decision, Value> {
-        let handle = self.project(project)?;
+        let handle = self.project_for_call(project, call)?;
         match &self.projects {
             Projects::Headless {
                 projects, policy, ..
