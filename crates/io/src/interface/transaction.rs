@@ -274,14 +274,38 @@ pub fn put_in_place(
     text: &str,
     expected: &Baseline,
 ) -> Result<()> {
-    put_with(design, temporary, text, expected, &mut |_| Ok(()))
+    put_reviewed_in_place(design, temporary, text, expected, None)
 }
 
+/// Install the pair only while the assembly approved by the preview still
+/// has its reviewed contents. Both locks are held through journal installation.
+pub fn put_reviewed_in_place(
+    design: &Path,
+    temporary: &Path,
+    text: &str,
+    expected: &Baseline,
+    assembly: Option<&(PathBuf, ContentHash)>,
+) -> Result<()> {
+    put_reviewed_with(design, temporary, text, expected, assembly, &mut |_| Ok(()))
+}
+
+#[cfg(test)]
 fn put_with(
     design: &Path,
     temporary: &Path,
     text: &str,
     expected: &Baseline,
+    boundary: &mut impl FnMut(Boundary) -> Result<()>,
+) -> Result<()> {
+    put_reviewed_with(design, temporary, text, expected, None, boundary)
+}
+
+fn put_reviewed_with(
+    design: &Path,
+    temporary: &Path,
+    text: &str,
+    expected: &Baseline,
+    assembly: Option<&(PathBuf, ContentHash)>,
     boundary: &mut impl FnMut(Boundary) -> Result<()>,
 ) -> Result<()> {
     check_design_path(design)?;
@@ -335,6 +359,9 @@ fn put_with(
         sidecar_hash: file_hash(text.as_bytes()),
     };
     let journal_bytes = serde_json::to_vec(&journal)?;
+    let _assembly_lock = assembly
+        .map(|(path, hash)| crate::assembly_link::hold_reviewed(path, *hash))
+        .transpose()?;
     let staged = staged.keep();
     if let Err(error) = atomic_create(
         &sibling(&publication.design, "publish-journal"),

@@ -224,7 +224,7 @@ pub(crate) fn replace_checked(
 
 /// Whether the locked `file` is still the one `path` names.
 #[cfg(unix)]
-fn still_at(file: &File, path: &Path) -> Result<bool> {
+pub(crate) fn still_at(file: &File, path: &Path) -> Result<bool> {
     use std::os::unix::fs::MetadataExt;
     let locked = file.metadata()?;
     match std::fs::metadata(path) {
@@ -236,7 +236,7 @@ fn still_at(file: &File, path: &Path) -> Result<bool> {
 
 /// Elsewhere the check is the identity comparison alone.
 #[cfg(not(unix))]
-fn still_at(_file: &File, path: &Path) -> Result<bool> {
+pub(crate) fn still_at(_file: &File, path: &Path) -> Result<bool> {
     Ok(path.exists())
 }
 

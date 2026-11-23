@@ -191,7 +191,7 @@ impl Session {
         &self,
         params: &PublishParams,
         baseline: &files::Baseline,
-    ) -> Result<()> {
+    ) -> Result<Option<Linked>> {
         let linked_project = self.engine.project().assembly_link.is_some();
         let refuse = |message: &str| -> crate::Error {
             sparksmith_core::diagnostics::Error::Conflict(message.to_owned()).into()
@@ -209,7 +209,7 @@ impl Session {
                      linked design",
                 ));
             }
-            return Ok(());
+            return Ok(None);
         };
         let linked = match params.assembly_path.as_deref() {
             Some(path) => Some(self.linked_file(path, None)?),
@@ -234,7 +234,7 @@ impl Session {
                  the linked design differ from the preview; preview again",
             ));
         }
-        Ok(())
+        Ok(linked)
     }
 
     /// Write the interface design and its sidecar at `path`, then record
@@ -267,7 +267,7 @@ impl Session {
             return Err(sparksmith_core::interface::findings::publish_blocked(&blockers).into());
         }
         let baseline = files::Publication::open(design)?.baseline()?;
-        self.check_publish_token(params, &baseline)?;
+        let reviewed = self.check_publish_token(params, &baseline)?;
         let previous = baseline.sidecar.as_ref();
         let recorded = project.interface.source_id;
         let source_id = match (recorded, previous) {
@@ -364,8 +364,13 @@ impl Session {
         // What the preview approved is checked again at installation: the
         // linked design or the destination may have changed while the
         // native design was built.
-        self.check_publish_token(params, &files::Publication::open(design)?.baseline()?)?;
-        files::put_in_place(design, temporary.path(), &text, &baseline)?;
+        files::put_reviewed_in_place(
+            design,
+            temporary.path(),
+            &text,
+            &baseline,
+            reviewed.as_ref(),
+        )?;
         Ok((
             Operation::Interface(InterfaceCommand::RecordPublish { source_id, record }),
             published,
