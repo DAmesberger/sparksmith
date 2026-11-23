@@ -365,6 +365,7 @@ fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> F
             "query",
             json!({"name":"project.issues"}),
         )]),
+        calls(vec![call("plan", "apply", json!({"dry_run":true}))]),
         calls(vec![call("edit", "apply", json!({"operations":[]}))]),
         calls(vec![call(
             "read2",
@@ -375,7 +376,13 @@ fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> F
     ]);
     let mut tools = Recorder {
         calls: Vec::new(),
-        answer: |_: &str, _: &Value| ok(json!({})),
+        answer: |verb: &str, input: &Value| {
+            if verb == "apply" {
+                ok(json!({"dry_run":input["dry_run"],"changes":{"fields":["board"]}}))
+            } else {
+                ok(json!({}))
+            }
+        },
     };
     let mut nudges = Vec::new();
     let mut history = Vec::new();
@@ -393,7 +400,7 @@ fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> F
         &AtomicBool::new(false),
     );
     assert_eq!(outcome.end, End::Answered);
-    assert_eq!(nudges, [110, 110]);
+    assert_eq!(nudges, [110, 110, 110]);
     let nudged_after: Vec<_> = history
         .iter()
         .filter_map(|message| {
@@ -411,7 +418,7 @@ fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> F
             }
         })
         .collect();
-    assert_eq!(nudged_after, ["read", "read2"]);
+    assert_eq!(nudged_after, ["read", "plan", "read2"]);
     Ok(())
 }
 

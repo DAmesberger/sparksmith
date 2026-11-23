@@ -541,11 +541,7 @@ pub fn turn(
             }));
             let answer = tools.call(&name, &input);
             let ok = answer["ok"] == true;
-            // An edit, an action or a question the person answered moves
-            // the turn on.
-            let asked = name == crate::verbs::SHOW
-                && matches!(input["name"].as_str(), Some("assist.ask" | "assist.offer"));
-            if ok && (asked || matches!(name.as_str(), crate::verbs::APPLY | crate::verbs::ACT)) {
+            if ok && context::made_progress(&name, &input, &answer["result"]) {
                 changed_at = usage(&tally).tokens;
             }
             let mut body = if ok {
