@@ -1219,14 +1219,18 @@ struct Hosting {
     changes: Vec<FileChange>,
 }
 
+/// A test's one-shot hook at an interface boundary.
+#[cfg(test)]
+type TestHook = Box<dyn FnOnce() -> crate::Result<()> + Send>;
+
 pub struct Session {
     /// One-shot boundary hook owned only by the test's session.
     #[cfg(test)]
-    after_interface_read: Option<Box<dyn FnOnce() -> crate::Result<()> + Send>>,
+    after_interface_read: Option<TestHook>,
     /// One-shot hook run after a publish staged its native design, before
     /// it is put in place (a concurrent writer's window).
     #[cfg(test)]
-    after_interface_stage: std::sync::Mutex<Option<Box<dyn FnOnce() -> crate::Result<()> + Send>>>,
+    after_interface_stage: std::sync::Mutex<Option<TestHook>>,
     /// A test's check of the interface design against the board plan, in
     /// place of the build's own.
     #[cfg(test)]
