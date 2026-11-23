@@ -165,13 +165,12 @@ fn read_design(bytes: &[u8], frame: &SourceFrame) -> Result<ModelInspection> {
         .map_err(|e| Error::Invalid(format!("model.asset: {e}")))?;
     let session =
         solidcraft_engine::Session::opened_validating(doc, None, crate::native::build_validation());
-    let mut warnings: Vec<String> = session
+    let warnings: Vec<String> = session
         .model
         .results
         .iter()
         .filter_map(|r| r.error.as_ref().map(|e| format!("{}: {e}", r.name)))
         .collect();
-    warnings.truncate(16);
     let state = crate::native::world_state(&session)?;
     let mut bodies = Vec::with_capacity(state.bodies.len());
     let mut union: Option<[[f64; 3]; 2]> = None;
@@ -207,8 +206,14 @@ fn read_design(bytes: &[u8], frame: &SourceFrame) -> Result<ModelInspection> {
             bounds_mm: bounds,
         });
     }
-    let bounds_mm =
-        union.ok_or_else(|| Error::Invalid("model.asset: the design has no bodies".into()))?;
+    let bounds_mm = union.ok_or_else(|| {
+        let mut reason = String::from("model.asset: the design has no bodies");
+        for warning in &warnings {
+            reason.push('\n');
+            reason.push_str(warning);
+        }
+        Error::Invalid(reason)
+    })?;
     if bodies.len() > MAX_MODEL_BODIES {
         return Err(too_many(bodies.len()));
     }

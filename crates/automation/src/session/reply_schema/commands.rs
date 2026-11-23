@@ -196,7 +196,7 @@ pub(super) fn command(cx: &mut Builder, key: super::super::RequestId) -> Value {
             &[],
         ),
         SchematicPdf => object(&[("revision", id), ("path", text), ("pages", count)], &[]),
-        InspectModelFile => cx.typed::<sparksmith_solidcraft::models::inspect::ModelInspection>(),
+        InspectModelFile => cx.typed::<crate::session::models::InspectedFile>(),
         MarkingSurfaces => {
             let cylinder = object(
                 &[
