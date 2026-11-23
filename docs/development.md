@@ -171,7 +171,7 @@ The Route tool shoves other nets' tracks and vias aside, walks round obstacles o
 
 ## Offline help
 
-Run `cargo xtask help --update` to regenerate the registry files and the glossary. Run `cargo xtask help --check` to verify them against the current app and catalog. Authored pages live in `library/help/topics`. When a fact in a topic’s `covers` list changes, review the topic against that fact and run `cargo xtask help --stamp <topic-id>`.
+Run `cargo xtask help --update` to regenerate the registry files and the glossary. Run `cargo xtask help --check` to verify them against the current app and catalog. Regeneration preserves the first shipped app version of each existing id. Newly added ids start at the current workspace version. Authored pages live in `library/help/topics`. When a fact in a topic’s `covers` list changes, review the topic against that fact and run `cargo xtask help --stamp <topic-id>`.
 
 `cargo xtask help --site <out>` builds a local manual in `<out>/docs/<app-version>/` and `<out>/docs/latest/`. The search and internal links work offline. Release publication is a separate founder-approved step.
 

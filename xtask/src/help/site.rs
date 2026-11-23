@@ -133,8 +133,8 @@ fn build(dir: &Path, version: &str, index: &Index, media: &Path) -> Result<()> {
             kind_name(e.id.kind()),
             esc(&e.title)
         )?;
-        if !e.summary.is_empty() && e.summary != e.title {
-            write!(html, "<p>{}</p>", esc(&e.summary))?;
+        if let Some(introduction) = e.introduction() {
+            write!(html, "<p>{}</p>", esc(introduction))?;
         }
         ctx.facts(&mut html, e)?;
         for block in &e.body {
@@ -325,7 +325,7 @@ impl Page<'_> {
                 explanation,
                 fixed_by,
                 checks,
-                ..
+                rule_key,
             } => {
                 field(
                     &mut fields,
@@ -342,6 +342,14 @@ impl Page<'_> {
                 }
                 if let Some(id) = checks {
                     write!(fields, "<dt>Checks</dt><dd>{}</dd>", self.link(id)?)?;
+                }
+                if let Some(key) = rule_key {
+                    for id in self.index.keys().filter(|id| {
+                        id.kind() == HelpKind::Rule
+                            && id.name().split_once('/').is_some_and(|(_, name)| name == key)
+                    }) {
+                        write!(fields, "<dt>Profile rule</dt><dd>{}</dd>", self.link(id)?)?;
+                    }
                 }
                 write!(
                     after,

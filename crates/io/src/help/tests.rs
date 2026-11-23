@@ -76,3 +76,60 @@ fn screenshot_version_is_the_captured_build_even_when_the_topic_is_older() -> Re
     assert!(blocks(r#"![](help-search.png "1.2.3")"#).is_err());
     Ok(())
 }
+
+#[test]
+fn finding_summaries_can_be_authored_independently_of_the_cause() -> Result<()> {
+    let finding_id = "finding/board.via_annular_ring";
+    let mut index: Index = sparksmith_core::help::finding_entries()
+        .map_err(Error::Invalid)?
+        .into_iter()
+        .map(|entry| (entry.id.clone(), entry))
+        .collect();
+    let id: HelpId = finding_id.parse().map_err(Error::Invalid)?;
+    for summary in [None, Some("Inspect the ring around this via.")] {
+        let cause = "The pad leaves too little copper around the drill.";
+        let header = serde_json::from_value(serde_json::json!({
+            "id": finding_id, "kind": "finding", "since": "0.1.0",
+            "cause": cause, "fix": "Enlarge the pad", "summary": summary
+        }))?;
+        apply_topic(&mut index, header, vec![]).map_err(Error::Invalid)?;
+        let entry = index.get(&id).ok_or_else(|| Error::Invalid(id.to_string()))?;
+        assert_eq!(entry.summary, summary.unwrap_or(cause));
+        assert!(matches!(&entry.facts, Facts::Finding { cause: text, .. } if text == cause));
+    }
+    Ok(())
+}
+
+#[test]
+fn publishing_a_new_release_preserves_the_first_release_of_existing_ids() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("entries.json");
+    let make = |id: &str, version: &str| -> Result<HelpEntry> {
+        Ok(HelpEntry {
+            id: id.parse().map_err(Error::Invalid)?,
+            title: "Topic".into(),
+            summary: "A topic.".into(),
+            since: version.into(),
+            facts: Facts::Guide,
+            related: vec![],
+            keywords: vec![],
+            body: vec![],
+        })
+    };
+    let original = make("guide/first", "0.1.0")?;
+    sync_registry(&path, vec![original.clone()], true)?;
+    let mut revised = make("guide/first", "0.2.0")?;
+    revised.title = "Revised topic".into();
+    let introduced = make("guide/second", "0.2.0")?;
+    let release = vec![introduced.clone(), revised.clone()];
+    assert!(sync_registry(&path, release.clone(), false).is_err());
+    sync_registry(&path, release.clone(), true)?;
+    sync_registry(&path, release, false)?;
+    let rows: Vec<HelpEntry> = serde_json::from_str(&source(&path)?)?;
+    revised.since = original.since;
+    assert_eq!(rows, vec![revised, introduced]);
+    let duplicated = vec![make("guide/first", "0.3.0")?, make("guide/first", "0.3.0")?];
+    assert!(sync_registry(&path, duplicated, true).is_err());
+    assert_eq!(serde_json::from_str::<Vec<HelpEntry>>(&source(&path)?)?, rows);
+    Ok(())
+}

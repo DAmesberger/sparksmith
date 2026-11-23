@@ -300,7 +300,9 @@ impl HelpSheet {
                         return;
                     };
                     heading(ui, &entry.title);
-                    ui.label(&entry.summary);
+                    if let Some(introduction) = entry.introduction() {
+                        ui.label(introduction);
+                    }
                     if id.as_str() == "panel/keyboard-shortcuts" {
                         shortcuts(ui, index, registry, active, &self.page.query);
                     }

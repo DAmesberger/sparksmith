@@ -739,7 +739,7 @@ fn the_shortcut_sheet_lists_a_name_once_with_all_its_keys() -> Result<(), String
 /// from the same registry the dispatcher uses. Written by xtask help.
 #[test]
 fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Error>> {
-    use sparksmith_core::help::{Facts, HelpEntry};
+    use sparksmith_core::help::Facts;
     let registry = Registry::standard();
     let entries = registry.help_entries()?;
     assert_eq!(entries.len(), registry.commands().len());
@@ -791,14 +791,9 @@ fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Er
     );
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../library/help/generated/commands.json");
-    let mut data = serde_json::to_string_pretty(&entries)?;
-    data.push('\n');
-    if std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref() == Some(std::ffi::OsStr::new("1")) {
-        sparksmith_io::persistence::atomic_write(&path, data.as_bytes())?;
-    }
-    let shipped = std::fs::read_to_string(path)?;
-    assert_eq!(serde_json::from_str::<Vec<HelpEntry>>(&shipped)?, entries);
-    assert_eq!(shipped, data, "regenerate with cargo xtask help --update");
+    let update = std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref()
+        == Some(std::ffi::OsStr::new("1"));
+    sparksmith_io::help::sync_registry(&path, entries, update)?;
     Ok(())
 }
 

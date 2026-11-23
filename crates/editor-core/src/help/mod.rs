@@ -259,6 +259,21 @@ pub struct HelpEntry {
     pub keywords: Vec<String>,
 }
 
+impl HelpEntry {
+    /// The intro in a reading pane. Findings still carry a searchable summary
+    /// when their cause supplies it, and the Cause section shows that text.
+    pub fn introduction(&self) -> Option<&str> {
+        if self.summary.is_empty()
+            || self.summary == self.title
+            || matches!(&self.facts, Facts::Finding { cause, .. } if cause == &self.summary)
+        {
+            None
+        } else {
+            Some(self.summary.as_str())
+        }
+    }
+}
+
 pub type Index = BTreeMap<HelpId, HelpEntry>;
 
 #[cfg(test)]

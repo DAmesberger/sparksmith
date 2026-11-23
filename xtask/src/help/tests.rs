@@ -258,3 +258,48 @@ fn an_oversized_shard_is_named_and_the_previous_file_survives() -> crate::Result
     assert_eq!(std::fs::read_to_string(path)?, "[]");
     Ok(())
 }
+
+#[test]
+fn an_offline_finding_links_to_the_rule_in_each_applicable_profile() -> crate::Result<()> {
+    let dir = tempfile::tempdir()?;
+    std::fs::write(dir.path().join(sparksmith_io::shipped::MARKER), "{}")?;
+    let library = ShippedLibrary::at(dir.path())?;
+    let mut finding = sparksmith_core::help::finding_entries()?
+        .into_iter()
+        .find(|e| e.id.name() == "board.via_annular_ring")
+        .ok_or("missing finding")?;
+    let facts = &mut finding.facts;
+    if let Facts::Finding { cause, fix, rule_key, .. } = facts {
+        *cause = "The copper ring is narrow.".into();
+        *fix = "Enlarge the pad".into();
+        *rule_key = Some("via_annular_ring_min".into());
+        finding.summary.clone_from(cause);
+    }
+    let mut index = Index::from([(finding.id.clone(), finding)]);
+    for profile in ["alpha", "beta"] {
+        let id: HelpId = format!("rule/{profile}/via_annular_ring_min").parse()?;
+        let rule = HelpEntry {
+            id: id.clone(),
+            title: format!("Annular ring for {profile}"),
+            facts: Facts::Rule {
+                value: json!(0.1),
+                unit: "mm".into(),
+                source: serde_json::from_value(json!({
+                    "publisher":"Fixture", "document":"Process sheet", "date":"2026-01-01"
+                }))?,
+                row: "Ring width".into(),
+                author_choice: false,
+            },
+            ..guide("fixture")?
+        };
+        index.insert(id, rule);
+    }
+    let out = dir.path().join("manual");
+    site::render(&out, &index, &library)?;
+    let html = fs::read_to_string(out.join("docs/latest/finding/board.via_annular_ring.html"))?;
+    for profile in ["alpha", "beta"] {
+        assert!(html.contains(&format!("href=\"../rule/{profile}/via_annular_ring_min.html\"")));
+    }
+    assert_eq!(html.matches("The copper ring is narrow.").count(), 1);
+    Ok(())
+}

@@ -1,6 +1,8 @@
 //! Load a version's help from the shipped library. Paths come from the shelf,
 //! never from the caller's topic id.
 pub mod locale;
+mod registry;
+pub use registry::sync_registry;
 
 use crate::{
     Error, Result,
@@ -347,9 +349,6 @@ fn apply_topic(
     if let Some(title) = h.title {
         e.title = title;
     }
-    if let Some(summary) = h.summary {
-        e.summary = summary;
-    }
     if let Facts::Finding {
         fix,
         cause,
@@ -366,7 +365,12 @@ fn apply_topic(
         *fixed_by = h.fixed_by;
         *checks = h.checks;
         *rule_key = h.rule_key;
-        e.summary = cause.clone();
+        if h.summary.is_none() {
+            e.summary.clone_from(cause);
+        }
+    }
+    if let Some(summary) = h.summary {
+        e.summary = summary;
     }
     e.body.extend(body);
     e.keywords.extend(h.keywords);

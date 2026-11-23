@@ -181,14 +181,17 @@ fn topic(
     let mut excerpt = Vec::new();
     let mut next = None;
     for (i, block) in prose.into_iter().enumerate().skip(params.offset) {
+        let encoded = serde_json::to_vec(&block)?.len();
         bytes = bytes
             .saturating_add(usize::from(!excerpt.is_empty()))
-            .saturating_add(serde_json::to_vec(&block)?.len());
-        if params.budget_bytes.is_some_and(|max| bytes > max) {
+            .saturating_add(encoded);
+        if let Some(max) = params.budget_bytes
+            && bytes > max
+        {
             params.offset = i;
-            if excerpt.is_empty() {
-                params.budget_bytes = None;
-            } // the next whole block needs more room
+            // Offer enough bytes for precisely one whole block when it cannot
+            // fit. Following a continuation must never silently remove a budget.
+            params.budget_bytes = Some(max.max(encoded.saturating_add(2)));
             next = Some(params);
             break;
         }
@@ -230,7 +233,14 @@ mod tests {
             ],
         };
         let mut params: TopicParams = serde_json::from_value(serde_json::json!({"id":entry.id}))?;
-        params.budget_bytes = Some(serde_json::to_vec(&entry.body[..1])?.len());
+        let first_block_bytes = serde_json::to_vec(&entry.body[..1])?.len();
+        params.budget_bytes = Some(2);
+        let short = topic(&entry, params.clone(), None, &Index::new())?;
+        assert!(short.excerpt.is_empty());
+        let resume = short.next.ok_or("Missing bounded continuation")?;
+        assert_eq!(resume.budget_bytes, Some(first_block_bytes));
+        assert_eq!(resume.offset, 0);
+        params.budget_bytes = Some(first_block_bytes);
         let index = Index::new();
         let first = topic(&entry, params, None, &index)?;
         assert_eq!(first.excerpt, entry.body[..1]);

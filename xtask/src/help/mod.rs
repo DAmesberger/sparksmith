@@ -57,11 +57,10 @@ pub fn run(args: &[String]) -> Result<()> {
         &(serde_json::to_string_pretty(&manifest)? + "\n"),
         update,
     )?;
-    for (registry, mut entries) in generated {
-        entries.sort_by(|a, b| a.id.cmp(&b.id));
-        compare(
+    for (registry, entries) in generated {
+        help::sync_registry(
             &shelf.join("generated").join(format!("{registry}.json")),
-            &(serde_json::to_string_pretty(&entries)? + "\n"),
+            entries,
             update,
         )?;
     }

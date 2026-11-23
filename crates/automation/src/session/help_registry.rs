@@ -92,13 +92,9 @@ fn entries_match_the_catalog() -> Fallible {
             });
         }
     }
-    rows.sort_by(|a, b| a.id.cmp(&b.id));
-    let next = serde_json::to_string_pretty(&rows)? + "\n";
-    if std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref() == Some(std::ffi::OsStr::new("1")) {
-        sparksmith_io::persistence::atomic_write(&path, next.as_bytes())?;
-    } else if help::source(&path)? != next {
-        return Err("catalog help is stale; run cargo xtask help --update".into());
-    }
+    let update = std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref()
+        == Some(std::ffi::OsStr::new("1"));
+    help::sync_registry(&path, rows, update)?;
     for entry in help::load(&library)?.into_values() {
         for block in entry.body {
             if let Block::Example(example) = block {

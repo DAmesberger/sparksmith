@@ -64,9 +64,11 @@
         },
         "cacheScope": "public",
         "capabilities": {
+          "completions": {},
           "prompts": {
             "listChanged": false
           },
+          "resources": {},
           "tools": {
             "listChanged": false
           }
@@ -474,12 +476,27 @@
   },
   {
     "reply": {
-      "error": {
-        "code": -32601,
-        "message": "resources/list"
-      },
       "id": 9,
-      "jsonrpc": "2.0"
+      "jsonrpc": "2.0",
+      "result": {
+        "_meta": {
+          "io.modelcontextprotocol/serverInfo": {
+            "name": "sparksmith",
+            "title": "Sparksmith",
+            "version": "<version>"
+          }
+        },
+        "cacheScope": "public",
+        "resources": [
+          {
+            "mimeType": "application/json",
+            "name": "Offline help index",
+            "uri": "sparksmith://help"
+          }
+        ],
+        "resultType": "complete",
+        "ttlMs": 86400000
+      }
     },
     "send": {
       "id": 9,
@@ -500,8 +517,8 @@
   {
     "reply": {
       "error": {
-        "code": -32601,
-        "message": "resources/read"
+        "code": -32602,
+        "message": "Unknown resource sparksmith://catalog"
       },
       "id": 10,
       "jsonrpc": "2.0"
@@ -649,8 +666,8 @@
   {
     "reply": {
       "error": {
-        "code": -32601,
-        "message": "completion/complete"
+        "code": -32602,
+        "message": "Unknown completion reference or argument"
       },
       "id": 16,
       "jsonrpc": "2.0"
