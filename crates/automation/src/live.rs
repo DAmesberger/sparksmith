@@ -353,6 +353,54 @@ pub fn grant(mode: Mode, folders: impl IntoIterator<Item = std::path::PathBuf>) 
     Grant::new(mode, folders).without_module("files")
 }
 
+/// The board and options behind a held native export. The window checks
+/// this snapshot off-thread and presents the results before Allow.
+#[derive(Debug)]
+pub struct NativeExportReview {
+    revision: u64,
+    document: sparksmith_core::Document,
+    checks: sparksmith_core::layout::CheckSettings,
+    context: Option<Arc<sparksmith_core::library::standards::Context>>,
+    params: crate::session::ExportNativeParams,
+}
+
+impl NativeExportReview {
+    /// The document revision whose board will be exported.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// The destination, resolved geometry tier and geometry-check override.
+    pub fn params(&self) -> &crate::session::ExportNativeParams {
+        &self.params
+    }
+
+    /// Production findings for the captured board and host check settings.
+    pub fn preflight(
+        &self,
+    ) -> sparksmith_core::Result<sparksmith_core::fabrication::PreflightReport> {
+        let _scope = self.context.as_ref().map(|context| context.enter());
+        sparksmith_core::fabrication::preflight::report(
+            &self.document.project,
+            &self.document.drafts,
+            None,
+            &self.checks,
+        )
+    }
+
+    fn matches(&self, engine: &sparksmith_core::Engine) -> bool {
+        self.revision == engine.revision()
+            && Arc::ptr_eq(&self.document.project, &engine.document().project)
+            && Arc::ptr_eq(&self.document.drafts, &engine.document().drafts)
+            && self.checks == *engine.check_settings()
+            && match (&self.context, engine.context()) {
+                (Some(reviewed), Some(current)) => Arc::ptr_eq(reviewed, current),
+                (None, None) => true,
+                _ => false,
+            }
+    }
+}
+
 /// A call the window may run, with the grant it was admitted under.
 #[derive(Clone, Debug)]
 pub struct Admitted {
@@ -363,12 +411,17 @@ pub struct Admitted {
     /// Held for the person ([`Verdict::Ask`]): the host runs it only after
     /// their Allow.
     asked: bool,
+    native_export: Option<Arc<NativeExportReview>>,
 }
 
 impl Admitted {
     /// The operation, query or request it names (`layout.add_via`).
     pub fn subject(&self) -> &'static str {
         self.subject
+    }
+    /// The snapshot to show when a person is asked to approve a native export.
+    pub fn native_export(&self) -> Option<&Arc<NativeExportReview>> {
+        self.native_export.as_ref()
     }
     pub fn class(&self) -> Class {
         self.class
@@ -452,6 +505,7 @@ pub fn admit(
         class,
         policy: policy.clone(),
         asked: false,
+        native_export: None,
     };
     if let Some(busy) = front::busy(window, admitted.subject, class, admitted.call.dry_run) {
         return Verdict::Reply(failure(&busy));
@@ -468,6 +522,15 @@ pub fn admit(
         // A dry run keeps nothing, so what would ask a person runs.
         Decision::Ask(_) if admitted.call.dry_run => Verdict::Run(admitted),
         Decision::Ask(question) => {
+            if let crate::Request::ExportNative(params) = target.request {
+                admitted.native_export = Some(Arc::new(NativeExportReview {
+                    revision: engine.revision(),
+                    document: engine.document().clone(),
+                    checks: *engine.check_settings(),
+                    context: engine.context().cloned(),
+                    params,
+                }));
+            }
             admitted.asked = true;
             Verdict::Ask(admitted, question)
         }
@@ -482,6 +545,17 @@ pub fn admit(
 /// edited while it waited. `window` runs the `view` entries and holds the
 /// busy rule again.
 pub fn run(session: &mut Session, admitted: &Admitted, window: &mut dyn WindowHost) -> Value {
+    if admitted
+        .native_export()
+        .is_some_and(|review| !review.matches(session.engine()))
+    {
+        return refusal(
+            "live.stale_approval",
+            admitted.subject(),
+            "The board or its check settings changed after the export was requested.".into(),
+            "Request the export again to review the current board.",
+        );
+    }
     let mut no_one = NoOne;
     let mut allowed = AlreadyAllowed;
     let asker: &mut dyn Asker = if admitted.asked {

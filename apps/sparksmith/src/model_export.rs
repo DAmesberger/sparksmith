@@ -345,7 +345,7 @@ fn named(report: &Report, project: &Project) -> Vec<String> {
     named
 }
 
-fn tier_name(tier: Tier) -> &'static str {
+pub(crate) fn tier_name(tier: Tier) -> &'static str {
     match tier {
         Tier::Interface => "Interface",
         Tier::Mechanical => "Mechanical",

@@ -260,7 +260,18 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
     let dir = tempfile::tempdir_in(std::env::temp_dir())?;
     let path = dir.path().join("board.solidcraft");
     let export = json!({"entry": "project.export_native",
-        "params": {"path": path.display().to_string()}});
+        "params": {"path": path.display().to_string(), "tier": "full", "write_anyway": true}});
+    let sparksmith_core::QueryResult::Preflight(report) = h
+        .app
+        .engine
+        .query(sparksmith_core::Query::Preflight { profile: None })?
+    else {
+        return Err("expected the demo board's preflight report".into());
+    };
+    assert!(
+        report.warnings > 0,
+        "the export card must review a real warning"
+    );
 
     let mut client = h.client()?;
     let sent = export.clone();
@@ -273,6 +284,39 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
     assert_eq!(h.app.live_held(), Some("project.export_native"));
+    let output = h.frame_output(Vec::new());
+    let labels: Vec<&str> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(t) => Some(t.galley.job.text.as_str()),
+            _ => None,
+        })
+        .collect();
+    let revision_label = revision.to_string();
+    let summary = crate::pcb_editor::report_summary(&report);
+    assert!(summary.contains("warning"), "{summary}");
+    for text in [
+        "Board revision",
+        revision_label.as_str(),
+        "Geometry tier",
+        "Full",
+        "Write even if geometry differs",
+        "Preflight",
+        summary.as_str(),
+    ] {
+        assert!(
+            labels.contains(&text),
+            "missing {text} on the approval card"
+        );
+    }
+    let finding = report.items.first().ok_or("preflight finding")?;
+    assert!(
+        labels.contains(&finding.title.as_str()),
+        "missing {}",
+        finding.title
+    );
+    assert!(!path.exists());
     // Meanwhile another change is refused: the window waits for an answer.
     let waiting = h.call(live::CALL, h.add_via(revision))?;
     assert_eq!(code(&waiting), "live.busy", "{waiting}");
@@ -293,6 +337,8 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
     h.app.live_answer(true);
     let allowed = asked.join().map_err(|_| "client thread")??;
     assert_eq!(allowed["ok"], true, "{allowed}");
+    assert_eq!(allowed["result"]["tier"], "full", "{allowed}");
+    assert_eq!(allowed["result"]["revision"], revision, "{allowed}");
     assert!(path.exists());
     Ok(())
 }

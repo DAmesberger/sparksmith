@@ -83,6 +83,7 @@ mod interface_tests;
 mod pick_tests;
 mod placement_card;
 mod production;
+pub(crate) use production::report_summary;
 #[cfg(test)]
 pub(crate) mod raster_tests;
 mod route_card;
