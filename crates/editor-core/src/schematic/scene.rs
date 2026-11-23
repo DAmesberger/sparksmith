@@ -676,7 +676,7 @@ pub fn sheet_symbol_in(
         LABEL_TEXT_MM * 1.2,
         justify(HAlign::Left, VAlign::Bottom),
     );
-    if let Some(page) = project.child_page(symbol,path) {
+    if let Some(page) = project.child_page(symbol, path) {
         d.text(
             format!("Page {page}"),
             [x, y - h - 0.8],

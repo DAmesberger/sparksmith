@@ -364,7 +364,7 @@ impl SchematicEditor {
                 output = op(SchematicCommand::RenameSheetSymbol { symbol: id, name });
             }
             kit::value_row(ui, "Definition", &child.name);
-            if let Some(page) = project.child_page(&symbol,self.path.as_ref()) {
+            if let Some(page) = project.child_page(&symbol, self.path.as_ref()) {
                 kit::value_row(ui, "Page", &page.to_string());
             }
             if let Some(size) = self.live_pair(

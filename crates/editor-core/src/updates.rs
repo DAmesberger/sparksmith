@@ -1001,6 +1001,29 @@ pub(crate) fn move_instances(next: &mut Project, ids: &[Id], target: ComponentRe
     revise(next, ids, target, &Resolutions::default())
 }
 
+/// Make a detached drawing source available to the existing revision and
+/// replacement operations for the duration of their candidate edit.
+fn edit_drawing_part(
+    project: &mut Project,
+    local: Id,
+    edit: impl FnOnce(&mut Project) -> Result<()>,
+) -> Result<()> {
+    let Some(index) = project.sheets.locals.iter().position(|i| i.id == local) else {
+        return edit(project);
+    };
+    let source = project.sheets.locals.remove(index);
+    project.instances.push(source);
+    edit(project)?;
+    let index = project
+        .instances
+        .iter()
+        .position(|i| i.id == local)
+        .ok_or_else(|| invalid("Missing sheet-local component after the edit."))?;
+    let source = project.instances.remove(index);
+    project.sheets.locals.push(source);
+    Ok(())
+}
+
 /// Move instances to `target`, applying only explicit resolutions.
 fn revise(
     next: &mut Project,
@@ -1047,10 +1070,33 @@ fn revise(
                 "Revision updates must retain the component definition lineage. Matching names or pin numbers do not establish electrical compatibility.".into(),
             ));
         }
-        revise_instance(next, *id, target, &target_component.definition, resolutions)?;
     }
-    for id in ids {
-        instances::check_instance(next, *id)?;
+    for (local, family) in next.sheet_part_families(ids) {
+        edit_drawing_part(next, local, |next| {
+            revise_instance(
+                next,
+                local,
+                &family,
+                target,
+                &target_component.definition,
+                resolutions,
+            )?;
+            instances::check_instance(next, local)
+        })?;
+        let source = next
+            .drawing_instance(local)
+            .ok_or_else(|| not_found("Missing revised drawing component."))?
+            .clone();
+        for id in family.into_iter().filter(|id| *id != local) {
+            let part = instances::instance_mut(next, id)?;
+            let before = part.physical.map(|p| p.footprint);
+            schematic::hierarchy::share(part, &source);
+            instances::text::follow_footprint(next, id, before);
+            if source.physical.is_none() {
+                layout::detach_instance(next, id, EditPolicy::Consequential)?;
+            }
+            instances::check_instance(next, id)?;
+        }
     }
     Ok(())
 }
@@ -1058,6 +1104,7 @@ fn revise(
 fn revise_instance(
     next: &mut Project,
     id: Id,
+    family: &BTreeSet<Id>,
     target: ComponentRef,
     target_component: &ComponentDefinition,
     resolutions: &Resolutions,
@@ -1070,7 +1117,7 @@ fn revise_instance(
     let field_resolutions: Vec<PropertyEdit> = resolutions
         .fields
         .iter()
-        .filter(|r| r.instance == id)
+        .filter(|r| family.contains(&r.instance))
         .map(|r| PropertyEdit {
             field: r.field,
             input: r.input.clone(),
@@ -1081,14 +1128,27 @@ fn revise_instance(
     let function_resolutions: Vec<FunctionEdit> = resolutions
         .functions
         .iter()
-        .filter(|r| r.instance == id)
+        .filter(|r| family.contains(&r.instance))
         .map(|r| FunctionEdit {
             terminal: r.terminal,
             function: r.function,
         })
         .collect();
     let functions = instances::carry_functions(&old, target_component, &function_resolutions)?;
-    let choice = resolutions.choices.iter().find(|c| c.instance == id);
+    let mut choices = resolutions
+        .choices
+        .iter()
+        .filter(|c| family.contains(&c.instance));
+    let choice = choices.next();
+    if choices.any(|c| {
+        choice.is_some_and(|first| {
+            first.representation != c.representation || first.physical != c.physical
+        })
+    }) {
+        return Err(invalid(
+            "Select one symbol and footprint for the shared component.",
+        ));
+    }
     let representation = choice
         .and_then(|c| c.representation)
         .unwrap_or(old.representation);
@@ -1120,7 +1180,7 @@ fn revise_instance(
     let unit_resolutions: Vec<(UnitId, UnitTarget)> = resolutions
         .units
         .iter()
-        .filter(|r| r.instance == id)
+        .filter(|r| family.contains(&r.instance))
         .map(|r| (r.unit, r.target))
         .collect();
     let UnitCarry {
@@ -1153,7 +1213,7 @@ fn revise_instance(
         resolutions
             .regroups
             .iter()
-            .find(|r| r.instance == id && r.terminal == terminal)
+            .find(|r| family.contains(&r.instance) && r.terminal == terminal)
             .map(|r| &r.action)
     })?;
     schematic::disconnect_terminals(next, id, &disconnects, EditPolicy::Consequential)?;
@@ -1175,7 +1235,7 @@ fn revise_instance(
     let action = resolutions
         .parts
         .iter()
-        .filter(|r| r.instance == id)
+        .filter(|r| family.contains(&r.instance))
         .try_fold(None, |seen: Option<PartAction>, r| match seen {
             Some(_) => Err(Error::Invalid(format!(
                 "{name}: the update names its Part twice."
@@ -2608,8 +2668,13 @@ pub(crate) fn preview(
         replacement,
     } = &change
     {
-        plan.copper = replace::copper_identity(project, &next, instances);
-        plan.fits = replace::placement_fits(project, &next, instances, replacement);
+        let physical: Vec<_> = project
+            .sheet_part_families(instances)
+            .into_values()
+            .flatten()
+            .collect();
+        plan.copper = replace::copper_identity(project, &next, &physical);
+        plan.fits = replace::placement_fits(project, &next, &physical, replacement);
     }
     let merges = nets::named_merges(project, &next);
     for merge in &merges {

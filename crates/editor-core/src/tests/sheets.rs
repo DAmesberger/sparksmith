@@ -1607,7 +1607,9 @@ fn repeating_a_boundary_spanning_component_names_the_units_and_rolls_back() -> R
     )?;
     put_sheet(&mut e, top, child, "First")?;
     let kept = Snapshot::of(&e);
-    let Err(rejected) = put_sheet(&mut e, top, child, "Second") else { return Err(Error::Invalid("accepted a boundary-spanning repeat".into())); };
+    let Err(rejected) = put_sheet(&mut e, top, child, "Second") else {
+        return Err(Error::Invalid("accepted a boundary-spanning repeat".into()));
+    };
     let line = rejected.to_string();
     assert!(
         line.contains("U7") && line.contains("Amplifier") && line.contains("Sheet 1"),
@@ -1727,5 +1729,77 @@ fn compact_exponential_hierarchy_is_refused_before_enumeration() -> Result<()> {
         crate::schematic::hierarchy::paths(&project, || false),
         Err(Error::Limit(_))
     ));
+    Ok(())
+}
+
+#[test]
+fn replacing_from_channel_b_maps_the_drawing_and_both_physical_parts() -> Result<()> {
+    use crate::updates::{Alignment, Replacement, TerminalPair};
+    let Hier {
+        mut engine,
+        child,
+        u2: local,
+        symbol: a,
+        ..
+    } = hierarchy()?;
+    let top = engine.project().sheets.first();
+    let b = put_sheet(&mut engine, top, child, "B")?;
+    let path = crate::model::sheet::SheetPath::root(top).child(b);
+    let second = engine
+        .project()
+        .sheet_use(&path)
+        .and_then(|u| u.parts.get(&local))
+        .copied()
+        .ok_or_else(|| Error::Invalid("missing B".into()))?;
+    let target = two_pin(&mut engine)?;
+    let change = Change::ReplaceComponent {
+        instances: vec![second],
+        replacement: Replacement {
+            target: target.r1(),
+            representation: Some(target.symbol),
+            physical: Some(target.physical()),
+            terminals: vec![
+                TerminalPair {
+                    from: crate::TerminalId(1),
+                    to: Some(crate::TerminalId(2)),
+                },
+                TerminalPair {
+                    from: crate::TerminalId(2),
+                    to: Some(crate::TerminalId(1)),
+                },
+            ],
+            units: vec![],
+            alignment: Alignment::FitPads,
+        },
+    };
+    for remove_first in [false, true] {
+        let mut e = engine.fork();
+        if remove_first {
+            e.apply_update(
+                e.revision(),
+                Change::Schematic {
+                    command: C::RemoveSheetSymbol { symbol: a },
+                },
+                true,
+            )?;
+        }
+        let physical: Vec<_> = [local, second]
+            .into_iter()
+            .filter(|id| e.project().instance(*id).is_some())
+            .collect();
+        let ids: Vec<_> = physical
+            .iter()
+            .map(|id| net_of(&e, ep(*id, 1)))
+            .collect::<Result<_>>()?;
+        e.apply_update(e.revision(), change.clone(), true)?;
+        for (id, net) in physical.into_iter().zip(ids) {
+            assert_eq!(
+                e.project().instance(id).map(|p| p.component),
+                Some(target.r1())
+            );
+            assert_eq!(net_of(&e, ep(id, 2))?, net);
+        }
+        assert!(e.project().wires_at(ep(local, 2).into()).next().is_some());
+    }
     Ok(())
 }

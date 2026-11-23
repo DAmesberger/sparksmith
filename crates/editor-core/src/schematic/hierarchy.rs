@@ -163,7 +163,7 @@ fn check_units(project: &Project, paths: &[(SheetPath, SheetId)]) -> Result<()> 
 
 /// These choices belong to the drawing. The designator, board markings,
 /// text offsets and population remain independent on each physical part.
-fn share(target: &mut ComponentInstance, source: &ComponentInstance) {
+pub(crate) fn share(target: &mut ComponentInstance, source: &ComponentInstance) {
     target.component = source.component;
     target.representation = source.representation;
     target.physical = source.physical;

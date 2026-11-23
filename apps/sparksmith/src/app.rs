@@ -75,6 +75,12 @@ impl Drop for SheetWork {
     }
 }
 
+impl SheetWork {
+    fn message(ctx: &egui::Context, message: &str) -> String {
+        crate::keys::shown(ctx,"schematic.cancel").map_or_else(|| message.to_owned(),|key| format!("{message} Press {key} to cancel."))
+    }
+}
+
 pub struct App {
     engine: Engine,
     workspace: Workspace,
@@ -428,7 +434,7 @@ impl App {
             if self.sheet_work.is_some() {
                 self.say(
                     Level::Info,
-                    "A sheet is being expanded. Press Esc to cancel.",
+                    SheetWork::message(ctx,"A sheet is being expanded."),
                 );
                 return;
             }
@@ -458,7 +464,7 @@ impl App {
                         result,
                         origin,
                     });
-                    self.say(Level::Info, "Expanding sheet. Press Esc to cancel.");
+                    self.say(Level::Info, SheetWork::message(ctx,"Expanding sheet."));
                 }
                 Err(error) => self.say(
                     Level::Error,
@@ -555,7 +561,7 @@ impl App {
         let Some(work) = &self.sheet_work else {
             return;
         };
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        if crate::keys::pressed_once(ctx, "schematic.cancel") {
             self.sheet_work = None;
             self.say(Level::Info, "Sheet placement cancelled");
             return;

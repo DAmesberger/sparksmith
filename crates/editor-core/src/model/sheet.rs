@@ -159,7 +159,7 @@ pub(crate) struct PhysicalPart {
     )]
     pub marking: crate::library::marking::InstanceMarking,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub text_placements: std::collections::BTreeMap<crate::GraphicId, crate::model::TextPlacement>,
+    pub text_placements: std::collections::BTreeMap<crate::ids::GraphicId, super::TextPlacement>,
     #[serde(
         default,
         skip_serializing_if = "crate::model::Population::is_populated"
@@ -551,8 +551,14 @@ impl Project {
 
     /// Printed page reached by a box in a particular parent occurrence.
     pub fn child_page(&self, symbol: &SheetSymbol, parent: Option<&SheetPath>) -> Option<usize> {
-        let path = parent.cloned().unwrap_or_else(|| SheetPath::root(symbol.sheet)).child(symbol.id);
-        self.printed_pages().iter().position(|(s,p)| s.id == symbol.child && *p == Some(&path)).map(|i| i+1)
+        let path = parent
+            .cloned()
+            .unwrap_or_else(|| SheetPath::root(symbol.sheet))
+            .child(symbol.id);
+        self.printed_pages()
+            .iter()
+            .position(|(s, p)| s.id == symbol.child && *p == Some(&path))
+            .map(|i| i + 1)
     }
 
     /// Locate a physical part in the shared drawing and the channel that uses it.
@@ -571,6 +577,26 @@ impl Project {
             .binary_search_by(|u| u.path.cmp(path))
             .ok()
             .and_then(|i| self.sheets.uses.get(i))
+    }
+
+    /// Physical instances affected when a selected component's shared drawing changes.
+    pub fn sheet_part_families(
+        &self,
+        selected: &[Id],
+    ) -> std::collections::BTreeMap<Id, std::collections::BTreeSet<Id>> {
+        let mut families = std::collections::BTreeMap::<_, std::collections::BTreeSet<_>>::new();
+        for id in selected {
+            let local = self.sheet_binding(*id).map_or(*id, |(_, local)| local);
+            families.entry(local).or_default().insert(*id);
+        }
+        for u in &self.sheets.uses {
+            for (local, physical) in &u.parts {
+                if let Some(family) = families.get_mut(local) {
+                    family.insert(*physical);
+                }
+            }
+        }
+        families
     }
 
     /// The units drawn for a physical component, through its binding.
