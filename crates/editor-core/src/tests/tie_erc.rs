@@ -114,6 +114,19 @@ fn closed_jumper_drives_only_its_group_and_opening_it_is_undoable() -> Result<()
     )?;
     assert_eq!(undriven(&engine), [ep(fed, 1), ep(isolated, 1)]);
     assert_eq!(engine.project().nets, nets);
+    let bytes = crate::format::encode(&engine.to_file())?;
+    let reopened = Engine::from_file(crate::format::decode(&bytes)?)?;
+    let crate::QueryResult::Ties(reports) = reopened.query(crate::Query::Ties {})? else {
+        return Err(Error::Invalid("expected the typed tie query".into()));
+    };
+    assert_eq!(reports.len(), 2);
+    for (row, group) in reports.iter().zip([1, 2]) {
+        assert_eq!(row.tie.instance, jp);
+        assert_eq!(row.tie.designator, "JP1");
+        assert_eq!(row.tie.group, TieId(group));
+        assert_eq!(row.tie.state, JumperState::Open);
+    }
+    assert_eq!(reopened.project().nets, nets);
     engine.undo()?;
     assert_eq!(undriven(&engine), [ep(isolated, 1)]);
     assert_eq!(engine.project().nets, nets);
