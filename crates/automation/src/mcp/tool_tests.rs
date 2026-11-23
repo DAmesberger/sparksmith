@@ -248,6 +248,55 @@ fn a_misspelt_op_is_refused_with_the_nearest_names() -> Fallible<()> {
     })?
 }
 
+/// The MCP and raw schema paths expose the same signature and gate metadata.
+#[test]
+fn line_find_describe_and_raw_schema_agree() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    block_on(async move {
+        let client = Connection::open(Mode::AutoAllowEdits, dir.path()).await?;
+        for name in [
+            "layout.place_part_file",
+            "library.sign_out",
+            "project.query",
+        ] {
+            let found = client.ok(FIND, json!({"text":name,"limit":1})).await?;
+            let hit = &found["hits"][0];
+            let line = client
+                .ok(DESCRIBE, json!({"name":name,"detail":"line"}))
+                .await?;
+            let raw = client
+                .ok(
+                    QUERY,
+                    json!({"name":"project.schema","params":{"name":name,"detail":"line"}}),
+                )
+                .await?;
+            let schema = &raw["matches"][0];
+            for key in [
+                "line",
+                "class",
+                "name",
+                "summary",
+                "title",
+                "person",
+                "reach",
+                "asks_with_path",
+            ] {
+                assert_eq!(hit.get(key), line.get(key), "{name}: {key}");
+                assert_eq!(schema.get(key), line.get(key), "{name}: {key}");
+            }
+            assert_eq!(line["name"], name);
+            assert!(line.get("schema").is_none());
+            let input = client.ok(DESCRIBE, line["input"].clone()).await?;
+            for key in ["class", "person", "reach", "asks_with_path"] {
+                assert_eq!(line.get(key), input.get(key), "{name}: {key}");
+            }
+            let full = client.ok(DESCRIBE, line["full"].clone()).await?;
+            assert!(full.get("reply").is_some());
+        }
+        Ok(())
+    })?
+}
+
 /// `find` names entries by what they do, of the kind asked, within its
 /// bounds; `describe` gives one's schema and the call that sends it.
 #[test]
@@ -1188,6 +1237,11 @@ fn project_schema_describes_the_detail_selector_it_accepts() -> Fallible<()> {
             assert_eq!(matched["asks_with_path"], true);
         }
     }
+    let params = json!({"name":"project.save","detail":"line"});
+    assert!(validator.is_valid(&params));
+    let lines = tools.ok(QUERY, json!({"name":"project.schema","params":params}))?;
+    assert!(result.is_valid(&lines), "{lines}");
+    assert!(lines["matches"][0]["line"].is_string());
     for invalid in [
         json!({"name":"project.save", "detail":"typo"}),
         json!({"name":"project.save", "unexpected":true}),

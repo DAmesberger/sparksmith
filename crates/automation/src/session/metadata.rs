@@ -67,6 +67,8 @@ pub struct EntryMeta {
     pub module: &'static str,
     pub title: &'static str,
     pub summary: String,
+    #[serde(skip)]
+    line: OnceLock<Option<String>>,
     pub class: Class,
     pub takes_path: bool,
     /// `None` for the Never class, which no model reaches.
@@ -91,6 +93,28 @@ pub struct EntryMeta {
     pub revision: bool,
     /// `None` for the Never class.
     pub annotations: Option<Annotations>,
+}
+
+impl EntryMeta {
+    /// A find hit and a line description share one signature and permission record.
+    pub(crate) fn line_card(&self) -> Result<serde_json::Value, String> {
+        let line = self
+            .line
+            .get_or_init(|| discovery::named(&self.name).and_then(super::signature::line))
+            .as_ref()
+            .ok_or_else(|| {
+                format!(
+                    "{}: required parameter names exceed the ABI line budget",
+                    self.name
+                )
+            })?;
+        let mut card = serde_json::json!({"name":self.name,"kind":self.kind,"class":self.class,"title":self.title,
+            "summary":self.summary,"line":line,"person":self.person,"reach":self.reach.iter().collect::<Vec<_>>()});
+        if self.takes_path {
+            card["asks_with_path"] = serde_json::Value::Bool(true);
+        }
+        Ok(card)
+    }
 }
 
 /// Every catalog entry, in catalog order.
@@ -196,6 +220,7 @@ pub(super) fn meta(entry: &Entry) -> EntryMeta {
         module: decl.map_or("", |d| d.module),
         title: entry.title,
         summary: discovery::summary_of(entry),
+        line: OnceLock::new(),
         class: entry.class,
         takes_path: entry.takes_path,
         kind,

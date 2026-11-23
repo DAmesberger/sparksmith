@@ -169,7 +169,8 @@
                 "detail": {
                   "enum": [
                     "input",
-                    "full"
+                    "full",
+                    "line"
                   ],
                   "type": "string"
                 },
@@ -820,7 +821,8 @@
                 "detail": {
                   "enum": [
                     "input",
-                    "full"
+                    "full",
+                    "line"
                   ],
                   "type": "string"
                 },

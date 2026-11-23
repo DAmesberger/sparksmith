@@ -1,6 +1,7 @@
 //! Developer-only evaluation of the six verbs against original generic fixtures.
 mod batch;
 mod external;
+mod lines;
 mod live;
 mod run;
 mod spend;
@@ -273,6 +274,9 @@ fn offline(
             let reported = replay.reports_usage();
             ("recorded", Box::new(replay), reported)
         }
+        None if task.mark.id == "board-build" && detail == SchemaDetail::Line => {
+            ("scripted-lines-first", Box::new(lines::Board::new()), false)
+        }
         None => ("scripted", Box::new(task.scripted()), false),
     };
     run::run(
@@ -413,7 +417,7 @@ fn main() -> Result<()> {
         return measure(Path::new(dir));
     }
     let [kind, name, dir, rest @ ..] = args.as_slice() else {
-        return Err("usage: cargo xtask agent-bench measure NEW_DIR | compare-drc NEW_DIR | scripted TASK NEW_DIR [input|full] | replay TASK NEW_DIR TRACE [input|full]".into());
+        return Err("usage: cargo xtask agent-bench measure NEW_DIR | compare-drc NEW_DIR | scripted TASK NEW_DIR [line|input|full] | replay TASK NEW_DIR TRACE [line|input|full]".into());
     };
     let task = Task::load(name)?;
     let (recording, rest) = match (kind.as_str(), rest) {
@@ -521,6 +525,24 @@ mod tests {
         }
         Ok(())
     }
+    #[test]
+    fn board_build_reads_matching_lines_before_editing_and_verifies_the_saved_board() -> Result<()>
+    {
+        let root = tempfile::tempdir()?;
+        let task = Task::load("board-build")?;
+        let dir = root.path().join("lines-first");
+        let row = offline(&task, &dir, None, SchemaDetail::Line, false)?;
+        assert!(matches!(
+            row,
+            Row::Finish {
+                success: true,
+                artifact_verified: Some(true),
+                ..
+            }
+        ));
+        Ok(())
+    }
+
     #[test]
     fn one_extra_visible_byte_fails_the_gate() {
         let limits = Ceilings {

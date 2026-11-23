@@ -36,7 +36,7 @@ const USAGE: &str = concat!(
                                    not a model; every class runs (settings, library
                                    sources, any path), as at the command line
   mcp [--permission-mode MODE] [--allow-folder DIR]... [FILE.sparksmith]
-      [--bench-trace NEW_FILE [--bench-detail input|full]]
+      [--bench-trace NEW_FILE [--bench-detail line|input|full]]
                                    MCP server on stdio (protocol 2026-07-28), always
                                    gated: the mode (ask-every-time, auto-allow-edits
                                    by default, allow-all) decides what runs, paths are
