@@ -235,6 +235,13 @@ pub enum Primitive {
     Poly {
         points: Vec<PointNm>,
         width: Nm,
+        fill: bool,
+    },
+    Arc {
+        start: PointNm,
+        mid: PointNm,
+        end: PointNm,
+        width: Nm,
     },
     Circle {
         center: PointNm,
@@ -595,6 +602,23 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
             .is_some_and(|a| a.args().iter().any(|v| v.atom() == Some("net_tie")));
     for item in node.args() {
         let Some(head) = item.head() else { continue };
+        if marked
+            && matches!(head, "fp_text" | "fp_text_box" | "property")
+            && item
+                .child("layer")
+                .and_then(|l| l.arg(0))
+                .is_some_and(|l| l.ends_with(".Cu"))
+        {
+            let hidden = |n: &Node| {
+                n.args().iter().any(|v| v.atom() == Some("hide"))
+                    || n.child("hide").is_some_and(|v| v.arg(0) != Some("no"))
+            };
+            if !hidden(item) && !item.child("effects").is_some_and(hidden) {
+                // Copper text may cross the declared groups. Its strokes
+                // are not a supported bridge drawing.
+                fp.unsupported_tie_copper = true;
+            }
+        }
         match head {
             "pad" => {
                 if fp.pads.len() >= MAX_PADS {
@@ -643,11 +667,18 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                             return Err(BoardError::Limit("too many drawings in a net tie"));
                         }
                         let mut parsed = KPad::default();
-                        if matches!(layer, "F.Cu" | "B.Cu") && (head != "fp_poly" || filled(item)) {
+                        let style = item
+                            .child("stroke")
+                            .and_then(|s| s.child("type"))
+                            .and_then(|t| t.arg(0));
+                        if matches!(layer, "F.Cu" | "B.Cu")
+                            && matches!(style, None | Some("default" | "solid"))
+                        {
                             primitive(
                                 item,
                                 head.trim_start_matches("fp_"),
                                 "footprint",
+                                filled(item),
                                 &mut parsed,
                             )?;
                         }
@@ -910,11 +941,23 @@ fn primitives(node: &Node, pad: &mut KPad) -> Result<()> {
     let path = "footprint/pad/primitives";
     for item in node.args() {
         let Some(head) = item.head() else { continue };
-        primitive(item, head.strip_prefix("gr_").unwrap_or(""), path, pad)?;
+        primitive(
+            item,
+            head.strip_prefix("gr_").unwrap_or(""),
+            path,
+            true,
+            pad,
+        )?;
     }
     Ok(())
 }
-fn primitive(item: &Node, kind: &str, path: &str, pad: &mut KPad) -> Result<()> {
+fn primitive(
+    item: &Node,
+    kind: &str,
+    path: &str,
+    polygon_fill: bool,
+    pad: &mut KPad,
+) -> Result<()> {
     let p = format!("{path}/{}", item.head().unwrap_or_default());
     match kind {
         "poly" => {
@@ -935,6 +978,7 @@ fn primitive(item: &Node, kind: &str, path: &str, pad: &mut KPad) -> Result<()> 
             pad.primitives.push(Primitive::Poly {
                 points,
                 width: width_of(item, &p)?,
+                fill: polygon_fill,
             });
         }
         "circle" => {
@@ -971,6 +1015,21 @@ fn primitive(item: &Node, kind: &str, path: &str, pad: &mut KPad) -> Result<()> 
                 end: get("end")?,
                 width: width_of(item, &p)?,
                 fill: filled(item),
+            });
+        }
+        "arc" if item.head() == Some("fp_arc") && item.child("mid").is_some() => {
+            let get = |h: &str| -> Result<PointNm> {
+                point(
+                    item.child(h).ok_or_else(|| BoardError::Value(p.clone()))?,
+                    0,
+                    &p,
+                )
+            };
+            pad.primitives.push(Primitive::Arc {
+                start: get("start")?,
+                mid: get("mid")?,
+                end: get("end")?,
+                width: width_of(item, &p)?,
             });
         }
         "line" => {

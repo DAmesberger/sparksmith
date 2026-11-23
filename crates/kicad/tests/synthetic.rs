@@ -805,6 +805,36 @@ fn two_pad_groups_on_one_footprint_are_independent_ties() -> Fallible<()> {
 }
 
 #[test]
+fn curved_bridge_follows_the_three_point_arc_and_preserves_the_second_group() -> Fallible<()> {
+    let mut board = two_group_board();
+    board.footprints[0].extra = r#"(net_tie_pad_groups "1,2" "3,4")
+      (fp_arc (start -1 0) (mid 0 -1) (end 1 0) (stroke (width 0.12) (type solid)) (layer "F.Cu"))
+      (fp_poly (pts (xy -1 2) (xy 0 1.97) (xy 1 2) (xy 0 2.03))
+        (stroke (width 0.12) (type solid)) (fill none) (layer "F.Cu"))"#
+        .into();
+    let imported = import(board.text().as_bytes())?;
+    assert_eq!(imported.report.count(Case::ImportedTie), 1);
+    let project = imported.engine.project();
+    let owner = project.instances.first().ok_or("missing tie")?;
+    let view = sparksmith_core::instances::resolve(&project.library, owner)?
+        .physical
+        .ok_or("missing tie footprint")?;
+    let bridges = &view.footprint.definition.bridges;
+    assert_eq!(bridges.len(), 2);
+    let arc = bridges
+        .iter()
+        .find(|b| b.pads.contains(&sparksmith_core::PadId(1)))
+        .ok_or("arc missing")?;
+    let ring = arc.outline.flatten(0.00025);
+    assert!(sparksmith_core::geometry::polygon_contains(&ring, [0., 1.]));
+    assert!(!sparksmith_core::geometry::polygon_contains(
+        &ring,
+        [0., 0.]
+    ));
+    Ok(())
+}
+
+#[test]
 fn ambiguous_net_tie_groups_preserve_lands_for_review() -> Fallible<()> {
     let source = two_group_board().text();
     for (name, edited) in [
@@ -813,6 +843,20 @@ fn ambiguous_net_tie_groups_preserve_lands_for_review() -> Fallible<()> {
             source.replace(r#""1,2" "3,4""#, r#""1,2" "2,3,4""#),
         ),
         ("unknown pad", source.replace(r#""3,4""#, r#""3,5""#)),
+        (
+            "dashed stroke",
+            source.replace(
+                "(fp_rect (start -1 -0.1) (end 1 0.1) (stroke (width 0) (type solid)) (fill solid)",
+                "(fp_line (start -1 0) (end 1 0) (stroke (width 0.05) (type dash))",
+            ),
+        ),
+        (
+            "visible copper text",
+            source.replace(
+                "(net_tie_pad_groups",
+                r#"(fp_text user "A" (at 0 0) (layer "F.Cu")) (net_tie_pad_groups"#,
+            ),
+        ),
         ("empty declaration", source.replace(r#""1,2" "3,4""#, "")),
         (
             "cross-group drawing",

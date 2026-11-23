@@ -349,7 +349,7 @@ fn pad_or_refusal(
                 } => {
                     round.push((local(*center), radius / 1e6 + mm(*width) / 2.0));
                 }
-                Primitive::Poly { points, width } if *width > 0 => {
+                Primitive::Poly { points, width, .. } if *width > 0 => {
                     round.extend(points.iter().map(|p| (local(*p), mm(*width) / 2.0)));
                 }
                 Primitive::Rect {
@@ -792,12 +792,63 @@ fn primitive_union(mut parts: Vec<Rings>, primitives: &[Primitive]) -> (Vec<Ring
     let mut chords = false;
     for primitive in primitives {
         match primitive {
-            Primitive::Poly { points, width } => {
+            Primitive::Arc {
+                start,
+                mid,
+                end,
+                width,
+            } => {
+                let (a, m, b) = (local(*start), local(*mid), local(*end));
+                let Some((centre, radius)) = crate::shape::circle_through(a, m, b) else {
+                    return (Vec::new(), true);
+                };
+                let half = mm(*width) / 2.0;
+                if half <= 0.0 {
+                    return (Vec::new(), true);
+                }
+                let angle = |p: Point| (p[1] - centre[1]).atan2(p[0] - centre[0]).to_degrees();
+                let from = angle(a);
+                let to = (angle(b) - from).rem_euclid(360.);
+                let sweep = if (angle(m) - from).rem_euclid(360.) <= to {
+                    to
+                } else {
+                    to - 360.
+                };
+                // The copper is an annular sector and two round endcaps.
+                let arc = |radius| {
+                    sparksmith_core::geometry::Shape::Arc {
+                        center: centre,
+                        radius,
+                        start_deg: from,
+                        sweep_deg: sweep,
+                    }
+                    .flatten(CHORD_MM)
+                };
+                let mut sector = arc(radius + half);
+                if radius > half {
+                    sector.extend(arc(radius - half).into_iter().rev());
+                } else {
+                    sector.push(centre);
+                }
+                parts.extend([vec![sector], vec![circle(a, half)], vec![circle(b, half)]]);
+                chords = true;
+            }
+            Primitive::Poly {
+                points,
+                width,
+                fill,
+            } => {
                 let ring: Vec<Point> = points.iter().map(|p| local(*p)).collect();
                 if *width > 0 {
                     chords = true;
                 }
-                parts.extend(grown(vec![ring], mm(*width) / 2.0));
+                if *fill {
+                    parts.extend(grown(vec![ring], mm(*width) / 2.0));
+                } else if *width > 0 {
+                    for (a, b) in ring.iter().zip(ring.iter().cycle().skip(1)) {
+                        parts.push(vec![capsule(*a, *b, mm(*width) / 2.)]);
+                    }
+                }
             }
             Primitive::Circle {
                 center,
@@ -1160,7 +1211,11 @@ pub(crate) fn copper_ties(fp: &Footprint, pads: &[Pad]) -> Result<ImportedTies, 
         } else {
             PadSide::Bottom
         };
-        for region in primitive_union(vec![], &shapes).0 {
+        let regions = primitive_union(vec![], &shapes).0;
+        if regions.is_empty() {
+            return Err("The footprint has an invalid or empty copper drawing on a tie layer.");
+        }
+        for region in regions {
             let [ring] = region.as_slice() else {
                 return Err("A bridge drawing contains a hole that its outline cannot represent.");
             };
