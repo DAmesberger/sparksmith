@@ -203,6 +203,34 @@ fn unwaivable(key: &str) -> bool {
     !can_waive(code)
 }
 
+/// Refuse waiving any of `keys` that names a finding `project` needs more
+/// of its fab profile for (`fabrication.not_waivable`, naming the need): a
+/// profile that allows it, or a change to the design, resolves it. The
+/// engine runs this before [`apply`] of a waiver.
+pub(crate) fn refuse_needed(
+    project: &Project,
+    drafts: &Drafts,
+    settings: &crate::layout::CheckSettings,
+    keys: &[String],
+) -> Result<()> {
+    let keys: BTreeSet<&str> = keys.iter().map(|k| k.trim()).collect();
+    for row in crate::issues::production_rows(project, drafts, settings)? {
+        let Some(requirement) = &row.finding.requirement else {
+            continue;
+        };
+        let k = key(&row.finding.code, &row.finding.objects);
+        if keys.contains(k.as_str()) {
+            let need =
+                crate::rules::requirement::describe(requirement, project.rules.profile.as_ref())
+                    .map_or_else(String::new, |n| format!("{}; ", n.text));
+            return Err(Error::Conflict(format!(
+                "fabrication.not_waivable: `{k}` cannot be waived. {need}switch to a fab profile                  that allows it (fabrication.profile_suggestions) or change the design"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// What resolves a finding of `code` instead of a waiver, for the refusal.
 fn instead(code: &str) -> &'static str {
     match code {

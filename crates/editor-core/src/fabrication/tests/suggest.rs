@@ -275,3 +275,38 @@ fn the_query_answers_as_the_function_does() -> Fallible<()> {
     assert_eq!(*answer, suggestions(&project, &candidates)?);
     Ok(())
 }
+
+/// The engine refuses a waiver of a finding the board needs more of its
+/// profile for, naming the need, and changes nothing.
+#[test]
+fn the_engine_never_waives_a_profile_limited_finding() -> Fallible<()> {
+    let project = connector_board(profile("a1", "a", 0.2)?)?;
+    let mut file = Engine::demo()?.to_file();
+    file.project = project.clone();
+    let mut engine = Engine::from_file(file)?;
+    let item = report(&project)?
+        .items
+        .into_iter()
+        .find(|i| i.needs.is_some())
+        .ok_or("a profile-limited finding")?;
+    let before = engine.revision();
+    let refused = engine
+        .apply(
+            before,
+            crate::Operation::Fabrication(crate::fabrication::FabricationCommand::Waive {
+                keys: vec![item.key],
+                reason: "Drawn to the datasheet".into(),
+            }),
+        )
+        .err()
+        .ok_or("the waiver is refused")?
+        .to_string();
+    assert!(refused.contains("fabrication.not_waivable"), "{refused}");
+    assert!(
+        refused.contains(&format!("Needs {}", key().label())),
+        "{refused}"
+    );
+    assert_eq!(engine.revision(), before);
+    assert!(engine.project().production.waivers.is_empty());
+    Ok(())
+}

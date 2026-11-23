@@ -256,6 +256,15 @@ fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible
         .filter(|i| i["severity"] == "error" && i.get("waiver").is_none())
         .filter_map(|i| i["key"].as_str().map(str::to_string))
         .collect();
+    // None of them is one the board needs more of its profile for: those
+    // are never waived.
+    assert!(
+        report["result"]["items"]
+            .as_array()
+            .ok_or("items")?
+            .iter()
+            .all(|i| i.get("needs").is_none())
+    );
     assert!(!blocking.is_empty());
     assert_eq!(report["result"]["blocking"], blocking.len());
     // A reason is optional: without one the waiver keeps an empty reason.

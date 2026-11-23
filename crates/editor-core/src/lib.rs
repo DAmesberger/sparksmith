@@ -1987,6 +1987,14 @@ impl Engine {
                 }
             }
             Operation::Fabrication(command) => {
+                if let fabrication::FabricationCommand::Waive { keys, .. } = &command {
+                    fabrication::preflight::refuse_needed(
+                        &candidate.project,
+                        &self.document.drafts,
+                        &self.check_settings,
+                        keys,
+                    )?;
+                }
                 let mut next = candidate.project.production.clone();
                 fabrication::preflight::apply(&mut next, command, self.waiver_reason_required)?;
                 if next != candidate.project.production {

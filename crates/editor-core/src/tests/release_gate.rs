@@ -687,10 +687,13 @@ fn drill_rows(pf: &PreflightReport) -> Vec<&crate::fabrication::PreflightItem> {
         .collect()
 }
 
-/// Two 0.08 mm mounting holes are two release rows, keyed by each hole.
-/// Waiving one leaves the other blocking; a third added later blocks too.
+/// Two 0.08 mm mounting holes are two release rows, keyed by each hole,
+/// each stating what it needs of the fab profile. A drill under the
+/// profile's minimum is never waived (founder decision, 23 November 2026):
+/// the waiver is refused and both keep blocking; a third added later
+/// blocks too.
 #[test]
-fn a_waiver_of_one_undersized_hole_never_accepts_another() -> Result<()> {
+fn an_undersized_hole_is_never_waived_and_each_is_its_own_row() -> Result<()> {
     let (engine, _) = gate_board_with(&["none"])?;
     let mut file = engine.to_file();
     let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
@@ -722,19 +725,24 @@ fn a_waiver_of_one_undersized_hole_never_accepts_another() -> Result<()> {
         .first()
         .map(|r| r.key.clone())
         .ok_or_else(|| Error::NotFound("a row".into()))?;
-    engine.apply(
+    assert!(rows.iter().all(|r| r.needs.is_some() && !r.offers_waiver()));
+    let refused = engine.apply(
         engine.revision(),
         Operation::Fabrication(FabricationCommand::Waive {
-            keys: vec![first.clone()],
+            keys: vec![first],
             reason: "the fabricator drills it".into(),
         }),
-    )?;
+    );
+    assert!(
+        refused
+            .as_ref()
+            .is_err_and(|e| e.to_string().contains("fabrication.not_waivable")),
+        "{refused:?}"
+    );
     let pf = report(&engine)?;
     let rows = drill_rows(&pf);
     assert_eq!(rows.len(), 2);
-    for row in &rows {
-        assert_eq!(row.blocks(), row.key != first, "{row:?}");
-    }
+    assert!(rows.iter().all(|r| r.blocks()), "{rows:?}");
     // A third undersized hole, added after the waiver, blocks.
     let mut file = engine.to_file();
     let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
@@ -752,7 +760,7 @@ fn a_waiver_of_one_undersized_hole_never_accepts_another() -> Result<()> {
     let pf = report(&engine)?;
     let rows = drill_rows(&pf);
     assert_eq!(rows.len(), 3);
-    assert_eq!(rows.iter().filter(|r| r.blocks()).count(), 2);
+    assert_eq!(rows.iter().filter(|r| r.blocks()).count(), 3);
     assert!(
         !preflight::check(
             &ProductionSnapshot::resolve(engine.project(), None)?,
