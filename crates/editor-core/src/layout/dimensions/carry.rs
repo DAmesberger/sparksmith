@@ -783,7 +783,7 @@ pub(crate) fn protect_connections(
         .map(|f| (f.code, f.objects))
         .collect();
     for finding in b.findings(&new).into_iter().filter(|f| dangling(&f.code)) {
-        let existed = prior.contains(&(finding.code.clone(), finding.objects.clone()));
+        let existed = prior.contains(&(finding.code, finding.objects.clone()));
         if !existed {
             lost.extend(finding.objects.iter().filter_map(|object| match object {
                 ObjectRef::Net { id } => Some(*id),

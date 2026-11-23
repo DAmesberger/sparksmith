@@ -708,7 +708,7 @@ fn unresolved_r1(engine: &Engine) -> Result<Vec<String>> {
                 id: line.instances[0],
             })
         })
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     codes.sort();
     assert_eq!(line.unresolved, !codes.is_empty(), "{codes:?}");

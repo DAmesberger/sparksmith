@@ -7,6 +7,7 @@
 //! ([`MarkingSpec::text_height_mm`], [`MAX_AUTO_TEXT_HEIGHT_MM`] by default). A line that
 //! does not fit at the minimum legible height is dropped from the end with
 //! a `marking.does_not_fit` finding; text never shrinks below the minimum.
+use crate::diagnostics::FindingCode;
 use super::codes;
 use super::template::{self, Missing};
 use super::{
@@ -39,7 +40,7 @@ struct Context<'a> {
 }
 
 impl Context<'_> {
-    fn note(&mut self, code: &str, message: String) {
+    fn note(&mut self, code: FindingCode, message: String) {
         let message = if self.inputs.designator.is_empty() {
             format!("{message}; nothing is drawn.")
         } else {
@@ -48,7 +49,7 @@ impl Context<'_> {
         self.findings.push(Finding::new(code, message, Vec::new()));
     }
     fn unrepresentable(&mut self, message: String) {
-        self.note("marking.unrepresentable", message);
+        self.note(FindingCode::MarkingUnrepresentable, message);
     }
     fn does_not_fit(&mut self, what: &str) {
         let [w, h] = self.area;
@@ -58,7 +59,7 @@ impl Context<'_> {
             format_number(h),
             format_number(self.min_height)
         );
-        self.note("marking.does_not_fit", message);
+        self.note(FindingCode::MarkingDoesNotFit, message);
     }
 }
 

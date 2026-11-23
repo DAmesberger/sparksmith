@@ -4,6 +4,7 @@
 //! the package's stored lead contacts ([`PackageDefinition::leads`], each
 //! naming its terminal) or from the host (the integration crate, for
 //! imported models) as [`LeadPair`]s.
+use crate::diagnostics::FindingCode;
 use super::footprint::{FootprintDefinition, PAD_ARC_TOLERANCE_MM, PadKind};
 use super::package_model::{
     self, Axis, ModelPlacement, PackageEdit, PackageModel, QuickAction, model_frame,
@@ -883,7 +884,7 @@ pub fn placement_findings(
         .fold(f64::INFINITY, f64::min);
     if lowest < -SEAT_TOLERANCE_MM {
         out.push(Finding::new(
-            "package.body_below_board",
+            FindingCode::PackageBodyBelowBoard,
             format!(
                 "The package body reaches {:.3} mm below the seating plane, into the board.",
                 -lowest
@@ -907,7 +908,7 @@ pub fn placement_findings(
     }
     if !off.is_empty() {
         out.push(Finding::new(
-            "package.lead_off_land",
+            FindingCode::PackageLeadOffLand,
             format!(
                 "{} lead contact(s) lie off their lands, by up to {:.3} mm past {} % of the land width (estimate).",
                 off_count,
@@ -919,7 +920,7 @@ pub fn placement_findings(
     }
     if !unseated.is_empty() {
         out.push(Finding::new(
-            "package.lead_unseated",
+            FindingCode::PackageLeadUnseated,
             format!(
                 "{} lead contact(s) are off the seating plane, by up to {unseated_worst:.3} mm; use Seat.",
                 unseated.len()

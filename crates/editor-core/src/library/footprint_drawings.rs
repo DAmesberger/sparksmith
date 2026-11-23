@@ -339,7 +339,7 @@ mod tests {
         let codes = |f: &FootprintDefinition| -> Vec<String> {
             f.lint_with(crate::ids::DefinitionId(1), &rules)
                 .into_iter()
-                .map(|f| f.code)
+                .map(|f| f.code.to_string())
                 .collect()
         };
         let mut outside = footprint.clone();
@@ -400,7 +400,7 @@ mod tests {
         let codes = |f: &FootprintDefinition| -> Vec<String> {
             f.lint_with(crate::ids::DefinitionId(1), &rules)
                 .into_iter()
-                .map(|f| f.code)
+                .map(|f| f.code.to_string())
                 .collect()
         };
         assert!(codes(&footprint).is_empty());

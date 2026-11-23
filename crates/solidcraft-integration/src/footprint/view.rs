@@ -10,6 +10,7 @@
 //! ([`dimensions_using`]), parameter values ([`parameter_values`]) and the
 //! dimension layout share one loaded sketch, [`LiveSketch`], which the
 //! Footprint tab keeps per source change instead of reloading every frame.
+use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::prelude::*;
 use std::collections::BTreeSet;
 
@@ -488,7 +489,7 @@ pub struct DragFrame {
     pub exhausted: bool,
 }
 
-const DRAG_HELD: &str = "footprint.drag";
+const DRAG_HELD: FindingCode = FindingCode::FootprintDrag;
 
 impl LiveSketch {
     /// Load the source's sketch (`check_board_sketch`) and apply its parameters

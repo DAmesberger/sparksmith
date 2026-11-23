@@ -1,5 +1,6 @@
 //! Bindings: the explicit mapping from one component lineage's terminals to
 //! one exact package revision, with the footprint variants it allows.
+use crate::diagnostics::FindingCode;
 use super::component::unique_lineages;
 use super::publish::{issue, object};
 use super::{Library, MAX_FOOTPRINTS_PER_BINDING, MAX_PACKAGE_TERMINALS};
@@ -66,7 +67,7 @@ impl BindingDefinition {
         ) || self.component == id
         {
             out.push(issue(
-                "reference.owner_mismatch",
+                FindingCode::ReferenceOwnerMismatch,
                 "The owner is not a component that is published or published with it.".into(),
                 vec![this],
             ));
@@ -74,21 +75,21 @@ impl BindingDefinition {
         let mut keys = BTreeSet::new();
         if !self.unavailable.iter().all(|k| keys.insert(*k)) {
             out.push(issue(
-                "binding.unavailable_duplicate",
+                FindingCode::BindingUnavailableDuplicate,
                 "A binding lists each unavailable function once.".into(),
                 vec![this],
             ));
         }
         if !(1..=MAX_FOOTPRINTS_PER_BINDING).contains(&self.footprints.len()) {
             out.push(issue(
-                "binding.footprint_count",
+                FindingCode::BindingFootprintCount,
                 "A binding lists 1–16 footprint variants.".into(),
                 vec![this],
             ));
         }
         if !unique_lineages(self.footprints.iter().map(|f| f.id)) {
             out.push(issue(
-                "binding.duplicate_footprint_lineage",
+                FindingCode::BindingDuplicateFootprintLineage,
                 "A binding lists at most one revision of each footprint lineage.".into(),
                 vec![this],
             ));
@@ -96,12 +97,12 @@ impl BindingDefinition {
         for r in &self.footprints {
             match library.footprint(*r) {
                 None => out.push(issue(
-                    "reference.missing",
+                    FindingCode::ReferenceMissing,
                     format!("{} is missing from the project library.", named(r.erased())),
                     vec![this, ObjectRef::Definition { id: r.id }],
                 )),
                 Some(footprint) if footprint.definition.package != self.package => out.push(issue(
-                    "binding.footprint_package",
+                    FindingCode::BindingFootprintPackage,
                     format!(
                         "{} lands {}, not this binding's {}.",
                         named(r.erased()),
@@ -115,7 +116,7 @@ impl BindingDefinition {
         }
         let Some(package) = library.package(self.package) else {
             out.push(issue(
-                "reference.missing",
+                FindingCode::ReferenceMissing,
                 format!(
                     "{} is missing from the project library.",
                     named(self.package.erased())
@@ -137,7 +138,7 @@ impl BindingDefinition {
                 .is_none()
             {
                 out.push(issue(
-                    "binding.mapping_unknown",
+                    FindingCode::BindingMappingUnknown,
                     "A mapping names a package terminal the package does not have.".into(),
                     vec![this],
                 ));
@@ -151,7 +152,7 @@ impl BindingDefinition {
                 // Not mapped yet (a package change added it): the next
                 // step of the work, still blocking publishing.
                 0 => out.push(issue(
-                    "binding.mapping_missing",
+                    FindingCode::BindingMappingMissing,
                     format!(
                         "Package terminal ‘{}’ has no electrical terminal.",
                         terminal.designation
@@ -159,7 +160,7 @@ impl BindingDefinition {
                     objects,
                 )),
                 count => out.push(issue(
-                    "binding.mapping_duplicate",
+                    FindingCode::BindingMappingDuplicate,
                     format!(
                         "Package terminal ‘{}’ is mapped to {count} electrical terminals.",
                         terminal.designation

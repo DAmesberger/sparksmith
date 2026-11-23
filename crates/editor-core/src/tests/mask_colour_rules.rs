@@ -141,7 +141,7 @@ fn a_colour_the_profile_does_not_offer_is_a_finding() -> Fallible<()> {
     );
     let codes: Vec<String> = layout::checks(engine.project(), &Default::default())
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     assert!(
         codes.iter().any(|c| c == mask_colour::NOT_OFFERED),

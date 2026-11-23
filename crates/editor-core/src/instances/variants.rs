@@ -7,6 +7,7 @@
 //! Part and physical implementation fitted. The copper never changes
 //! between variants: a substitute must sit on the same land pattern with
 //! the same pad grouping ([`substitute_fit`]).
+use crate::diagnostics::FindingCode;
 use super::{PhysicalView, designator_key, instance_mut, invalid, resolve};
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::fields;
@@ -28,16 +29,16 @@ pub const MAX_POPULATION_EDIT: usize = 4096;
 
 /// The finding of a substitute that no longer fits its footprint (a library
 /// update changed the part's footprint or the substitute's binding).
-pub const SUBSTITUTE_UNFIT: &str = "variant.substitute_unfit";
+pub const SUBSTITUTE_UNFIT: &str = crate::diagnostics::FindingCode::VariantSubstituteUnfit.as_str();
 
 /// The finding of a substitute nobody has reviewed as electrically
 /// equivalent to the part it replaces: it fits the lands, which says
 /// nothing about what each pin does.
-pub const SUBSTITUTE_UNREVIEWED: &str = "variant.substitute_unreviewed";
+pub const SUBSTITUTE_UNREVIEWED: &str = crate::diagnostics::FindingCode::VariantSubstituteUnreviewed.as_str();
 
 /// The finding of a substitute that does not meet, rate or compare with a
 /// requirement of the part it replaces, and no review excepts it.
-pub const SUBSTITUTE_UNMET: &str = "variant.substitute_unmet";
+pub const SUBSTITUTE_UNMET: &str = crate::diagnostics::FindingCode::VariantSubstituteUnmet.as_str();
 
 /// Edit assembly variants. Each changing command is one undo step; one
 /// that changes nothing is none.
@@ -927,7 +928,7 @@ pub fn substitute_findings(
     let mut out = Vec::new();
     if !review.is_some_and(|review| review.equivalent) {
         out.push(Finding::new(
-            SUBSTITUTE_UNREVIEWED,
+            FindingCode::VariantSubstituteUnreviewed,
             format!(
                 "Variant “{}”: {mpn} fits {}'s lands, but nobody has confirmed that its pins do the job of the part it replaces.",
                 variant.name, instance.designator
@@ -948,7 +949,7 @@ pub fn substitute_findings(
             let mut objects = vec![ObjectRef::Instance { id: instance.id }];
             objects.extend(f.objects.iter().copied());
             out.push(Finding {
-                code: SUBSTITUTE_UNMET.into(),
+                code: FindingCode::VariantSubstituteUnmet,
                 message: format!("Variant “{}”: {}", variant.name, f.message),
                 objects,
                 ..f
@@ -970,7 +971,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             };
             if let Err(error) = substitute_fit(&project.library, instance, r) {
                 out.push(Finding::new(
-                    SUBSTITUTE_UNFIT,
+                    FindingCode::VariantSubstituteUnfit,
                     format!("Variant “{}”: {error}", v.name),
                     vec![
                         ObjectRef::Instance { id: *id },

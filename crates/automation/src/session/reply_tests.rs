@@ -1,5 +1,6 @@
 //! Compact replies through the public JSON contract: what a mutation reports,
 //! what `verbose` returns, and that the document ends up the same either way.
+use sparksmith_core::diagnostics::FindingCode;
 use super::*;
 use crate::gate::Caller;
 
@@ -423,19 +424,19 @@ mod diff {
 
     #[test]
     fn repeated_findings_count_each_time_and_long_lists_are_cut() {
-        let finding = |code: &str, text: &str| Finding::new(code, text.to_owned(), vec![]);
-        let old = [finding("a", "x"), finding("a", "x"), finding("b", "y")];
-        let new = [finding("a", "x"), finding("c", "z")];
+        let finding = |code, text: &str| Finding::new(code, text.to_owned(), vec![]);
+        let old = [finding(FindingCode::BoardClearance, "x"), finding(FindingCode::BoardClearance, "x"), finding(FindingCode::BoardUnrouted, "y")];
+        let new = [finding(FindingCode::BoardClearance, "x"), finding(FindingCode::BoardUnplaced, "z")];
         let out = delta(&old, &new);
         assert_eq!(
             out["new"],
-            json!([{"code": "c", "message": "z", "objects": []}])
+            json!([{"code": "board.unplaced", "message": "z", "objects": []}])
         );
-        assert_eq!(out["resolved"], json!({"a": 1, "b": 1}));
+        assert_eq!(out["resolved"], json!({"board.clearance": 1, "board.unrouted": 1}));
         assert_eq!(out["open"], 2);
         assert!(out.get("omitted").is_none());
 
-        let many: Vec<_> = (0..100).map(|i| finding("c", &format!("{i}"))).collect();
+        let many: Vec<_> = (0..100).map(|i| finding(FindingCode::BoardUnplaced, &format!("{i}"))).collect();
         let out = delta(&[], &many);
         assert_eq!(out["new"].as_array().map(Vec::len), Some(20));
         assert_eq!(out["omitted"], 80);

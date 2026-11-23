@@ -1,4 +1,7 @@
 //! Offline help shared by the desktop, command surface and static manual.
+mod findings;
+pub use findings::finding_entries;
+
 mod search;
 pub use search::{search, score, match_score, WORD_MATCH};
 use crate::{Class, Stage, diagnostics::Severity, rules::profile::ProfileSource};
@@ -59,7 +62,7 @@ impl fmt::Display for HelpId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(self.as_str()) }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Inline { Text(String), Reference(HelpId), Key(HelpId) }
 
@@ -82,22 +85,22 @@ pub fn inlines(mut s: &str) -> Result<Vec<Inline>, String> {
     Ok(out)
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Block {
     Paragraph(Vec<Inline>), List(Vec<Vec<Inline>>), Table(Vec<Vec<Vec<Inline>>>),
     Note(Vec<Inline>), Image { file: String, alt: String, version: String }, Example(CallExample),
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CallExample { pub entry: HelpId, pub params: Value }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Facts {
     Entry { module: String, class: Class, entry_kind: Option<EntryKind>, schema_digest: String, examples: Vec<CallExample> },
-    Finding { severity: Severity, blocks: Option<Stage>, group: String, fix: String, cause: String,
-        explanation: Option<String>, fixed_by: Vec<HelpId>, checks: Option<HelpId> },
+    Finding { severity: Severity, blocks: Option<Stage>, group: String, fix: String, #[serde(default,skip_serializing_if="String::is_empty")] cause: String,
+        #[serde(default,skip_serializing_if="Option::is_none")] explanation: Option<String>, fixed_by: Vec<HelpId>, checks: Option<HelpId>, #[serde(default,skip_serializing_if="Option::is_none")] rule_key: Option<String> },
     Command { context: String, default_key: Option<String>, reaches: Option<HelpId> },
     Setting { schema: Value, unit: Option<String>, default: Value, source: String },
     Rule { value: Value, unit: String, source: ProfileSource, row: String, author_choice: bool },
@@ -117,7 +120,7 @@ impl Facts {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HelpEntry {
     pub id: HelpId, pub title: String, pub summary: String, pub since: String, pub facts: Facts,

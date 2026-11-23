@@ -6,6 +6,7 @@
 //! component update may leave a Part behind and the editor never re-points
 //! it silently. `instance.assign_part` ([`assign_part`]) refuses a Part that
 //! does not agree.
+use crate::diagnostics::FindingCode;
 use super::{check_instance, effective_fields, instance_mut, invalid};
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::fields::{self, FieldValue, Requirement, ToleranceBasis, ValueType};
@@ -144,7 +145,7 @@ pub fn part_findings(library: &Library, instance: &ComponentInstance) -> Vec<Fin
     };
     let Some(part) = library.part(r) else {
         return vec![Finding::new(
-            "reference.missing",
+            FindingCode::ReferenceMissing,
             format!(
                 "{}: its Part ({}) is missing from the project library.",
                 instance.designator, r.revision
@@ -213,7 +214,7 @@ fn findings_with(
     let binding = |b: BindingRef| binding_name(library, b);
     if part.component.id == pinned.id && part.component.revision < pinned.revision {
         out.push(Finding::new(
-            "part.stale_component",
+            FindingCode::PartStaleComponent,
             format!(
                 "{name}: Part {mpn} is for {}, older than the instance's {}; keep it unresolved or choose a Part for {}.",
                 component(part.component),
@@ -224,7 +225,7 @@ fn findings_with(
         ));
     } else if part.component.id == pinned.id && part.component.revision > pinned.revision {
         out.push(Finding::new(
-            "part.newer_component",
+            FindingCode::PartNewerComponent,
             format!(
                 "{name}: Part {mpn} is for {}; update {name} from {} to it first.",
                 component(part.component),
@@ -234,7 +235,7 @@ fn findings_with(
         ));
     } else if part.component != pinned {
         out.push(Finding::new(
-            "part.component_mismatch",
+            FindingCode::PartComponentMismatch,
             format!(
                 "{name}: Part {mpn} is for {}, not the instance's {}.",
                 component(part.component),
@@ -261,7 +262,7 @@ fn findings_with(
             ),
         };
         out.push(Finding::new(
-            "part.binding_mismatch",
+            FindingCode::PartBindingMismatch,
             format!(
                 "{name}: Part {mpn} is implemented by {}, but the instance uses {chosen}.",
                 binding(part.binding)
@@ -294,7 +295,7 @@ pub fn rating_findings(
     let mut out = Vec::new();
     match requirements_for(library, instance, Some(part)) {
         Err(error) => out.push(Finding::new(
-            "part.spec_uncomparable",
+            FindingCode::PartSpecUncomparable,
             format!("{name}: requirements cannot be read: {error}"),
             objects,
         )),
@@ -315,7 +316,7 @@ pub fn rating_findings(
                     // An unrated requirement is never an implicit pass:
                     // nothing says the Part meets it.
                     out.push(Finding::new(
-                        "part.spec_unrated",
+                        FindingCode::PartSpecUnrated,
                         format!(
                             "{name}: {mpn} has no rated {}; rate it on the Part or clear the value on the instance.",
                             requirement.label
@@ -326,7 +327,7 @@ pub fn rating_findings(
                 };
                 let Some(view) = library.field_view(spec.field) else {
                     out.push(Finding::new(
-                        "part.spec_uncomparable",
+                        FindingCode::PartSpecUncomparable,
                         format!(
                             "{name}: the rated {} of {mpn} names field {}, which is not in the project library.",
                             requirement.label, spec.field

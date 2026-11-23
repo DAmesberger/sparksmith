@@ -1,5 +1,6 @@
 //! Component definitions: electrical terminals and the exact symbols,
 //! bindings and fields a revision allows.
+use crate::diagnostics::FindingCode;
 use super::publish::{issue, object};
 use super::{Library, MAX_COMPONENT_LISTS, MAX_LABEL, MAX_TERMINALS, printable};
 use crate::diagnostics::{Finding, ObjectRef};
@@ -229,7 +230,7 @@ impl ComponentDefinition {
         let named = |r: DefinitionRef| super::names::capitalised(&library.describe(r));
         if !designator_prefix_valid(&self.designator_prefix) {
             out.push(issue(
-                "component.designator_prefix",
+                FindingCode::ComponentDesignatorPrefix,
                 "A component needs a designator prefix of 1–8 uppercase letters A–Z, such as R, C or U."
                     .into(),
                 vec![this],
@@ -239,7 +240,7 @@ impl ComponentDefinition {
         // mounting hole, a logo or a mechanical part (docs/mechanical-parts.md).
         if self.terminals.len() > MAX_TERMINALS {
             out.push(issue(
-                "component.terminal_count",
+                FindingCode::ComponentTerminalCount,
                 format!("A component has at most {MAX_TERMINALS} electrical terminals."),
                 vec![this],
             ));
@@ -247,7 +248,7 @@ impl ComponentDefinition {
         for terminal in &self.terminals {
             if !printable(&terminal.name) {
                 out.push(issue(
-                    "component.terminal_name",
+                    FindingCode::ComponentTerminalName,
                     "A terminal needs a printable name.".into(),
                     vec![object(id, terminal.id.0)],
                 ));
@@ -282,14 +283,14 @@ impl ComponentDefinition {
         }
         if self.representations.is_empty() {
             out.push(issue(
-                "component.no_representation",
+                FindingCode::ComponentNoRepresentation,
                 "A component needs at least one symbol representation.".into(),
                 vec![this],
             ));
         }
         if !unique_lineages(self.representations.iter().map(|r| r.id)) {
             out.push(issue(
-                "component.duplicate_symbol_lineage",
+                FindingCode::ComponentDuplicateSymbolLineage,
                 "A component lists at most one revision of each symbol lineage.".into(),
                 vec![this],
             ));
@@ -297,7 +298,7 @@ impl ComponentDefinition {
         for r in &self.representations {
             let Some(symbol) = library.symbol(*r) else {
                 out.push(issue(
-                    "reference.missing",
+                    FindingCode::ReferenceMissing,
                     format!("{} is missing from the project library.", named(r.erased())),
                     vec![this, ObjectRef::Definition { id: r.id }],
                 ));
@@ -305,7 +306,7 @@ impl ComponentDefinition {
             };
             if symbol.definition.component != id {
                 out.push(issue(
-                    "reference.owner_mismatch",
+                    FindingCode::ReferenceOwnerMismatch,
                     format!("{} belongs to another component.", named(r.erased())),
                     vec![this, ObjectRef::Definition { id: r.id }],
                 ));
@@ -319,7 +320,7 @@ impl ComponentDefinition {
             for terminal in &self.terminals {
                 if !pinned.contains(&terminal.id) {
                     out.push(issue(
-                        "component.pin_missing",
+                        FindingCode::ComponentPinMissing,
                         // The terminal first: the rows of one symbol
                         // differ at their start.
                         format!(
@@ -336,7 +337,7 @@ impl ComponentDefinition {
             }
             if pinned.difference(&terminals).next().is_some() {
                 out.push(issue(
-                    "component.pin_unknown",
+                    FindingCode::ComponentPinUnknown,
                     format!(
                         "{} has a pin for a terminal this component does not have.",
                         named(r.erased())
@@ -347,7 +348,7 @@ impl ComponentDefinition {
             for field in symbol.definition.text_fields() {
                 if self.field(field).is_none() {
                     out.push(issue(
-                        "component.text_field_unknown",
+                        FindingCode::ComponentTextFieldUnknown,
                         format!(
                             "{} shows {}, which this component does not select.",
                             named(r.erased()),
@@ -360,7 +361,7 @@ impl ComponentDefinition {
         }
         if !unique_lineages(self.implementations.iter().map(|r| r.id)) {
             out.push(issue(
-                "component.duplicate_binding_lineage",
+                FindingCode::ComponentDuplicateBindingLineage,
                 "A component lists at most one revision of each binding lineage.".into(),
                 vec![this],
             ));
@@ -368,7 +369,7 @@ impl ComponentDefinition {
         for r in &self.implementations {
             let Some(binding) = library.binding(*r) else {
                 out.push(issue(
-                    "reference.missing",
+                    FindingCode::ReferenceMissing,
                     format!("{} is missing from the project library.", named(r.erased())),
                     vec![this, ObjectRef::Definition { id: r.id }],
                 ));
@@ -376,7 +377,7 @@ impl ComponentDefinition {
             };
             if binding.definition.component != id {
                 out.push(issue(
-                    "reference.owner_mismatch",
+                    FindingCode::ReferenceOwnerMismatch,
                     format!("{} belongs to another component.", named(r.erased())),
                     vec![this, ObjectRef::Definition { id: r.id }],
                 ));
@@ -390,7 +391,7 @@ impl ComponentDefinition {
             for terminal in &self.terminals {
                 if !mapped.contains(&terminal.id) {
                     out.push(issue(
-                        "component.mapping_missing",
+                        FindingCode::ComponentMappingMissing,
                         format!(
                             "{} maps no package terminal to terminal ‘{}’.",
                             named(r.erased()),
@@ -405,7 +406,7 @@ impl ComponentDefinition {
             }
             if mapped.difference(&terminals).next().is_some() {
                 out.push(issue(
-                    "component.mapping_unknown",
+                    FindingCode::ComponentMappingUnknown,
                     format!(
                         "{} maps a terminal this component does not have.",
                         named(r.erased())
@@ -423,7 +424,7 @@ impl ComponentDefinition {
         self.field_findings(id, library, out);
         if self.implementations.is_empty() {
             out.push(Finding::new(
-                "component.no_implementation",
+                FindingCode::ComponentNoImplementation,
                 "No physical implementation: instances are schematic-only until one is added."
                     .into(),
                 vec![this],
@@ -440,7 +441,7 @@ impl ComponentDefinition {
         let this = ObjectRef::Definition { id };
         if !unique_lineages(self.fields.iter().map(|f| f.field.id)) {
             out.push(issue(
-                "component.duplicate_field_lineage",
+                FindingCode::ComponentDuplicateFieldLineage,
                 "A component selects at most one revision of each field lineage.".into(),
                 vec![this],
             ));
@@ -449,7 +450,7 @@ impl ComponentDefinition {
             && let Some(missing) = template.fields().find(|f| self.field(*f).is_none())
         {
             out.push(issue(
-                "component.value_template",
+                FindingCode::ComponentValueTemplate,
                 format!(
                     "The value template names field {missing}, which the component does not select."
                 ),
@@ -460,7 +461,7 @@ impl ComponentDefinition {
             let r = selection.field;
             let Some(view) = library.field_view(r) else {
                 out.push(issue(
-                    "reference.missing",
+                    FindingCode::ReferenceMissing,
                     format!(
                         "{} or its quantity kind is missing from the project library.",
                         named(r.erased())
@@ -477,7 +478,7 @@ impl ComponentDefinition {
                 )
             {
                 out.push(issue(
-                    "component.field_default_invalid",
+                    FindingCode::ComponentFieldDefaultInvalid,
                     format!(
                         "The component default for field ‘{}’ is invalid: {error}.",
                         view.field.meta.name

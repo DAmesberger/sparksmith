@@ -45,7 +45,7 @@ fn spec(value: FieldValue, meaning: SpecMeaning) -> RatedSpec {
 }
 
 fn codes(findings: Vec<Finding>) -> Vec<String> {
-    findings.into_iter().map(|f| f.code).collect()
+    findings.into_iter().map(|f| f.code.to_string()).collect()
 }
 
 fn volts() -> ValueType {

@@ -165,7 +165,7 @@ fn blocking(engine: &Engine, id: crate::DefinitionId) -> Result<Vec<String>> {
         .findings
         .into_iter()
         .filter(|f| f.blocks_stage(Stage::Publish))
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect())
 }
 

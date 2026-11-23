@@ -238,7 +238,7 @@ fn reports_made_from_the_last_state_equal_full_reports_after_every_edit() -> Fal
         }
         let expected = full(&next, &drafts, &settings)?;
         assert_eq!(**checked.report(), expected, "step {step}");
-        codes.extend(expected.rows.iter().map(|r| r.finding.code.clone()));
+        codes.extend(expected.rows.iter().map(|r| r.finding.code.to_string()));
         project = next;
         history.push(project.clone());
     }

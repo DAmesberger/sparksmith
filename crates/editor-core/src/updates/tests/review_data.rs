@@ -1,4 +1,5 @@
 //! Slice C2: the structured review data of an update plan.
+use crate::diagnostics::FindingCode;
 use super::*;
 use crate::issues::style;
 
@@ -311,24 +312,24 @@ fn blockers_have_plain_titles_and_locate_their_objects() -> Result<()> {
 #[test]
 fn findings_diff_counts_new_and_resolved_by_code_and_objects() {
     let pad = |n| ObjectRef::Instance { id: n };
-    let finding = |code: &str, message: &str, n| Finding::new(code, message.into(), vec![pad(n)]);
+    let finding = |code, message: &str, n| Finding::new(code, message.into(), vec![pad(n)]);
     let diff = review::findings_diff(
         vec![
-            finding("board.clearance", "0.1 mm apart", 1),
-            finding("board.unrouted", "N2 is unrouted", 2),
-            finding("board.unrouted", "N2 is unrouted", 2),
+            finding(FindingCode::BoardClearance, "0.1 mm apart", 1),
+            finding(FindingCode::BoardUnrouted, "N2 is unrouted", 2),
+            finding(FindingCode::BoardUnrouted, "N2 is unrouted", 2),
         ],
         vec![
             // Re-measured, not new.
-            finding("board.clearance", "0.15 mm apart", 1),
-            finding("board.unrouted", "N2 is unrouted", 2),
-            finding("erc.conflict", "two outputs", 3),
+            finding(FindingCode::BoardClearance, "0.15 mm apart", 1),
+            finding(FindingCode::BoardUnrouted, "N2 is unrouted", 2),
+            finding(FindingCode::ErcDriverConflict, "two outputs", 3),
         ],
     );
-    assert_eq!(diff.new, vec![finding("erc.conflict", "two outputs", 3)]);
+    assert_eq!(diff.new, vec![finding(FindingCode::ErcDriverConflict, "two outputs", 3)]);
     assert_eq!(
         diff.resolved,
-        vec![finding("board.unrouted", "N2 is unrouted", 2)]
+        vec![finding(FindingCode::BoardUnrouted, "N2 is unrouted", 2)]
     );
     assert_eq!(diff.line, "1 new issue, 1 resolved");
     assert_eq!(review::findings_diff(vec![], vec![]).line, "No new issues");

@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 
 /// Two pads' solder mask openings on the assembled board leave a web
 /// narrower than the fab profile's `min mask web`.
-pub const MASK_WEB: &str = "board.mask_web";
+pub const MASK_WEB: &str = crate::diagnostics::FindingCode::BoardMaskWeb.as_str();
 
 /// A web of exactly the minimum passes: sums of decimal sizes and
 /// positions land a few ulps either side of it.
@@ -121,7 +121,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                 }
             }
             out.push(Finding::new(
-                MASK_WEB,
+                crate::diagnostics::FindingCode::BoardMaskWeb,
                 format!(
                     "The solder-mask web between {} and {} on the {} side is {} mm; {}",
                     name(a),

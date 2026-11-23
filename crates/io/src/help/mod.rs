@@ -32,6 +32,7 @@ pub struct TopicHeader {
     pub cause: Option<String>,
     pub explanation: Option<String>,
     pub checks: Option<HelpId>,
+    pub rule_key: Option<String>,
     #[serde(default)]
     pub fixed_by: Vec<HelpId>,
 }
@@ -289,6 +290,7 @@ fn apply_topic(
         explanation,
         fixed_by,
         checks,
+        rule_key,
         ..
     } = &mut e.facts
     {
@@ -297,6 +299,8 @@ fn apply_topic(
         *explanation = h.explanation;
         *fixed_by = h.fixed_by;
         *checks = h.checks;
+        *rule_key = h.rule_key;
+        e.summary = cause.clone();
     }
     e.body.extend(body);
     e.keywords.extend(h.keywords);

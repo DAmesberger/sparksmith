@@ -2388,10 +2388,10 @@ fn part_details(plan: &mut UpdatePlan, project: &Project, next: &Project) {
         }
         let known: BTreeSet<(String, String)> = instances::part_findings(&project.library, old)
             .into_iter()
-            .map(|f| (f.code, f.message))
+            .map(|f| (f.code.to_string(), f.message))
             .collect();
         for finding in instances::part_findings(&next.library, new) {
-            if !known.contains(&(finding.code.clone(), finding.message.clone())) {
+            if !known.contains(&(finding.code.to_string(), finding.message.clone())) {
                 let part = mpn(next, new).unwrap_or_default();
                 // What disagrees, so two findings on one instance read
                 // as two lines.

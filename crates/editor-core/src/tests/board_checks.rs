@@ -271,7 +271,7 @@ fn via_checks_take_their_limits_from_the_rules() -> Result<()> {
     let codes = |p: &Project| -> Vec<String> {
         crate::layout::checks(p, &Default::default())
             .into_iter()
-            .map(|f| f.code)
+            .map(|f| f.code.to_string())
             .filter(|c| c.starts_with("board.via_") && c != "board.via_dangling")
             .collect()
     };

@@ -19,6 +19,7 @@
 //! - [`COPPER`]: a track or via reaches into the clear area of a fiducial
 //!   that carries no keep-out (an error: the copper would show in the
 //!   opening, or touch the dot).
+use crate::diagnostics::FindingCode;
 use super::legend::text_strokes;
 use super::limits::cite;
 use super::placed::{
@@ -36,14 +37,14 @@ use crate::rules::RuleKey;
 use std::collections::BTreeSet;
 
 /// A side carries surface parts but fewer fiducials than the profile asks.
-pub const TOO_FEW: &str = "board.fiducials_too_few";
+pub const TOO_FEW: &str = crate::diagnostics::FindingCode::BoardFiducialsTooFew.as_str();
 /// A side's fiducials are symmetric about the board's centre.
-pub const SYMMETRIC: &str = "board.fiducials_symmetric";
+pub const SYMMETRIC: &str = crate::diagnostics::FindingCode::BoardFiducialsSymmetric.as_str();
 /// Silkscreen in a fiducial's clear area.
-pub const SILK: &str = "board.fiducial_silk";
+pub const SILK: &str = crate::diagnostics::FindingCode::BoardFiducialSilk.as_str();
 /// A track or via in the clear area of a fiducial that has no keep-out of
 /// its own (a footprint made elsewhere): its mask opening.
-pub const COPPER: &str = "board.fiducial_copper";
+pub const COPPER: &str = crate::diagnostics::FindingCode::BoardFiducialCopper.as_str();
 
 /// Two fiducial centres closer than this, mm, are one point for the
 /// symmetry check: 1 µm, the resolution the fabrication files write
@@ -164,7 +165,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             let n = on(top).len();
             if n < min as usize {
                 out.push(Finding::new(
-                    TOO_FEW,
+                    FindingCode::BoardFiducialsTooFew,
                     format!(
                         "The {} side has {n} fiducial{} for its surface-mount parts; needs {min} ({})",
                         side_name(top),
@@ -196,7 +197,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                     }
                 }
                 out.push(Finding::new(
-                    SYMMETRIC,
+                    FindingCode::BoardFiducialsSymmetric,
                     format!(
                         "The {} side's fiducials are symmetric about the board's centre, so a board turned round looks the same; move one ({})",
                         side_name(top),
@@ -227,7 +228,7 @@ fn copper_findings(project: &Project, fiducials: &[PlacedFiducial]) -> Vec<Findi
                 .any(|ring| stroke_enters(&[t.start, t.end], t.width, ring))
             {
                 out.push(Finding::new(
-                    COPPER,
+                    FindingCode::BoardFiducialCopper,
                     format!(
                         "A track on {} crosses fiducial {fid}'s clear area on the {side} side",
                         project.net_name(t.net)
@@ -245,7 +246,7 @@ fn copper_findings(project: &Project, fiducials: &[PlacedFiducial]) -> Vec<Findi
                 .any(|ring| stroke_enters(&[v.position], v.diameter, ring))
             {
                 out.push(Finding::new(
-                    COPPER,
+                    FindingCode::BoardFiducialCopper,
                     format!(
                         "A via on {} lies in fiducial {fid}'s clear area on the {side} side",
                         project.net_name(v.net)
@@ -332,7 +333,7 @@ fn silk_findings(project: &Project, fiducials: &[PlacedFiducial]) -> Vec<Finding
                     objects.push(ObjectRef::Instance { id: f.instance });
                 }
                 out.push(Finding::new(
-                    SILK,
+                    FindingCode::BoardFiducialSilk,
                     format!(
                         "{whose} lies in fiducial {fid}'s clear area on the {} side",
                         side_name(layer == Layer::Top)

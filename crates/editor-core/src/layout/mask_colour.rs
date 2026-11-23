@@ -18,7 +18,7 @@ use crate::model::{MaskColour, Project};
 use crate::rules::{BoardSetting, ProjectRules, RuleProfile};
 
 /// The board's solder mask colour is not one its fab profile offers.
-pub const NOT_OFFERED: &str = "board.mask_colour_not_offered";
+pub const NOT_OFFERED: &str = crate::diagnostics::FindingCode::BoardMaskColourNotOffered.as_str();
 
 /// `profile` with its colour option at the choice `colour` takes.
 pub fn following(profile: &RuleProfile, colour: MaskColour) -> Result<RuleProfile> {
@@ -88,7 +88,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
         .flat_map(|c| c.mask_colours.iter().map(String::as_str))
         .collect();
     vec![Finding::new(
-        NOT_OFFERED,
+        crate::diagnostics::FindingCode::BoardMaskColourNotOffered,
         format!(
             "{} does not offer a {} solder mask; it offers {}",
             profile.name,

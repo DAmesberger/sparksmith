@@ -407,6 +407,7 @@ impl Context {
                     .map(|standards| {
                         Arc::new(
                             Context::new(standards)
+                                .with_help(fixture::finding_help())
                                 .with_materials(materials)
                                 .with_generators(Ok(fixture::generators()))
                                 .with_parts(Ok(fixture::parts()))
@@ -834,6 +835,29 @@ pub mod fixture {
     /// The standards of the repository's `library/`, parsed as
     /// `sparksmith-io` parses the installed folder.
     /// The repository's shipped material library.
+    // Core tests exercise the Issues query before an I/O host exists. Read
+    // the same authored fix lines as the installed library. The generation
+    // gate checks the complete topic, references and stamps.
+    pub fn finding_help() -> std::result::Result<crate::help::Index, String> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library/help/topics/findings");
+        let mut index = crate::help::Index::new();
+        for mut entry in crate::help::finding_entries()? {
+            let path = dir.join(format!("{}.md", entry.id.name()));
+            let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let (front, _) = text.strip_prefix("---\n").and_then(|s| s.split_once("\n---\n"))
+                .ok_or_else(|| format!("{} has no frontmatter", path.display()))?;
+            #[derive(serde::Deserialize)]
+            struct Wording { fix: String, cause: String }
+            let words: Wording = serde_json::from_str(front).map_err(|e| format!("{}: {e}", path.display()))?;
+            if let crate::help::Facts::Finding { fix, cause, .. } = &mut entry.facts {
+                *fix = words.fix;
+                *cause = words.cause;
+            }
+            index.insert(entry.id.clone(), entry);
+        }
+        Ok(index)
+    }
+
     pub fn materials() -> Result<MaterialLibrary> {
         MaterialLibrary::load(|name| match name {
             "package-materials.json" => Ok(shipped!("materials/package-materials.json").into()),

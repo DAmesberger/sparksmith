@@ -238,7 +238,7 @@ pub fn check(engine: &Engine, target: CheckTarget) -> Result<DefinitionReport> {
 pub fn codes(findings: &[crate::Finding]) -> Vec<(String, Vec<crate::ObjectRef>)> {
     let mut all: Vec<_> = findings
         .iter()
-        .map(|f| (f.code.clone(), f.objects.clone()))
+        .map(|f| (f.code.to_string(), f.objects.clone()))
         .collect();
     all.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
     all

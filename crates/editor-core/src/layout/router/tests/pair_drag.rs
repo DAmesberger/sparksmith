@@ -155,7 +155,7 @@ fn length_findings(p: &Project, graph: &CopperGraph, pair: &DiffPair) -> Vec<(St
             ["pair.skew", "pair.uncoupled", "pair.gap"].contains(&f.code.as_str())
                 && f.objects.contains(&net)
         })
-        .map(|f| (f.code, f.message))
+        .map(|f| (f.code.to_string(), f.message))
         .collect()
 }
 

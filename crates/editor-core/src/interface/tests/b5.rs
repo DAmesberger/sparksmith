@@ -94,7 +94,7 @@ fn nudge(engine: &mut Engine) -> Fallible {
 fn codes(engine: &Engine) -> Vec<String> {
     assembly_link::checks(engine.project())
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect()
 }
 
@@ -224,7 +224,7 @@ fn b5_both_changed_asks_for_the_preview() -> Fallible {
     let codes: Vec<String> = assembly_link::status(&alone, FileCheck::Found(EDITED))
         .findings
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     assert_eq!(codes, [ASSEMBLY_STALE]);
 

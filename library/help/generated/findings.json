@@ -1,0 +1,4457 @@
+[
+  {
+    "id": "finding/assembly.both_changed",
+    "title": "Both changed",
+    "summary": "Both changed",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Both changed",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.cycle",
+    "title": "Board and linked design in a loop",
+    "summary": "Board and linked design in a loop",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Board and linked design in a loop",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.extent_cycle",
+    "title": "Board and linked design in a loop through extents",
+    "summary": "Board and linked design in a loop through extents",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Board and linked design in a loop through extents",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.missing",
+    "title": "Missing",
+    "summary": "Missing",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Missing",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.newer",
+    "title": "Newer",
+    "summary": "Newer",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Newer",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.older_board",
+    "title": "Linked design holds an older board",
+    "summary": "Linked design holds an older board",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Linked design holds an older board",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.reference_inexact",
+    "title": "Assembly references to check",
+    "summary": "Assembly references to check",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Assembly references to check",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.reference_lost",
+    "title": "Assembly references broken",
+    "summary": "Assembly references broken",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Assembly references broken",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.stale",
+    "title": "Stale",
+    "summary": "Stale",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Stale",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/assembly.unexported_face",
+    "title": "Linked design uses faces not exported",
+    "summary": "Linked design uses faces not exported",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Linked design uses faces not exported",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/asset.missing",
+    "title": "Attached copies not packed",
+    "summary": "Attached copies not packed",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Attached copies not packed",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.duplicate_footprint_lineage",
+    "title": "Duplicate footprint lineage",
+    "summary": "Duplicate footprint lineage",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Duplicate footprint lineage",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.footprint_count",
+    "title": "Footprint count",
+    "summary": "Footprint count",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Footprint count",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.footprint_package",
+    "title": "Footprint package",
+    "summary": "Footprint package",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Footprint package",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.footprint_unbound",
+    "title": "Footprint not listed in a binding",
+    "summary": "Footprint not listed in a binding",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Footprint not listed in a binding",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.mapping_duplicate",
+    "title": "Package terminals mapped twice",
+    "summary": "Package terminals mapped twice",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Package terminals mapped twice",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.mapping_missing",
+    "title": "Unmapped package terminals",
+    "summary": "Unmapped package terminals",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "to_do",
+      "blocks": "publish",
+      "group": "Unmapped package terminals",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.mapping_retained",
+    "title": "Mappings kept by position",
+    "summary": "Mappings kept by position",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Mappings kept by position",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.mapping_unknown",
+    "title": "Mapping unknown",
+    "summary": "Mapping unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Mapping unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.unavailable_duplicate",
+    "title": "Unavailable duplicate",
+    "summary": "Unavailable duplicate",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Unavailable duplicate",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.unavailable_required",
+    "title": "Unavailable required",
+    "summary": "Unavailable required",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Unavailable required",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/binding.unavailable_unknown",
+    "title": "Unavailable unknown",
+    "summary": "Unavailable unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Unavailable unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.acute_copper",
+    "title": "Acute copper angles",
+    "summary": "Acute copper angles",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Acute copper angles",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.body_off_pads",
+    "title": "Body leads off their pads",
+    "summary": "Body leads off their pads",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Body leads off their pads",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.check_limit",
+    "title": "Board checks incomplete",
+    "summary": "Board checks incomplete",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Board checks incomplete",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.clearance",
+    "title": "Clearance",
+    "summary": "Clearance",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Clearance",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.copper_sliver",
+    "title": "Unfilled slivers",
+    "summary": "Unfilled slivers",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Unfilled slivers",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.courtyard_clearance",
+    "title": "Courtyards too close",
+    "summary": "Courtyards too close",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Courtyards too close",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.courtyard_overlap",
+    "title": "Courtyards overlap",
+    "summary": "Courtyards overlap",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Courtyards overlap",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.drill_size",
+    "title": "Holes too small to drill",
+    "summary": "Holes too small to drill",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Holes too small to drill",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.edge_clearance",
+    "title": "Too close to the board edge",
+    "summary": "Too close to the board edge",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Too close to the board edge",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.fab_choice_finish",
+    "title": "Fab option needs another finish",
+    "summary": "Fab option needs another finish",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Fab option needs another finish",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.fab_choice_thickness",
+    "title": "Fab option needs a thinner board",
+    "summary": "Fab option needs a thinner board",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Fab option needs a thinner board",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.fiducial_copper",
+    "title": "Copper in fiducial clear areas",
+    "summary": "Copper in fiducial clear areas",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Copper in fiducial clear areas",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.fiducial_silk",
+    "title": "Silkscreen in fiducial clear areas",
+    "summary": "Silkscreen in fiducial clear areas",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Silkscreen in fiducial clear areas",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.fiducials_symmetric",
+    "title": "Symmetric fiducials",
+    "summary": "Symmetric fiducials",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Symmetric fiducials",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.fiducials_too_few",
+    "title": "Too few fiducials",
+    "summary": "Too few fiducials",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Too few fiducials",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.hole_clearance",
+    "title": "Too close to a mounting hole",
+    "summary": "Too close to a mounting hole",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Too close to a mounting hole",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.hole_spacing",
+    "title": "Board holes too close together",
+    "summary": "Board holes too close together",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Board holes too close together",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.internal",
+    "title": "Internal",
+    "summary": "Internal",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Internal",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.mask_colour_not_offered",
+    "title": "Solder mask colour not offered",
+    "summary": "Solder mask colour not offered",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Solder mask colour not offered",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.mask_web",
+    "title": "Solder mask webs too narrow",
+    "summary": "Solder mask webs too narrow",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Solder mask webs too narrow",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.npth_annular_ring",
+    "title": "Thin copper round unplated holes",
+    "summary": "Thin copper round unplated holes",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Thin copper round unplated holes",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.outside_outline",
+    "title": "Outside the board outline",
+    "summary": "Outside the board outline",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Outside the board outline",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.pad_hole_clearance",
+    "title": "Pad holes too close to copper",
+    "summary": "Pad holes too close to copper",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Pad holes too close to copper",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.pad_hole_spacing",
+    "title": "Pad holes too close to other holes",
+    "summary": "Pad holes too close to other holes",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Pad holes too close to other holes",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.param_idle",
+    "title": "Board parameters that drive no edge",
+    "summary": "Board parameters that drive no edge",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Board parameters that drive no edge",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.profile_layers",
+    "title": "Fab profile for another layer count",
+    "summary": "Fab profile for another layer count",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Fab profile for another layer count",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.pth_annular_ring",
+    "title": "Thin plated-hole annular rings",
+    "summary": "Thin plated-hole annular rings",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Thin plated-hole annular rings",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.reference_inexact",
+    "title": "Dimension references to check",
+    "summary": "Dimension references to check",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Dimension references to check",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.reference_lost",
+    "title": "Dimension references lost",
+    "summary": "Dimension references lost",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Dimension references lost",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.shape_curve",
+    "title": "Shape curve",
+    "summary": "Shape curve",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Shape curve",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.shape_edge",
+    "title": "Shape edge",
+    "summary": "Shape edge",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Shape edge",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.shape_hole",
+    "title": "Shape hole",
+    "summary": "Shape hole",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Shape hole",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.shape_invalid",
+    "title": "Board outline not one board",
+    "summary": "Board outline not one board",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Board outline not one board",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.shape_open",
+    "title": "Board outline not closed",
+    "summary": "Board outline not closed",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Board outline not closed",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.shape_outline",
+    "title": "Shape outline",
+    "summary": "Shape outline",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Shape outline",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.shape_range",
+    "title": "Shape range",
+    "summary": "Shape range",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Shape range",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.shape_unsolved",
+    "title": "Board shape does not solve",
+    "summary": "Board shape does not solve",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Board shape does not solve",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.sketch_edit",
+    "title": "Sketch edit",
+    "summary": "Sketch edit",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Sketch edit",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.track_dangling",
+    "title": "Track ends joining nothing",
+    "summary": "Track ends joining nothing",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Track ends joining nothing",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.track_width",
+    "title": "Tracks under the minimum width",
+    "summary": "Tracks under the minimum width",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Tracks under the minimum width",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.unplaced",
+    "title": "Not placed",
+    "summary": "Not placed",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "to_do",
+      "blocks": null,
+      "group": "Not placed",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.unrouted",
+    "title": "Unrouted connections",
+    "summary": "Unrouted connections",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "to_do",
+      "blocks": null,
+      "group": "Unrouted connections",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.via_annular_ring",
+    "title": "Thin via annular rings",
+    "summary": "Thin via annular rings",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Thin via annular rings",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.via_aspect_ratio",
+    "title": "Via aspect ratio too high",
+    "summary": "Via aspect ratio too high",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Via aspect ratio too high",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.via_dangling",
+    "title": "Vias joining nothing",
+    "summary": "Vias joining nothing",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Vias joining nothing",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.via_drill_clearance",
+    "title": "Via drills too close to copper",
+    "summary": "Via drills too close to copper",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Via drills too close to copper",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.via_drill_size",
+    "title": "Via drills too small",
+    "summary": "Via drills too small",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Via drills too small",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.via_hole_spacing",
+    "title": "Via drills too close together",
+    "summary": "Via drills too close together",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Via drills too close together",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.designator_prefix",
+    "title": "Designator prefix",
+    "summary": "Designator prefix",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Designator prefix",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.duplicate_binding_lineage",
+    "title": "Duplicate binding lineage",
+    "summary": "Duplicate binding lineage",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Duplicate binding lineage",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.duplicate_field_lineage",
+    "title": "Duplicate field lineage",
+    "summary": "Duplicate field lineage",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Duplicate field lineage",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.duplicate_symbol_lineage",
+    "title": "Duplicate symbol lineage",
+    "summary": "Duplicate symbol lineage",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Duplicate symbol lineage",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.field_default_invalid",
+    "title": "Field default invalid",
+    "summary": "Field default invalid",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Field default invalid",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.mapping_missing",
+    "title": "Unmapped terminals",
+    "summary": "Unmapped terminals",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Unmapped terminals",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.mapping_unknown",
+    "title": "Mapping unknown",
+    "summary": "Mapping unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Mapping unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.no_implementation",
+    "title": "No physical implementation",
+    "summary": "No physical implementation",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "No physical implementation",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.no_representation",
+    "title": "No representation",
+    "summary": "No representation",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "No representation",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.pin_missing",
+    "title": "Terminals without a pin",
+    "summary": "Terminals without a pin",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Terminals without a pin",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.pin_unknown",
+    "title": "Pin unknown",
+    "summary": "Pin unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pin unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.terminal_count",
+    "title": "Terminal count",
+    "summary": "Terminal count",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Terminal count",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.terminal_name",
+    "title": "Terminal name",
+    "summary": "Terminal name",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Terminal name",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.text_field_unknown",
+    "title": "Text field unknown",
+    "summary": "Text field unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Text field unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/component.value_template",
+    "title": "Value template",
+    "summary": "Value template",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Value template",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/config.function_unresolved",
+    "title": "Pin functions not chosen",
+    "summary": "Pin functions not chosen",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "electrically_resolved",
+      "group": "Pin functions not chosen",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/config.pin_option",
+    "title": "Invalid pin configuration",
+    "summary": "Invalid pin configuration",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Invalid pin configuration",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/config.requirement_unmet",
+    "title": "Pin function requirements",
+    "summary": "Pin function requirements",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "electrically_resolved",
+      "group": "Pin function requirements",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/config.rule_note",
+    "title": "Pin rule notes",
+    "summary": "Pin rule notes",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Pin rule notes",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/config.rule_unmet",
+    "title": "Pin rules not met",
+    "summary": "Pin rules not met",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "electrically_resolved",
+      "group": "Pin rules not met",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.base_invalid",
+    "title": "Base invalid",
+    "summary": "Base invalid",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Base invalid",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.bounds",
+    "title": "Drafts too large",
+    "summary": "Drafts too large",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Drafts too large",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.local_id_invalid",
+    "title": "Local id invalid",
+    "summary": "Local id invalid",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Local id invalid",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.local_id_reused",
+    "title": "Local id reused",
+    "summary": "Local id reused",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Local id reused",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.local_id_unallocated",
+    "title": "Local id unallocated",
+    "summary": "Local id unallocated",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Local id unallocated",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.name",
+    "title": "Names missing",
+    "summary": "Names missing",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Names missing",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.next_local_decreased",
+    "title": "Next local decreased",
+    "summary": "Next local decreased",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Next local decreased",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.revisions_exhausted",
+    "title": "Revisions exhausted",
+    "summary": "Revisions exhausted",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Revisions exhausted",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/definition.stale_base",
+    "title": "Drafts of an older revision",
+    "summary": "Drafts of an older revision",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Drafts of an older revision",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.driver_conflict",
+    "title": "Drivers in conflict",
+    "summary": "Drivers in conflict",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Drivers in conflict",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.global_label_single",
+    "title": "Global labels used once",
+    "summary": "Global labels used once",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Global labels used once",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.hierarchy_mismatch",
+    "title": "Sheet pins and labels that do not match",
+    "summary": "Sheet pins and labels that do not match",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Sheet pins and labels that do not match",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.input_only_net",
+    "title": "Inputs without a driver",
+    "summary": "Inputs without a driver",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Inputs without a driver",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.label_conflict",
+    "title": "Nets with conflicting labels",
+    "summary": "Nets with conflicting labels",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Nets with conflicting labels",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.label_unconnected",
+    "title": "Labels without a wire",
+    "summary": "Labels without a wire",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Labels without a wire",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.open_drain_contention",
+    "title": "Open-drain contention",
+    "summary": "Open-drain contention",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Open-drain contention",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.open_source_contention",
+    "title": "Open-source contention",
+    "summary": "Open-source contention",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Open-source contention",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.power_port_undriven",
+    "title": "Power nets without a source",
+    "summary": "Power nets without a source",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Power nets without a source",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.unchecked_terminal",
+    "title": "Terminals not checked",
+    "summary": "Terminals not checked",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "info",
+      "blocks": null,
+      "group": "Terminals not checked",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.undriven_power_input",
+    "title": "Power inputs without a supply",
+    "summary": "Power inputs without a supply",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Power inputs without a supply",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/erc.wire_end_free",
+    "title": "Wire ends not connected",
+    "summary": "Wire ends not connected",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Wire ends not connected",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/field.choice_label",
+    "title": "Choice label",
+    "summary": "Choice label",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Choice label",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/field.default_invalid",
+    "title": "Default invalid",
+    "summary": "Default invalid",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Default invalid",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/field.required_stage",
+    "title": "Required stage",
+    "summary": "Required stage",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Required stage",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/field.value_type",
+    "title": "Value type",
+    "summary": "Value type",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Value type",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.board_edge",
+    "title": "Fill copper off or near the board edge",
+    "summary": "Fill copper off or near the board edge",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Fill copper off or near the board edge",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.clearance",
+    "title": "Fill clearance",
+    "summary": "Fill clearance",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Fill clearance",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.clearance_unlisted",
+    "title": "Fill violations not listed",
+    "summary": "Fill violations not listed",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Fill violations not listed",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.empty",
+    "title": "Empty fills",
+    "summary": "Empty fills",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Empty fills",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.island_unconnected",
+    "title": "Unconnected fill islands",
+    "summary": "Unconnected fill islands",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Unconnected fill islands",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.net_missing",
+    "title": "Fills on missing nets",
+    "summary": "Fills on missing nets",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Fills on missing nets",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.spokes_removed",
+    "title": "Thermal spokes removed",
+    "summary": "Thermal spokes removed",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "info",
+      "blocks": null,
+      "group": "Thermal spokes removed",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.stale",
+    "title": "Fills to refill",
+    "summary": "Fills to refill",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "info",
+      "blocks": null,
+      "group": "Fills to refill",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.anchor_missing",
+    "title": "Anchor missing",
+    "summary": "Anchor missing",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Anchor missing",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.aperture_duplicate",
+    "title": "Aperture duplicate",
+    "summary": "Aperture duplicate",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Aperture duplicate",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.array",
+    "title": "Array",
+    "summary": "Array",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Array",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.courtyard_missing",
+    "title": "No courtyard",
+    "summary": "No courtyard",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "No courtyard",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.courtyard_open",
+    "title": "Courtyard open",
+    "summary": "Courtyard open",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Courtyard open",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.datum",
+    "title": "Datum",
+    "summary": "Datum",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Datum",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.drag",
+    "title": "Drag",
+    "summary": "Drag",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Drag",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.evaluator_rev",
+    "title": "Evaluator rev",
+    "summary": "Evaluator rev",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Evaluator rev",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.flipped",
+    "title": "Flipped",
+    "summary": "Flipped",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Flipped",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.graphic",
+    "title": "Graphic",
+    "summary": "Graphic",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Graphic",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.hole_kind",
+    "title": "Hole kind",
+    "summary": "Hole kind",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Hole kind",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.hole_outside_land",
+    "title": "Hole outside land",
+    "summary": "Hole outside land",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Hole outside land",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.hole_shape",
+    "title": "Hole shape",
+    "summary": "Hole shape",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Hole shape",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.hole_unclassified",
+    "title": "Hole unclassified",
+    "summary": "Hole unclassified",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Hole unclassified",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.internal",
+    "title": "Internal",
+    "summary": "Internal",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Internal",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.keepout_open",
+    "title": "Keepout open",
+    "summary": "Keepout open",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Keepout open",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.mask_web",
+    "title": "Thin solder-mask webs",
+    "summary": "Thin solder-mask webs",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Thin solder-mask webs",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.orientation",
+    "title": "Orientation",
+    "summary": "Orientation",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Orientation",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.over_constrained",
+    "title": "Sketch over-constrained",
+    "summary": "Sketch over-constrained",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Sketch over-constrained",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.override_orphaned",
+    "title": "Override orphaned",
+    "summary": "Override orphaned",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Override orphaned",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.owned_curve",
+    "title": "Owned curve",
+    "summary": "Owned curve",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Owned curve",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.pad_count",
+    "title": "Pad count",
+    "summary": "Pad count",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pad count",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.pad_number",
+    "title": "Pad number",
+    "summary": "Pad number",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pad number",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.pad_outside_courtyard",
+    "title": "Pads outside the courtyard",
+    "summary": "Pads outside the courtyard",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Pads outside the courtyard",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.pad_shape",
+    "title": "Pad shape",
+    "summary": "Pad shape",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pad shape",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.pad_shape_unclassified",
+    "title": "Pad shape unclassified",
+    "summary": "Pad shape unclassified",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pad shape unclassified",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.pad_side",
+    "title": "Pad side",
+    "summary": "Pad side",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pad side",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.pad_size",
+    "title": "Pad size",
+    "summary": "Pad size",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pad size",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.pad_terminal_unknown",
+    "title": "Pads landing unknown terminals",
+    "summary": "Pads landing unknown terminals",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pads landing unknown terminals",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.param_duplicate",
+    "title": "Param duplicate",
+    "summary": "Param duplicate",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Param duplicate",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.param_expr",
+    "title": "Parameter expressions",
+    "summary": "Parameter expressions",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Parameter expressions",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.param_name",
+    "title": "Param name",
+    "summary": "Param name",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Param name",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.param_reserved",
+    "title": "Param reserved",
+    "summary": "Param reserved",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Param reserved",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.paste_window",
+    "title": "Paste window",
+    "summary": "Paste window",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Paste window",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.paste_window_outside_pad",
+    "title": "Paste window outside pad",
+    "summary": "Paste window outside pad",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Paste window outside pad",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.paste_window_shape",
+    "title": "Paste window shape",
+    "summary": "Paste window shape",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Paste window shape",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.polarity_marker_unknown",
+    "title": "Polarity marker unknown",
+    "summary": "Polarity marker unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Polarity marker unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.polarity_missing",
+    "title": "No pin-1 marking",
+    "summary": "No pin-1 marking",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "No pin-1 marking",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.polarity_pad_unknown",
+    "title": "Polarity pad unknown",
+    "summary": "Polarity pad unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Polarity pad unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.silk_over_pad",
+    "title": "Silkscreen over pads",
+    "summary": "Silkscreen over pads",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Silkscreen over pads",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.silk_width",
+    "title": "Thin silkscreen lines",
+    "summary": "Thin silkscreen lines",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Thin silkscreen lines",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.sketch_edit",
+    "title": "Sketch edit",
+    "summary": "Sketch edit",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Sketch edit",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.sketch_unsupported",
+    "title": "Sketch unsupported",
+    "summary": "Sketch unsupported",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Sketch unsupported",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.solve_failed",
+    "title": "Sketch does not solve",
+    "summary": "Sketch does not solve",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Sketch does not solve",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.source_pad_unknown",
+    "title": "Source pad unknown",
+    "summary": "Source pad unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Source pad unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.terminal_forbidden",
+    "title": "Pads that cannot land a terminal",
+    "summary": "Pads that cannot land a terminal",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pads that cannot land a terminal",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.terminal_required",
+    "title": "Pads without a package terminal",
+    "summary": "Pads without a package terminal",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pads without a package terminal",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.terminal_without_pad",
+    "title": "Package terminals without a pad",
+    "summary": "Package terminals without a pad",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Package terminals without a pad",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.text_height",
+    "title": "Small silkscreen text",
+    "summary": "Small silkscreen text",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Small silkscreen text",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.too_large",
+    "title": "Too large",
+    "summary": "Too large",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Too large",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.under_constrained",
+    "title": "Under constrained",
+    "summary": "Under constrained",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Under constrained",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/footprint.unresolved_key",
+    "title": "Unresolved key",
+    "summary": "Unresolved key",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Unresolved key",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.combination",
+    "title": "Combination",
+    "summary": "Combination",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Combination",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.constraint_key",
+    "title": "Constraint key",
+    "summary": "Constraint key",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Constraint key",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.count",
+    "title": "Count",
+    "summary": "Count",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Count",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.default_conflict",
+    "title": "Default conflict",
+    "summary": "Default conflict",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Default conflict",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.design_default",
+    "title": "Design default",
+    "summary": "Design default",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Design default",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.gpio",
+    "title": "Gpio",
+    "summary": "Gpio",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Gpio",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.label",
+    "title": "Label",
+    "summary": "Label",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Label",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.mux",
+    "title": "Mux",
+    "summary": "Mux",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Mux",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.mux_table",
+    "title": "Mux table",
+    "summary": "Mux table",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Mux table",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.pin_option",
+    "title": "Pin option",
+    "summary": "Pin option",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pin option",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/function.resource_unknown",
+    "title": "Resource unknown",
+    "summary": "Resource unknown",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Resource unknown",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/graphic.degenerate",
+    "title": "Degenerate",
+    "summary": "Degenerate",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Degenerate",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/graphic.fill_body",
+    "title": "Fill body",
+    "summary": "Fill body",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Fill body",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/graphic.fill_open",
+    "title": "Fill open",
+    "summary": "Fill open",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Fill open",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/graphic.invisible",
+    "title": "Invisible",
+    "summary": "Invisible",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Invisible",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/graphic.polygon_self_intersecting",
+    "title": "Polygon self intersecting",
+    "summary": "Polygon self intersecting",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Polygon self intersecting",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/graphic.radius_too_large",
+    "title": "Radius too large",
+    "summary": "Radius too large",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Radius too large",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/impedance.mismatch",
+    "title": "Impedance off target",
+    "summary": "Impedance off target",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Impedance off target",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/impedance.no_tolerance",
+    "title": "Impedance targets without a tolerance",
+    "summary": "Impedance targets without a tolerance",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Impedance targets without a tolerance",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/impedance.uncoupled",
+    "title": "Pair lengths excluded from the impedance check",
+    "summary": "Pair lengths excluded from the impedance check",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Pair lengths excluded from the impedance check",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/import.board_joins_nets",
+    "title": "Nets the imported board joined",
+    "summary": "Nets the imported board joined",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Nets the imported board joined",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/import.board_splits_net",
+    "title": "Nets the imported board split",
+    "summary": "Nets the imported board split",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Nets the imported board split",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/instance.check_failed",
+    "title": "Instances that cannot be checked",
+    "summary": "Instances that cannot be checked",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Instances that cannot be checked",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/instance.field_required",
+    "title": "Required values missing",
+    "summary": "Required values missing",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Required values missing",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/instance.no_connect_connected",
+    "title": "No-connect pins connected",
+    "summary": "No-connect pins connected",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "electrically_resolved",
+      "group": "No-connect pins connected",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/instance.no_physical_choice",
+    "title": "No footprint chosen",
+    "summary": "No footprint chosen",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "board_placeable",
+      "group": "No footprint chosen",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/instance.required_terminal_no_connect",
+    "title": "Power inputs marked no-connect",
+    "summary": "Power inputs marked no-connect",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "electrically_resolved",
+      "group": "Power inputs marked no-connect",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/instance.terminal_unaccounted",
+    "title": "Unconnected terminals",
+    "summary": "Unconnected terminals",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "electrically_resolved",
+      "group": "Unconnected terminals",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/instance.unit_unplaced",
+    "title": "Units not placed",
+    "summary": "Units not placed",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "electrically_resolved",
+      "group": "Units not placed",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/instance.unmapped_pad",
+    "title": "Pins added by import for unmapped pads",
+    "summary": "Pins added by import for unmapped pads",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Pins added by import for unmapped pads",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/interface.datum_inexact",
+    "title": "Exported datums to check",
+    "summary": "Exported datums to check",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Exported datums to check",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/interface.datum_lost",
+    "title": "Exported datums lost",
+    "summary": "Exported datums lost",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Exported datums lost",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/interface.unpublished",
+    "title": "Unpublished",
+    "summary": "Unpublished",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Unpublished",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/keepout.fill",
+    "title": "Fills in keepouts",
+    "summary": "Fills in keepouts",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Fills in keepouts",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/keepout.pad",
+    "title": "Pads in keepouts",
+    "summary": "Pads in keepouts",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Pads in keepouts",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/keepout.track",
+    "title": "Tracks in keepouts",
+    "summary": "Tracks in keepouts",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Tracks in keepouts",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/keepout.via",
+    "title": "Vias in keepouts",
+    "summary": "Vias in keepouts",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Vias in keepouts",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/layout.dimension",
+    "title": "Dimension",
+    "summary": "Dimension",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Dimension",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/layout.dimension_conflict",
+    "title": "Dimension conflict",
+    "summary": "Dimension conflict",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Dimension conflict",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/layout.dimension_limit",
+    "title": "Dimension limit",
+    "summary": "Dimension limit",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Dimension limit",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/length.mismatch",
+    "title": "Length mismatch",
+    "summary": "Length mismatch",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Length mismatch",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/library.source_modified",
+    "title": "Library sources changed",
+    "summary": "Library sources changed",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Library sources changed",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/library.update_available",
+    "title": "Library updates",
+    "summary": "Library updates",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "info",
+      "blocks": null,
+      "group": "Library updates",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/marking.artwork",
+    "title": "Artwork",
+    "summary": "Artwork",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Artwork",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/marking.does_not_fit",
+    "title": "Markings that do not fit",
+    "summary": "Markings that do not fit",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "info",
+      "blocks": null,
+      "group": "Markings that do not fit",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/marking.template",
+    "title": "Template",
+    "summary": "Template",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Template",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/marking.unrepresentable",
+    "title": "Markings that cannot be drawn",
+    "summary": "Markings that cannot be drawn",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "info",
+      "blocks": null,
+      "group": "Markings that cannot be drawn",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/model.asset",
+    "title": "Asset",
+    "summary": "Asset",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Asset",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/model.body_unmapped",
+    "title": "Body unmapped",
+    "summary": "Body unmapped",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Body unmapped",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/model.bounds",
+    "title": "Bounds",
+    "summary": "Bounds",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Bounds",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/model.leads",
+    "title": "Leads",
+    "summary": "Leads",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Leads",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/model.licence",
+    "title": "Licence",
+    "summary": "Licence",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Licence",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.body_below_board",
+    "title": "Body below the board",
+    "summary": "Body below the board",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Body below the board",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.chip_terminals",
+    "title": "Chip terminals",
+    "summary": "Chip terminals",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Chip terminals",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.datum",
+    "title": "Datum",
+    "summary": "Datum",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Datum",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.designation",
+    "title": "Designation",
+    "summary": "Designation",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Designation",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.envelope",
+    "title": "Envelope",
+    "summary": "Envelope",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Envelope",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.lead_off_land",
+    "title": "Leads off their lands",
+    "summary": "Leads off their lands",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Leads off their lands",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.lead_unseated",
+    "title": "Leads off the seating plane",
+    "summary": "Leads off the seating plane",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Leads off the seating plane",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.leads",
+    "title": "Leads",
+    "summary": "Leads",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Leads",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.terminal_count",
+    "title": "Terminal count",
+    "summary": "Terminal count",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Terminal count",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package.terminals_unmatched",
+    "title": "Package terminals not matched by number",
+    "summary": "Package terminals not matched by number",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Package terminals not matched by number",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package_row.alias",
+    "title": "Alias",
+    "summary": "Alias",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Alias",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package_row.generator",
+    "title": "Generator",
+    "summary": "Generator",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Generator",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/package_row.provenance",
+    "title": "Provenance",
+    "summary": "Provenance",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Provenance",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/pair.gap",
+    "title": "Pair gap",
+    "summary": "Pair gap",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Pair gap",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/pair.skew",
+    "title": "Pair skew",
+    "summary": "Pair skew",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Pair skew",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/pair.uncoupled",
+    "title": "Pairs running uncoupled",
+    "summary": "Pairs running uncoupled",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Pairs running uncoupled",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.binding_mismatch",
+    "title": "Part for another footprint",
+    "summary": "Part for another footprint",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Part for another footprint",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.binding_unlisted",
+    "title": "Binding unlisted",
+    "summary": "Binding unlisted",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Binding unlisted",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.component_mismatch",
+    "title": "Part for another component",
+    "summary": "Part for another component",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Part for another component",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.hash",
+    "title": "Hash",
+    "summary": "Hash",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Hash",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.identity",
+    "title": "Part identity",
+    "summary": "Part identity",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Part identity",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.link",
+    "title": "Link",
+    "summary": "Link",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Link",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.newer_component",
+    "title": "Part for a newer revision",
+    "summary": "Part for a newer revision",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Part for a newer revision",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.offer_text",
+    "title": "Offer text",
+    "summary": "Offer text",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Offer text",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.provenance_basis",
+    "title": "Provenance basis",
+    "summary": "Provenance basis",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Provenance basis",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.reference_text",
+    "title": "Reference text",
+    "summary": "Reference text",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Reference text",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.spec_duplicate",
+    "title": "Spec duplicate",
+    "summary": "Spec duplicate",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Spec duplicate",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.spec_field",
+    "title": "Spec field",
+    "summary": "Spec field",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Spec field",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.spec_field_mismatch",
+    "title": "Rating of another field",
+    "summary": "Rating of another field",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Rating of another field",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.spec_meaning",
+    "title": "Spec meaning",
+    "summary": "Spec meaning",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Spec meaning",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.spec_mismatch",
+    "title": "Rating does not meet the value",
+    "summary": "Rating does not meet the value",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Rating does not meet the value",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.spec_uncomparable",
+    "title": "Rating cannot be compared",
+    "summary": "Rating cannot be compared",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Rating cannot be compared",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.spec_unrated",
+    "title": "Value the Part does not rate",
+    "summary": "Value the Part does not rate",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Value the Part does not rate",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.spec_value",
+    "title": "Spec value",
+    "summary": "Spec value",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Spec value",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part.stale_component",
+    "title": "Part for an older revision",
+    "summary": "Part for an older revision",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Part for an older revision",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part_file.model",
+    "title": "Part file is not a SolidCraft design",
+    "summary": "Part file is not a SolidCraft design",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Part file is not a SolidCraft design",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/part_file.values",
+    "title": "Part file values",
+    "summary": "Part file values",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Part file values",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/pinout.split_terminal",
+    "title": "Split terminal",
+    "summary": "Split terminal",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Split terminal",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/pinout.uncertain",
+    "title": "Uncertain imported pins",
+    "summary": "Uncertain imported pins",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Uncertain imported pins",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/pinout.unreviewed",
+    "title": "Unreviewed imported pins",
+    "summary": "Unreviewed imported pins",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Unreviewed imported pins",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/purchasing.no_part",
+    "title": "No Part chosen",
+    "summary": "No Part chosen",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "to_do",
+      "blocks": null,
+      "group": "No Part chosen",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/quantity_kind.default_unit",
+    "title": "Default unit",
+    "summary": "Default unit",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Default unit",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/quantity_kind.units",
+    "title": "Units",
+    "summary": "Units",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Units",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/reference.missing",
+    "title": "Missing from the project library",
+    "summary": "Missing from the project library",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Missing from the project library",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/reference.owner_mismatch",
+    "title": "Owned by another component",
+    "summary": "Owned by another component",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Owned by another component",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/resource.kind",
+    "title": "Kind",
+    "summary": "Kind",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Kind",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/resource.label",
+    "title": "Label",
+    "summary": "Label",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Label",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/resource.role_capacity",
+    "title": "Role capacity",
+    "summary": "Role capacity",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Role capacity",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/resource.role_count",
+    "title": "Role count",
+    "summary": "Role count",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Role count",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/resource.role_label",
+    "title": "Role label",
+    "summary": "Role label",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Role label",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/resource.signal",
+    "title": "Signal",
+    "summary": "Signal",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Signal",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/rule.bounds",
+    "title": "Bounds",
+    "summary": "Bounds",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Bounds",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/rule.budget",
+    "title": "Budget",
+    "summary": "Budget",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Budget",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/rule.default_conflict",
+    "title": "Default conflict",
+    "summary": "Default conflict",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Default conflict",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/rule.reference",
+    "title": "Reference",
+    "summary": "Reference",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Reference",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/rule.runtime",
+    "title": "Runtime",
+    "summary": "Runtime",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Runtime",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/rule.script",
+    "title": "Script",
+    "summary": "Script",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Script",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/symbol.field_missing",
+    "title": "No designator text",
+    "summary": "No designator text",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "No designator text",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/symbol.grid_sheet",
+    "title": "Symbol grid",
+    "summary": "Symbol grid",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Symbol grid",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/symbol.pin_duplicate",
+    "title": "Pin duplicate",
+    "summary": "Pin duplicate",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Pin duplicate",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/symbol.pin_off_grid",
+    "title": "Pins off the grid",
+    "summary": "Pins off the grid",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Pins off the grid",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/symbol.unit_count",
+    "title": "Unit count",
+    "summary": "Unit count",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Unit count",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/symbol.unit_empty",
+    "title": "Unit empty",
+    "summary": "Unit empty",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Unit empty",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/symbol.unit_label",
+    "title": "Unit label",
+    "summary": "Unit label",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Unit label",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/text.content_kind",
+    "title": "Content kind",
+    "summary": "Content kind",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Content kind",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/text.empty",
+    "title": "Empty",
+    "summary": "Empty",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Empty",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/text.too_long",
+    "title": "Too long",
+    "summary": "Too long",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": "publish",
+      "group": "Too long",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/variant.substitute_unfit",
+    "title": "Variant parts that no longer fit",
+    "summary": "Variant parts that no longer fit",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Variant parts that no longer fit",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/variant.substitute_unmet",
+    "title": "Variant parts that miss a requirement",
+    "summary": "Variant parts that miss a requirement",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Variant parts that miss a requirement",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/variant.substitute_unreviewed",
+    "title": "Variant parts not reviewed as equivalent",
+    "summary": "Variant parts not reviewed as equivalent",
+    "since": "1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Variant parts not reviewed as equivalent",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  }
+]

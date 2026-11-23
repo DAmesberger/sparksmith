@@ -810,7 +810,7 @@ fn packed_assets_travel_by_hash_and_unpacked_ones_are_reported() -> Result<()> {
     library.assets.retain(|a| a.hash != hash);
     let codes: Vec<String> = bundle::asset_findings(&library)
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     assert!(codes.iter().any(|c| c == "asset.missing"), "{codes:?}");
     assert!(matches!(plan_of(&library, root), Err(Error::NotFound(m)) if m.contains("not packed")));
@@ -1081,7 +1081,7 @@ fn place_from_a_folder_then_update_only_r1_and_reopen_offline() -> Result<()> {
     assert!(found[0].modified.is_empty());
     let codes: Vec<String> = catalog::update_findings(&design.project().library, &found)
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     assert_eq!(codes, vec!["library.update_available".to_owned()]);
     let source = Arc::new(catalog::source_catalog(FOLDER, "Shared parts", &folder)?);
@@ -1228,7 +1228,7 @@ fn a_modified_folder_record_is_detected_by_hash_and_never_trusted() -> Result<()
     assert_eq!(found[0].latest, Revision(1));
     let codes: Vec<String> = catalog::update_findings(&design.project().library, &found)
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     assert_eq!(codes, vec!["library.source_modified".to_owned()]);
     let kept = Snapshot::of(&design);

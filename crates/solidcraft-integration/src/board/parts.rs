@@ -17,6 +17,7 @@
 //! points that copy one coordinate each), then pins the free ones and
 //! solves again. Pins that turn out to be coupled (two parts held only to
 //! each other) are placed in halves until each lands or proves determined.
+use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::Vec2;
 use crate::geom::prelude::*;
 use std::collections::BTreeMap;
@@ -57,9 +58,9 @@ const AXIS_MM: f64 = 10.0;
 /// read as unchanged, mm or degrees.
 const SAME: f64 = 1e-9;
 
-const CODE: &str = "layout.dimension";
+const CODE: FindingCode = FindingCode::LayoutDimension;
 /// Finding code of a solve the dimensions cannot satisfy.
-const CONFLICT: &str = "layout.dimension_conflict";
+const CONFLICT: FindingCode = FindingCode::LayoutDimensionConflict;
 
 /// One target's frame in the scratch sketch.
 struct Frame {
@@ -604,13 +605,13 @@ pub(super) fn solve(request: &PartsRequest<'_>) -> Result<PartsSolution> {
 fn solve_outcome(request: &PartsRequest<'_>) -> Outcome<PartsSolution> {
     if request.parts.is_empty() || request.parts.len() > MAX_SOLVE_PARTS {
         return Err(problem(
-            "layout.dimension_limit",
+            FindingCode::LayoutDimensionLimit,
             format!("a parts solve takes 1–{MAX_SOLVE_PARTS} parts"),
         ));
     }
     if request.dimensions.len() > MAX_SOLVE_DIMENSIONS {
         return Err(problem(
-            "layout.dimension_limit",
+            FindingCode::LayoutDimensionLimit,
             format!("a parts solve takes at most {MAX_SOLVE_DIMENSIONS} dimensions"),
         ));
     }
@@ -675,7 +676,7 @@ fn solve_outcome(request: &PartsRequest<'_>) -> Outcome<PartsSolution> {
         }
         let Some(refs) = refs.into_iter().collect::<Option<Vec<Ref>>>() else {
             findings.push(Finding::new(
-                REFERENCE_LOST,
+                FindingCode::BoardReferenceLost,
                 "A dimension names board geometry that was deleted".into(),
                 vec![ObjectRef::Board],
             ));
@@ -707,7 +708,7 @@ fn solve_outcome(request: &PartsRequest<'_>) -> Outcome<PartsSolution> {
             .filter_map(|k| owner.get(k).copied())
             .collect();
         findings.push(Finding::new(
-            CONFLICT,
+            FindingCode::LayoutDimensionConflict,
             // Never the solver's constraint ids: the core names the
             // dimensions from `failing`.
             match first.oversized {

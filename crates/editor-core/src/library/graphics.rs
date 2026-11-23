@@ -4,6 +4,7 @@
 //! the rules for it. Text is a structured reference (designator, field,
 //! name), never a placeholder string, so it is never the authority for a
 //! value.
+use crate::diagnostics::FindingCode;
 use super::drafts::{Draft, Drafts};
 use super::publish::{issue, object};
 use super::{Definition, Library, MAX_LABEL};
@@ -767,7 +768,7 @@ pub(super) fn item_findings(
             let shape = &shape.to_mm();
             if degenerate(shape) {
                 out.push(issue(
-                    "graphic.degenerate",
+                    FindingCode::GraphicDegenerate,
                     "A graphic has no length or area, too few points or a radius below 0.01 mm."
                         .into(),
                     this.clone(),
@@ -775,7 +776,7 @@ pub(super) fn item_findings(
             }
             if !shape.corners_fit() {
                 out.push(issue(
-                    "graphic.radius_too_large",
+                    FindingCode::GraphicRadiusTooLarge,
                     "A graphic rounds a corner more than its edges allow, or rounds an open end."
                         .into(),
                     this.clone(),
@@ -785,21 +786,21 @@ pub(super) fn item_findings(
                 && polygon_self_intersects(points)
             {
                 out.push(issue(
-                    "graphic.polygon_self_intersecting",
+                    FindingCode::GraphicPolygonSelfIntersecting,
                     "A polygon crosses itself.".into(),
                     this.clone(),
                 ));
             }
             if *width_nm <= Nm::ZERO && *fill == Fill::None {
                 out.push(issue(
-                    "graphic.invisible",
+                    FindingCode::GraphicInvisible,
                     "A graphic has no stroke and no fill.".into(),
                     this.clone(),
                 ));
             }
             if *fill != Fill::None && !shape.is_closed() {
                 out.push(issue(
-                    "graphic.fill_open",
+                    FindingCode::GraphicFillOpen,
                     "An open graphic cannot be filled.".into(),
                     this,
                 ));
@@ -812,14 +813,14 @@ pub(super) fn item_findings(
                 let too_long = s.len() > MAX_LABEL || s.split('\n').count() > MAX_TEXT_LINES;
                 out.push(if too_long {
                     issue(
-                        "text.too_long",
+                        FindingCode::TextTooLong,
                         format!(
                             "A text is longer than {MAX_LABEL} bytes or {MAX_TEXT_LINES} lines."
                         ),
                         this,
                     )
                 } else {
-                    issue("text.empty", "A text needs printable content.".into(), this)
+                    issue(FindingCode::TextEmpty, "A text needs printable content.".into(), this)
                 });
             }
         }
@@ -1107,7 +1108,7 @@ pub fn lint_with(
         let ratio = SHEET_GRID_MM / grid.symbol_mm();
         if (ratio - ratio.round()).abs() > 1e-6 {
             out.push(Finding::new(
-                "symbol.grid_sheet",
+                FindingCode::SymbolGridSheet,
                 format!(
                     "The {} mm symbol grid does not divide the {SHEET_GRID_MM} mm sheet grid, so pins land off the sheet grid.",
                     grid.symbol_mm()
@@ -1125,7 +1126,7 @@ pub fn lint_with(
                         .and_then(|c| c.definition.terminal(pin.terminal))
                         .map_or_else(|| pin.terminal.to_string(), |t| format!("‘{}’", t.name));
                     out.push(Finding::new(
-                        "symbol.pin_off_grid",
+                        FindingCode::SymbolPinOffGrid,
                         format!(
                             "The pin of terminal {name} in unit ‘{}’ is off the {} mm grid.",
                             unit.label,
@@ -1147,7 +1148,7 @@ pub fn lint_with(
                 .any(|g| matches!(&g.item, Item::Text(t) if t.content == TextContent::Designator));
             if !has_designator {
                 out.push(Finding::new(
-                    "symbol.field_missing",
+                    FindingCode::SymbolFieldMissing,
                     format!("Unit ‘{}’ shows no designator text.", unit.label),
                     vec![object(draft.id, unit.id.0)],
                 ));

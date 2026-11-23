@@ -1,4 +1,5 @@
 //! What the graph answers: stubs, the connectivity findings and airwires.
+use crate::diagnostics::FindingCode;
 use super::build::joins;
 use super::{CopperGraph, Dsu, EdgeKind, ElementKind, JOIN_TOLERANCE_MM};
 use crate::diagnostics::{Finding, ObjectRef};
@@ -335,7 +336,7 @@ impl CopperGraph {
                         .unwrap_or_else(|| pad.pad.to_string())
                 );
                 out.push(Finding::new(
-                    "board.unrouted",
+                    FindingCode::BoardUnrouted,
                     format!("Unrouted: {label} ({})", project.net_name(pad.net)),
                     vec![
                         ObjectRef::Pad {
@@ -373,7 +374,7 @@ impl CopperGraph {
                     "joins no copper of its net"
                 };
                 out.push(Finding::new(
-                    "board.via_dangling",
+                    FindingCode::BoardViaDangling,
                     format!("a via on {} {what}", project.net_name(via.net)),
                     vec![
                         ObjectRef::Via { id: via.id },
@@ -445,7 +446,7 @@ impl CopperGraph {
                 .chain(stub.vias.iter().map(|&id| ObjectRef::Via { id }))
                 .chain([ObjectRef::Net { id: stub.net }])
                 .collect();
-            out.push(Finding::new("board.track_dangling", message, objects));
+            out.push(Finding::new(FindingCode::BoardTrackDangling, message, objects));
         }
         out.extend(self.unjoined_islands(project));
         out
@@ -472,7 +473,7 @@ impl CopperGraph {
                 let fill = project.fill(id)?;
                 let label = crate::layout::fill::fill_label(project, fill);
                 Some(Finding::new(
-                    "fill.island_unconnected",
+                    FindingCode::FillIslandUnconnected,
                     format!("{label} has {count} unconnected copper islands"),
                     vec![ObjectRef::Fill { id }],
                 ))

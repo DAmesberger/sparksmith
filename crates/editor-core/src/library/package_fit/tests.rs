@@ -327,7 +327,7 @@ fn findings_report_leads_off_lands_unseated_leads_and_a_sunken_body() -> Result<
     p.placement.translation_nm[1] = crate::tests::support::nm(0.2);
     let codes: Vec<String> = placement_findings(&p, &fp, footprint_id)
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     assert_eq!(codes, ["package.lead_off_land"]);
     p.placement.translation_nm = crate::tests::support::nm3([0.0, 0.0, -0.5]);

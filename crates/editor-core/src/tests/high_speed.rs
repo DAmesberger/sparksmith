@@ -194,7 +194,7 @@ fn straight(usb: &Usb) -> Vec<PairLeg> {
 fn board_codes(engine: &Engine) -> Vec<String> {
     layout::checks(engine.project(), engine.check_settings())
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect()
 }
 
@@ -763,7 +763,7 @@ fn impedance_is_checked_against_the_class_tolerance_else_the_settings_one() -> R
         assert_eq!(coverage.len(), 1, "{coverage:?}");
         comparisons
             .into_iter()
-            .map(|f| (f.code, f.message))
+            .map(|f| (f.code.to_string(), f.message))
             .collect()
     };
     // The class states none: the Settings 10 %.

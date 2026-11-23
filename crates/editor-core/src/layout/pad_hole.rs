@@ -19,6 +19,7 @@
 //!
 //! Every limit is the project's ([`BoardRules`]); pairs are found through
 //! a bounds grid reaching as far as the largest clearance.
+use crate::diagnostics::FindingCode;
 use super::connectivity::CopperGraph;
 use super::copper::{check_reach, limit_finding};
 use super::grid::BoundsGrid;
@@ -485,7 +486,7 @@ impl<'a> PadHoleCx<'a> {
         // the board, whether or not its pad has copper (a bare NPTH).
         if let Some(text) = super::via::edge_text(&self.edges, &hole.ring, limits, hole.kind) {
             issues.push(Finding::new(
-                "board.edge_clearance",
+                FindingCode::BoardEdgeClearance,
                 format!("{}: {} {text}", hole.name, hole.what),
                 vec![hole.object],
             ));
@@ -518,7 +519,7 @@ impl<'a> PadHoleCx<'a> {
                 format!("is {} mm from {what}", mm_against(gap, need.mm))
             };
             issues.push(Finding::new(
-                "board.pad_hole_clearance",
+                FindingCode::BoardPadHoleClearance,
                 format!("{}: hole {how}; {}", hole.name, need.text()),
                 vec![hole.object, shape.object],
             ));
@@ -567,7 +568,7 @@ impl<'a> PadHoleCx<'a> {
                     vec![hole.object, other.object],
                 )
             };
-            issues.push(Finding::new("board.pad_hole_spacing", text, objects));
+            issues.push(Finding::new(FindingCode::BoardPadHoleSpacing, text, objects));
         }
         Ok(pairs)
     }
@@ -630,7 +631,7 @@ fn rings(
         let ring = ring_of(true);
         if ring.is_finite() && ring < need.mm - EPS {
             issues.push(Finding::new(
-                "board.pth_annular_ring",
+                FindingCode::BoardPthAnnularRing,
                 format!("{}: {}", name(pad), text(ring)),
                 vec![object],
             ));
@@ -638,7 +639,7 @@ fn rings(
         let ring = ring_of(false);
         if ring.is_finite() && ring < npth_need.mm - EPS {
             issues.push(Finding::new(
-                "board.npth_annular_ring",
+                FindingCode::BoardNpthAnnularRing,
                 format!(
                     "{}: annular ring {} mm round the unplated hole; {}",
                     name(pad),
@@ -655,7 +656,7 @@ fn rings(
             .map_or(0.0, |d| ((d - mount.drill) / 2.0).max(0.0));
         if ring < need.mm - EPS {
             issues.push(Finding::new(
-                "board.pth_annular_ring",
+                FindingCode::BoardPthAnnularRing,
                 format!(
                     "{}: {}",
                     capitalised(&physical::mounting_hole_name(true, mount.at)),

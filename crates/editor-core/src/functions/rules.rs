@@ -795,7 +795,7 @@ pub fn explanations(compiled: &CompiledRules, evaluation: &RuleEvaluation) -> Ru
     }
 }
 
-fn publish_issue(code: &str, message: String, objects: Vec<ObjectRef>) -> Finding {
+fn publish_issue(code: crate::diagnostics::FindingCode, message: String, objects: Vec<ObjectRef>) -> Finding {
     Finding::blocking(code, message, objects, Stage::Publish)
 }
 
@@ -832,7 +832,7 @@ pub fn publish_findings(
     };
     if !within_bounds(rules) {
         return vec![publish_issue(
-            "rule.bounds",
+            crate::diagnostics::FindingCode::RuleBounds,
             format!(
                 "The component's pin rules exceed {MAX_PIN_RULES} rules, {MAX_RULE_SOURCE} bytes per script or {MAX_RULES_SOURCE_TOTAL} bytes in total."
             ),
@@ -844,7 +844,7 @@ pub fn publish_findings(
     for rule in rules {
         if !crate::ids::printable(&rule.label) || !labels.insert(rule.label.trim().to_lowercase()) {
             out.push(publish_issue(
-                "rule.reference",
+                crate::diagnostics::FindingCode::RuleReference,
                 "Each pin rule needs a unique printable label.".into(),
                 at(rule.id),
             ));
@@ -856,7 +856,7 @@ pub fn publish_findings(
     for rule in rules {
         if let Some(error) = compiled.compile_error(rule.id) {
             out.push(publish_issue(
-                "rule.script",
+                crate::diagnostics::FindingCode::RuleScript,
                 bounded(format!("{}: {error}", rule_name(&compiled, rule.id))),
                 at(rule.id),
             ));
@@ -881,7 +881,7 @@ pub fn publish_findings(
         for problem in problems {
             referenced.insert(rule.id);
             out.push(publish_issue(
-                "rule.reference",
+                crate::diagnostics::FindingCode::RuleReference,
                 bounded(format!("{}: {problem}", rule_name(&compiled, rule.id))),
                 at(rule.id),
             ));
@@ -899,14 +899,14 @@ pub fn publish_findings(
     for failure in &detailed.evaluation.failures {
         let code = match failure.kind {
             RuleFailureKind::Compile => continue,
-            RuleFailureKind::Budget => "rule.budget",
+            RuleFailureKind::Budget => crate::diagnostics::FindingCode::RuleBudget,
             RuleFailureKind::Runtime if detailed.references.contains(&failure.rule) => {
                 if referenced.contains(&failure.rule) {
                     continue;
                 }
-                "rule.reference"
+                crate::diagnostics::FindingCode::RuleReference
             }
-            RuleFailureKind::Runtime => "rule.runtime",
+            RuleFailureKind::Runtime => crate::diagnostics::FindingCode::RuleRuntime,
         };
         out.push(publish_issue(
             code,
@@ -938,9 +938,9 @@ pub fn publish_findings(
         };
         if let Some(failure) = failures.first() {
             let code = match failure.kind {
-                RuleFailureKind::Budget => "rule.budget",
-                _ if failure.reference => "rule.reference",
-                _ => "rule.runtime",
+                RuleFailureKind::Budget => crate::diagnostics::FindingCode::RuleBudget,
+                _ if failure.reference => crate::diagnostics::FindingCode::RuleReference,
+                _ => crate::diagnostics::FindingCode::RuleRuntime,
             };
             out.push(publish_issue(
                 code,
@@ -965,7 +965,7 @@ pub fn publish_findings(
                 rule_name(&compiled, outcome.rule).replacen("Pin rule", "pin rule", 1),
             ));
             out.push(publish_issue(
-                "rule.default_conflict",
+                crate::diagnostics::FindingCode::RuleDefaultConflict,
                 format!("{conflict}{}", fixed_peripheral_hint(terminals, named)),
                 at(outcome.rule),
             ));

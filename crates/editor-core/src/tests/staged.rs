@@ -199,7 +199,7 @@ fn a_wire_on_a_no_connect_terminal_is_a_completeness_error() -> Result<()> {
                         endpoint: ep(r3, 1),
                     }]
             })
-            .map(|f| f.code)
+            .map(|f| f.code.to_string())
             .collect())
     };
     assert_eq!(codes(&engine)?, ["instance.terminal_unaccounted"]);

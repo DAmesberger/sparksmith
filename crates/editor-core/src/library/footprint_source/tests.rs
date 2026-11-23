@@ -93,7 +93,7 @@ fn a_blocking_finding_leaves_the_footprint_unchanged() {
     let evaluation = Evaluation {
         pads: vec![evaluated(key(0))],
         findings: vec![crate::library::publish::issue(
-            "footprint.solve_failed",
+            crate::diagnostics::FindingCode::FootprintSolveFailed,
             "does not solve".into(),
             Vec::new(),
         )],

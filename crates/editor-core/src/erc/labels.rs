@@ -17,6 +17,7 @@
 //!   supplies nothing). It replaces `erc.undriven_power_input` on such a
 //!   net, so each cause is reported once. A net with a ground port is the
 //!   reference node, which nothing supplies, and is not reported.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::functions::{Direction, Resolution};
 use crate::ids::{Id, SheetId};
@@ -53,7 +54,7 @@ pub(super) fn checks(
     for label in &project.labels {
         if !wired.contains(&WireEnd::label(label.id)) {
             out.push(Finding::new(
-                "erc.label_unconnected",
+                FindingCode::ErcLabelUnconnected,
                 format!(
                     "{} {} on {} has no wire.",
                     capitalised(label.kind.noun()),
@@ -78,7 +79,7 @@ pub(super) fn checks(
             && global.get(&label.name.to_ascii_lowercase()) == Some(&(1, false))
         {
             out.push(Finding::new(
-                "erc.global_label_single",
+                FindingCode::ErcGlobalLabelSingle,
                 format!(
                     "Global label {} on {} is used only once.",
                     label.name,
@@ -94,7 +95,7 @@ pub(super) fn checks(
             .filter_map(WireEnd::free_point)
         {
             out.push(Finding::new(
-                "erc.wire_end_free",
+                FindingCode::ErcWireEndFree,
                 format!(
                     "Wire end at ({}, {}) mm on {} is not connected.",
                     at[0],
@@ -130,7 +131,7 @@ fn hierarchy(project: &Project, out: &mut Vec<Finding>) {
         for pin in &symbol.pins {
             if !ports.contains(&(symbol.child, pin.name.to_ascii_lowercase())) {
                 out.push(Finding::new(
-                    "erc.hierarchy_mismatch",
+                    FindingCode::ErcHierarchyMismatch,
                     format!(
                         "Sheet pin {} has no hierarchical label on {child}.",
                         pin.name
@@ -151,7 +152,7 @@ fn hierarchy(project: &Project, out: &mut Vec<Finding>) {
         });
         if pin.is_none() {
             out.push(Finding::new(
-                "erc.hierarchy_mismatch",
+                FindingCode::ErcHierarchyMismatch,
                 format!(
                     "Hierarchical label {} on {} has no sheet pin.",
                     label.name,
@@ -192,7 +193,7 @@ fn conflicts(project: &Project, out: &mut Vec<Finding>) {
                 _ => None,
             }));
             out.push(Finding::new(
-                "erc.label_conflict",
+                FindingCode::ErcLabelConflict,
                 format!(
                     "{}: labels name it {}.",
                     project.net_name(net),
@@ -255,7 +256,7 @@ fn power(project: &Project, resolutions: &BTreeMap<Id, Resolution>, out: &mut Ve
         }
         if inputs > 0 && !source {
             out.push(Finding::new(
-                "erc.power_port_undriven",
+                FindingCode::ErcPowerPortUndriven,
                 format!("{}: power inputs have no source on the net.", net.name),
                 vec![ObjectRef::Net { id: net.id }],
             ));

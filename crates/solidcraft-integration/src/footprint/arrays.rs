@@ -3,6 +3,7 @@
 //! use an exact table, so copies carry no cos(90°) residue. Identity is the
 //! generation key `(array, i, j)`, never position or number.
 
+use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::Vec2;
 use sparksmith_core::library::footprint_source::{
     ArrayLayout, NumberingScheme, PadArray, Pin1Position,
@@ -11,7 +12,7 @@ use sparksmith_core::library::footprint_source::{
 use super::params::Values;
 use super::{Outcome, problem};
 
-const ARRAY: &str = "footprint.array";
+const ARRAY: FindingCode = FindingCode::FootprintArray;
 
 /// One generated instance: its key indices, centre, extra rotation
 /// (degrees) and display number.
@@ -85,7 +86,7 @@ pub(crate) fn expand(
     let check = |n: usize| {
         if n > max {
             Err(problem(
-                "footprint.too_large",
+                FindingCode::FootprintTooLarge,
                 format!("array {} makes {n} pads (at most {max})", array.id.0),
             ))
         } else {

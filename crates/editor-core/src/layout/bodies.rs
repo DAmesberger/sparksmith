@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// The finding a placed body gives when a lead contact misses its land.
-pub const BODY_OFF_PADS: &str = "board.body_off_pads";
+pub const BODY_OFF_PADS: &str = crate::diagnostics::FindingCode::BoardBodyOffPads.as_str();
 
 /// One lead contact of a placed body.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -301,7 +301,7 @@ pub fn checks(project: &Project) -> Vec<Finding> {
         .filter(|b| b.off_pads > 0)
         .map(|b| {
             Finding::new(
-                BODY_OFF_PADS,
+                crate::diagnostics::FindingCode::BoardBodyOffPads,
                 format!(
                     "{}: {} body lead(s) off their pads, by up to {:.3} mm past {} % of the land width (estimate).",
                     b.designator,

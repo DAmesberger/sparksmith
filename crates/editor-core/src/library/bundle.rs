@@ -1296,7 +1296,7 @@ pub fn asset_findings(library: &Library) -> Vec<Finding> {
                 continue;
             }
             out.push(Finding::new(
-                "asset.missing",
+                crate::diagnostics::FindingCode::AssetMissing,
                 format!(
                     "Reference ‘{}’ of Part ‘{}’ {} names an attached copy the project does not pack.",
                     reference.title, part.meta.name, part.revision

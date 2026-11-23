@@ -1,4 +1,5 @@
 //! The footprint publish rules and the advisory footprint lint.
+use crate::diagnostics::FindingCode;
 use super::geometry::{CHECK_CHORD_MM, TerminalRule, ring_gap, ring_within};
 use super::{FootprintDefinition, HoleShape, Pad, PadKind, PadShape, PadSide, PasteRule};
 use crate::diagnostics::{Finding, ObjectRef};
@@ -97,7 +98,7 @@ fn shape_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) -> bool {
     };
     if !size_ok {
         out.push(issue(
-            "footprint.pad_size",
+            FindingCode::FootprintPadSize,
             format!("Pad {} needs a positive finite size.", pad_label(pad)),
             pad_object(id, pad),
         ));
@@ -137,7 +138,7 @@ fn shape_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) -> bool {
     };
     if let Some(need) = problem {
         out.push(issue(
-            "footprint.pad_shape",
+            FindingCode::FootprintPadShape,
             format!("Pad {} needs {need}.", pad_label(pad)),
             pad_object(id, pad),
         ));
@@ -150,7 +151,7 @@ fn shape_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) -> bool {
 fn kind_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
     match (pad.kind.terminal_rule(), pad.terminal) {
         (TerminalRule::Required, None) => out.push(issue(
-            "footprint.terminal_required",
+            FindingCode::FootprintTerminalRequired,
             format!(
                 "Pad {} lands no package terminal; choose one, or make it mechanical.",
                 pad_label(pad)
@@ -158,7 +159,7 @@ fn kind_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
             pad_object(id, pad),
         )),
         (TerminalRule::Forbidden, Some(_)) => out.push(issue(
-            "footprint.terminal_forbidden",
+            FindingCode::FootprintTerminalForbidden,
             format!(
                 "Pad {} is a {} pad and cannot land a package terminal.",
                 pad_label(pad),
@@ -170,7 +171,7 @@ fn kind_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
     }
     if pad.kind.through_hole() && pad.side != PadSide::Top {
         out.push(issue(
-            "footprint.pad_side",
+            FindingCode::FootprintPadSide,
             format!(
                 "Pad {} spans every copper layer and records the top side.",
                 pad_label(pad)
@@ -188,7 +189,7 @@ fn kind_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
     };
     if let Some(need) = hole {
         out.push(issue(
-            "footprint.hole_kind",
+            FindingCode::FootprintHoleKind,
             format!(
                 "Pad {} is a {} pad and needs {need}.",
                 pad_label(pad),
@@ -216,7 +217,7 @@ fn containment_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
         };
         if !size_ok {
             out.push(issue(
-                "footprint.hole_shape",
+                FindingCode::FootprintHoleShape,
                 format!(
                     "Pad {} needs a positive drill (a slot at least as long as it is wide).",
                     pad_label(pad)
@@ -225,7 +226,7 @@ fn containment_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
             ));
         } else if !ring_within(&hole.ring(CHECK_CHORD_MM), &land, tol) {
             out.push(issue(
-                "footprint.hole_outside_land",
+                FindingCode::FootprintHoleOutsideLand,
                 format!("The hole of pad {} is not inside its land.", pad_label(pad)),
                 pad_object(id, pad),
             ));
@@ -235,7 +236,7 @@ fn containment_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
     for via in &pad.vias {
         if !apertures.insert(via.id) {
             out.push(issue(
-                "footprint.aperture_duplicate",
+                FindingCode::FootprintApertureDuplicate,
                 format!("Pad {} uses one aperture more than once.", pad_label(pad)),
                 pad_object(id, pad),
             ));
@@ -249,7 +250,7 @@ fn containment_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
         };
         if !size_valid(&[via.drill()]) || !ring_within(&drill.ring(CHECK_CHORD_MM), &land, tol) {
             out.push(issue(
-                "footprint.hole_outside_land",
+                FindingCode::FootprintHoleOutsideLand,
                 format!(
                     "A via of pad {} needs a positive drill inside the land.",
                     pad_label(pad)
@@ -262,7 +263,7 @@ fn containment_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
         for window in windows {
             if !apertures.insert(window.id) {
                 out.push(issue(
-                    "footprint.aperture_duplicate",
+                    FindingCode::FootprintApertureDuplicate,
                     format!("Pad {} uses one aperture more than once.", pad_label(pad)),
                     pad_object(id, pad),
                 ));
@@ -270,7 +271,7 @@ fn containment_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
             let ring = window.shape.to_mm().flatten(CHECK_CHORD_MM);
             if !window.shape.is_closed() || ring.len() < 3 || signed_area2(&ring).abs() <= 1e-9 {
                 out.push(issue(
-                    "footprint.paste_window_shape",
+                    FindingCode::FootprintPasteWindowShape,
                     format!(
                         "A paste window of pad {} needs a closed shape with area.",
                         pad_label(pad)
@@ -279,7 +280,7 @@ fn containment_findings(id: DefinitionId, pad: &Pad, out: &mut Vec<Finding>) {
                 ));
             } else if !ring_within(&ring, &land, tol) {
                 out.push(issue(
-                    "footprint.paste_window_outside_pad",
+                    FindingCode::FootprintPasteWindowOutsidePad,
                     format!(
                         "A paste window of pad {} is not inside the pad.",
                         pad_label(pad)
@@ -300,14 +301,14 @@ fn graphic_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut
             Item::Shape { fill, shape, .. } => {
                 if *fill == Fill::Body {
                     out.push(issue(
-                        "graphic.fill_body",
+                        FindingCode::GraphicFillBody,
                         "A footprint graphic uses the symbol body fill; use none or solid.".into(),
                         this.clone(),
                     ));
                 }
                 if graphic.layer == DrawingLayer::Courtyard && !shape.is_closed() {
                     out.push(issue(
-                        "footprint.courtyard_open",
+                        FindingCode::FootprintCourtyardOpen,
                         "A courtyard graphic is not a closed shape.".into(),
                         this,
                     ));
@@ -319,14 +320,14 @@ fn graphic_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut
                     TextContent::ComponentName | TextContent::UnitLabel
                 ) {
                     out.push(issue(
-                        "text.content_kind",
+                        FindingCode::TextContentKind,
                         "A footprint text shows a symbol-only value; use the designator, a field or literal text.".into(),
                         this.clone(),
                     ));
                 }
                 if graphic.layer == DrawingLayer::Courtyard {
                     out.push(issue(
-                        "footprint.courtyard_open",
+                        FindingCode::FootprintCourtyardOpen,
                         "A courtyard graphic is text, not a closed shape.".into(),
                         this,
                     ));
@@ -339,7 +340,7 @@ fn graphic_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut
     };
     if footprint.pad(polarity.pad).is_none() {
         out.push(issue(
-            "footprint.polarity_pad_unknown",
+            FindingCode::FootprintPolarityPadUnknown,
             "The pin-1 polarity pad is not in this footprint.".into(),
             vec![ObjectRef::Definition { id }],
         ));
@@ -351,7 +352,7 @@ fn graphic_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut
         });
         if !ok || !seen.insert(*marker) {
             out.push(issue(
-                "footprint.polarity_marker_unknown",
+                FindingCode::FootprintPolarityMarkerUnknown,
                 "A polarity marker is not a silkscreen or assembly graphic of this footprint, or is listed twice.".into(),
                 vec![object(id, marker.0)],
             ));
@@ -359,7 +360,7 @@ fn graphic_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut
     }
     if polarity.markers.len() > MAX_POLARITY_MARKERS {
         out.push(issue(
-            "footprint.polarity_marker_unknown",
+            FindingCode::FootprintPolarityMarkerUnknown,
             format!("A footprint lists at most {MAX_POLARITY_MARKERS} polarity markers."),
             vec![ObjectRef::Definition { id }],
         ));
@@ -378,7 +379,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
     for param in &source.parameters {
         if !param.name.valid() {
             out.push(issue(
-                "footprint.param_name",
+                FindingCode::FootprintParamName,
                 format!(
                     "Parameter ‘{}’ needs an identifier name ([A-Za-z_][A-Za-z0-9_]*).",
                     param.name.0
@@ -387,7 +388,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
             ));
         } else if param.name.is_package() {
             out.push(issue(
-                "footprint.param_reserved",
+                FindingCode::FootprintParamReserved,
                 format!(
                     "Parameter ‘{}’ uses the reserved pkg_ prefix of package values.",
                     param.name.0
@@ -397,7 +398,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
         }
         if !names.insert(param.name.0.as_str()) {
             out.push(issue(
-                "footprint.param_duplicate",
+                FindingCode::FootprintParamDuplicate,
                 format!("Parameter ‘{}’ is defined twice.", param.name.0),
                 this.clone(),
             ));
@@ -406,7 +407,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
     for expr in source.expressions() {
         if !expr.valid() {
             out.push(issue(
-                "footprint.param_expr",
+                FindingCode::FootprintParamExpr,
                 "An expression must be non-empty printable text of at most 256 bytes.".into(),
                 this.clone(),
             ));
@@ -414,12 +415,12 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
     }
     match source.solve.status {
         crate::library::footprint_source::SolveStatus::Failed => out.push(issue(
-            "footprint.solve_failed",
+            FindingCode::FootprintSolveFailed,
             "The footprint source did not solve; its stored result is not a solution.".into(),
             this.clone(),
         )),
         crate::library::footprint_source::SolveStatus::OverConstrained => out.push(issue(
-            "footprint.over_constrained",
+            FindingCode::FootprintOverConstrained,
             "The footprint source is over-constrained.".into(),
             this.clone(),
         )),
@@ -430,7 +431,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
     for role in &source.pads {
         if !pads.contains(&role.pad) || !owned.insert(role.pad) {
             out.push(issue(
-                "footprint.source_pad_unknown",
+                FindingCode::FootprintSourcePadUnknown,
                 "A pad role names no stored pad, or a pad another role or key owns.".into(),
                 vec![object(id, role.pad.0)],
             ));
@@ -440,7 +441,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
     for keyed in &source.keys {
         if !pads.contains(&keyed.pad) || !owned.insert(keyed.pad) || !keys.insert(keyed.key) {
             out.push(issue(
-                "footprint.source_pad_unknown",
+                FindingCode::FootprintSourcePadUnknown,
                 "An array pad names no stored pad, or a pad another role or key owns.".into(),
                 vec![object(id, keyed.pad.0)],
             ));
@@ -450,7 +451,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
     for array in &source.arrays {
         if !source.pads.iter().any(|r| r.pad == array.seed) {
             out.push(issue(
-                "footprint.source_pad_unknown",
+                FindingCode::FootprintSourcePadUnknown,
                 "An array copies a seed pad that has no pad role.".into(),
                 vec![object(id, array.id.0)],
             ));
@@ -460,7 +461,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
         let crate::library::footprint_source::GenerationKey::Array { array, .. } = keyed.key;
         if !arrays.contains(&array) {
             out.push(issue(
-                "footprint.source_pad_unknown",
+                FindingCode::FootprintSourcePadUnknown,
                 "An array pad names an array that does not exist.".into(),
                 vec![object(id, keyed.pad.0)],
             ));
@@ -470,7 +471,7 @@ fn source_findings(footprint: &FootprintDefinition, id: DefinitionId, out: &mut 
     for o in &source.overrides {
         if !keys.contains(&o.key) || !overridden.insert(o.key) {
             out.push(issue(
-                "footprint.override_orphaned",
+                FindingCode::FootprintOverrideOrphaned,
                 "An array pad override has no generated pad, or is listed twice.".into(),
                 this.clone(),
             ));
@@ -485,7 +486,7 @@ impl FootprintDefinition {
         for pad in &self.pads {
             if pad.number.len() > crate::ids::MAX_LABEL {
                 out.push(issue(
-                    "footprint.pad_number",
+                    FindingCode::FootprintPadNumber,
                     "A pad has a number longer than 256 bytes.".into(),
                     pad_object(id, pad),
                 ));
@@ -523,7 +524,7 @@ impl FootprintDefinition {
             .any(|g| g.layer == DrawingLayer::Courtyard)
         {
             out.push(Finding::new(
-                "footprint.courtyard_missing",
+                FindingCode::FootprintCourtyardMissing,
                 "The footprint has no courtyard; generate or draw one (it is never inferred)."
                     .into(),
                 vec![this],
@@ -531,7 +532,7 @@ impl FootprintDefinition {
         }
         if self.pads.len() > POLARITY_LINT_PADS && self.polarity.is_none() {
             out.push(Finding::new(
-                "footprint.polarity_missing",
+                FindingCode::FootprintPolarityMissing,
                 format!(
                     "The footprint has {} pads and no pin-1 polarity pad.",
                     self.pads.len()
@@ -567,7 +568,7 @@ impl FootprintDefinition {
                 {
                     let width = width_nm.to_mm_f64();
                     Finding::new(
-                        "footprint.silk_width",
+                        FindingCode::FootprintSilkWidth,
                         format!(
                             "A silkscreen line is {width:.3} mm wide and may not print; {}.",
                             needs(&limits.silk_width)
@@ -577,7 +578,7 @@ impl FootprintDefinition {
                 }
                 Item::Text(text) if text.visible && text.height_nm.to_mm_f64() < min_height => {
                     Finding::new(
-                        "footprint.text_height",
+                        FindingCode::FootprintTextHeight,
                         format!(
                             "A silkscreen text is {:.3} mm high and may not be legible; {}.",
                             text.height_nm.to_mm_f64(),
@@ -621,7 +622,7 @@ impl FootprintDefinition {
             if !inside {
                 reported += 1;
                 out.push(Finding::new(
-                    "footprint.pad_outside_courtyard",
+                    FindingCode::FootprintPadOutsideCourtyard,
                     format!("Pad {} extends past the courtyard.", pad_label(pad)),
                     pad_object(id, pad),
                 ));
@@ -712,7 +713,7 @@ impl FootprintDefinition {
                         )
                     };
                     out.push(Finding::new(
-                        "footprint.silk_over_pad",
+                        FindingCode::FootprintSilkOverPad,
                         message,
                         vec![object(id, pad.id.0), object(id, graphic.id.0)],
                     ));
@@ -758,7 +759,7 @@ impl FootprintDefinition {
                 if web < min_web - WEB_TOLERANCE_MM && reported < 64 {
                     reported += 1;
                     out.push(Finding::new(
-                        "footprint.mask_web",
+                        FindingCode::FootprintMaskWeb,
                         format!(
                             "The solder-mask web between pads {} and {} is {:.3} mm; {}.",
                             pad_label(a),

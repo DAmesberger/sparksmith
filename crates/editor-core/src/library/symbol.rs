@@ -1,6 +1,7 @@
 //! Symbol definitions: units, each an ordered list of drawn graphics plus
 //! pins. A symbol belongs to one component lineage, whose terminal IDs its
 //! pins use; unit and graphic IDs share the symbol's local namespace.
+use crate::diagnostics::FindingCode;
 use super::graphics::{
     self, Graphic, Item, MAX_GRAPHICS, MAX_GRAPHICS_PER_UNIT, MAX_VERTICES, PIN_TEXT_HEIGHT, Pin,
     TEXT_HEIGHT, TextMetric,
@@ -137,14 +138,14 @@ impl SymbolDefinition {
         ) || self.component == id
         {
             out.push(issue(
-                "reference.owner_mismatch",
+                FindingCode::ReferenceOwnerMismatch,
                 "The owner is not a component that is published or published with it.".into(),
                 vec![this],
             ));
         }
         if !(1..=MAX_UNITS).contains(&self.units.len()) {
             out.push(issue(
-                "symbol.unit_count",
+                FindingCode::SymbolUnitCount,
                 "A symbol needs 1–64 units.".into(),
                 vec![this],
             ));
@@ -155,14 +156,14 @@ impl SymbolDefinition {
             let unit_object = object(id, unit.id.0);
             if !printable(&unit.label) || !labels.insert(unit.label.to_lowercase()) {
                 out.push(issue(
-                    "symbol.unit_label",
+                    FindingCode::SymbolUnitLabel,
                     "A unit needs a unique printable label.".into(),
                     vec![unit_object],
                 ));
             }
             if unit.graphics.is_empty() && unit.pins.is_empty() {
                 out.push(issue(
-                    "symbol.unit_empty",
+                    FindingCode::SymbolUnitEmpty,
                     format!("Unit ‘{}’ draws nothing and has no pins.", unit.label),
                     vec![unit_object],
                 ));
@@ -170,7 +171,7 @@ impl SymbolDefinition {
             for pin in &unit.pins {
                 if pin.terminal.0 == 0 || !pinned.insert(pin.terminal) {
                     out.push(issue(
-                        "symbol.pin_duplicate",
+                        FindingCode::SymbolPinDuplicate,
                         format!(
                             "Unit ‘{}’ has a pin with no terminal, or a terminal with several pins.",
                             unit.label

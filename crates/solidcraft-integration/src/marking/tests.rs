@@ -268,7 +268,7 @@ fn a_changed_value_refills_only_its_own_decal() -> TestResult {
     // Findings are advisory: they do not change the decal's identity.
     let mut noted = ten_k.clone();
     noted.findings.push(sparksmith_core::Finding::new(
-        "marking.does_not_fit",
+        sparksmith_core::diagnostics::FindingCode::MarkingDoesNotFit,
         "x".into(),
         vec![],
     ));

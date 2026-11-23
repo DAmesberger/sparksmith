@@ -3,6 +3,7 @@
 //! solved data; an optional [`FootprintSource`] records how it was derived
 //! and is interpreted by a [`FootprintEvaluator`](super::footprint_source::FootprintEvaluator)
 //! outside the core. Opening a project never needs the solver.
+use crate::diagnostics::FindingCode;
 use super::footprint_source::FootprintSource;
 use super::graphics::{FootprintGraphic, Polarity, ShapeNm};
 use super::package::PackageDefinition;
@@ -874,7 +875,7 @@ impl FootprintDefinition {
         );
         if !(least..=MAX_PADS).contains(&self.pads.len()) {
             out.push(issue(
-                "footprint.pad_count",
+                FindingCode::FootprintPadCount,
                 format!("A footprint needs {least}–{MAX_PADS} pads."),
                 vec![this],
             ));
@@ -883,7 +884,7 @@ impl FootprintDefinition {
         for (k, keepout) in self.keepouts.iter().enumerate() {
             if !keepout.outline.closed() || keepout.outline.segments.len() < 2 {
                 out.push(issue(
-                    "footprint.keepout_open",
+                    FindingCode::FootprintKeepoutOpen,
                     format!(
                         "Keep-out {} needs a closed outline of at least two segments.",
                         if keepout.name.is_empty() {
@@ -898,7 +899,7 @@ impl FootprintDefinition {
         }
         let Some(package) = library.package(self.package) else {
             out.push(issue(
-                "reference.missing",
+                FindingCode::ReferenceMissing,
                 format!(
                     "{} is missing from the project library.",
                     super::names::capitalised(&library.describe(self.package.erased()))
@@ -923,7 +924,7 @@ impl FootprintDefinition {
                 landed.insert(terminal);
             } else {
                 out.push(issue(
-                    "footprint.pad_terminal_unknown",
+                    FindingCode::FootprintPadTerminalUnknown,
                     format!(
                         "Pad {} lands a package terminal the package does not have.",
                         checks::pad_label(pad)
@@ -938,7 +939,7 @@ impl FootprintDefinition {
                 .terminal(*terminal)
                 .map_or_else(|| terminal.to_string(), |t| t.designation.clone());
             out.push(issue(
-                "footprint.terminal_without_pad",
+                FindingCode::FootprintTerminalWithoutPad,
                 format!("Package terminal ‘{designation}’ has no pad."),
                 vec![this, object(self.package.id, terminal.0)],
             ));

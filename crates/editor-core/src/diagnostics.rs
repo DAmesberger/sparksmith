@@ -1,5 +1,8 @@
 //! Typed command failures and design-check findings. Codes are stable strings
 //! for automation; messages are for people and may change wording.
+mod finding_code;
+pub use finding_code::{FindingCode, KNOWN_CODES};
+
 use crate::ids::{DefinitionId, Endpoint, Id, PadId, UnitId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -286,7 +289,8 @@ pub enum Stage {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct Finding {
     /// Stable machine-readable rule code, e.g. `board.clearance`.
-    pub code: String,
+    #[schemars(with = "String")]
+    pub code: FindingCode,
     pub message: String,
     pub objects: Vec<ObjectRef>,
     /// The stage this finding prevents, if any. Advisory findings have none.
@@ -296,16 +300,16 @@ pub struct Finding {
 
 impl Finding {
     /// An advisory finding that blocks no stage.
-    pub fn new(code: &str, message: String, objects: Vec<ObjectRef>) -> Self {
+    pub fn new(code: FindingCode, message: String, objects: Vec<ObjectRef>) -> Self {
         Self {
-            code: code.into(),
+            code,
             message,
             objects,
             blocks: None,
         }
     }
     /// A finding that prevents `stage` while it exists.
-    pub fn blocking(code: &str, message: String, objects: Vec<ObjectRef>, stage: Stage) -> Self {
+    pub fn blocking(code: FindingCode, message: String, objects: Vec<ObjectRef>, stage: Stage) -> Self {
         Self {
             blocks: Some(stage),
             ..Self::new(code, message, objects)

@@ -46,7 +46,7 @@ pub const OLDER_REVISION: &str = "library.older_revision";
 /// The message prefix of the `conflict` an import returns when the project
 /// recorded another content hash for the same source revision: the folder's
 /// rN changed after it was copied.
-pub const SOURCE_MODIFIED: &str = "library.source_modified";
+pub const SOURCE_MODIFIED: &str = crate::diagnostics::FindingCode::LibrarySourceModified.as_str();
 
 /// Whether `error` is the `library.other_revision` refusal.
 pub fn is_other_revision(error: &Error) -> bool {

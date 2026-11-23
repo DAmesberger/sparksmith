@@ -223,7 +223,7 @@ fn a_part_is_replaced_by_another_lineage_with_an_explicit_mapping() -> Fallible 
     let codes: Vec<String> =
         sparksmith_core::layout::checks(session.engine().project(), &Default::default())
             .into_iter()
-            .map(|f| f.code)
+            .map(|f| f.code.to_string())
             .collect();
     assert!(
         codes
@@ -452,7 +452,7 @@ fn board_codes(session: &Session) -> Vec<String> {
     let mut codes: Vec<String> =
         sparksmith_core::layout::checks(session.engine().project(), &Default::default())
             .into_iter()
-            .map(|f| f.code)
+            .map(|f| f.code.to_string())
             .collect();
     codes.sort();
     codes

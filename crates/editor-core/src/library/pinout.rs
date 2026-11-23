@@ -451,7 +451,7 @@ impl PinoutPlan {
         for finding in std::mem::take(&mut self.findings) {
             match groups
                 .iter_mut()
-                .find(|g| g.code == finding.code && g.blocks == finding.blocks)
+                .find(|g| g.code == finding.code.as_str() && g.blocks == finding.blocks)
             {
                 Some(group) => {
                     group.count = group.count.saturating_add(1);
@@ -460,7 +460,7 @@ impl PinoutPlan {
                     }
                 }
                 None => groups.push(FindingGroup {
-                    code: finding.code,
+                    code: finding.code.to_string(),
                     blocks: finding.blocks,
                     count: 1,
                     examples: vec![finding.message],
@@ -667,7 +667,7 @@ pub fn review_findings(component: DefinitionId, review: &ImportReview) -> Vec<Fi
         .iter()
         .map(|t| {
             Finding::blocking(
-                "pinout.uncertain",
+                crate::diagnostics::FindingCode::PinoutUncertain,
                 format!(
                     "Imported terminal {t} is flagged uncertain; check it against the datasheet and clear the flag before publishing."
                 ),
@@ -679,7 +679,7 @@ pub fn review_findings(component: DefinitionId, review: &ImportReview) -> Vec<Fi
     if !review.unreviewed.is_empty() {
         let count = review.unreviewed.len();
         out.push(Finding::new(
-            "pinout.unreviewed",
+            crate::diagnostics::FindingCode::PinoutUnreviewed,
             format!(
                 "{count} imported terminal{} not been reviewed yet.",
                 if count == 1 { " has" } else { "s have" }

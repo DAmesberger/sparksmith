@@ -2,6 +2,7 @@
 //! Solidcraft's expression language (`doc::expr`). Values are millimetres,
 //! radians or plain numbers, as Solidcraft keeps them.
 
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::BTreeMap;
 
 use solidcraft_engine::doc::DocError;
@@ -13,8 +14,8 @@ use sparksmith_core::library::footprint_source::{
 use super::check::MAX_COORD_MM;
 use super::{Outcome, problem};
 
-const NAME: &str = "footprint.param_name";
-const EXPR: &str = "footprint.param_expr";
+const NAME: FindingCode = FindingCode::FootprintParamName;
+const EXPR: FindingCode = FindingCode::FootprintParamExpr;
 
 /// Largest count an expression may give (a footprint has at most 1024 pads).
 pub(crate) const MAX_COUNT: u16 = 1024;
@@ -173,7 +174,7 @@ pub(crate) fn expression_error(
 /// The expression definitions of the parameters and the package values.
 fn defs(params: &[FootprintParam], package: &[PackageValue]) -> Outcome<Vec<ParamDef>> {
     if params.len() > MAX_PARAMETERS || package.len() > MAX_PARAMETERS {
-        return Err(problem("footprint.too_large", "too many parameters"));
+        return Err(problem(FindingCode::FootprintTooLarge, "too many parameters"));
     }
     let mut defs = Vec::with_capacity(params.len() + package.len());
     for p in params {

@@ -678,7 +678,7 @@ fn a_lone_input_is_a_completeness_finding_not_an_erc_finding() -> Result<()> {
     connect(&mut engine, ep(a, 2), ep(b, 2))?;
     let codes: Vec<_> = erc::checks(engine.project())
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     assert_eq!(codes, ["erc.driver_conflict"]);
     Ok(())

@@ -6,6 +6,7 @@
 //! check, apply and resolve them. Parsing, checking, defaults versus
 //! overrides and formatting are written here once. Inputs are plain data:
 //! this module never sees `library` or `model` types.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::ids::{ChoiceId, DefinitionId, FieldRef, MAX_LABEL, QuantityKindRef, printable};
 use crate::quantity::{self, Decimal, MAX_MAGNITUDE, MAX_SYMBOL, UnitSet};
@@ -701,7 +702,7 @@ pub fn display(value: &FieldValue, value_type: &ValueType, kind: Option<&Quantit
     }
 }
 
-fn issue(code: &str, message: String, objects: Vec<ObjectRef>) -> Finding {
+fn issue(code: FindingCode, message: String, objects: Vec<ObjectRef>) -> Finding {
     Finding::blocking(code, message, objects, Stage::Publish)
 }
 
@@ -711,7 +712,7 @@ pub fn kind_findings(id: DefinitionId, kind: &QuantityKind) -> Vec<Finding> {
     let mut out = Vec::new();
     if let Err(error) = kind.units.check() {
         out.push(issue(
-            "quantity_kind.units",
+            FindingCode::QuantityKindUnits,
             error.to_string(),
             this.clone(),
         ));
@@ -723,7 +724,7 @@ pub fn kind_findings(id: DefinitionId, kind: &QuantityKind) -> Vec<Finding> {
         .all(|u| u.symbol != kind.default_unit)
     {
         out.push(issue(
-            "quantity_kind.default_unit",
+            FindingCode::QuantityKindDefaultUnit,
             format!(
                 "Default unit ‘{}’ must be the symbol of one of the kind's units.",
                 kind.default_unit
@@ -745,7 +746,7 @@ pub fn definition_findings(
     let mut out = Vec::new();
     if field.required_at == Some(Stage::Publish) {
         out.push(issue(
-            "field.required_stage",
+            FindingCode::FieldRequiredStage,
             "A field can be required for board placement or electrical resolution, not publication."
                 .into(),
             this.clone(),
@@ -756,20 +757,20 @@ pub fn definition_findings(
             let bounded = |v: &Option<f64>| v.is_none_or(finite);
             if !bounded(min) || !bounded(max) || matches!((min, max), (Some(a), Some(b)) if a > b) {
                 out.push(issue(
-                    "field.value_type",
+                    FindingCode::FieldValueType,
                     "Quantity bounds must be finite with minimum ≤ maximum.".into(),
                     this.clone(),
                 ));
             }
         }
         ValueType::Integer { min, max } if min > max => out.push(issue(
-            "field.value_type",
+            FindingCode::FieldValueType,
             "Integer minimum must not exceed the maximum.".into(),
             this.clone(),
         )),
         ValueType::Text { max_bytes } if !(1..=MAX_TEXT_BYTES).contains(max_bytes) => {
             out.push(issue(
-                "field.value_type",
+                FindingCode::FieldValueType,
                 "Text fields allow 1–256 bytes.".into(),
                 this.clone(),
             ))
@@ -777,7 +778,7 @@ pub fn definition_findings(
         ValueType::Enum { choices } => {
             if !(1..=MAX_CHOICES).contains(&choices.len()) {
                 out.push(issue(
-                    "field.value_type",
+                    FindingCode::FieldValueType,
                     "An enumeration needs 1–128 choices.".into(),
                     this.clone(),
                 ));
@@ -786,7 +787,7 @@ pub fn definition_findings(
             for choice in choices {
                 if !printable(&choice.label) || !labels.insert(choice.label.trim().to_lowercase()) {
                     out.push(issue(
-                        "field.choice_label",
+                        FindingCode::FieldChoiceLabel,
                         "A choice needs a unique printable label.".into(),
                         vec![ObjectRef::LibraryObject {
                             definition: id,
@@ -804,7 +805,7 @@ pub fn definition_findings(
         && let Err(error) = check_value(default, &field.value_type, kind)
     {
         out.push(issue(
-            "field.default_invalid",
+            FindingCode::FieldDefaultInvalid,
             format!("The field default is invalid: {error}."),
             this,
         ));

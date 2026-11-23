@@ -7,6 +7,7 @@
 //! [`Function`](super::Function), so ERC never reads a [`PinConfig`].
 //! Every value is explicit data; nothing is parsed out of names such as
 //! `PA5` or `USART1_TX`.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Result};
 use crate::ids::TerminalId;
 use schemars::JsonSchema;
@@ -269,7 +270,7 @@ pub fn config_within_bounds(config: &PinConfig) -> bool {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PinDataProblem {
     /// The finding code publication would use.
-    pub code: &'static str,
+    pub code: FindingCode,
     /// The local ID (terminal, function or resource) concerned.
     pub local: u32,
     pub message: String,
@@ -301,7 +302,7 @@ pub fn declaration_problems(
                 && (!text_ok(&mux.0, MAX_MUX_CODE) || mux.0.chars().any(char::is_whitespace))
             {
                 out.push(PinDataProblem {
-                    code: "function.mux",
+                    code: FindingCode::FunctionMux,
                     local: function.id.0,
                     message: format!(
                         "Function ‘{}’ of terminal ‘{name}’ needs a mux code of 1–{MAX_MUX_CODE} bytes without spaces.",
@@ -313,7 +314,7 @@ pub fn declaration_problems(
                 && !text_ok(table, MAX_MUX_TABLE)
             {
                 out.push(PinDataProblem {
-                    code: "function.mux_table",
+                    code: FindingCode::FunctionMuxTable,
                     local: function.id.0,
                     message: format!(
                         "Function ‘{}’ of terminal ‘{name}’ needs a mux table name of 1–{MAX_MUX_TABLE} bytes.",
@@ -325,7 +326,7 @@ pub fn declaration_problems(
         if let Some(gpio) = &declared.gpio {
             if !text_ok(&gpio.port, MAX_GPIO_PORT) || gpio.port.chars().any(char::is_whitespace) {
                 out.push(PinDataProblem {
-                    code: "function.gpio",
+                    code: FindingCode::FunctionGpio,
                     local,
                     message: format!(
                         "Terminal ‘{name}’ needs a GPIO port of 1–{MAX_GPIO_PORT} bytes without spaces."
@@ -333,7 +334,7 @@ pub fn declaration_problems(
                 });
             } else if let Some(first) = gpios.insert((gpio.port.as_str(), gpio.index), local) {
                 out.push(PinDataProblem {
-                    code: "function.gpio",
+                    code: FindingCode::FunctionGpio,
                     local,
                     message: format!(
                         "Terminal ‘{name}’ repeats GPIO {}·{} of terminal {first}.",
@@ -367,13 +368,13 @@ pub fn declaration_problems(
             };
             if !kinds.insert(kind) {
                 out.push(PinDataProblem {
-                    code: "function.pin_option",
+                    code: FindingCode::FunctionPinOption,
                     local,
                     message: format!("Terminal ‘{name}’ declares its {kind} option twice."),
                 });
             } else if !ok {
                 out.push(PinDataProblem {
-                    code: "function.pin_option",
+                    code: FindingCode::FunctionPinOption,
                     local,
                     message: format!(
                         "The {kind} option of terminal ‘{name}’ needs at least one value and no repeats."
@@ -387,7 +388,7 @@ pub fn declaration_problems(
             && !text_ok(kind, super::MAX_KIND)
         {
             out.push(PinDataProblem {
-                code: "resource.kind",
+                code: FindingCode::ResourceKind,
                 local: resource.id.0,
                 message: format!(
                     "Peripheral ‘{}’ needs a kind of 1–{} printable bytes, or none.",
@@ -401,7 +402,7 @@ pub fn declaration_problems(
                 && !text_ok(signal, super::MAX_KIND)
             {
                 out.push(PinDataProblem {
-                    code: "resource.signal",
+                    code: FindingCode::ResourceSignal,
                     local: role.id.0,
                     message: format!(
                         "Role ‘{}’ of peripheral ‘{}’ needs a signal name of 1–{} printable bytes, or none.",

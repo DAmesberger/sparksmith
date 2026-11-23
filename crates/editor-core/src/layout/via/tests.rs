@@ -306,7 +306,7 @@ fn via_checks_report_ring_drill_and_hole_spacing() -> Result<()> {
     add(other, [50.82, 30.0], 0.3, 0.6)?;
     let codes: Vec<String> = crate::layout::checks(engine.project(), engine.check_settings())
         .into_iter()
-        .map(|f| f.code)
+        .map(|f| f.code.to_string())
         .collect();
     for code in [
         "board.via_annular_ring",

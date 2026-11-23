@@ -6,6 +6,7 @@
 //! here are the default profile's values. Connectivity through vias lives
 //! in the copper graph ([`super::connectivity`]): one land per layer the
 //! via reaches, joined by its barrel.
+use crate::diagnostics::FindingCode;
 use super::board_edge::{BoardEdges, EdgeVerdict};
 use super::copper::check_reach;
 use super::grid::BoundsGrid;
@@ -404,7 +405,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
             Ok(n) => pairs += n,
             Err(()) => {
                 issues.push(Finding::new(
-                    "board.check_limit",
+                    FindingCode::BoardCheckLimit,
                     "Via check limit reached; remaining vias are unchecked".into(),
                     vec![],
                 ));
@@ -583,7 +584,7 @@ impl<'a> ViaCx<'a> {
         let name = project.net_name(via.net);
         if via.annular_ring() < ring_min.mm - EPS {
             issues.push(Finding::new(
-                "board.via_annular_ring",
+                FindingCode::BoardViaAnnularRing,
                 format!(
                     "A via on {name}: annular ring {:.3} mm is under the minimum; {}",
                     via.annular_ring(),
@@ -597,7 +598,7 @@ impl<'a> ViaCx<'a> {
             && thickness / via.drill > max + 1e-9
         {
             issues.push(Finding::new(
-                "board.via_aspect_ratio",
+                FindingCode::BoardViaAspectRatio,
                 format!(
                     "A via on {name}: aspect ratio {:.1}:1 ({} mm board, {} mm drill) is over the maximum; needs at most {}:1 ({})",
                     thickness / via.drill,
@@ -612,7 +613,7 @@ impl<'a> ViaCx<'a> {
         if let EdgeVerdict::TooClose { gap, near } = self.edges.verdict(drill, edge) {
             let need = limits.clearance_need(hole, None, CopperObject::BoardEdge, None);
             issues.push(Finding::new(
-                "board.edge_clearance",
+                FindingCode::BoardEdgeClearance,
                 format!(
                     "A via on {name}: drill is {} mm from {}; {}",
                     mm_against(gap, need.mm),
@@ -635,7 +636,7 @@ impl<'a> ViaCx<'a> {
             if drill.closer_than(shape.ring, need) {
                 let need = limits.clearance_need(hole, Some(via.net), shape.kind, shape.net);
                 issues.push(Finding::new(
-                    "board.via_drill_clearance",
+                    FindingCode::BoardViaDrillClearance,
                     format!(
                         "A via on {name}: drill is {} mm from {}; {}",
                         mm_against(drill.gap(shape.ring, need.mm + 1.0), need.mm),
@@ -655,7 +656,7 @@ impl<'a> ViaCx<'a> {
             if drill.closer_than(other_drill, spacing) {
                 let need = limits.clearance_need(hole, None, hole, None);
                 issues.push(Finding::new(
-                    "board.via_hole_spacing",
+                    FindingCode::BoardViaHoleSpacing,
                     format!(
                         "Vias on {name} and {}: drills are {} mm apart; {}",
                         project.net_name(other.net),
@@ -702,7 +703,7 @@ impl<'a> ViaCx<'a> {
             && let Some(text) = edge_text(&self.edges, ring, limits, kind)
         {
             issues.push(Finding::new(
-                "board.edge_clearance",
+                FindingCode::BoardEdgeClearance,
                 format!("{name} {text}"),
                 vec![me],
             ));
@@ -729,7 +730,7 @@ impl<'a> ViaCx<'a> {
                     format!("is {} mm from {what}", mm_against(gap, need.mm))
                 };
                 issues.push(Finding::new(
-                    "board.hole_clearance",
+                    FindingCode::BoardHoleClearance,
                     format!("{name} {how}; {}", need.text()),
                     vec![me, shape.object],
                 ));
@@ -744,7 +745,7 @@ impl<'a> ViaCx<'a> {
             if ring.closer_than(drill, spacing) {
                 let need = limits.clearance_need(kind, None, hole, None);
                 issues.push(Finding::new(
-                    HOLE_SPACING,
+                    FindingCode::BoardHoleSpacing,
                     format!(
                         "{name} and a via on {}: drills are {} mm apart; {}",
                         project.net_name(via.net),
@@ -775,7 +776,7 @@ impl<'a> ViaCx<'a> {
                     format!("are {} mm apart", mm_against(gap, need.mm))
                 };
                 issues.push(Finding::new(
-                    HOLE_SPACING,
+                    FindingCode::BoardHoleSpacing,
                     format!("{name} and {}: holes {how}; {}", other.name, need.text()),
                     vec![me, other.object()],
                 ));
@@ -788,7 +789,7 @@ impl<'a> ViaCx<'a> {
 /// A hole of the board shape (a mounting hole, a plated board slot)
 /// closer to another of them or to a via drill than the hole-kind pair
 /// rule. Pad holes against them are `board.pad_hole_spacing`.
-pub const HOLE_SPACING: &str = "board.hole_spacing";
+pub const HOLE_SPACING: &str = crate::diagnostics::FindingCode::BoardHoleSpacing.as_str();
 
 /// What a drilled or routed hole's outline does against the board shape,
 /// as the end of a sentence naming it ("is 0.1 mm from the board edge;

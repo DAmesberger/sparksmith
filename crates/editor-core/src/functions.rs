@@ -9,6 +9,7 @@
 //! The resolution's buckets are consumed separately: conflicts are rejected
 //! by `instances::check_instance`, unresolved and incomplete terminals are
 //! completeness findings, and ERC applies drive rules to active functions.
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::ids::{
     DefinitionId, FunctionId, FunctionKey, MAX_LABEL, ResourceId, RoleId, TerminalId, printable,
@@ -560,7 +561,7 @@ pub fn declarations_within_bounds(
         && resources.iter().all(Resource::within_bounds)
 }
 
-fn publish_issue(code: &str, message: String, objects: Vec<ObjectRef>) -> Finding {
+fn publish_issue(code: FindingCode, message: String, objects: Vec<ObjectRef>) -> Finding {
     Finding::blocking(code, message, objects, Stage::Publish)
 }
 
@@ -624,7 +625,7 @@ pub fn declaration_findings(
         let name = terminal_name(terminals, terminal);
         if !(1..=MAX_FUNCTIONS).contains(&declared.functions.len()) {
             out.push(publish_issue(
-                "function.count",
+                FindingCode::FunctionCount,
                 format!("Electrical terminal {name} needs 1–32 functions."),
                 vec![local(component, terminal.0)],
             ));
@@ -634,7 +635,7 @@ pub fn declaration_findings(
             let at = vec![local(component, function.id.0)];
             if !unique_label(&mut labels, &function.label) {
                 out.push(publish_issue(
-                    "function.label",
+                    FindingCode::FunctionLabel,
                     format!("A function of terminal {name} needs a unique printable label."),
                     at.clone(),
                 ));
@@ -645,7 +646,7 @@ pub fn declaration_findings(
                     .filter(|n| !n.is_empty())
                     .map_or_else(|| terminal.to_string(), str::to_owned);
                 out.push(publish_issue(
-                    "function.combination",
+                    FindingCode::FunctionCombination,
                     format!(
                         "{pin}: function ‘{}’ is {} with {} signal and {} drive, not a valid combination. {}",
                         function.label,
@@ -664,7 +665,7 @@ pub fn declaration_findings(
                     .is_some_and(|r| r.role(rr.role).is_some());
                 if !known {
                     out.push(publish_issue(
-                        "function.resource_unknown",
+                        FindingCode::FunctionResourceUnknown,
                         format!(
                             "Function ‘{}’ of terminal {name} takes a resource role that is not declared.",
                             function.label
@@ -678,7 +679,7 @@ pub fn declaration_findings(
             && declared.function(default).is_none()
         {
             out.push(publish_issue(
-                "function.design_default",
+                FindingCode::FunctionDesignDefault,
                 format!("The design default of terminal {name} is not one of its functions."),
                 vec![local(component, terminal.0)],
             ));
@@ -689,14 +690,14 @@ pub fn declaration_findings(
         let at = vec![local(component, resource.id.0)];
         if !unique_label(&mut resource_labels, &resource.label) {
             out.push(publish_issue(
-                "resource.label",
+                FindingCode::ResourceLabel,
                 "A resource needs a unique printable label.".into(),
                 at.clone(),
             ));
         }
         if !(1..=MAX_ROLES).contains(&resource.roles.len()) {
             out.push(publish_issue(
-                "resource.role_count",
+                FindingCode::ResourceRoleCount,
                 format!("Resource ‘{}’ needs 1–{MAX_ROLES} roles.", resource.label),
                 at,
             ));
@@ -706,7 +707,7 @@ pub fn declaration_findings(
             let at = vec![local(component, role.id.0)];
             if !unique_label(&mut role_labels, &role.label) {
                 out.push(publish_issue(
-                    "resource.role_label",
+                    FindingCode::ResourceRoleLabel,
                     format!(
                         "A role of resource ‘{}’ needs a unique printable label.",
                         resource.label
@@ -716,7 +717,7 @@ pub fn declaration_findings(
             }
             if role.capacity == 0 {
                 out.push(publish_issue(
-                    "resource.role_capacity",
+                    FindingCode::ResourceRoleCapacity,
                     format!(
                         "Role ‘{}’ of resource ‘{}’ needs a capacity of at least 1.",
                         role.label, resource.label
@@ -734,7 +735,7 @@ pub fn declaration_findings(
         for key in keys {
             if !names_own_function(terminals, key) {
                 out.push(publish_issue(
-                    "function.constraint_key",
+                    FindingCode::FunctionConstraintKey,
                     format!(
                         "A constraint names a function that terminal {} does not have.",
                         terminal_name(terminals, key.terminal)
@@ -755,7 +756,7 @@ pub fn declaration_findings(
     ) {
         for conflict in &resolution.conflicts {
             out.push(publish_issue(
-                "function.default_conflict",
+                FindingCode::FunctionDefaultConflict,
                 format!(
                     "Without explicit selections the fixed functions and design defaults conflict: {}",
                     conflict.message()
@@ -789,7 +790,7 @@ pub fn binding_findings(
             .and_then(|t| t.functions);
         let Some(declared) = declared.filter(|d| d.function(key.function).is_some()) else {
             out.push(publish_issue(
-                "binding.unavailable_unknown",
+                FindingCode::BindingUnavailableUnknown,
                 format!(
                     "A binding marks a function unavailable that terminal {} does not have.",
                     terminal_name(terminals, key.terminal)
@@ -803,7 +804,7 @@ pub fn binding_findings(
             .is_some_and(|(f, _)| f.id == key.function)
         {
             out.push(publish_issue(
-                "binding.unavailable_required",
+                FindingCode::BindingUnavailableRequired,
                 format!(
                     "A binding marks the fixed function or design default {} of terminal {} unavailable.",
                     function_name(terminals, *key),

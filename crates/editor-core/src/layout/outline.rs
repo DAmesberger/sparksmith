@@ -13,6 +13,7 @@
 //! lines and arcs within the `board.outline_fit` rule. Curves that do not
 //! make one board are reported ([`SHAPE_OPEN`], [`SHAPE_INVALID`]) and the
 //! board keeps its last valid shape (docs/board-sketch-references.md §5.1).
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::Id;
@@ -39,21 +40,21 @@ pub const MAX_BOARD_PARAMETERS: usize = 256;
 /// Curves of one outline, cutout or slot loop.
 pub const MAX_LOOP_CURVES: usize = MAX_OUTLINE_SEGMENTS;
 /// Finding code: a stored board sketch that did not solve.
-pub const SHAPE_UNSOLVED: &str = "board.shape_unsolved";
+pub const SHAPE_UNSOLVED: &str = crate::diagnostics::FindingCode::BoardShapeUnsolved.as_str();
 /// Finding code: the board sketch's curves do not close; it names the open
 /// ends. Advisory in Board shape mode, an error everywhere else; the board
 /// keeps its last valid shape (slice S1, §5.1). Not a refusal, although it
 /// starts with [`FATAL_PREFIX`].
-pub const SHAPE_OPEN: &str = "board.shape_open";
+pub const SHAPE_OPEN: &str = crate::diagnostics::FindingCode::BoardShapeOpen.as_str();
 /// Finding code: the curves close but are not one board (more than one
 /// region, a self-crossing outer loop, a touching hole); the board keeps
 /// its last valid shape (slice S1, §5.1). Not a refusal, although it starts
 /// with [`FATAL_PREFIX`].
-pub const SHAPE_INVALID: &str = "board.shape_invalid";
+pub const SHAPE_INVALID: &str = crate::diagnostics::FindingCode::BoardShapeInvalid.as_str();
 /// Finding code: a board parameter drives sketch dimensions but moves no
 /// outline curve or mounting hole (an edge it held was replaced by curves
 /// tied to nothing it moves). A warning, kept with the sketch.
-pub const PARAM_IDLE: &str = "board.param_idle";
+pub const PARAM_IDLE: &str = crate::diagnostics::FindingCode::BoardParamIdle.as_str();
 /// Evaluator findings with this code prefix refuse the edit that caused
 /// them (the board would have no valid shape); others are advisory.
 /// [`SHAPE_OPEN`] and [`SHAPE_INVALID`] are exempt ([`refuses`]).
@@ -906,15 +907,15 @@ pub fn checks(project: &Project) -> Vec<Finding> {
             SolveStatus::OverConstrained | SolveStatus::Failed
         ) {
             out.push(Finding::new(
-                SHAPE_UNSOLVED,
+                FindingCode::BoardShapeUnsolved,
                 "The board sketch does not solve; the board keeps its last solved shape".into(),
                 vec![ObjectRef::Board],
             ));
         }
         if let Some(fault) = &sketch.fault {
             let code = match fault.kind {
-                ShapeFaultKind::Open => SHAPE_OPEN,
-                ShapeFaultKind::Invalid => SHAPE_INVALID,
+                ShapeFaultKind::Open => FindingCode::BoardShapeOpen,
+                ShapeFaultKind::Invalid => FindingCode::BoardShapeInvalid,
             };
             out.push(Finding::new(
                 code,
@@ -924,7 +925,7 @@ pub fn checks(project: &Project) -> Vec<Finding> {
         }
         for name in &sketch.idle {
             out.push(Finding::new(
-                PARAM_IDLE,
+                FindingCode::BoardParamIdle,
                 format!(
                     "The board parameter ‘{}’ no longer drives any outline edge: the \
                      dimensions it sets move nothing on the outline. Dimension an outline edge \

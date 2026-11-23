@@ -46,11 +46,11 @@ pub fn evaluator_ref() -> EvaluatorRef {
 /// A rule a source or edit breaks, with its finding code.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Problem {
-    pub code: &'static str,
+    pub code: sparksmith_core::diagnostics::FindingCode,
     pub message: String,
 }
 
-pub(crate) fn problem(code: &'static str, message: impl Into<String>) -> Problem {
+pub(crate) fn problem(code: sparksmith_core::diagnostics::FindingCode, message: impl Into<String>) -> Problem {
     Problem {
         code,
         message: message.into(),
@@ -62,13 +62,13 @@ pub(crate) type Outcome<T> = std::result::Result<T, Problem>;
 /// A solved value stored through the rounding crossing (design §2.2): a
 /// value it refuses (not finite, beyond ±2 m) is `footprint.too_large`.
 pub(crate) fn stored<T>(value: Result<T>) -> Outcome<T> {
-    value.map_err(|e| problem("footprint.too_large", e.to_string()))
+    value.map_err(|e| problem(sparksmith_core::diagnostics::FindingCode::FootprintTooLarge, e.to_string()))
 }
 
 impl From<Problem> for Error {
     fn from(p: Problem) -> Self {
         let message = format!("{}: {}", p.code, p.message);
-        match p.code {
+        match p.code.as_str() {
             "footprint.too_large" => Error::Limit(message),
             "footprint.evaluator_rev" | "footprint.sketch_unsupported" => {
                 Error::Unsupported(message)

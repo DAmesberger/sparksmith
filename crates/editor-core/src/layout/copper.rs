@@ -11,6 +11,7 @@
 //! before it is truly under the rule, and is never missed. A track's round
 //! caps are exact instead: its gaps are measured from its centre line less
 //! its half-width.
+use crate::diagnostics::FindingCode;
 use super::board_edge::{BoardEdges, EdgeVerdict};
 use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
@@ -770,12 +771,12 @@ impl<'a> ClearanceCx<'a> {
         match self.edges.verdict(a.ring, edge) {
             EdgeVerdict::Clear => {}
             EdgeVerdict::Outside => issues.push(Finding::new(
-                "board.outside_outline",
+                FindingCode::BoardOutsideOutline,
                 format!("{} extends beyond board outline", self.label(a)),
                 vec![a.object],
             )),
             EdgeVerdict::Inside(kind) => issues.push(Finding::new(
-                "board.outside_outline",
+                FindingCode::BoardOutsideOutline,
                 format!(
                     "{} extends into {}",
                     self.label(a),
@@ -786,7 +787,7 @@ impl<'a> ClearanceCx<'a> {
             EdgeVerdict::TooClose { gap, near } => {
                 let need = limits.clearance_need(a.kind, a.net(), CopperObject::BoardEdge, None);
                 issues.push(Finding::new(
-                    "board.edge_clearance",
+                    FindingCode::BoardEdgeClearance,
                     format!(
                         "{} is {} mm from {}; {}",
                         crate::library::names::capitalised(&self.label(a)),
@@ -846,7 +847,7 @@ impl<'a> ClearanceCx<'a> {
                 let need =
                     isolation.unwrap_or_else(|| limits.clearance_need(a.kind, an, b.kind, bn));
                 issues.push(Finding::new(
-                    "board.clearance",
+                    FindingCode::BoardClearance,
                     format!(
                         "Clearance < {} mm: {} / {} ({})",
                         mm(need.mm),
@@ -872,7 +873,7 @@ pub(super) fn unplaced(project: &Project) -> Vec<Finding> {
                 .map(|i| i.designator.as_str())
                 .unwrap_or("component");
             Finding::new(
-                "board.unplaced",
+                FindingCode::BoardUnplaced,
                 format!("{reference} is not placed on the board"),
                 vec![ObjectRef::Instance { id }],
             )
@@ -907,7 +908,7 @@ fn class_nets(a: &Copper<'_>, b: &Copper<'_>) -> (Option<Id>, Option<Id>) {
 /// the geometry after it is unchecked. It names the board, so it locates.
 pub(crate) fn limit_finding() -> Finding {
     Finding::new(
-        "board.check_limit",
+        FindingCode::BoardCheckLimit,
         "Board checks incomplete: copper past the check limit is unchecked".into(),
         vec![ObjectRef::Board],
     )
