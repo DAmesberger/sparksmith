@@ -723,3 +723,197 @@ fn the_outbox_refuses_rather_than_overwrites() {
     assert_eq!(tools.outbox, Some(first));
     assert!(tools.queue(Vec::new()), "nothing to queue is no refusal");
 }
+
+// --- Parameters from the ribbon ----------------------------------------
+
+/// Where a frame painted exactly `text`.
+fn painted(output: &egui::FullOutput, text: &str) -> Option<Pos2> {
+    fn find(shape: &egui::Shape, text: &str) -> Option<Pos2> {
+        match shape {
+            egui::Shape::Text(shape) if shape.galley.job.text == text => {
+                Some(shape.visual_bounding_rect().center())
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|s| find(s, text)),
+            _ => None,
+        }
+    }
+    output.shapes.iter().find_map(|s| find(&s.shape, text))
+}
+
+/// One frame of the workspace ribbon in a window `width` points wide: the
+/// tool it reports and what it painted.
+fn ribbon_frame(
+    editor: &mut PartEditor,
+    engine: &Engine,
+    ctx: &egui::Context,
+    width: f32,
+    events: Vec<egui::Event>,
+) -> (Option<&'static str>, egui::FullOutput) {
+    let ribbon = editor.ribbon(engine);
+    let issues = crate::shell::IssuesToggle {
+        checking: false,
+        counts: None,
+        expanded: false,
+    };
+    let mut tool = None;
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(width, 400.0))),
+            events,
+            ..Default::default()
+        },
+        |ui| {
+            if let Some(crate::shell::RibbonEvent::Tool(id)) =
+                crate::shell::ribbon(ui, crate::shell::Workspace::Part, &ribbon, &issues)
+            {
+                tool = Some(id);
+            }
+        },
+    );
+    output.textures_delta.clear();
+    (tool, output)
+}
+
+/// A pointer click at `at` on the ribbon; the tool it reports.
+fn ribbon_click(
+    editor: &mut PartEditor,
+    engine: &Engine,
+    ctx: &egui::Context,
+    width: f32,
+    at: Pos2,
+) -> Option<&'static str> {
+    [
+        vec![egui::Event::PointerMoved(at)],
+        vec![button(at, true)],
+        vec![button(at, false)],
+    ]
+    .into_iter()
+    .find_map(|events| ribbon_frame(editor, engine, ctx, width, events).0)
+}
+
+/// The Constrain group's last tool, which is the Parameters entry.
+fn parameters_entry(
+    editor: &mut PartEditor,
+    engine: &Engine,
+) -> Result<crate::shell::Tool, String> {
+    let ribbon = editor.ribbon(engine);
+    let constrain = ribbon
+        .groups
+        .into_iter()
+        .find(|g| g.label == "Constrain")
+        .ok_or("no Constrain group")?;
+    let ids: Vec<&str> = constrain.tools.iter().map(|t| t.id).collect();
+    assert_eq!(
+        ids.iter().rev().take(2).collect::<Vec<_>>(),
+        [&"fp-parameters", &"fp-dims-all"],
+        "Parameters follows All dims: {ids:?}"
+    );
+    constrain
+        .tools
+        .into_iter()
+        .next_back()
+        .ok_or_else(|| "an empty group".to_owned())
+}
+
+/// The Constrain group ends with Parameters: disabled, saying why, until
+/// the footprint has a sketch and while a dialog holds the subject slot.
+/// Clicked on the ribbon, or in the » menu of a window too narrow for the
+/// group, it ends the armed tool and drops the pad selection, so the
+/// footprint card with its Parameters section takes the slot.
+#[test]
+fn the_ribbon_offers_parameters_and_a_click_shows_them() -> TestResult {
+    use crate::kit::card::Subject;
+    // The window of the whole-app harness: the pad and constraint groups fit.
+    const WIDE: f32 = 1380.0;
+    // The smallest window the app allows.
+    const NARROW: f32 = 760.0;
+    let ctx = egui::Context::default();
+    let mut engine = Engine::demo()?;
+    let mut editor = empty_footprint(&ctx, &mut engine)?;
+    let entry = parameters_entry(&mut editor, &engine)?;
+    assert_eq!((entry.icon, entry.label), ("params", "Parameters"));
+    assert!(!entry.enabled, "nothing to show before the first sketch");
+    assert!(
+        entry.tip.contains("place a pad or draw first"),
+        "{}",
+        entry.tip
+    );
+    let (_, output) = ribbon_frame(&mut editor, &engine, &ctx, WIDE, vec![]);
+    let at = painted(&output, "Parameters").ok_or("Parameters on the wide ribbon")?;
+    assert_eq!(ribbon_click(&mut editor, &engine, &ctx, WIDE, at), None);
+
+    // A pad placed with the pad tool starts the sketch; the tool stays
+    // armed and its card holds the subject slot.
+    editor.on_tool("fp-pad-rect", &engine);
+    let origin = screen(&editor, [0.0, 0.0])?;
+    assert!(click(&mut editor, &mut engine, &ctx, origin)?);
+    assert_eq!(editor.subject_kind(), Subject::Tool);
+    let entry = parameters_entry(&mut editor, &engine)?;
+    assert!(entry.enabled);
+    assert!(
+        entry.tip.starts_with("Show the sketch's parameters"),
+        "{}",
+        entry.tip
+    );
+
+    // On the wide ribbon the button itself takes the click.
+    let (_, output) = ribbon_frame(&mut editor, &engine, &ctx, WIDE, vec![]);
+    let at = painted(&output, "Parameters").ok_or("Parameters on the wide ribbon")?;
+    let clicked = ribbon_click(&mut editor, &engine, &ctx, WIDE, at).ok_or("no tool reported")?;
+    assert_eq!(clicked, "fp-parameters");
+    let revision = engine.revision();
+    assert!(editor.on_tool(clicked, &engine).is_none());
+    assert_eq!(editor.footprint_tool_armed(), None, "the tool ended");
+    assert_eq!(editor.subject_kind(), Subject::Properties);
+    assert!(frame(&mut editor, &engine, &ctx, vec![]).is_none());
+    assert_eq!(engine.revision(), revision, "showing them edits nothing");
+    assert!(
+        editor.footprint_tool.repeat(),
+        "Shift+R arms the pad tool again"
+    );
+    assert_eq!(
+        editor.footprint_tool_armed(),
+        Some(FootprintTool::Pad(PadTemplate::Rect))
+    );
+
+    // In the smallest window the Constrain group is in the » menu, and
+    // the entry with it; a selected pad's card gives way as well.
+    editor.footprint_arm(FootprintTool::Select);
+    editor.selected_pad = editor
+        .draft
+        .as_ref()
+        .and_then(|set| set.footprint.pads.first())
+        .map(|pad| pad.id);
+    assert!(editor.inspected_pad().is_some(), "a pad's card is shown");
+    let (_, output) = ribbon_frame(&mut editor, &engine, &ctx, NARROW, vec![]);
+    assert!(
+        painted(&output, "Parameters").is_none(),
+        "the group does not fit at {NARROW}"
+    );
+    let more = painted(&output, "»").ok_or("the » button")?;
+    assert_eq!(ribbon_click(&mut editor, &engine, &ctx, NARROW, more), None);
+    let (_, output) = ribbon_frame(&mut editor, &engine, &ctx, NARROW, vec![]);
+    assert!(
+        painted(&output, "Constrain").is_some(),
+        "the menu lists the group under its caption"
+    );
+    let at = painted(&output, "Parameters").ok_or("Parameters in the » menu")?;
+    let clicked =
+        ribbon_click(&mut editor, &engine, &ctx, NARROW, at).ok_or("no tool from the menu")?;
+    assert_eq!(clicked, "fp-parameters");
+    editor.on_tool(clicked, &engine);
+    assert_eq!(editor.inspected_pad(), None, "the footprint card is shown");
+    assert_eq!(editor.subject_kind(), Subject::Properties);
+
+    // A docked dialog keeps the slot until it is answered: the entry says
+    // so, and a stray command changes nothing.
+    editor.open_assign_dialog();
+    assert_eq!(editor.subject_kind(), Subject::Dialog);
+    let entry = parameters_entry(&mut editor, &engine)?;
+    assert!(!entry.enabled);
+    assert_eq!(entry.tip, "Finish or cancel the open dialog first");
+    editor.on_tool("fp-line", &engine);
+    editor.on_tool("fp-parameters", &engine);
+    assert_eq!(editor.footprint_tool.tool, Some(FootprintTool::Line));
+    Ok(())
+}

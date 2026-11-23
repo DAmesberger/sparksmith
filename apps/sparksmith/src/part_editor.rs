@@ -911,6 +911,10 @@ impl PartEditor {
             };
             return None;
         }
+        if tool == footprint_params_ui::TOOL {
+            self.show_footprint_parameters();
+            return None;
+        }
         if let Some(action) = symbol_canvas::Arrange::from_id(tool) {
             self.arrange(action, engine.drafts().grid.symbol_mm());
             return None;
