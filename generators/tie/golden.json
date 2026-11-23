@@ -44,7 +44,7 @@
      "resistor_style": "iec"
     }
    },
-   "result": "defe6315779f50af83e27a157fe1f76d8d47394929e3ccd5344c41e3bf08daa4"
+   "result": "3e6e2a12d7c4726db21e7870654b0b6e8c68aac23d7078f698869ab8626b1d4a"
   },
   {
    "name": "Two-land solder bridge",
@@ -90,7 +90,7 @@
      "resistor_style": "iec"
     }
    },
-   "result": "d723def16916281d8f1999a740bfc72ad636b8d74c717f457ed041093e3e8fb5"
+   "result": "2e6096f49a30e757055e64ae28754b03f62bdae27b658c1e1db358b56d92fcbd"
   },
   {
    "name": "0603 zero-ohm chip",
@@ -116,5 +116,5 @@
    "result": "a7759fc4c86ae63afb1655db20c773c5ac088c86d0d10ed896c94a6ee802e90f"
   }
  ],
- "outputs": "d696e1ad51197f25f879db5adddbe7705e0d693eac03fbdc031460185705d99f"
+ "outputs": "949b57fc6368a874954e60c28c1bc9dab7571cb7a06f95760be5a16c637595d9"
 }

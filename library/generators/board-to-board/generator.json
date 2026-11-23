@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "board-to-board.wasm",
-    "sha256": "62b827a8a6aee0f5a52fb49a977e604a2752a93d2ba0784e5717f533c05eb6cf"
+    "sha256": "86ea06f6e184d162d1cc63cee7d500b4413f2d7b19c2dfce334e87ff26b0d9f1"
   },
   "name": "board-to-board",
   "parts": [

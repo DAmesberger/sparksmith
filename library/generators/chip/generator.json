@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "chip.wasm",
-    "sha256": "7aae6a507bf10f246013bece65d4a4db049f1e69187b7cc280e489fc34185236"
+    "sha256": "5416dddf651c2d73cc196a8ca57c1f5c041f3a448a13390f4bd4157eb0689398"
   },
   "name": "chip",
   "parts": [

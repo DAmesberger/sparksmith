@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "module": {
+    "file": "tie.wasm",
+    "sha256": "6e636ea6bca2197b0995aa8f518d3a63758fee43f029013b04cc4bf032d4cb71"
+  },
+  "name": "tie",
+  "parts": [
+    {
+      "file": "parts/chip-resistor.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at an 0603 (1608 metric); the chip generator gives every parameter its value. Construction after Yageo's RC series and Murata's GRM series general specifications and product photographs (end caps proud of the body, resistor overcoat with a white rim); plating, rounds and the die are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "4ad0f535be5914966bdd76c7b5b358ba55f6a3b33220e0b248dee7213d76120c",
+      "title": "Chip resistor body"
+    },
+    {
+      "file": "parts/solder-bridge.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original parametric geometry authored using Solidcraft commands in author_parts.rs.",
+      "sha256": "021852d9f917ad32364b2e7dca60c52b92d6b989c68a2cdf38060672bde3c808",
+      "title": "Solder jumper bridge"
+    }
+  ]
+}
