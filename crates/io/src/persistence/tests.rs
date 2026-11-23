@@ -131,6 +131,32 @@ fn invalid_files_are_refused_without_side_effects() -> Result<()> {
     Ok(())
 }
 
+/// Both writers opened the original before the first rename. The second
+/// writer must retry with the named file before it compares content hashes.
+#[cfg(any(windows, unix))]
+#[test]
+fn a_writer_holding_the_original_handle_detects_the_other_writers_rename() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("shared.sparksmith");
+    let original = Engine::demo()?.to_file();
+    let disk = save_project(&path, &original, None)?;
+    let first = File::open(&path)?;
+    let second = File::open(&path)?;
+    assert!(still_at(&first, &path)? && still_at(&second, &path)?);
+    let mut edited = original.clone();
+    edited.project.name = "First writer".into();
+    save_project(&path, &edited, Some(disk))?;
+    second.lock()?;
+    assert!(!still_at(&second, &path)?);
+    drop(second);
+    let Err(Error::Conflict(conflict)) = save_project(&path, &original, Some(disk)) else {
+        return Err(Error::Invalid("expected a preserved conflict copy".into()));
+    };
+    assert_eq!(read_project(&path)?, edited);
+    assert_eq!(read_project(&conflict.kept)?, original);
+    Ok(())
+}
+
 #[test]
 fn failed_saves_preserve_existing_target_and_leave_no_temporary_file() -> Result<()> {
     let dir = tempfile::tempdir()?;

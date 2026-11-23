@@ -7312,6 +7312,7 @@ dependencies = [
  "cap-std",
  "getrandom 0.3.4",
  "pdf-writer",
+ "same-file",
  "schemars",
  "serde",
  "serde_json",

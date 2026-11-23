@@ -242,8 +242,19 @@ fn still_at(file: &File, path: &Path) -> Result<bool> {
     }
 }
 
-/// Elsewhere the check is the identity comparison alone.
-#[cfg(not(unix))]
+/// Compare file identity while both Windows handles remain open. The path
+/// can name a replacement even while another writer holds the old handle.
+#[cfg(windows)]
+fn still_at(file: &File, path: &Path) -> Result<bool> {
+    let locked = same_file::Handle::from_file(file.try_clone()?)?;
+    match same_file::Handle::from_path(path) {
+        Ok(named) => Ok(locked == named),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 fn still_at(_file: &File, path: &Path) -> Result<bool> {
     Ok(path.exists())
 }

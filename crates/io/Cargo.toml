@@ -32,5 +32,8 @@ cap-std = "4.0.3"
 # zlib-rs (MIT OR Apache-2.0, Zlib). Licences checked by `cargo xtask licences`.
 zip = { version = "9.1.3", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
+[target.'cfg(windows)'.dependencies]
+same-file = "1.0.6"
+
 [dev-dependencies]
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
