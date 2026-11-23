@@ -224,6 +224,7 @@ fn generation_with(
             },
         },
         footprint: Footprint {
+            bridges: Vec::new(),
             pads: if inserted {
                 let mut third = pad("1", [0, 1_200_000]);
                 third.key = "3".into();

@@ -165,6 +165,7 @@
       "icon": "part_fiducial",
       "children": [
         { "id": "test-points", "title": "Test points" },
+        { "id": "ties", "title": "Net ties and jumpers" },
         { "id": "fiducials", "title": "Fiducials" },
         { "id": "mounting-holes", "title": "Mounting holes", "icon": "hole" },
         { "id": "jumpers", "title": "Net ties and solder jumpers" },

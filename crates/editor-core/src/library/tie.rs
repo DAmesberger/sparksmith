@@ -10,38 +10,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub use sparksmith_generator_abi::v1::Assembly;
+pub use sparksmith_generator_abi::v1::{Assembly, JumperBridge, JumperState, TieForm};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TieSpec {
     pub ends: Vec<TerminalId>,
     pub form: TieForm,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum TieForm {
-    Copper,
-    SolderJumper {
-        default: JumperState,
-        bridge: JumperBridge,
-    },
-    ZeroOhm,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum JumperState {
-    Open,
-    Closed,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum JumperBridge {
-    Solder,
-    Trace,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -78,27 +53,6 @@ pub struct Bridge {
     pub side: PadSide,
     pub outline: Outline,
     pub pads: Vec<PadId>,
-}
-
-impl TieForm {
-    pub fn assembly(self) -> Assembly {
-        match self {
-            Self::Copper => Assembly::CopperOnly,
-            Self::SolderJumper { .. } => Assembly::SolderOnly,
-            Self::ZeroOhm => Assembly::Bought,
-        }
-    }
-
-    fn needs_bridge(self) -> bool {
-        matches!(
-            self,
-            Self::Copper
-                | Self::SolderJumper {
-                    bridge: JumperBridge::Trace,
-                    ..
-                }
-        )
-    }
 }
 
 impl TieSpec {

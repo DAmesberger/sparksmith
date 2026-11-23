@@ -1,0 +1,32 @@
+[
+  {
+    "key": "open-jumper",
+    "name": "Open solder jumper",
+    "aliases": [],
+    "description": "Close the gap between two lands with solder.",
+    "params": {
+      "form": "solder",
+      "state": "open"
+    },
+    "citation": {
+      "document": "SparkFun, How to Work with Jumper Pads and PCB Traces (https://learn.sparkfun.com/tutorials/how-to-work-with-jumper-pads-and-pcb-traces)"
+    },
+    "basis": "cited",
+    "note": "The source describes the connection and assembly operation. Enter the dimensions for the board."
+  },
+  {
+    "key": "cut-trace",
+    "name": "Cuttable jumper",
+    "aliases": [],
+    "description": "Open a normally closed trace by cutting it.",
+    "params": {
+      "form": "trace",
+      "state": "closed"
+    },
+    "citation": {
+      "document": "SparkFun, How to Work with Jumper Pads and PCB Traces (https://learn.sparkfun.com/tutorials/how-to-work-with-jumper-pads-and-pcb-traces)"
+    },
+    "basis": "cited",
+    "note": "The source describes the connection and assembly operation. Enter the dimensions for the board."
+  }
+]

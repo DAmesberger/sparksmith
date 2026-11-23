@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "solder-bridge",
+  "title": "Solder jumper bridge",
+  "summary": "Illustrative solder deposit centred on the two selected lands.",
+  "use": "package_body",
+  "prefix": "JP",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original parametric geometry authored using Solidcraft commands in author_parts.rs."
+}

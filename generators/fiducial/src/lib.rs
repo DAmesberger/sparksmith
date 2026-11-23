@@ -287,6 +287,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         },
     };
     let footprint = Footprint {
+        bridges: Vec::new(),
         pads,
         courtyard: area,
         // No silkscreen: the clear area is kept free of it.
@@ -312,6 +313,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
+            tie: None,
             assembly: v1::Assembly::CopperOnly,
             terminals: Vec::new(),
             prefix: "FID".into(),

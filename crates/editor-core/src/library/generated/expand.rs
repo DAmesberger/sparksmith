@@ -347,7 +347,20 @@ fn component_definition(
         .collect();
     Ok(ComponentDefinition {
         assembly: component.assembly,
-        tie: None,
+        tie: component
+            .tie
+            .as_ref()
+            .map(|t| {
+                Ok::<_, Error>(super::super::tie::TieSpec {
+                    form: t.form,
+                    ends: t
+                        .ends
+                        .iter()
+                        .map(|key| ids.of(&format!("t:{key}"), "tie terminal").map(TerminalId))
+                        .collect::<Result<_>>()?,
+                })
+            })
+            .transpose()?,
         next_local: ids.next_local(),
         designator_prefix: component.prefix.clone(),
         terminals,
@@ -889,7 +902,25 @@ fn footprint(
     }
     let polarity = polarity(generation, terminals, &pads, markers);
     Ok(FootprintDefinition {
-        bridges: Vec::new(),
+        bridges: source
+            .bridges
+            .iter()
+            .map(|b| {
+                Ok(super::super::tie::Bridge {
+                    id: crate::ids::BridgeId(ids.id(format!("b:{}", b.key))?),
+                    side: match b.side {
+                        v1::Side::Top => PadSide::Top,
+                        v1::Side::Bottom => PadSide::Bottom,
+                    },
+                    pads: b
+                        .pads
+                        .iter()
+                        .map(|k| ids.of(&format!("p:{k}"), "bridge pad").map(PadId))
+                        .collect::<Result<_>>()?,
+                    outline: polygon_outline(&b.outline)?,
+                })
+            })
+            .collect::<Result<_>>()?,
         package,
         next_local: ids.next_local(),
         source: None,
@@ -936,25 +967,24 @@ fn polarity(
 
 /// A generated copper keep-out: its polygon on every copper layer, or on
 /// the outer layer its side names.
-fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
+fn polygon_outline(points: &[v1::Point]) -> Result<Outline> {
     let mm = |p: &v1::Point| point(*p).map(PointNm::to_mm_f64);
-    let Some(first) = k.outline.first() else {
-        return Err(refused(format!(
-            "the keep-out \"{}\" has no points",
-            k.name
-        )));
-    };
-    let start = mm(first)?;
-    let mut segments = k
-        .outline
+    let start = mm(points
+        .first()
+        .ok_or_else(|| refused("Empty polygon".into()))?)?;
+    let mut segments = points
         .iter()
         .skip(1)
         .map(|p| Ok(Segment::Line { to: mm(p)? }))
         .collect::<Result<Vec<_>>>()?;
     segments.push(Segment::Line { to: start });
+    Ok(Outline { start, segments })
+}
+
+fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
     Ok(FootprintKeepout {
         name: k.name.clone(),
-        outline: Outline { start, segments },
+        outline: polygon_outline(&k.outline)?,
         scope: match k.side {
             None => KeepoutScope::AllCopper,
             Some(v1::Side::Top) => KeepoutScope::ComponentSide,

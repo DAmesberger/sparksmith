@@ -744,10 +744,77 @@ impl Assembly {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum TieForm {
+    Copper,
+    SolderJumper {
+        default: JumperState,
+        bridge: JumperBridge,
+    },
+    ZeroOhm,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum JumperState {
+    Open,
+    Closed,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum JumperBridge {
+    Solder,
+    Trace,
+}
+
+impl TieForm {
+    pub fn assembly(self) -> Assembly {
+        match self {
+            Self::Copper => Assembly::CopperOnly,
+            Self::SolderJumper { .. } => Assembly::SolderOnly,
+            Self::ZeroOhm => Assembly::Bought,
+        }
+    }
+
+    pub fn needs_bridge(self) -> bool {
+        matches!(
+            self,
+            Self::Copper
+                | Self::SolderJumper {
+                    bridge: JumperBridge::Trace,
+                    ..
+                }
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Tie {
+    pub form: TieForm,
+    pub ends: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Bridge {
+    pub key: String,
+    pub side: Side,
+    pub pads: Vec<String>,
+    pub outline: Vec<Point>,
+}
+
 /// The electrical component.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Component {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tie: Option<Tie>,
     #[serde(default, skip_serializing_if = "Assembly::is_bought")]
     pub assembly: Assembly,
     pub terminals: Vec<Terminal>,
@@ -964,6 +1031,8 @@ pub struct Lead {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Footprint {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bridges: Vec<Bridge>,
     pub pads: Vec<Pad>,
     /// The courtyard outline, a closed polygon.
     pub courtyard: Vec<Point>,

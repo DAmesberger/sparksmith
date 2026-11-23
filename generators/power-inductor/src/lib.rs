@@ -446,6 +446,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         },
     };
     let footprint = Footprint {
+        bridges: Vec::new(),
         pads,
         courtyard,
         silk,
@@ -463,6 +464,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
+            tie: None,
             assembly: Default::default(),
             terminals: ["1", "2"]
                 .iter()

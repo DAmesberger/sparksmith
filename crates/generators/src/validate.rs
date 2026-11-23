@@ -198,7 +198,19 @@ fn symbol(symbol: &Symbol, terminals: &BTreeSet<&str>) -> Result<(), Failure> {
 
 fn footprint(footprint: &Footprint, package_terminals: &BTreeSet<&str>) -> Result<(), Failure> {
     count("pads", footprint.pads.len(), limits::PADS)?;
-    unique("pad", footprint.pads.iter().map(|p| p.key.as_str()))?;
+    let pads = unique("pad", footprint.pads.iter().map(|p| p.key.as_str()))?;
+    count("bridges", footprint.bridges.len(), limits::PADS)?;
+    unique("bridge", footprint.bridges.iter().map(|b| b.key.as_str()))?;
+    for bridge in &footprint.bridges {
+        let ends = unique("bridge pad", bridge.pads.iter().map(String::as_str))?;
+        if ends.len() < 2 || !ends.is_subset(&pads) || bridge.outline.len() < 3 {
+            return Err(invalid(
+                "A bridge needs a polygon and two or more distinct lands of this footprint.".into(),
+            ));
+        }
+        count("bridge points", bridge.outline.len(), limits::POINTS)?;
+        bridge.outline.iter().try_for_each(point)?;
+    }
     for pad in &footprint.pads {
         // A non-plated hole, a mechanical pad or a fiducial may land none.
         let free = pad.kind.is_some() || pad.hole.as_ref().is_some_and(|h| !h.plated);

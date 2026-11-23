@@ -823,6 +823,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         },
     };
     let footprint = Footprint {
+        bridges: Vec::new(),
         pads,
         courtyard,
         silk,
@@ -860,6 +861,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         orderable: Vec::new(),
         marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
+            tie: None,
             assembly: Default::default(),
             terminals: keys
                 .iter()
