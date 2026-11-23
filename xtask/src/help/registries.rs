@@ -92,7 +92,7 @@ fn sentence(label: &str) -> String {
         .map_or_else(String::new, |c| c.to_uppercase().chain(chars).collect())
 }
 
-fn settings_entries(library: &ShippedLibrary) -> Result<Vec<HelpEntry>> {
+pub(super) fn settings_entries(library: &ShippedLibrary) -> Result<Vec<HelpEntry>> {
     use schemars::generate::SchemaSettings;
     let mut config = SchemaSettings::draft2020_12();
     config.inline_subschemas = true;
@@ -114,7 +114,13 @@ fn settings_entries(library: &ShippedLibrary) -> Result<Vec<HelpEntry>> {
     defaults["selection_filter"] = serde_json::to_value(d.selection_filter)?;
     defaults["lists"] = serde_json::to_value(d.lists)?;
     let mut rows = Vec::new();
-    setting_fields(&mut rows, "", schema.as_value(), &defaults, &defaults_file)?;
+    setting_fields(
+        &mut rows,
+        "",
+        schema.as_value(),
+        Some(&defaults),
+        &defaults_file,
+    )?;
     Ok(rows)
 }
 
@@ -122,7 +128,7 @@ fn setting_fields(
     rows: &mut Vec<HelpEntry>,
     parent: &str,
     object: &Value,
-    defaults: &Value,
+    defaults: Option<&Value>,
     shipped: &Value,
 ) -> Result<()> {
     let Some(properties) = object.get("properties").and_then(Value::as_object) else {
@@ -135,15 +141,16 @@ fn setting_fields(
             format!("{parent}.{key}")
         };
         let mut schema = property.clone();
-        let mut value = defaults
-            .get(key)
-            .or(property.get("default"))
-            .cloned()
-            .unwrap_or_else(|| match property["type"].as_str() {
-                Some("array") => json!([]),
-                Some("boolean") => json!(false),
-                _ => Value::Null,
-            });
+        let mut value = defaults.map_or(Value::Null, |obj| {
+            obj.get(key)
+                .or(property.get("default"))
+                .cloned()
+                .unwrap_or_else(|| match property["type"].as_str() {
+                    Some("array") => json!([]),
+                    Some("boolean") => json!(false),
+                    _ => Value::Null,
+                })
+        });
         let mut source = "UserSettings default".to_owned();
         let mut unit = None;
         let mut id = field.clone();
@@ -171,8 +178,23 @@ fn setting_fields(
             "browser_width" => {
                 unit = Some("pt".into());
                 schema["maximum"] = json!(settings::MAX_PANEL_WIDTH);
+                schema["exclusiveMinimum"] = json!(0);
             }
             _ => {}
+        }
+        if let Some(limit) = match field.as_str() {
+            "sources" => Some(settings::MAX_SOURCES),
+            "registries" => Some(settings::MAX_REGISTRIES),
+            "projects" => Some(settings::MAX_RECENT_PROJECTS),
+            "production_folders" => Some(settings::MAX_PRODUCTION_FOLDERS),
+            "part_files" => Some(settings::MAX_RECENT_PART_FILES),
+            "favourites" => Some(settings::MAX_FAVOURITES),
+            "recent" => Some(settings::MAX_RECENT),
+            "keyboard.bindings" => Some(settings::MAX_BINDINGS),
+            "lists.saved_filters" => Some(settings::MAX_SAVED_FILTERS),
+            _ => None,
+        } {
+            schema["maxItems"] = json!(limit);
         }
         let title = sentence(key);
         let summary = schema["description"]
@@ -192,11 +214,15 @@ fn setting_fields(
                 unit,
             },
         )?);
-        setting_fields(rows, &field, &schema, &value, shipped)?;
+        let nested = defaults.and_then(|_| (!value.is_null()).then_some(&value));
+        setting_fields(rows, &field, &schema, nested, shipped)?;
+        if let Some(item) = schema.get("items") {
+            setting_fields(rows, &field, item, None, shipped)?;
+        }
         // A nullable object such as the saved window still has documented fields.
         if let Some(alts) = schema["anyOf"].as_array() {
             for alt in alts {
-                setting_fields(rows, &field, alt, &value, shipped)?;
+                setting_fields(rows, &field, alt, nested, shipped)?;
             }
         }
     }

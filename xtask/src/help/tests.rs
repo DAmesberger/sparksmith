@@ -93,3 +93,27 @@ fn site_writes_both_versions_with_local_links_and_escaped_text() -> crate::Resul
     assert!(!out.join("docs/latest/guide/first-board.html").exists());
     Ok(())
 }
+
+#[test]
+fn settings_describe_actual_defaults_and_nested_rows() -> crate::Result<()> {
+    let library = ShippedLibrary::at(&crate::root()?.join("library"))?;
+    let rows = registries::settings_entries(&library)?;
+    let get = |key: &str| {
+        rows.iter()
+            .find(|e| e.id.as_str() == key)
+            .ok_or_else(|| format!("missing {key}"))
+    };
+    assert!(
+        matches!(&get("setting/keyboard.reveal.hold_ms")?.facts, Facts::Setting { default,schema,.. }
+        if default.as_u64()==Some(sparksmith_io::settings::HOLD_MS_DEFAULT.into()) &&
+           schema["minimum"].as_u64()==Some((*sparksmith_io::settings::HOLD_MS_RANGE.start()).into()))
+    );
+    assert!(
+        matches!(&get("setting/sources.enabled")?.facts, Facts::Setting { default,.. } if default.is_null())
+    );
+    assert!(
+        matches!(&get("setting/projects")?.facts, Facts::Setting { schema,default,.. }
+        if default==&json!([]) && schema["maxItems"]==json!(sparksmith_io::settings::MAX_RECENT_PROJECTS))
+    );
+    Ok(())
+}
