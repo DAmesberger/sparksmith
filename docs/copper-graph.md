@@ -622,4 +622,4 @@ Which copper layers a pad has is decided once too: `PadKind::copper()` and `layo
 
 A footprint bridge has an owning component, tie group, layer and set of end nets. The graph records the island it reaches on each declared land. The islands retain their separate net identities, lengths and airwires. A Kelvin end uses its named anchor land as its routing destination. The graph records the objects and positions where the sense copper actually touches that land.
 
-`tie.list` reports one row per independent group. On a design with ties, `project.inspect` at `/netlist` returns the distinct nets and their terminals alongside the tie groups and their current assembly states.
+`tie.list` reports one row per independent group. `project.inspect` at `/netlist` returns the distinct nets and their terminals alongside the tie groups and their active assembly states. A design with no ties returns the same netlist shape with an empty `ties` list.

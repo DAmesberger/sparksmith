@@ -5,7 +5,7 @@ use super::{
     PadKind, PadSide,
 };
 use crate::diagnostics::{Finding, ObjectRef};
-use crate::ids::{BridgeId, DefinitionId, Id, PadId, TerminalId};
+use crate::ids::{BridgeId, DefinitionId, Id, PadId, TerminalId, TieId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -169,12 +169,20 @@ pub(super) fn findings(
         };
         for fp in binding.footprints.iter().filter_map(|r| lib.footprint(*r)) {
             let fp = &fp.definition;
-            let group_of = |b: &Bridge| owner(b, fp, binding, component);
-            if fp.bridges.iter().any(|b| group_of(b).is_none()) {
-                report(
-                    "tie.unowned_bridge",
-                    "Each bridge must contact pads belonging to one declared tie group.",
-                );
+            if component.ties.is_empty() && fp.bridges.is_empty() {
+                continue;
+            }
+            let pads = TiePads::of(fp, binding, component);
+            let mut bridges = BTreeMap::<TieId, Vec<&Bridge>>::new();
+            for bridge in &fp.bridges {
+                if let Some(group) = pads.owner(bridge) {
+                    bridges.entry(group).or_default().push(bridge);
+                } else {
+                    report(
+                        "tie.unowned_bridge",
+                        "Each bridge must contact pads belonging to one declared tie group.",
+                    );
+                }
             }
             for spec in &component.ties {
                 let no_body = matches!(package.definition.model, PackageModel::NoBody);
@@ -185,34 +193,30 @@ pub(super) fn findings(
                     if no_body {
                         report("tie.body", "A zero-ohm link needs a package with a body.");
                     }
-                    if !spec.ends.iter().all(|end| {
-                        fp.pads
-                            .iter()
-                            .filter(|p| {
-                                p.terminal.and_then(|t| binding.terminal_of(t)) == Some(*end)
-                            })
-                            .count()
-                            == 1
-                    }) {
+                    if !spec.ends.iter().all(|end| pads.counts.get(end) == Some(&1)) {
                         report(
                             "tie.ends",
                             "A zero-ohm link needs one land for each of its two ends.",
                         );
                     }
                 }
+                if matches!(spec.form, TieForm::SolderJumper { .. })
+                    && spec.ends.iter().any(|end| !pads.counts.contains_key(end))
+                {
+                    report(
+                        "tie.ends",
+                        "Every solder jumper end needs a conductive land.",
+                    );
+                }
+                let group = bridges.get(&spec.id).map_or(&[][..], Vec::as_slice);
                 if spec.form.needs_bridge() {
-                    if !bridges_join(
-                        fp,
-                        binding,
-                        spec,
-                        fp.bridges.iter().filter(|b| group_of(b) == Some(spec.id)),
-                    ) {
+                    if !bridges_join(&pads, spec, group) {
                         report(
                             "tie.bridge",
                             "The copper bridge must connect the declared lands of every tie end.",
                         );
                     }
-                } else if fp.bridges.iter().any(|b| group_of(b) == Some(spec.id)) {
+                } else if !group.is_empty() {
                     report(
                         "tie.bridge",
                         "This tie form needs separate lands without fabricated bridges.",
@@ -223,49 +227,75 @@ pub(super) fn findings(
     }
 }
 
-pub(crate) fn owner(
-    b: &Bridge,
-    fp: &FootprintDefinition,
-    binding: &BindingDefinition,
-    component: &ComponentDefinition,
-) -> Option<crate::ids::TieId> {
-    component
-        .ties
-        .iter()
-        .find(|s| {
-            b.pads.iter().all(|id| {
-                fp.pad(*id)
-                    .and_then(|p| p.terminal)
-                    .and_then(|t| binding.terminal_of(t))
-                    .is_some_and(|t| s.ends.contains(&t))
-            })
-        })
-        .map(|s| s.id)
+/// Resolve mapped copper lands once per footprint. A bridge belongs to a
+/// group only if every land it declares maps to an end of that group.
+pub(crate) struct TiePads {
+    ends: BTreeMap<PadId, (TerminalId, TieId)>,
+    counts: BTreeMap<TerminalId, usize>,
+}
+
+impl TiePads {
+    pub(crate) fn of(
+        fp: &FootprintDefinition,
+        binding: &BindingDefinition,
+        component: &ComponentDefinition,
+    ) -> Self {
+        let groups: BTreeMap<_, _> = component
+            .ties
+            .iter()
+            .flat_map(|s| s.ends.iter().map(move |e| (*e, s.id)))
+            .collect();
+        let mappings: BTreeMap<_, _> = binding
+            .mappings
+            .iter()
+            .map(|m| (m.package_terminal, m.terminal))
+            .collect();
+        let mut ends = BTreeMap::new();
+        let mut counts = BTreeMap::new();
+        for pad in &fp.pads {
+            if matches!(pad.kind, PadKind::Smd | PadKind::PlatedThrough)
+                && let Some(end) = pad.terminal.and_then(|pin| mappings.get(&pin))
+                && let Some(group) = groups.get(end)
+            {
+                ends.insert(pad.id, (*end, *group));
+                *counts.entry(*end).or_default() += 1;
+            }
+        }
+        Self { ends, counts }
+    }
+
+    pub(crate) fn terminal(&self, pad: PadId) -> Option<TerminalId> {
+        self.ends.get(&pad).map(|e| e.0)
+    }
+
+    pub(crate) fn owner(&self, bridge: &Bridge) -> Option<TieId> {
+        let (_, group) = *self.ends.get(bridge.pads.first()?)?;
+        bridge
+            .pads
+            .iter()
+            .all(|p| self.ends.get(p).is_some_and(|e| e.1 == group))
+            .then_some(group)
+    }
 }
 
 // Check the authored pad groups as a connected network. Footprint validation
 // separately checks that each declared land actually touches its bridge.
-fn bridges_join<'a>(
-    fp: &FootprintDefinition,
-    binding: &BindingDefinition,
-    spec: &TieSpec,
-    bridges: impl Iterator<Item = &'a Bridge>,
-) -> bool {
-    let mut groups: Vec<BTreeSet<PadId>> =
-        bridges.map(|b| b.pads.iter().copied().collect()).collect();
+fn bridges_join(pads: &TiePads, spec: &TieSpec, bridges: &[&Bridge]) -> bool {
+    let mut groups: Vec<BTreeSet<PadId>> = bridges
+        .iter()
+        .map(|b| b.pads.iter().copied().collect())
+        .collect();
     let Some(mut joined) = groups.pop() else {
         return false;
     };
     while let Some(index) = groups.iter().position(|g| !joined.is_disjoint(g)) {
         joined.extend(groups.swap_remove(index));
     }
-    groups.is_empty()
-        && spec.ends.iter().all(|end| {
-            fp.pads.iter().any(|p| {
-                joined.contains(&p.id)
-                    && p.terminal.and_then(|t| binding.terminal_of(t)) == Some(*end)
-            })
-        })
+    let ends: BTreeSet<_> = joined
+        .into_iter()
+        .filter_map(|id| pads.terminal(id))
+        .collect();
+    groups.is_empty() && spec.ends.iter().all(|e| ends.contains(e))
 }
 
 impl Bridge {

@@ -505,21 +505,21 @@ pub fn placed_bridges(project: &Project) -> Vec<PlacedBridge> {
         let Some(component) = project.library.component(i.component) else {
             continue;
         };
+        if fp.bridges.is_empty() {
+            continue;
+        }
+        let pads =
+            crate::library::tie::TiePads::of(fp, &view.binding.definition, &component.definition);
         let transform = placement_transform(placement, &fp.datum);
         for bridge in &fp.bridges {
-            let Some(group) = crate::library::tie::owner(
-                bridge,
-                fp,
-                &view.binding.definition,
-                &component.definition,
-            ) else {
+            let Some(group) = pads.owner(bridge) else {
                 continue;
             };
             let mut member_nets = bridge
                 .pads
                 .iter()
                 .filter_map(|p| {
-                    let terminal = view.binding.definition.terminal_of(fp.pad(*p)?.terminal?)?;
+                    let terminal = pads.terminal(*p)?;
                     nets.get(&Endpoint {
                         instance: i.id,
                         terminal,

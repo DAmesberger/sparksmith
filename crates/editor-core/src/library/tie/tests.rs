@@ -53,3 +53,40 @@ fn an_open_jumper_uses_the_existing_population_switch() {
     assert_eq!(form.assembly(), Assembly::SolderOnly);
     assert_eq!(Population::from(TieForm::Copper), Population::Populated);
 }
+
+#[test]
+fn an_unplated_hole_cannot_supply_a_tie_end() -> crate::Result<()> {
+    use crate::ids::PackageTerminalId;
+    use crate::library::{Pad, TerminalMap};
+    let package_pin = PackageTerminalId(12);
+    let end = TerminalId(2);
+    let component = ComponentDefinition {
+        ties: vec![TieSpec {
+            id: TieId(4),
+            ends: vec![TerminalId(1), end],
+            form: TieForm::Copper,
+        }],
+        ..Default::default()
+    };
+    let binding = BindingDefinition {
+        mappings: vec![TerminalMap {
+            package_terminal: package_pin,
+            terminal: end,
+        }],
+        ..Default::default()
+    };
+    let mut footprint = FootprintDefinition::default();
+    let mut land = Pad::smd_rect_mm(PadId(3), package_pin, "12", [0., 0.], [1., 1.])?;
+    land.kind = PadKind::NonPlatedHole;
+    footprint.pads.push(land);
+    assert_eq!(
+        TiePads::of(&footprint, &binding, &component).terminal(PadId(3)),
+        None
+    );
+    footprint.pads[0].kind = PadKind::Smd;
+    assert_eq!(
+        TiePads::of(&footprint, &binding, &component).terminal(PadId(3)),
+        Some(end)
+    );
+    Ok(())
+}
