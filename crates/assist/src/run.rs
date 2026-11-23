@@ -651,7 +651,12 @@ pub(crate) fn converse(
             let counted = |_: &[Message]| grown;
             if let Some(condensed) = harness.history_strategy().condense(
                 &mut messages,
-                &harness.policy(),
+                // Of the whole context: a run's history only grows, so its
+                // prompt cache holds until the context truly fills.
+                &crate::chat::Policy {
+                    window_tokens: u64::MAX,
+                    ..harness.policy()
+                },
                 profile.capabilities.context_tokens,
                 &counted,
             ) {

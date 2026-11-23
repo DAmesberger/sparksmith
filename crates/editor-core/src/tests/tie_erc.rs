@@ -133,6 +133,14 @@ fn closed_jumper_drives_only_its_group_and_opening_it_is_undoable() -> Result<()
     Ok(())
 }
 
+fn net_of_pad(engine: &Engine, instance: Id, pad: u32) -> Result<Id> {
+    crate::layout::placed_pads(engine.project())
+        .into_iter()
+        .find(|p| p.instance == instance && p.pad.id == PadId(pad))
+        .and_then(|p| p.net)
+        .ok_or_else(|| Error::NotFound(format!("no net on pad {pad} of instance {instance}")))
+}
+
 fn centre(engine: &Engine, instance: Id, pad: u32) -> Result<[f64; 2]> {
     crate::layout::placed_pads(engine.project())
         .into_iter()
@@ -161,8 +169,29 @@ fn unconnected_jumper_groups_have_separate_board_locations() -> Result<()> {
         let expected = [(a[0] + b[0]) / 2., (a[1] + b[1]) / 2.];
         assert_eq!(row.joins.len(), 1);
         assert_eq!(row.joins[0].at, expected);
-        assert!(row.joins[0].islands.is_empty());
+        // The join names the island of each end's land on that end's own
+        // net, whatever the jumper's state (state is reported separately).
+        let lands: Vec<(Id, PadId)> = row.joins[0]
+            .islands
+            .iter()
+            .map(|i| (i.net, i.pad))
+            .collect();
+        let wanted = ends
+            .iter()
+            .map(|end| net_of_pad(&engine, id, *end).map(|net| (net, PadId(*end))))
+            .collect::<Result<Vec<_>>>()?;
+        assert_eq!(lands, wanted);
+        assert_ne!(wanted[0].0, wanted[1].0);
+        assert_ne!(
+            row.joins[0].islands[0].island,
+            row.joins[0].islands[1].island
+        );
     }
+    let islands: std::collections::BTreeSet<usize> = reports
+        .iter()
+        .flat_map(|r| r.joins[0].islands.iter().map(|i| i.island))
+        .collect();
+    assert_eq!(islands.len(), 4, "each land on its own island");
     assert_ne!(reports[0].joins[0].at, reports[1].joins[0].at);
     Ok(())
 }
