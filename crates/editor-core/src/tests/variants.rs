@@ -938,6 +938,26 @@ fn a_substitute_review_stands_only_while_what_it_decided_on_is_unchanged() -> Re
             .is_some_and(|v| v.reviews.contains_key(&b.r1)),
         "the earlier decision is kept, not erased"
     );
+    // Opening the saved design must keep the changed requirement unresolved.
+    let bytes = format::encode(&b.engine.to_file())?;
+    let mut reopened = Engine::from_file(format::decode(&bytes)?)?;
+    assert_eq!(unresolved_r1(&reopened)?, [unmet, unreviewed]);
+    variant(
+        &mut reopened,
+        VariantCommand::ReviewSubstitute {
+            instance: b.r1,
+            variant: alt,
+            equivalent: true,
+            exceptions: vec![crate::model::variants::RequirementException {
+                field: resistance.field.id,
+                reason: "Reviewed the 1 kΩ bias against the new 220 kΩ requirement".into(),
+            }],
+        },
+    )?;
+    assert!(unresolved_r1(&reopened)?.is_empty());
+    reopened.undo()?;
+    assert_eq!(unresolved_r1(&reopened)?, [unmet, unreviewed]);
+
     b.engine.undo()?;
     assert!(
         unresolved_r1(&b.engine)?.is_empty(),
@@ -989,7 +1009,9 @@ fn a_substitute_review_stands_only_while_what_it_decided_on_is_unchanged() -> Re
             .any(|m| m.contains("no longer applies") && m.contains("the pad-to-terminal map")),
         "{messages:?}"
     );
-    assert!(unresolved_r1(&b.engine)?.contains(&unreviewed.to_owned()));
+    assert_eq!(unresolved_r1(&b.engine)?, [unmet, unreviewed]);
+    let reopened = Engine::from_file(format::decode(&format::encode(&b.engine.to_file())?)?)?;
+    assert_eq!(unresolved_r1(&reopened)?, [unmet, unreviewed]);
 
     // The substitute's rated value differs from the one reviewed.
     let (b, _, lower) = reviewed_substitute()?;
