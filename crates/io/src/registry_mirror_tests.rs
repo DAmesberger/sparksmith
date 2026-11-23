@@ -136,7 +136,17 @@ fn a_stored_bundle_is_reused_offline_and_a_changed_cache_file_is_refused() -> Re
     mirror.store_bundle(&bundle, &shard.catalog)?;
     // A second mirror over the same directory (a later, offline session).
     let offline = Mirror::open(dir.path(), "http://localhost:8787/")?;
-    assert_eq!(offline.shards().len(), 1);
+    let mut index = offline
+        .index()
+        .ok_or_else(|| Error::Invalid("missing index".into()))?
+        .index;
+    assert_eq!(offline.shards(&index, MAX_CATALOG_BYTES)?.len(), 1);
+    index.shards.push(index.shards[0].clone());
+    let total = 2 * bytes.len() as u64;
+    assert_eq!(offline.shards(&index, total)?.len(), 2);
+    assert!(
+        matches!(offline.shards(&index, total - 1), Err(Error::TooLarge(m)) if m.contains("registry catalog budget"))
+    );
     let again = offline
         .bundle(bundle.root, &shard.catalog)?
         .ok_or_else(|| Error::Invalid("not mirrored".into()))?;

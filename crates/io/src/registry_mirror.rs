@@ -33,6 +33,40 @@ pub const FORMAT: u32 = 1;
 pub const MAX_SHARDS: usize = 4096;
 /// Bytes of one shard file.
 pub const MAX_SHARD_BYTES: u64 = 64 * 1024 * 1024;
+/// Aggregate shard inputs retained for one catalog, using the project packed-data budget.
+pub const MAX_CATALOG_BYTES: u64 = sparksmith_core::library::bundle::MAX_PACKED_BYTES as u64;
+
+pub struct ShardBudget(pub u64);
+
+impl ShardBudget {
+    pub fn charge(&mut self, bytes: usize) -> Result<()> {
+        self.0 = self
+            .0
+            .checked_sub(bytes as u64)
+            .ok_or_else(|| Error::TooLarge("registry catalog budget exceeded".into()))?;
+        Ok(())
+    }
+
+    /// Missing or damaged files can be fetched again. A valid file consumes the
+    /// same budget as a fresh download, including repeated index entries.
+    pub fn cached(&mut self, mirror: &Mirror, hash: ContentHash) -> Result<Option<Shard>> {
+        let Ok(bytes) = read_limited(&mirror.shard_path(hash), MAX_SHARD_BYTES) else {
+            return Ok(None);
+        };
+        if asset_hash(&bytes) != hash {
+            return Ok(None);
+        }
+        self.charge(bytes.len())?;
+        match parse_shard(&bytes) {
+            Ok(shard) => Ok(Some(shard)),
+            Err(_) => {
+                self.0 += bytes.len() as u64;
+                Ok(None)
+            }
+        }
+    }
+}
+
 /// Bytes of the index file.
 pub const MAX_INDEX_BYTES: u64 = 4 * 1024 * 1024;
 /// Bytes of one mirrored record file.
@@ -198,6 +232,10 @@ pub fn decode_shard(bytes: &[u8], expected: ContentHash) -> Result<Shard> {
             "registry shard {expected} does not match its hash (it hashes to {actual})"
         )));
     }
+    parse_shard(bytes)
+}
+
+fn parse_shard(bytes: &[u8]) -> Result<Shard> {
     let mut shard: Shard = serde_json::from_slice(bytes)?;
     if shard.format != FORMAT {
         return Err(Error::Invalid(format!(
@@ -398,16 +436,15 @@ impl Mirror {
 
     /// Every shard of the stored index that is mirrored and still checks,
     /// in index order. Missing or changed ones are left out.
-    pub fn shards(&self) -> Vec<Shard> {
-        self.index()
-            .map(|m| {
-                m.index
-                    .shards
-                    .iter()
-                    .filter_map(|s| self.shard(s.sha256).ok())
-                    .collect()
-            })
-            .unwrap_or_default()
+    pub fn shards(&self, index: &RegistryIndex, limit: u64) -> Result<Vec<Shard>> {
+        let mut budget = ShardBudget(limit);
+        let mut shards = Vec::new();
+        for info in &index.shards {
+            if let Some(shard) = budget.cached(self, info.sha256)? {
+                shards.push(shard);
+            }
+        }
+        Ok(shards)
     }
 
     /// Check `bundle` against `catalog` ([`verify_bundle`]) and keep its

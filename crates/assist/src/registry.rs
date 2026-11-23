@@ -383,9 +383,9 @@ impl RegistryClient {
     /// checked and mirrored), else the mirror's last ones when the registry
     /// cannot be reached.
     pub fn sync(&self) -> Result<Arc<Synced>, String> {
-        match self.fetch_sync() {
+        match self.fetch_sync(mirror::MAX_CATALOG_BYTES) {
             Ok(synced) => Ok(self.keep(synced)),
-            Err(error) if unreachable(&error) => match self.mirrored() {
+            Err(error) if unreachable(&error) => match self.mirrored()? {
                 Some(synced) => Ok(self.keep(synced)),
                 None => Err(error),
             },
@@ -410,14 +410,15 @@ impl RegistryClient {
         }
     }
 
-    fn fetch_sync(&self) -> Result<Synced, String> {
+    fn fetch_sync(&self, limit: u64) -> Result<Synced, String> {
         let index =
             mirror::decode_index(&self.get("/v1/index", SYNC_TIMEOUT, mirror::MAX_INDEX_BYTES)?)
                 .map_err(|e| e.to_string())?;
         let mut shards = Vec::with_capacity(index.shards.len());
+        let mut budget = mirror::ShardBudget(limit);
         for info in &index.shards {
             let shard = match &self.mirror {
-                Some(m) if m.has_shard(info.sha256) => m.shard(info.sha256).ok(),
+                Some(m) => budget.cached(m, info.sha256).map_err(|e| e.to_string())?,
                 _ => None,
             };
             let shard = match shard {
@@ -428,6 +429,7 @@ impl RegistryClient {
                         SYNC_TIMEOUT,
                         mirror::MAX_SHARD_BYTES,
                     )?;
+                    budget.charge(bytes.len()).map_err(|e| e.to_string())?;
                     match &self.mirror {
                         Some(m) => m.store_shard(&bytes, info.sha256),
                         None => mirror::decode_shard(&bytes, info.sha256),
@@ -449,16 +451,24 @@ impl RegistryClient {
         })
     }
 
-    fn mirrored(&self) -> Option<Synced> {
-        let m = self.mirror.as_ref()?;
-        let MirroredIndex { index, fetched } = m.index()?;
-        let shards = m.shards().into_iter().map(Arc::new).collect();
-        Some(Synced {
+    fn mirrored(&self) -> Result<Option<Synced>, String> {
+        let Some((m, MirroredIndex { index, fetched })) =
+            self.mirror.as_ref().and_then(|m| Some((m, m.index()?)))
+        else {
+            return Ok(None);
+        };
+        let shards = m
+            .shards(&index, mirror::MAX_CATALOG_BYTES)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+        Ok(Some(Synced {
             index,
             shards,
             fetched,
             offline: true,
-        })
+        }))
     }
 
     /// `library.search` of `text` on the registry; offline, on the mirror.
@@ -501,7 +511,7 @@ impl RegistryClient {
     ) -> Result<OnlineReport, String> {
         let synced = match self.synced.lock().ok().and_then(|s| s.clone()) {
             Some(s) => s,
-            None => Arc::new(self.mirrored().ok_or_else(String::new)?),
+            None => Arc::new(self.mirrored()?.ok_or_else(String::new)?),
         };
         let mut report = search_shards(&synced.shards, text, limit, offset)?;
         report.source = self.host.clone();

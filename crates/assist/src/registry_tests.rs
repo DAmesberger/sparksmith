@@ -367,6 +367,18 @@ fn plain(url: &str, cache: Option<&Path>) -> std::result::Result<RegistryClient,
 }
 
 #[test]
+fn sync_charges_downloaded_and_cached_shards() -> TestResult {
+    let registry = registry(None)?;
+    let size = registry.shard_bytes.len() as u64;
+    let cache = tempfile::tempdir()?;
+    let client = plain(&serve(registry)?, Some(cache.path()))?;
+    assert!(matches!(client.fetch_sync(size - 1), Err(m) if m.contains("registry catalog budget")));
+    assert!(client.fetch_sync(size).is_ok());
+    assert!(matches!(client.fetch_sync(size - 1), Err(m) if m.contains("registry catalog budget")));
+    Ok(())
+}
+
+#[test]
 fn online_search_reads_the_same_query_and_marks_rows_online() -> TestResult {
     let registry = registry(None)?;
     let client = plain(&serve(registry.clone())?, None)?;

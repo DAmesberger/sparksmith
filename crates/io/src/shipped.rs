@@ -193,15 +193,7 @@ impl ShippedLibrary {
             )));
         }
         let path = self.shelf(shelf).join(relative);
-        let size = std::fs::metadata(&path)?.len();
-        if size > max_bytes {
-            return Err(Error::TooLarge(format!(
-                "{} is {size} bytes; the limit for shipped {} files is {max_bytes}.",
-                path.display(),
-                shelf.dir_name()
-            )));
-        }
-        Ok(std::fs::read(path)?)
+        crate::library_folder::read_bounded(&path, usize::try_from(max_bytes).unwrap_or(usize::MAX))
     }
 
     /// The files directly in `shelf` whose names end with `suffix`, sorted
