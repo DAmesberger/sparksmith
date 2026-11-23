@@ -35,6 +35,23 @@ fn an_example_opens_and_saves_byte_for_byte() -> Fallible {
     Ok(())
 }
 
+/// Rewrite stored-format fixtures without assigning the module template a
+/// manufacturing identity. The dev board is authored by its command replay.
+#[test]
+#[ignore = "writes the component examples and IO golden through the project writer"]
+fn regenerate_stored_project_fixtures() -> Fallible {
+    if std::env::var("SPARKSMITH_WRITE_EXAMPLE").as_deref() != Ok("1") {
+        return Err("set SPARKSMITH_WRITE_EXAMPLE=1 to rewrite the tracked fixtures".into());
+    }
+    let golden =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/format/demo.sparksmith");
+    for path in examples().into_iter().skip(1).chain([golden]) {
+        let file = sparksmith_io::read_project(&path)?;
+        sparksmith_io::write_project(&path, &file)?;
+    }
+    Ok(())
+}
+
 #[test]
 fn refilling_the_examples_fills_changes_no_byte() -> Fallible {
     let dir = tempfile::tempdir()?;

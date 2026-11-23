@@ -1,5 +1,6 @@
 #!/bin/sh
 # Rebuild the ESP32-S31 dev board from its replay and write every output.
+# Pass --rebase after changing the shipped generators.
 # Run from the repository root:  sh examples/esp32-s31-devboard/regenerate.sh
 #
 # 1. The replay (605 JSON-lines requests through `sparksmith stdio
@@ -16,6 +17,13 @@ dir=examples/esp32-s31-devboard
 cli=${SPARKSMITH_CLI:-target/nix/ci/sparksmith}
 [ -x "$cli" ] || cli=target/ci/sparksmith
 [ -x "$cli" ] || { echo "build first: cargo build --locked --profile ci -p sparksmith-cli" >&2; exit 1; }
+
+case "$#" in
+    0) ;;
+    1) [ "$1" = "--rebase" ] || { echo "usage: $0 [--rebase]" >&2; exit 1; }
+       SPARKSMITH_CLI="$cli" python3 -B "$dir/authoring/rebase.py" ;;
+    *) echo "usage: $0 [--rebase]" >&2; exit 1 ;;
+esac
 
 replies=$(mktemp)
 # --operator: your own replay, not a model's (relative paths, ungated).

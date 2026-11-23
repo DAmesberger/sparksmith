@@ -50,7 +50,8 @@ The project file carries a format `version` (`sparksmith_core::format::FILE_VERS
 Until the first release the file format is version 1 and Sparksmith keeps no backward compatibility: a stored-type change edits version 1 in place, older files are refused, and the examples are regenerated. A file of any other version is refused, naming its version and the one this build reads. From the first release on, every incompatible change raises `FILE_VERSION` and adds a converter step.
 
 - **Golden file.** `crates/io/tests/fixtures/format/demo.sparksmith` (the demo design with its library and open drafts) opens and saves byte for byte (`the_golden_project_opens_and_saves_byte_for_byte` in `sparksmith-io`). A stored-type change writes it again.
-- **Examples.** A stored-type change regenerates every `.sparksmith` file under `examples/`: the dev board with `examples/esp32-s31-devboard/regenerate.sh`, the others opened and saved through `sparksmith stdio` (`project.open`, then `project.save`).
+- **Examples.** For a stored-type change, rewrite the five component examples and the IO golden through the project reader and writer. Run `SPARKSMITH_WRITE_EXAMPLE=1 cargo test -p sparksmith-io --test example_files regenerate_stored_project_fixtures -- --ignored --exact`. This preserves each file’s existing project identity, including the unassigned module template used as input to the dev board.
+- **Dev board.** Run `sh examples/esp32-s31-devboard/regenerate.sh` with the built CLI. After a shipped generator changes, add `--rebase` to carry the recorded edits onto the new generation first. The replay regenerates the board, manufacturing files and schematic PDF together. [Board replay](../examples/esp32-s31-devboard/README.md)
 
 ## CLI, JSON lines and MCP
 
