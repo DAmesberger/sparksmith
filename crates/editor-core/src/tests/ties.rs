@@ -354,3 +354,21 @@ fn kelvin_contact_allows_the_land_and_reports_a_track_at_the_same_land() -> Resu
     }));
     Ok(())
 }
+
+#[test]
+fn a_bridge_protruding_past_the_board_edge_names_its_instance() -> Result<()> {
+    let mut engine = Engine::profiled()?;
+    let fixture = copper_draft(&mut engine)?;
+    let extension = engine.project().board_size[0] * 2.0;
+    add_bridge(&mut engine, fixture, extension)?;
+    publish(&mut engine, fixture.all())?;
+    let (id, _) = place(&mut engine, &fixture, "NT1", 1, [45.0, 20.0])?;
+    sync_onto_board(&mut engine)?;
+    let graph = crate::layout::CopperGraph::of(engine.project());
+    assert!(graph.findings(engine.project()).iter().any(|f| {
+        f.code == "board.outside_outline"
+            && f.objects
+                .contains(&crate::diagnostics::ObjectRef::Instance { id })
+    }));
+    Ok(())
+}

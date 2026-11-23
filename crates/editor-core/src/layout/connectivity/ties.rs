@@ -173,6 +173,7 @@ impl CopperGraph {
             &fill_indices,
             &mut remaining,
         );
+        let edges = crate::layout::board_edge::BoardEdges::of(project);
         for bridge in bridges {
             let copper = bridge_ring(&bridge);
             let Some(bounds) = copper.bounds else {
@@ -183,6 +184,35 @@ impl CopperGraph {
             let owner = ObjectRef::Instance {
                 id: bridge.instance,
             };
+            let edge_net = bridge.nets.iter().copied().max_by(|a, b| {
+                let gap = |net| {
+                    rules.clearance(
+                        CopperObject::Track,
+                        Some(net),
+                        CopperObject::BoardEdge,
+                        None,
+                    )
+                };
+                gap(*a).total_cmp(&gap(*b))
+            });
+            self.tie_findings
+                .extend(crate::layout::copper::edge_finding(
+                    &edges,
+                    &rules,
+                    &copper,
+                    CopperObject::Track,
+                    edge_net,
+                    owner,
+                    || {
+                        format!(
+                            "{} bridge {}",
+                            project
+                                .instance(bridge.instance)
+                                .map_or("Tie", |i| &i.designator),
+                            bridge.bridge.0
+                        )
+                    },
+                ));
             grid.near(&bounds, reach, &mut near);
             for item in near.iter().filter_map(|i| items.get(*i)) {
                 if remaining == 0 {
