@@ -387,6 +387,7 @@ impl App {
             &self.pcb.selected(),
             self.pcb.highlighted_net(),
             &self.pcb.lit(),
+            &self.pcb.tie_focus(),
         );
         self.scene.viewport.set_follow_net(on);
         if on && !self.scene.viewport.following() {

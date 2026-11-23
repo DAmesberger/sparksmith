@@ -101,12 +101,6 @@ impl FillMesh {
         }
     }
 
-    pub(super) fn centre(&self) -> Point {
-        [
-            (self.bounds[0][0] + self.bounds[1][0]) * 0.5,
-            (self.bounds[0][1] + self.bounds[1][1]) * 0.5,
-        ]
-    }
     pub(super) fn paint_bridge(
         &self,
         painter: &egui::Painter,

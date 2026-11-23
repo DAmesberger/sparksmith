@@ -282,6 +282,9 @@ impl PcbEditor {
         let project = engine.project();
         let rect = scene.viewport.rect()?;
         self.dimension_frame_start(ui, engine);
+        if self.anchor_pick.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.anchor_pick = None;
+        }
         let armed = self.tool == Tool::Dimension;
         let pointer = ui
             .input(|i| i.pointer.hover_pos())
@@ -330,7 +333,25 @@ impl PcbEditor {
                 let along = at.map_or_else(Vec::new, |p| scene.viewport.picks_at(p));
                 let along: Vec<_> = along.iter().filter_map(|id| scene.source(*id)).collect();
                 let picked = pick.and_then(|id| scene.source(id));
-                if ui.input(|i| i.modifiers.shift || i.modifiers.command) {
+                if let Some(anchor) = self.anchor_pick {
+                    let pad = picked
+                        .into_iter()
+                        .chain(along.iter().copied())
+                        .find_map(|s| {
+                            let (instance, pad) = (s.instance?, s.pad?);
+                            (instance != anchor.instance
+                                && self.board_pads.iter().any(|p| {
+                                    p.placed.instance == instance
+                                        && p.placed.pad.id == pad
+                                        && p.placed.terminal.is_some()
+                                }))
+                            .then_some((instance, pad))
+                        });
+                    if let Some((instance, pad)) = pad {
+                        operation = Some(anchor.place(instance, pad));
+                        self.anchor_pick = None;
+                    }
+                } else if ui.input(|i| i.modifiers.shift || i.modifiers.command) {
                     // ⇧ or ⌘ adds the object, or takes it out, as in Layout.
                     let picks: Vec<_> = picked.into_iter().chain(along).collect();
                     self.toggle_picked(&picks, project);
@@ -343,6 +364,18 @@ impl PcbEditor {
             }
         }
         let painter = ui.painter_at(rect);
+        self.paint_tie_points(&painter, |p, layer| {
+            let (lo, hi) = project.stackup.copper_span(layer)?;
+            scene.viewport.to_screen([
+                p[0],
+                p[1],
+                if layer == sparksmith_core::CopperLayer::Bottom {
+                    lo
+                } else {
+                    hi
+                },
+            ])
+        });
         self.paint_datums(ui, &painter, &scene.viewport, engine, self.interface_shown);
         self.paint_dimensions(ui, &painter, &scene.viewport, project, true);
         let fields = self.dimension_fields(ui, engine);

@@ -124,6 +124,7 @@ pub enum Origin {
     },
     Bridge {
         instance: Id,
+        group: sparksmith_core::TieId,
         bridge: sparksmith_core::BridgeId,
     },
     Track(Id),
@@ -425,6 +426,7 @@ fn bridges(project: &Project) -> Result<Vec<PlanBody>> {
                 BodyKind::CopperTrack,
                 Origin::Bridge {
                     instance: b.instance,
+                    group: b.group,
                     bridge: b.bridge,
                 },
                 None,
@@ -956,7 +958,7 @@ fn laminate(
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Object {
     Board,
-    Bridge(Id, sparksmith_core::BridgeId),
+    Bridge(Id, sparksmith_core::TieId, sparksmith_core::BridgeId),
     Pad(Id, PadId),
     Track(Id),
     Via(Id),
@@ -968,7 +970,11 @@ impl Origin {
         match *self {
             Self::Laminate(_) => Object::Board,
             Self::Pad { instance, pad, .. } => Object::Pad(instance, pad),
-            Self::Bridge { instance, bridge } => Object::Bridge(instance, bridge),
+            Self::Bridge {
+                instance,
+                group,
+                bridge,
+            } => Object::Bridge(instance, group, bridge),
             Self::Track(track) => Object::Track(track),
             Self::Via { via, .. } => Object::Via(via),
             // A washer belongs to the board's sketch, which no pick names.
@@ -1036,6 +1042,7 @@ pub fn is_flat(kind: BodyKind) -> bool {
 pub enum Source {
     Bridge {
         instance: Id,
+        group: sparksmith_core::TieId,
         bridge: sparksmith_core::BridgeId,
     },
     /// The laminate (or a flat body the build ties to no object).
@@ -1059,7 +1066,11 @@ impl From<Object> for Source {
     fn from(object: Object) -> Self {
         match object {
             Object::Board => Self::Board,
-            Object::Bridge(instance, bridge) => Self::Bridge { instance, bridge },
+            Object::Bridge(instance, group, bridge) => Self::Bridge {
+                instance,
+                group,
+                bridge,
+            },
             Object::Pad(instance, pad) => Self::Pad { instance, pad },
             Object::Track(track) => Self::Track { track },
             Object::Via(via) => Self::Via { via },
@@ -1284,7 +1295,7 @@ pub fn check(
             return Object::Board;
         };
         if let (Some(instance), Some(tie)) = (source.instance, &source.tie) {
-            return Object::Bridge(instance, tie.bridge);
+            return Object::Bridge(instance, tie.group, tie.bridge);
         }
         match (
             source.instance,

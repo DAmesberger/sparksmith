@@ -111,14 +111,26 @@ fn a_stale_result_is_dropped() -> Fallible {
     };
     let tented = engine.project().vias.first().ok_or("a via")?.tented;
     tent_first_via(&mut engine, !tented)?;
-    outbox.send((old, stale))?;
+    outbox.send((
+        old,
+        Computed {
+            issues: stale,
+            ties: Default::default(),
+        },
+    ))?;
     assert!(
         reports.latest(&engine).is_none(),
         "the stale result is not shown"
     );
     assert!(!reports.is_current(&engine));
     // The current state's result is shown.
-    outbox.send((engine.report_key(), Answer::Refused("current".into())))?;
+    outbox.send((
+        engine.report_key(),
+        Computed {
+            issues: Answer::Refused("current".into()),
+            ties: Default::default(),
+        },
+    ))?;
     let shown = reports.latest(&engine).ok_or("the current result")?;
     assert!(matches!(shown, Answer::Refused(ref why) if why == "current"));
     Ok(())

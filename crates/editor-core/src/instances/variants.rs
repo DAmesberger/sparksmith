@@ -490,6 +490,9 @@ pub struct VariantCell {
 /// One part's row in `variant.list`.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct VariantRow {
+    /// Population means closed/open for a solder jumper.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tie_form: Option<crate::library::tie::TieForm>,
     pub instance: Id,
     pub designator: String,
     /// The default part's value text.
@@ -509,7 +512,7 @@ pub struct VariantsReport {
     /// The active variant; `None` is the default.
     pub active: Option<Id>,
     pub variants: Vec<VariantSummary>,
-    /// Every part that is bought (BOM parts), in designator order.
+    /// Bought parts and solder jumpers whose state the variant controls, in designator order.
     pub parts: Vec<VariantRow>,
 }
 
@@ -521,7 +524,13 @@ pub fn report(project: &Project) -> Result<VariantsReport> {
     let mut instances: Vec<&ComponentInstance> = project
         .instances
         .iter()
-        .filter(|i| crate::library::mechanical::in_bom(library, i.component))
+        .filter(|i| {
+            crate::library::mechanical::in_bom(library, i.component)
+                || matches!(
+                    super::ties::form(project, i),
+                    Some(crate::library::tie::TieForm::SolderJumper { .. })
+                )
+        })
         .collect();
     instances.sort_by(|a, b| {
         designator_key(&a.designator)
@@ -534,6 +543,7 @@ pub fn report(project: &Project) -> Result<VariantsReport> {
     };
     for instance in instances {
         rows.push(VariantRow {
+            tie_form: super::ties::form(project, instance),
             instance: instance.id,
             designator: instance.designator.clone(),
             value: super::value_text(library, instance)?,

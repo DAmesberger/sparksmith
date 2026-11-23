@@ -48,7 +48,7 @@ impl Pick {
     /// The object a click on `hit` selects (a pad selects its part).
     pub(super) fn of(hit: Hit) -> Option<Self> {
         match hit {
-            Hit::Pad(id, _) | Hit::Part(id) => Some(Self::Part(id)),
+            Hit::Pad(id, _) | Hit::Part(id) | Hit::Tie(id, _) => Some(Self::Part(id)),
             Hit::Track(id, _) => Some(Self::Track(id)),
             Hit::Via(id, _) => Some(Self::Via(id)),
             Hit::Fill(id, _) => Some(Self::Fill(id)),

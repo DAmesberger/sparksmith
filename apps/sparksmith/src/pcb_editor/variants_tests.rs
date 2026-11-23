@@ -494,3 +494,42 @@ fn variant_pictures() -> TestResult {
     )?;
     Ok(())
 }
+
+#[test]
+fn solder_only_jumper_has_an_editable_variant_row_without_a_bom_entry() -> TestResult {
+    use sparksmith_core::library::tie::{Assembly, JumperBridge, JumperState, TieForm, TieSpec};
+    use sparksmith_core::{TerminalId, TieId};
+    let mut project = Engine::demo()?.project().clone();
+    let component = &mut project.library.components[0].definition;
+    let group = TieId(1);
+    component.ties = vec![TieSpec {
+        id: group,
+        ends: vec![TerminalId(1), TerminalId(2)],
+        form: TieForm::SolderJumper {
+            default: JumperState::Closed,
+            bridge: JumperBridge::Solder,
+        },
+    }];
+    component.assembly = Assembly::SolderOnly;
+    for instance in &mut project.instances {
+        instance.ties.insert(group, Default::default());
+    }
+    let report = sparksmith_core::instances::variants::report(&project)?;
+    assert_eq!(report.parts.len(), project.instances.len());
+    for row in &report.parts {
+        assert!(jumper(row));
+        let instance = project.instance(row.instance).ok_or("missing jumper")?;
+        assert!(!sparksmith_core::library::mechanical::in_bom(
+            &project.library,
+            instance.component
+        ));
+        assert!(matches!(
+            population_edit(row, None, false),
+            Operation::Variant(VariantCommand::SetPopulation {
+                population: Some(Population::NotPopulated),
+                ..
+            })
+        ));
+    }
+    Ok(())
+}

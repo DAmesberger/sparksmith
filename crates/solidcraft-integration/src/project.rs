@@ -42,6 +42,7 @@ const TRACK_CAP_SEGMENTS: usize = 8;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BridgeSource {
+    pub group: sparksmith_core::TieId,
     pub bridge: sparksmith_core::BridgeId,
     pub nets: Vec<Id>,
 }
@@ -1603,13 +1604,19 @@ struct Kept {
 }
 
 fn bridge_source(body: &plan::PlanBody, pick_id: u64, component: u64) -> Result<Source> {
-    let plan::Origin::Bridge { instance, bridge } = body.source else {
+    let plan::Origin::Bridge {
+        instance,
+        group,
+        bridge,
+    } = body.source
+    else {
         return Err(Error::Verification("Expected a bridge body.".into()));
     };
     Ok(Source {
         pick_id,
         instance: Some(instance),
         tie: Some(BridgeSource {
+            group,
             bridge,
             nets: body.tie_nets.clone(),
         }),

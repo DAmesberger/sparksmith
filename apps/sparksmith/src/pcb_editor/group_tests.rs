@@ -592,3 +592,112 @@ fn hover_and_selection_run_no_check() -> Fallible {
     assert_eq!(reports.computed(), 1, "hover and selection made no report");
     Ok(())
 }
+
+#[test]
+fn picking_a_bridge_selects_only_its_tie_group_in_both_views() {
+    use sparksmith_core::{BridgeId, TieId};
+    use sparksmith_solidcraft::project::{BridgeSource, Source};
+    let mut editor = PcbEditor::default();
+    let group = TieId(2);
+    let instance = 13;
+    let source = Source {
+        pick_id: 4,
+        instance: Some(instance),
+        pad: None,
+        track: None,
+        via: None,
+        fill: None,
+        net: None,
+        layer: Some(sparksmith_core::CopperLayer::Top),
+        label: "Reference return".into(),
+        component: 7,
+        occurrence: None,
+        tie: Some(BridgeSource {
+            group,
+            bridge: BridgeId(7),
+            nets: vec![3, 4],
+        }),
+    };
+    editor.select_hit(super::Hit::Tie(instance, TieId(1)));
+    assert_eq!(editor.tie_group, Some(TieId(1)));
+    editor.select_picked(&[&source]);
+    assert_eq!(editor.selected_instance(), Some(instance));
+    assert_eq!(editor.tie_group, Some(group));
+    assert_eq!(editor.highlighted_net(), None);
+    editor.set_3d(false);
+    assert_eq!(editor.tie_group, Some(group));
+}
+
+#[test]
+fn selecting_a_group_lights_its_nets_for_each_form() {
+    use sparksmith_core::library::tie::{JumperBridge, JumperState, TieForm, TiePurpose};
+    use sparksmith_core::{TieId, instances::ties::TieRow, layout::connectivity::TieReport};
+    let mut editor = PcbEditor::default();
+    let rows = [
+        TieForm::Copper,
+        TieForm::ZeroOhm,
+        TieForm::SolderJumper {
+            default: JumperState::Open,
+            bridge: JumperBridge::Solder,
+        },
+    ]
+    .into_iter()
+    .zip([1_u32, 2, 3])
+    .map(|(form, g)| TieReport {
+        tie: TieRow {
+            instance: 13,
+            group: TieId(g),
+            designator: format!("NT1 group {g}"),
+            form,
+            purpose: TiePurpose::None,
+            state: JumperState::Closed,
+            ends: (0..2)
+                .map(|e| (TerminalId(g * 2 + e), Some(u64::from(g * 2 + e))))
+                .collect(),
+        },
+        joins: vec![],
+        anchors: Default::default(),
+        current: Default::default(),
+    })
+    .collect::<Vec<_>>();
+    editor.board_ties.update(rows.into());
+    for g in 1..=3 {
+        editor.select_hit(Hit::Tie(13, TieId(g)));
+        let expected: BTreeSet<Id> = [u64::from(g * 2), u64::from(g * 2 + 1)].into();
+        assert_eq!(editor.tie_focus().nets, expected, "3D selection");
+        let highlighted = (2..8)
+            .filter(|&n| editor.net_is_highlighted(n))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(highlighted, expected, "Layout selection");
+    }
+}
+
+#[test]
+fn picking_an_anchor_land_in_layout_emits_the_selected_group_and_end() -> Fallible {
+    let engine = board(ROUTED)?;
+    let (r1, r2) = (by(&engine, "R1")?, by(&engine, "R2")?);
+    let (mut editor, ctx) = setup(&engine);
+    let pad = editor
+        .board_pads
+        .iter()
+        .find(|p| p.placed.instance == r2 && p.placed.terminal.is_some())
+        .ok_or("missing target pad")?;
+    let (land, at) = (
+        pad.placed.pad.id,
+        view_of(&editor, &engine).screen(pad.placed.center()),
+    );
+    let anchor = crate::ties::AnchorPick {
+        instance: r1,
+        group: sparksmith_core::TieId(2),
+        end: TerminalId(4),
+    };
+    editor.anchor_pick = Some(anchor);
+    let picked = click(&mut editor, &engine, &ctx, at, egui::Modifiers::NONE);
+    assert!(
+        matches!(picked, Some(Operation::Instance(sparksmith_core::InstanceCommand::SetAnchor {
+        instance, group: Some(group), end, anchor: Some(target)
+    })) if instance == r1 && group == anchor.group && end == anchor.end && target.instance == r2 && target.pad == land)
+    );
+    assert!(editor.anchor_pick.is_none());
+    Ok(())
+}

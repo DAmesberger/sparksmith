@@ -17,6 +17,7 @@ use sparksmith_core::{Engine, Id, Operation};
 pub(super) enum Hit {
     /// A pad: its part, and the pad's net.
     Pad(Id, Option<Id>),
+    Tie(Id, sparksmith_core::TieId),
     Via(Id, Id),
     Track(Id, Id),
     Part(Id),
@@ -71,6 +72,10 @@ impl PcbEditor {
             return Target::Group;
         }
         match hit {
+            Hit::Tie(instance, _) => {
+                self.select_hit(hit);
+                Target::Part(instance)
+            }
             Hit::Pad(instance, _) | Hit::Part(instance) => {
                 if self.instance != Some(instance) {
                     self.select_hit(hit);

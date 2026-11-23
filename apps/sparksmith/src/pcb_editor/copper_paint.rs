@@ -21,6 +21,7 @@ pub(super) struct FillCopper {
 }
 
 pub(super) struct BridgeCopper {
+    pub group: sparksmith_core::TieId,
     pub instance: Id,
     pub layer: CopperLayer,
     pub nets: Vec<Id>,
@@ -76,7 +77,9 @@ impl LayoutCopper {
                             .push((layer, CoreShape::polygon(ring)));
                     }
                 }
-                Origin::Bridge { instance, .. } => {
+                Origin::Bridge {
+                    instance, group, ..
+                } => {
                     if let Some(ring) = outer_ring(body) {
                         let region = FilledRegion {
                             outer: ring,
@@ -85,6 +88,7 @@ impl LayoutCopper {
                         let regions = std::slice::from_ref(&region);
                         self.bridges.push(BridgeCopper {
                             instance,
+                            group,
                             layer,
                             nets: body.tie_nets.clone(),
                             mesh: super::fill_paint::FillMesh::of(0, regions, regions),

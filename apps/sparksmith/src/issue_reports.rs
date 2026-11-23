@@ -18,16 +18,23 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 
+use sparksmith_core::layout::connectivity::TieReport;
+use std::sync::Arc;
+struct Computed {
+    issues: Answer,
+    ties: Arc<[TieReport]>,
+}
+
 struct Worker {
     jobs: Sender<(ReportKey, Engine)>,
-    done: Receiver<(ReportKey, Answer)>,
+    done: Receiver<(ReportKey, Computed)>,
 }
 
 /// The report of every area and where the next one comes from.
 #[derive(Default)]
 pub struct Reports {
     /// The newest report applied, and the state it describes.
-    shown: Option<(ReportKey, Answer)>,
+    shown: Option<(ReportKey, Computed)>,
     /// The key last sent to the worker.
     asked: Option<ReportKey>,
     worker: Option<Worker>,
@@ -39,10 +46,25 @@ pub struct Reports {
 /// The engine's report of every area ([`Engine::issue_report`]): made
 /// from the last report it or a fork of it made, so a state that changed
 /// only tracks and vias checks only what reads them.
-fn compute(engine: &Engine) -> Answer {
-    match engine.issue_report() {
+fn compute(engine: &Engine) -> Computed {
+    let issues = match engine.issue_report() {
         Ok(report) => Answer::Report(report),
         Err(error) => Answer::Refused(crate::refusal::shown_error(&error)),
+    };
+    let ties = if engine
+        .project()
+        .instances
+        .iter()
+        .any(|i| !i.ties.is_empty())
+    {
+        let _context = engine.enter_context();
+        sparksmith_core::layout::connectivity::report(engine.project(), &engine.copper_graph())
+    } else {
+        vec![]
+    };
+    Computed {
+        issues,
+        ties: ties.into(),
     }
 }
 
@@ -77,7 +99,7 @@ impl Reports {
         let key = engine.report_key();
         self.receive(&key);
         if self.shown.as_ref().is_some_and(|(at, _)| *at == key) {
-            return self.shown.as_ref().map(|(_, answer)| answer.clone());
+            return self.shown.as_ref().map(|(_, answer)| answer.issues.clone());
         }
         match &self.worker {
             Some(worker) => {
@@ -93,7 +115,7 @@ impl Reports {
             }
             None => self.make(engine, key),
         }
-        self.shown.as_ref().map(|(_, answer)| answer.clone())
+        self.shown.as_ref().map(|(_, answer)| answer.issues.clone())
     }
 
     /// `engine`'s current report, made here on the calling thread when it
@@ -104,13 +126,13 @@ impl Reports {
         let key = engine.report_key();
         self.receive(&key);
         match &self.shown {
-            Some((at, answer)) if *at == key => answer.clone(),
+            Some((at, answer)) if *at == key => answer.issues.clone(),
             _ => {
                 self.make(engine, key);
                 self.asked = Some(key);
                 self.shown
                     .as_ref()
-                    .map_or(Answer::Pending, |(_, answer)| answer.clone())
+                    .map_or(Answer::Pending, |(_, answer)| answer.issues.clone())
             }
         }
     }
@@ -196,8 +218,19 @@ impl SharedReports {
     pub fn current(&self, engine: &Engine) -> Answer {
         match self.0.try_borrow_mut() {
             Ok(mut reports) => reports.current(engine),
-            Err(_) => compute(engine),
+            Err(_) => compute(engine).issues,
         }
+    }
+
+    /// Board joins and margins computed off-thread for this exact document revision.
+    pub fn ties(&self, engine: &Engine) -> Option<Arc<[TieReport]>> {
+        let mut reports = self.0.try_borrow_mut().ok()?;
+        let _ = reports.latest(engine);
+        reports
+            .shown
+            .as_ref()
+            .filter(|(key, _)| *key == engine.report_key())
+            .map(|(_, v)| v.ties.clone())
     }
 
     /// Wait up to `patience` for the current report (tests).

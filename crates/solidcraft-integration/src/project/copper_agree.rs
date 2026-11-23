@@ -119,6 +119,7 @@ struct Copper {
 fn core_copper(
     project: &Project,
     pads: &[layout::PlacedPad],
+    bridges: &[layout::PlacedBridge],
     layer: CopperLayer,
     layers: &[CopperLayer],
 ) -> (Copper, f64, f64) {
@@ -130,6 +131,13 @@ fn core_copper(
         .filter(|l| l.on(layer))
     {
         let ring = land.outline.flatten(PAD_ARC_TOLERANCE_MM);
+        if ring.len() >= 3 {
+            allowed += perimeter(&ring) * (PAD_ARC_TOLERANCE_MM + FLATTEN_TOLERANCE_MM);
+            core.objects.push(vec![oriented(ring, true)]);
+        }
+    }
+    for bridge in bridges.iter().filter(|b| b.layer == layer) {
+        let ring = bridge.outline.flatten(PAD_ARC_TOLERANCE_MM);
         if ring.len() >= 3 {
             allowed += perimeter(&ring) * (PAD_ARC_TOLERANCE_MM + FLATTEN_TOLERANCE_MM);
             core.objects.push(vec![oriented(ring, true)]);
@@ -194,12 +202,13 @@ pub fn between(a: &Project, b: &Project) -> Vec<LayerDifference> {
     let layers = a.stackup.layers();
     let other_layers = b.stackup.layers();
     let (pads_a, pads_b) = (layout::placed_pads(a), layout::placed_pads(b));
+    let (bridges_a, bridges_b) = (layout::placed_bridges(a), layout::placed_bridges(b));
     layers
         .iter()
         .copied()
         .map(|layer| {
-            let (ca, aa, fa) = core_copper(a, &pads_a, layer, &layers);
-            let (cb, ab, fb) = core_copper(b, &pads_b, layer, &other_layers);
+            let (ca, aa, fa) = core_copper(a, &pads_a, &bridges_a, layer, &layers);
+            let (cb, ab, fb) = core_copper(b, &pads_b, &bridges_b, layer, &other_layers);
             let all = |c: &Copper| c.objects.iter().chain(&c.fills).cloned().collect();
             let (a_mm2, b_mm2, _) = compare(all(&ca), all(&cb));
             let (_, _, objects_differ_mm2) = compare(ca.objects, cb.objects);
@@ -221,6 +230,7 @@ pub fn between(a: &Project, b: &Project) -> Vec<LayerDifference> {
 pub fn agreement(project: &Project, plan: &BoardPlan) -> Result<Vec<LayerAgreement>> {
     let layers = project.stackup.layers();
     let pads = layout::placed_pads(project);
+    let bridges = layout::placed_bridges(project);
     let mut out = Vec::with_capacity(layers.len());
     for layer in layers.iter().copied() {
         let mut allowed = 1e-9;
@@ -248,7 +258,8 @@ pub fn agreement(project: &Project, plan: &BoardPlan) -> Result<Vec<LayerAgreeme
             }
         }
         // The core's copper.
-        let (core, core_allowed, core_fill_allowed) = core_copper(project, &pads, layer, &layers);
+        let (core, core_allowed, core_fill_allowed) =
+            core_copper(project, &pads, &bridges, layer, &layers);
         allowed += core_allowed;
         fill_allowed += core_fill_allowed;
         let all = |c: &Copper| c.objects.iter().chain(&c.fills).cloned().collect();

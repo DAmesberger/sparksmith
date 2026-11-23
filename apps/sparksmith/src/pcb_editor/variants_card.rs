@@ -338,6 +338,37 @@ fn name_section(
     operation
 }
 
+fn jumper(row: &VariantRow) -> bool {
+    matches!(
+        row.tie_form,
+        Some(sparksmith_core::library::tie::TieForm::SolderJumper { .. })
+    )
+}
+
+fn population_cell(
+    ui: &mut Ui,
+    row: &VariantRow,
+    variant: Option<Id>,
+    population: Population,
+    name: &str,
+) -> Option<Operation> {
+    let mut on = population.is_populated();
+    let changed = if jumper(row) {
+        kit::dropdown(
+            ui,
+            name,
+            &mut on,
+            &[(true, "Closed".into()), (false, "Open".into())],
+        )
+    } else {
+        kit::cell_check(ui, name, &mut on)
+    };
+    changed.then(|| {
+        refusal::mark(ui.ctx(), Origin::Command);
+        population_edit(row, variant, on)
+    })
+}
+
 /// PARTS: each bought part with its value; for the default, whether it is
 /// populated; for a variant, the default's state, whether the variant
 /// populates it and the Part it fits.
@@ -396,7 +427,11 @@ fn parts_section(
                             weight: 2.0,
                         },
                         kit::TableColumn {
-                            title: "Populated",
+                            title: if report.parts.iter().any(jumper) {
+                                "State"
+                            } else {
+                                "Populated"
+                            },
                             weight: 1.2,
                         },
                     ];
@@ -416,12 +451,10 @@ fn parts_section(
                                     text(ui, (row.instance, 1), value, t.text_dim);
                                 }
                                 _ => {
-                                    let mut on = row.population.is_populated();
                                     let name = format!("{} populated", row.designator);
-                                    if kit::cell_check(ui, &name, &mut on) {
-                                        refusal::mark(ui.ctx(), Origin::Command);
-                                        operation = Some(population_edit(row, None, on));
-                                    }
+                                    operation =
+                                        population_cell(ui, row, None, row.population, &name)
+                                            .or(operation.take());
                                 }
                             }
                         },
@@ -448,7 +481,13 @@ fn parts_section(
                             weight: 2.4,
                         },
                     ];
-                    let rows: Vec<_> = report.parts.iter().take(max).map(|p| p.instance).collect();
+                    let rows: Vec<_> = report
+                        .parts
+                        .iter()
+                        .take(max)
+                        .filter(|p| !jumper(p))
+                        .map(|p| p.instance)
+                        .collect();
                     let substitutes: HashMap<Id, Arc<[Substitute]>> = rows
                         .iter()
                         .map(|id| (*id, card.substitutes(engine, *id)))
@@ -468,21 +507,28 @@ fn parts_section(
                             match column {
                                 0 => text(ui, (row.instance, 0), &row.designator, t.text),
                                 1 => {
-                                    let state = if row.population.is_populated() {
-                                        "Yes"
-                                    } else {
-                                        "No"
+                                    let state = match (jumper(row), row.population.is_populated()) {
+                                        (true, true) => "Closed",
+                                        (true, false) => "Open",
+                                        (false, true) => "Yes",
+                                        (false, false) => "No",
                                     };
                                     text(ui, (row.instance, 1), state, t.text_dim);
                                 }
                                 2 => {
-                                    let mut on = cell.population.is_populated();
                                     let name =
                                         format!("{} populated in {}", row.designator, v.name);
-                                    if kit::cell_check(ui, &name, &mut on) {
-                                        refusal::mark(ui.ctx(), Origin::Command);
-                                        operation = Some(population_edit(row, Some(v.id), on));
-                                    }
+                                    operation = population_cell(
+                                        ui,
+                                        row,
+                                        Some(v.id),
+                                        cell.population,
+                                        &name,
+                                    )
+                                    .or(operation.take());
+                                }
+                                _ if jumper(row) => {
+                                    text(ui, (row.instance, 3), "Solder jumper", t.text_dim)
                                 }
                                 _ => {
                                     let default = match row.mpn.as_deref() {

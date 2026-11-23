@@ -119,7 +119,21 @@ impl SchematicEditor {
         // even in a small window), ahead of PART, PIN FUNCTIONS and Marking,
         // so a normal-height window shows it without scrolling.
         output = output.or(self.property_rows(ui, project, instance));
-        output = output.or(crate::ties::card(ui, engine, instance));
+        if !instance.ties.is_empty() {
+            let id = ui.make_persistent_id(("tie-group", instance.id));
+            let mut group = ui.ctx().data(|d| d.get_temp::<sparksmith_core::TieId>(id));
+            output = output.or(crate::ties::card(
+                ui,
+                engine,
+                instance,
+                &self.reports,
+                &mut group,
+                None,
+            ));
+            if let Some(group) = group {
+                ui.ctx().data_mut(|d| d.insert_temp(id, group));
+            }
+        }
         output = output.or(crate::variants::assembly_section(ui, project, instance));
         output = output.or(self.part_section(ui, engine, instance));
         output = output.or(self.function_section(ui, engine, instance));

@@ -322,11 +322,13 @@ impl Sources {
     fn read(&self, budget: usize) -> Result<Vec<Source>> {
         let picks = self.picks.read_deltas(budget)?;
         let rows = picks.len();
-        if self
-            .bridges
-            .iter()
-            .any(|(i, b)| *i >= rows || b.nets.len() > 8)
-        {
+        if self.bridges.iter().any(|(i, b)| {
+            *i >= rows
+                || b.group.0 == 0
+                || b.bridge.0 == 0
+                || b.nets.len() > 8
+                || b.nets.windows(2).any(|w| w[0] >= w[1])
+        }) {
             return Err(broken());
         }
         let column = |c: &Column| -> Result<Vec<i128>> {
