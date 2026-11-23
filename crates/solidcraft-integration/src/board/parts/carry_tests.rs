@@ -137,6 +137,39 @@ fn a_part_held_at_half_the_width_keeps_its_tracks_when_the_width_changes() -> Fa
     Ok(())
 }
 
+/// A board made narrower than its copper stands is no refusal when the
+/// copper follows: the part held at half the width carries its tracks back
+/// onto the narrower board, and the copper is checked against the new size
+/// where the carry left it.
+#[test]
+fn a_narrower_board_takes_the_copper_its_held_part_carries() -> Fallible<()> {
+    let (mut engine, r2) = held_and_routed()?;
+    let width = engine.project().board_size[0];
+    let tracks = engine.project().tracks.clone();
+    let reach = |p: &Project| {
+        p.tracks
+            .iter()
+            .flat_map(|t| [t.start[0], t.end[0]])
+            .fold(0.0, f64::max)
+    };
+    edit(&mut engine, vec![set("width", &format!("{} mm", 3.0 * width))])?;
+    assert!(reach(engine.project()) > width, "{}", reach(engine.project()));
+    edit(&mut engine, vec![set("width", &format!("{width} mm"))])?;
+    let project = engine.project();
+    assert_eq!(project.board_size[0], width);
+    let at = project.placement_of(r2).ok_or("placement")?.position;
+    assert!((at[0] - width / 2.0).abs() < 1e-6, "{at:?}");
+    assert!(reach(project) < width, "{}", reach(project));
+    assert_eq!(unrouted(project), 0);
+    for (now, was) in project.tracks.iter().zip(tracks.iter()) {
+        assert!(
+            close(now.start, was.start) && close(now.end, was.end),
+            "{now:?}"
+        );
+    }
+    Ok(())
+}
+
 /// A turned and moved part carries a via on its pad and the track ends on
 /// both: each lands where the part's frame takes it. A locked track stays.
 #[test]

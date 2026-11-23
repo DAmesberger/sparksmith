@@ -952,7 +952,6 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
             if !point_valid(size) || !size.iter().all(|v| (5.0..=1000.0).contains(v)) {
                 return invalid("board dimensions must be 5–1000 mm");
             }
-            copper_fits(project, size)?;
             project.board_size = size;
         }
         LayoutCommand::PlacePart {
@@ -1469,6 +1468,9 @@ fn track_within(track: &Track, size: Point) -> bool {
 /// Refuse a board `size` that would leave tracks or vias off the board,
 /// naming them by count and net ("2 tracks on GND and CC2 would lie
 /// outside 38 × 64 mm"), so a designer knows what to move or remove.
+/// A resized board is judged once its dimensioned parts have carried their
+/// copper (`updates::finalize`): copper that follows the edges is no
+/// refusal.
 pub(crate) fn copper_fits(project: &Project, size: Point) -> Result<()> {
     let tracks: Vec<Id> = project
         .tracks
