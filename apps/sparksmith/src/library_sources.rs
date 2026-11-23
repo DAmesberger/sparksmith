@@ -567,7 +567,7 @@ pub struct ReadBundle {
 }
 
 enum Event {
-    Bundle(ReadBundle),
+    Bundle(Box<ReadBundle>),
     Scan(Scan),
     Written(Written),
     Picked(Picked),
@@ -1342,7 +1342,7 @@ impl LibrarySources {
             Event::Scan(scan) if scan.ticket == self.scan => self.scanned(scan.sources),
             Event::Scan(_) => {}
             Event::Written(written) => self.written(written),
-            Event::Bundle(read) => self.bundles.push(read),
+            Event::Bundle(read) => self.bundles.push(*read),
             Event::Picked(picked) => self.picked(picked),
             Event::Saved(sequence, result) => self.saved(sequence, result),
         }
@@ -1364,7 +1364,7 @@ impl LibrarySources {
                 Ok(Event::Scan(scan)) if scan.ticket == self.scan => self.scanned(scan.sources),
                 Ok(Event::Written(written)) => self.written(written),
                 Ok(Event::Saved(sequence, result)) => self.saved(sequence, result),
-                Ok(Event::Bundle(read)) => self.bundles.push(read),
+                Ok(Event::Bundle(read)) => self.bundles.push(*read),
                 Ok(_) => {}
                 Err(error) => return Err(error.to_string()),
             }
@@ -1467,12 +1467,12 @@ impl LibrarySources {
                 },
             )
             .map_err(|e| format!("Reading {} failed: {e}", pick.name));
-            let _ = sender.send(Event::Bundle(ReadBundle {
+            let _ = sender.send(Event::Bundle(Box::new(ReadBundle {
                 version,
                 pick,
                 purpose,
                 result,
-            }));
+            })));
             if let Some(ctx) = repaint {
                 ctx.request_repaint();
             }

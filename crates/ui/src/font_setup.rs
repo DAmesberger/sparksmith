@@ -536,11 +536,11 @@ mod discovery_tests {
         let fonts = discover_fonts(&[override_dir], &scripts, &[user]);
         for script in &scripts {
             let data = fonts.0.get(script.name).ok_or(script.name)?;
-            let face = ttf_parser::Face::parse(&data.font, data.index).map_err(|_| "face")?;
+            let face = ttf_parser::Face::parse((*data.font).as_ref(), data.index).map_err(|_| "face")?;
             assert!(script.probes.chars().all(|c| face.glyph_index(c).is_some()), "{}", script.name);
         }
         let chosen = fonts.0.get(THAI_FALLBACK).ok_or("Thai")?;
-        assert_eq!(chosen.font.as_ref(), thai.as_slice(), "explicit font folder takes precedence");
+        assert_eq!((*chosen.font).as_ref(), thai.as_slice(), "explicit font folder takes precedence");
         Ok(())
     }
 }

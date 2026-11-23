@@ -1424,6 +1424,7 @@ fn shallow_diverging_tracks_couple_only_within_the_gap_band_in_either_direction(
         positive: nets[0],
         negative: nets[1],
         endpoints: None,
+        target: None,
     };
     let layer = CopperLayer::Top;
     let (width, gap) = layout::impedance::pair_width_gap(&project, pair.positive, layer);

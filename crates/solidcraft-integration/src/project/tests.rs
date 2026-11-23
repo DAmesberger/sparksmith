@@ -1577,7 +1577,7 @@ fn every_pad_shape_is_exact_native_copper_in_its_placed_frame() -> Result<()> {
     let full = 60.0 * 40.0 * T;
     // The plated hole is drilled wider than its finished 0.6 mm by the
     // barrel's wall; the bare hole at its size.
-    let plated = 0.3 + 0.025;
+    let plated: f64 = 0.3 + 0.025;
     let drilled = 2.0 * std::f64::consts::PI * (plated.powi(2) + 0.5f64.powi(2)) * T;
     let volume: f64 = substrate.iter().map(|g| g.volume()).sum();
     assert!((volume - (full - drilled)).abs() < 2e-3, "{volume}");
