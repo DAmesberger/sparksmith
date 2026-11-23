@@ -16,6 +16,11 @@ pub(super) struct Names<'a> {
 }
 
 impl<'a> Names<'a> {
+    /// The project the names are read from.
+    pub(super) fn project(&self) -> &'a Project {
+        self.project
+    }
+
     pub(super) fn new(project: &'a Project, drafts: &'a Drafts) -> Self {
         Self {
             project,

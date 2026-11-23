@@ -58,6 +58,9 @@ pub struct IssueRowView<'a> {
     /// Whether the row offers Waive….
     pub waive: bool,
     pub detail: &'a IssueDetail,
+    /// What the row needs of the fab profile, in core's words ("" for
+    /// none), shown in the details.
+    pub needs: &'a str,
     /// The user names of the objects the issue refers to: chips while the
     /// row is disclosed.
     pub objects: &'a [String],
@@ -371,6 +374,7 @@ pub fn issues_list(
                 &l,
                 &[
                     (view.detail.cause.as_deref().unwrap_or(""), l.fg_dim),
+                    (view.needs, l.fg),
                     (view.detail.fix.as_deref().unwrap_or(""), l.fg),
                 ],
                 room,

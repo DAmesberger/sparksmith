@@ -1170,3 +1170,123 @@ fn a_check_settings_change_recomputes_the_cached_issues() -> Fallible<()> {
     );
     Ok(())
 }
+
+/// The test prototype as `id` of `fabricator`, its via annular ring
+/// minimum `ring` (its default via keeping it).
+fn ring_profile(
+    id: &str,
+    fabricator: &str,
+    ring: f64,
+) -> Fallible<sparksmith_core::rules::RuleProfile> {
+    use sparksmith_core::rules::{RuleEntry, RuleKey, RuleValue};
+    let mut p = sparksmith_core::rules::fixtures::prototype()?;
+    p.id = id.into();
+    p.name = format!("Profile {id}");
+    p.fabricator = Some(fabricator.into());
+    p.set(
+        RuleKey::ViaDiameterDefault,
+        RuleEntry::value(RuleValue::Length(0.3 + 2.0 * ring + 0.1), "Invented"),
+    )?;
+    p.set(
+        RuleKey::ViaAnnularRingMin,
+        RuleEntry::value(RuleValue::Length(ring), "Invented row: via ring"),
+    )?;
+    Ok(p)
+}
+
+/// A row the board needs more of its fab profile for says what it needs
+/// in its details, offers no Waive…, and its Fix switches to the first
+/// installed profile that allows the board, as one rules edit.
+#[test]
+fn a_profile_limited_row_says_what_it_needs_and_offers_the_switch() -> Fallible<()> {
+    let tmp = tempfile::tempdir()?;
+    let library = sparksmith_io::rule_profiles::ProfileLibrary::new(
+        tmp.path().join("fab-profiles"),
+        sparksmith_io::shipped::ShippedLibrary::locate()?,
+    );
+    let relaxed = ring_profile("relaxed", "fab-a", 0.1)?;
+    library.create(&relaxed)?;
+    let mut engine = Engine::showcase()?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(sparksmith_core::rules::RulesCommand::set_profile(
+            ring_profile("strict", "fab-a", 0.25)?,
+            false,
+        )),
+    )?;
+    let all = report(&engine, IssueScope::All)?;
+    let (group, row) = groups(&all, None)
+        .iter()
+        .find_map(|g| {
+            g.rows
+                .iter()
+                .map(|&i| &all.rows[i])
+                .find(|r| !r.needs.is_empty())
+                .map(|r| (g.key.clone(), r.clone()))
+        })
+        .ok_or("a row needs more of the profile")?;
+    assert!(!waivable(&row), "never waived");
+    let mut surface = Surface {
+        scope: Scope::All,
+        ..Default::default()
+    };
+    surface.suggestions.library = Some(library);
+    surface.open();
+    for g in &groups(&all, None) {
+        if (g.key == group) != surface.is_open(g) {
+            surface.toggled.insert(g.key.clone());
+        }
+    }
+    surface.open.insert(RowKey::of(row_key(&row)));
+    let mut h = Harness::new();
+    let ctx = h.ctx.clone();
+    surface
+        .suggestions
+        .wait(&ctx, &engine)
+        .ok_or("the suggestions arrive")?;
+    h.frame(Vec::new(), |ui| {
+        surface.card(ui, &engine, Workspace::Pcb, &[])
+    });
+    let (_, painted) = h.frame(Vec::new(), |ui| {
+        surface.card(ui, &engine, Workspace::Pcb, &[])
+    });
+    assert!(
+        painted
+            .iter()
+            .any(|(t, _)| t.starts_with("Needs min via annular ring")),
+        "{painted:?}"
+    );
+    let title = at(&painted, &row.title).ok_or("row title")?;
+    h.frame(vec![Event::PointerMoved(title.center())], |ui| {
+        surface.card(ui, &engine, Workspace::Pcb, &[])
+    });
+    let (_, painted) = h.frame(Vec::new(), |ui| {
+        surface.card(ui, &engine, Workspace::Pcb, &[])
+    });
+    assert!(at(&painted, "Waive\u{2026}").is_none(), "{painted:?}");
+    let switch = at(&painted, "Switch to Profile relaxed").ok_or("the switch")?;
+    let request = h.click(switch.center(), |ui| {
+        surface.card(ui, &engine, Workspace::Pcb, &[])
+    });
+    let Some(Request::Fix(Fix::Switch { operation, .. })) = request else {
+        return Err(format!("expected the switch, got {request:?}").into());
+    };
+    engine.apply(engine.revision(), *operation)?;
+    assert_eq!(
+        engine
+            .project()
+            .rules
+            .profile
+            .as_ref()
+            .map(|p| p.id.as_str()),
+        Some("relaxed")
+    );
+    assert!(
+        report(&engine, IssueScope::All)?
+            .rows
+            .iter()
+            .all(|r| r.needs.is_empty()),
+        "the switch clears every need"
+    );
+    Ok(())
+}

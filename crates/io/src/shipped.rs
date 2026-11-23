@@ -36,6 +36,8 @@ const MAX_ANCESTORS: usize = 8;
 pub enum Shelf {
     /// Fab profiles (`profiles/*.json`).
     Profiles,
+    /// Fabricator records the profiles name (`fabricators/*.json`).
+    Fabricators,
     /// Layer stackups (`stackups/`).
     Stackups,
     /// Body, board and finish materials (`materials/`).
@@ -69,6 +71,7 @@ impl Shelf {
     pub fn dir_name(self) -> &'static str {
         match self {
             Self::Profiles => "profiles",
+            Self::Fabricators => "fabricators",
             Self::Stackups => "stackups",
             Self::Materials => "materials",
             Self::Standards => "standards",

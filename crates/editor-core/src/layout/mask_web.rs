@@ -120,27 +120,30 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                     continue;
                 }
             }
-            out.push(Finding::new(
-                MASK_WEB,
-                format!(
-                    "The solder-mask web between {} and {} on the {} side is {} mm; {}",
-                    name(a),
-                    name(b),
-                    if side == Layer::Top { "top" } else { "bottom" },
-                    mm_against(web.max(0.0), min),
-                    need.text()
-                ),
-                vec![
-                    ObjectRef::Pad {
-                        instance: a.instance,
-                        pad: a.pad.id,
-                    },
-                    ObjectRef::Pad {
-                        instance: b.instance,
-                        pad: b.pad.id,
-                    },
-                ],
-            ));
+            out.push(
+                Finding::new(
+                    MASK_WEB,
+                    format!(
+                        "The solder-mask web between {} and {} on the {} side is {} mm; {}",
+                        name(a),
+                        name(b),
+                        if side == Layer::Top { "top" } else { "bottom" },
+                        mm_against(web.max(0.0), min),
+                        need.text()
+                    ),
+                    vec![
+                        ObjectRef::Pad {
+                            instance: a.instance,
+                            pad: a.pad.id,
+                        },
+                        ObjectRef::Pad {
+                            instance: b.instance,
+                            pad: b.pad.id,
+                        },
+                    ],
+                )
+                .requiring(need.at_most(web)),
+            );
         }
     }
     out

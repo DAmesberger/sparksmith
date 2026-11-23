@@ -270,6 +270,33 @@ pub struct Finding {
     /// The stage this finding prevents, if any. Advisory findings have none.
     #[serde(default)]
     pub blocks: Option<Stage>,
+    /// What the board needs of a fab profile for this finding to clear,
+    /// when its limit is the fab profile's own (not an override's or a net
+    /// class's): the measured value the profile's rule would have to
+    /// allow. Another profile that allows it clears the finding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirement: Option<Requirement>,
+}
+
+/// What a board needs of its fab profile: a profile-limited finding's
+/// measured value, as the bound a profile rule must allow. The rule is
+/// named as fab profile files name it (`rules::RuleKey::name`,
+/// `clearance_pad_npth_hole`); `rules::requirement` reads it against a
+/// profile.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Requirement {
+    /// A minimum rule (a clearance, a width, a ring, a drill) the board's
+    /// geometry is below: the profile's value must be at most `value`.
+    AtMost { rule: String, value: f64 },
+    /// A maximum rule (an aspect ratio) the board is above: the profile's
+    /// value must be at least `value`.
+    AtLeast { rule: String, value: f64 },
+    /// A board of `count` copper layers: the profile must be for it.
+    CopperLayers { count: u32 },
+    /// A board with a solder mask of `colour` (its id): the profile must
+    /// offer it.
+    MaskColour { colour: String },
 }
 
 impl Finding {
@@ -280,7 +307,16 @@ impl Finding {
             message,
             objects,
             blocks: None,
+            requirement: None,
         }
+    }
+
+    /// This finding with what it needs of the fab profile (none leaves it
+    /// as it is).
+    #[must_use]
+    pub fn requiring(mut self, requirement: Option<Requirement>) -> Self {
+        self.requirement = requirement;
+        self
     }
     /// A finding that prevents `stage` while it exists.
     pub fn blocking(code: &str, message: String, objects: Vec<ObjectRef>, stage: Stage) -> Self {

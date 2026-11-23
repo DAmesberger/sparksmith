@@ -129,6 +129,14 @@ pub struct IssueRow {
     /// Copy report lists these too.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub also: Vec<Finding>,
+    /// What the board needs of its fab profile for this row to clear, when
+    /// its findings break the profile's own rules: the tightest measurement
+    /// of each rule, with the profile's limit and source. A row with needs
+    /// is resolved by a profile that allows them
+    /// (`fabrication.profile_suggestions`) or by changing the design, not
+    /// by a waiver.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub needs: Vec<crate::rules::requirement::Needed>,
 }
 
 impl IssueRow {
@@ -559,6 +567,15 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
         .min()
         .unwrap_or(Severity::Info);
     let cause = rules::line_full(&finding.message);
+    let profile = names.project().rules.profile.as_ref();
+    let needs = crate::rules::requirement::tightest(
+        std::iter::once(&finding)
+            .chain(&also)
+            .filter_map(|f| f.requirement.as_ref()),
+    )
+    .iter()
+    .filter_map(|r| crate::rules::requirement::describe(r, profile))
+    .collect();
     IssueRow {
         severity,
         area,
@@ -575,6 +592,7 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
         title,
         finding,
         also,
+        needs,
     }
 }
 

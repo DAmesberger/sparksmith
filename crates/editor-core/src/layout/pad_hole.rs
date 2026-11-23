@@ -483,12 +483,17 @@ impl<'a> PadHoleCx<'a> {
         }
         // Every pad hole keeps the hole kind's board-edge clearance inside
         // the board, whether or not its pad has copper (a bare NPTH).
-        if let Some(text) = super::via::edge_text(&self.edges, &hole.ring, limits, hole.kind) {
-            issues.push(Finding::new(
-                "board.edge_clearance",
-                format!("{}: {} {text}", hole.name, hole.what),
-                vec![hole.object],
-            ));
+        if let Some((text, needs)) =
+            super::via::edge_text(&self.edges, &hole.ring, limits, hole.kind)
+        {
+            issues.push(
+                Finding::new(
+                    "board.edge_clearance",
+                    format!("{}: {} {text}", hole.name, hole.what),
+                    vec![hole.object],
+                )
+                .requiring(needs),
+            );
         }
         let mut pairs = 0usize;
         let net = pad.net.filter(|_| hole.kind == CopperObject::PthHole);
@@ -517,11 +522,14 @@ impl<'a> PadHoleCx<'a> {
             } else {
                 format!("is {} mm from {what}", mm_against(gap, need.mm))
             };
-            issues.push(Finding::new(
-                "board.pad_hole_clearance",
-                format!("{}: hole {how}; {}", hole.name, need.text()),
-                vec![hole.object, shape.object],
-            ));
+            issues.push(
+                Finding::new(
+                    "board.pad_hole_clearance",
+                    format!("{}: hole {how}; {}", hole.name, need.text()),
+                    vec![hole.object, shape.object],
+                )
+                .requiring(need.at_most(gap)),
+            );
         }
         for other in near_holes
             .iter()
@@ -567,7 +575,9 @@ impl<'a> PadHoleCx<'a> {
                     vec![hole.object, other.object],
                 )
             };
-            issues.push(Finding::new("board.pad_hole_spacing", text, objects));
+            issues.push(
+                Finding::new("board.pad_hole_spacing", text, objects).requiring(need.at_most(gap)),
+            );
         }
         Ok(pairs)
     }
@@ -629,24 +639,30 @@ fn rings(
         };
         let ring = ring_of(true);
         if ring.is_finite() && ring < need.mm - EPS {
-            issues.push(Finding::new(
-                "board.pth_annular_ring",
-                format!("{}: {}", name(pad), text(ring)),
-                vec![object],
-            ));
+            issues.push(
+                Finding::new(
+                    "board.pth_annular_ring",
+                    format!("{}: {}", name(pad), text(ring)),
+                    vec![object],
+                )
+                .requiring(need.at_most(ring)),
+            );
         }
         let ring = ring_of(false);
         if ring.is_finite() && ring < npth_need.mm - EPS {
-            issues.push(Finding::new(
-                "board.npth_annular_ring",
-                format!(
-                    "{}: annular ring {} mm round the unplated hole; {}",
-                    name(pad),
-                    mm_against(ring, npth_need.mm),
-                    least(&npth_need)
-                ),
-                vec![object],
-            ));
+            issues.push(
+                Finding::new(
+                    "board.npth_annular_ring",
+                    format!(
+                        "{}: annular ring {} mm round the unplated hole; {}",
+                        name(pad),
+                        mm_against(ring, npth_need.mm),
+                        least(&npth_need)
+                    ),
+                    vec![object],
+                )
+                .requiring(npth_need.at_most(ring)),
+            );
         }
     }
     for mount in project.board().holes.iter().filter(|h| h.plated) {
@@ -654,17 +670,20 @@ fn rings(
             .pad_diameter
             .map_or(0.0, |d| ((d - mount.drill) / 2.0).max(0.0));
         if ring < need.mm - EPS {
-            issues.push(Finding::new(
-                "board.pth_annular_ring",
-                format!(
-                    "{}: {}",
-                    capitalised(&physical::mounting_hole_name(true, mount.at)),
-                    text(ring)
-                ),
-                vec![ObjectRef::BoardFeature {
-                    feature: mount.id.0,
-                }],
-            ));
+            issues.push(
+                Finding::new(
+                    "board.pth_annular_ring",
+                    format!(
+                        "{}: {}",
+                        capitalised(&physical::mounting_hole_name(true, mount.at)),
+                        text(ring)
+                    ),
+                    vec![ObjectRef::BoardFeature {
+                        feature: mount.id.0,
+                    }],
+                )
+                .requiring(need.at_most(ring)),
+            );
         }
     }
     issues

@@ -13,7 +13,7 @@
 //!
 //! [`FabOption::follows`]: crate::rules::FabOption::follows
 //! [`FabChoice::mask_colours`]: crate::rules::FabChoice::mask_colours
-use crate::diagnostics::{Error, Finding, ObjectRef, Result};
+use crate::diagnostics::{Error, Finding, ObjectRef, Requirement, Result};
 use crate::model::{MaskColour, Project};
 use crate::rules::{BoardSetting, ProjectRules, RuleProfile};
 
@@ -87,14 +87,19 @@ pub fn findings(project: &Project) -> Vec<Finding> {
         .flat_map(|o| &o.choices)
         .flat_map(|c| c.mask_colours.iter().map(String::as_str))
         .collect();
-    vec![Finding::new(
-        NOT_OFFERED,
-        format!(
-            "{} does not offer a {} solder mask; it offers {}",
-            profile.name,
-            colour.id(),
-            offered.join(", ")
-        ),
-        vec![ObjectRef::Board],
-    )]
+    vec![
+        Finding::new(
+            NOT_OFFERED,
+            format!(
+                "{} does not offer a {} solder mask; it offers {}",
+                profile.name,
+                colour.id(),
+                offered.join(", ")
+            ),
+            vec![ObjectRef::Board],
+        )
+        .requiring(Some(Requirement::MaskColour {
+            colour: colour.id().into(),
+        })),
+    ]
 }

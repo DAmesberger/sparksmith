@@ -785,17 +785,20 @@ impl<'a> ClearanceCx<'a> {
             )),
             EdgeVerdict::TooClose { gap, near } => {
                 let need = limits.clearance_need(a.kind, a.net(), CopperObject::BoardEdge, None);
-                issues.push(Finding::new(
-                    "board.edge_clearance",
-                    format!(
-                        "{} is {} mm from {}; {}",
-                        crate::library::names::capitalised(&self.label(a)),
-                        mm_against(gap, need.mm),
-                        near.describe(),
-                        need.text()
-                    ),
-                    vec![a.object],
-                ));
+                issues.push(
+                    Finding::new(
+                        "board.edge_clearance",
+                        format!(
+                            "{} is {} mm from {}; {}",
+                            crate::library::names::capitalised(&self.label(a)),
+                            mm_against(gap, need.mm),
+                            near.describe(),
+                            need.text()
+                        ),
+                        vec![a.object],
+                    )
+                    .requiring(need.at_most(gap)),
+                );
             }
         }
     }
@@ -845,17 +848,25 @@ impl<'a> ClearanceCx<'a> {
             if a.ring.closer_than(b.ring, gap) {
                 let need =
                     isolation.unwrap_or_else(|| limits.clearance_need(a.kind, an, b.kind, bn));
-                issues.push(Finding::new(
-                    "board.clearance",
-                    format!(
-                        "Clearance < {} mm: {} / {} ({})",
-                        mm(need.mm),
-                        self.label(a),
-                        self.label(b),
-                        need.cite()
-                    ),
-                    vec![a.object, b.object],
-                ));
+                // What a profile would have to allow: the gap measured, once
+                // a pair is found too close.
+                let needs = need
+                    .profile_rule
+                    .and_then(|_| need.at_most(a.ring.gap(b.ring, need.mm + 1.0)));
+                issues.push(
+                    Finding::new(
+                        "board.clearance",
+                        format!(
+                            "Clearance < {} mm: {} / {} ({})",
+                            mm(need.mm),
+                            self.label(a),
+                            self.label(b),
+                            need.cite()
+                        ),
+                        vec![a.object, b.object],
+                    )
+                    .requiring(needs),
+                );
             }
         }
         Ok(pairs)

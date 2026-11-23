@@ -18,7 +18,8 @@ If none is found, the message lists every folder searched and names the variable
 
 | Shelf | Folder | Holds |
 |---|---|---|
-| Profiles | `profiles/` | Fab profiles, one JSON each, with sources |
+| Profiles | `profiles/` | Fab profiles, one JSON each, with sources; each names its fabricator's record |
+| Fabricators | `fabricators/` | Fabricator records the profiles name (`<id>.json`: id, name, website, source); a user's `fabricators/` folder adds or replaces them |
 | Stackups | `stackups/` | Layer stackups and their materials |
 | Materials | `materials/` | Body, board, finish and mask materials |
 | Standards | `standards/` | Published standards and conventions: preferred number series, marking codes, schematic symbol drawings (`symbols/`) |

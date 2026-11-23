@@ -144,12 +144,28 @@ pub struct PreflightItem {
     /// The saved waiver, when the user accepted this finding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waiver: Option<Waiver>,
+    /// What the board needs of the fab profile for this finding to clear,
+    /// when the limit it breaks is the profile's own rule: the measured
+    /// value, the profile's limit and its source. Such a finding is
+    /// resolved by a profile that allows it (`fabrication.profile_suggestions`)
+    /// or by changing the design, never by a waiver
+    /// ([`Self::offers_waiver`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub needs: Option<crate::rules::requirement::Needed>,
 }
 
 impl PreflightItem {
     /// An error nobody waived: it blocks export.
     pub fn blocks(&self) -> bool {
         self.severity == Severity::Error && self.waiver.is_none()
+    }
+
+    /// Whether a host offers to waive this finding: not one that may not
+    /// be waived ([`can_waive`]), and not one the board's geometry asks
+    /// more of the fab profile for ([`Self::needs`]): a part drawn to its
+    /// datasheet is made by a profile that allows it, not waived.
+    pub fn offers_waiver(&self) -> bool {
+        self.needs.is_none() && can_waive(&self.code)
     }
 }
 
@@ -267,13 +283,19 @@ pub fn check(
         let Some(severity) = severity(row) else {
             continue;
         };
-        items.push(item(
+        let mut found = item(
             &row.finding.code,
             severity,
             row.title.clone(),
             row.detail.fix.clone(),
             row.finding.objects.clone(),
-        ));
+        );
+        found.needs = row
+            .finding
+            .requirement
+            .as_ref()
+            .and_then(|r| crate::rules::requirement::describe(r, p.rules.profile.as_ref()));
+        items.push(found);
     }
     production_findings(p, drafts, &mut items);
     if p.rules.profile.is_none() {
@@ -325,6 +347,7 @@ fn item(
         fix,
         objects,
         waiver: None,
+        needs: None,
     }
 }
 

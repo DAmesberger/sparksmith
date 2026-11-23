@@ -12,7 +12,7 @@
 //!
 //! [`ProfileBoards`]: crate::rules::ProfileBoards
 //! [`ChoiceRequires`]: crate::rules::ChoiceRequires
-use crate::diagnostics::{Error, Finding, ObjectRef, Result};
+use crate::diagnostics::{Error, Finding, ObjectRef, Requirement, Result};
 use crate::model::{PadFinish, Project};
 
 /// The board's copper layer count is not one its fab profile is for.
@@ -67,15 +67,22 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             .iter()
             .map(ToString::to_string)
             .collect();
-        out.push(Finding::new(
-            LAYERS,
-            format!(
-                "{} is for {}-layer boards; the board has {layers} copper layers",
-                profile.name,
-                or_list(&counts)
+        out.push(
+            Finding::new(
+                LAYERS,
+                format!(
+                    "{} is for {}-layer boards; the board has {layers} copper layers",
+                    profile.name,
+                    or_list(&counts)
+                ),
+                vec![ObjectRef::Board],
+            )
+            .requiring(
+                u32::try_from(layers)
+                    .ok()
+                    .map(|count| Requirement::CopperLayers { count }),
             ),
-            vec![ObjectRef::Board],
-        ));
+        );
     }
     let thickness = project.stackup.thickness_mm();
     let finish = project.fabrication.pad_finish;

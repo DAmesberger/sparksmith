@@ -64,7 +64,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "checks",
-        (1, 4),
+        (1, 5),
         "Checks",
         "Issues, the production check and its waivers.",
     ),
