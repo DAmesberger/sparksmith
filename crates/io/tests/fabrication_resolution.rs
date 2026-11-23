@@ -261,3 +261,121 @@ fn a_conflicting_kept_override_is_refused_and_cannot_be_waived() -> Fallible<()>
     assert_refused(&engine, &strict, "default track width")?;
     Ok(())
 }
+
+/// The two demo resistors have two open pads on their common net. Piling
+/// copper at the opposite end of the board cannot route either one.
+#[test]
+fn an_incomplete_graph_preserves_open_pads_and_blocks_release() -> Fallible<()> {
+    use sparksmith_core::library::standards::Context;
+    use sparksmith_core::model::production::Waiver;
+    use sparksmith_core::{CopperLayer, InstanceCommand, Track};
+
+    let _scope = Context::fixture()?.enter();
+    let mut engine = Engine::demo()?;
+    let unused: Vec<_> = engine
+        .project()
+        .nets
+        .iter()
+        .filter_map(|n| match n.terminals.as_slice() {
+            [only] => Some(*only),
+            _ => None,
+        })
+        .collect();
+    for pin in unused {
+        engine.apply(
+            engine.revision(),
+            Operation::Instance(InstanceCommand::SetNoConnect {
+                instance: pin.instance,
+                terminals: vec![pin.terminal],
+                no_connect: true,
+            }),
+        )?;
+    }
+    let check = |engine: &Engine| {
+        preflight::report(
+            engine.project(),
+            engine.drafts(),
+            None,
+            engine.check_settings(),
+        )
+    };
+    let open_pads = |report: &fabrication::PreflightReport| {
+        report
+            .items
+            .iter()
+            .filter(|i| i.code == "board.unrouted" && i.blocks())
+            .map(|i| i.key.clone())
+            .collect::<Vec<_>>()
+    };
+    let control = check(&engine)?;
+    assert_eq!(control.blocking, 2);
+    let known_opens = open_pads(&control);
+    assert_eq!(known_opens.len(), 2);
+    let mut file = engine.to_file();
+    let p = &mut file.project;
+    let net = p
+        .nets
+        .iter()
+        .find(|n| n.terminals.len() == 2)
+        .ok_or("shared net")?
+        .id;
+    for _ in 0..90 {
+        let id = p.allocate()?;
+        p.tracks.push(Track {
+            id,
+            net,
+            start: [25.0, 15.0],
+            end: [30.0, 15.0],
+            width: 0.3,
+            locked: false,
+            layer: CopperLayer::Top,
+        });
+    }
+    let mut engine = Engine::from_file(file)?;
+    assert!(!engine.copper_graph().complete());
+    let dense = check(&engine)?;
+    assert_eq!(open_pads(&dense), known_opens);
+    let limit = dense
+        .items
+        .iter()
+        .find(|i| i.code == "board.check_limit")
+        .ok_or("limit")?;
+    assert!(limit.blocks());
+    assert!(!limit.offers_waiver());
+    let revision = engine.revision();
+    let error = engine
+        .apply(
+            revision,
+            Operation::Fabrication(FabricationCommand::Waive {
+                keys: vec![limit.key.clone()],
+                reason: "Reviewed the dense region".into(),
+            }),
+        )
+        .err()
+        .ok_or("the waiver was accepted")?;
+    assert_eq!(error.rule(), Some("fabrication.not_waivable"));
+    assert_eq!(engine.revision(), revision);
+    assert!(engine.project().production.waivers.is_empty());
+
+    let mut file = engine.to_file();
+    file.project.production.waivers.push(Waiver {
+        key: limit.key.clone(),
+        reason: "Old waiver".into(),
+    });
+    let engine = Engine::from_file(file)?;
+    let after = check(&engine)?;
+    assert!(!after.ready());
+    assert_eq!(after.waived, 0);
+    assert_eq!(after.blocking, dense.blocking);
+    assert_eq!(open_pads(&after), known_opens);
+    let dir = tempfile::tempdir()?;
+    let output = dir.path().join("release");
+    match run(&engine, &output, None) {
+        Err(sparksmith_io::Error::Document(error)) => {
+            assert_eq!(error.rule(), Some("fabrication.blocked"))
+        }
+        result => return Err(format!("expected a blocked release, got {result:?}").into()),
+    }
+    assert!(!output.exists());
+    Ok(())
+}

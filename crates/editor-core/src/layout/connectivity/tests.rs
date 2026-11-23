@@ -431,6 +431,30 @@ fn a_partial_graph_reports_the_check_limit_once() -> Result<()> {
     Ok(())
 }
 
+/// A route scanned after the dense region may already join the pads. Name
+/// the two unverified pads without telling the designer they need rerouting.
+#[test]
+fn a_partial_graph_identifies_pads_whose_route_is_unverified() -> Result<()> {
+    let mut project = fixture()?;
+    for _ in 0..90 {
+        track(&mut project, [25.0, 15.0], [30.0, 15.0], top())?;
+    }
+    track(&mut project, R1_2, R2_1, top())?;
+    let graph = CopperGraph::of(&project);
+    assert!(!graph.complete());
+    let findings = graph.findings(&project);
+    assert!(codes(&findings, "board.unrouted").is_empty());
+    let pads: Vec<_> = findings
+        .iter()
+        .filter(|f| f.code == "board.check_limit")
+        .flat_map(|f| &f.objects)
+        .filter(|o| matches!(o, ObjectRef::Pad { .. }))
+        .collect();
+    assert_eq!(pads.len(), 2, "{findings:?}");
+    assert_ne!(pads[0], pads[1]);
+    Ok(())
+}
+
 /// The engine builds the graph once per revision and drops it with the
 /// revision.
 #[test]
