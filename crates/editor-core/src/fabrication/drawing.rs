@@ -50,7 +50,19 @@ pub struct AssemblyPart {
     /// Fitted under the active assembly variant; a part that is not is
     /// drawn crossed out.
     pub fitted: bool,
+    /// Its active assembly instructions include a fabricated trace to cut.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub cut_trace: bool,
+}
+
+/// One physical trace to cut for this variant, at the bridge on its own side.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TraceCut {
+    pub instance: Id,
+    pub group: crate::ids::TieId,
+    pub bridge: crate::ids::BridgeId,
+    pub at: Point,
+    pub label: String,
 }
 
 /// One side of the assembly drawing.
@@ -58,6 +70,8 @@ pub struct AssemblyPart {
 pub struct AssemblySide {
     pub side: Layer,
     pub parts: Vec<AssemblyPart>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cuts: Vec<TraceCut>,
 }
 
 /// Everything both drawings print.
@@ -400,6 +414,81 @@ fn box_loop(b: Bounds) -> Vec<Point> {
     vec![b.min, [b.max[0], b.min[1]], b.max, [b.min[0], b.max[1]]]
 }
 
+/// Pick the middle of a copper span on the bridge's middle scanline. The
+/// bounding-box centre alone can fall in empty space on a bent bridge.
+fn cut_position(ring: &[Point]) -> Option<Point> {
+    let [cx, y] = Bounds::of(ring.iter().copied())?.center();
+    if crate::geometry::polygon_contains(ring, [cx, y]) {
+        return Some([cx, y]);
+    }
+    let mut crossings: Vec<_> = ring
+        .iter()
+        .zip(ring.iter().cycle().skip(1))
+        .filter(|(a, b)| (a[1] > y) != (b[1] > y))
+        .map(|(a, b)| a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]))
+        .collect();
+    crossings.sort_by(f64::total_cmp);
+    crossings
+        .chunks_exact(2)
+        .max_by(|a, b| (a[1] - a[0]).total_cmp(&(b[1] - b[0])))
+        .map(|span| [(span[0] + span[1]) / 2.0, y])
+}
+
+fn trace_cuts(project: &Project) -> Vec<(Layer, TraceCut)> {
+    use crate::library::tie::{JumperBridge, TieForm};
+    layout::placed_bridges(project)
+        .into_iter()
+        .filter_map(|bridge| {
+            let instance = project.instance(bridge.instance)?;
+            if crate::instances::variants::population(instance, project.variants.active())
+                .is_populated()
+            {
+                return None;
+            }
+            let component = project.library.component(instance.component)?;
+            let group = component
+                .definition
+                .ties
+                .iter()
+                .find(|t| t.id == bridge.group)?;
+            if !matches!(
+                group.form,
+                TieForm::SolderJumper {
+                    bridge: JumperBridge::Trace,
+                    ..
+                }
+            ) {
+                return None;
+            }
+            let view = crate::instances::resolve(&project.library, instance)
+                .ok()?
+                .physical?;
+            let footprint = &view.footprint.definition;
+            let mut label = format!("Cut {}", instance.designator);
+            if footprint.pads.len() > 2 {
+                let numbers = bridge
+                    .pads
+                    .iter()
+                    .filter_map(|id| footprint.pad(*id).map(|p| p.number.as_str()))
+                    .collect::<Vec<_>>();
+                label.push_str(" pads ");
+                label.push_str(&numbers.join("–"));
+            }
+            let at = cut_position(&bridge.outline.flatten(DRAWING_CHORD_MM))?;
+            Some((
+                bridge.layer.side()?,
+                TraceCut {
+                    instance: instance.id,
+                    group: group.id,
+                    bridge: bridge.bridge,
+                    at,
+                    label,
+                },
+            ))
+        })
+        .collect()
+}
+
 fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
     let values = values(project);
     let mut assembly: BTreeMap<(Id, bool), Vec<Vec<Point>>> = BTreeMap::new();
@@ -455,6 +544,8 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
             polarity.insert(placed.instance, placed.center());
         }
     }
+    let cuts = trace_cuts(project);
+    let cut_parts: std::collections::BTreeSet<Id> = cuts.iter().map(|(_, c)| c.instance).collect();
     let mut sides = Vec::new();
     for side in [Layer::Top, Layer::Bottom] {
         let mut parts = Vec::new();
@@ -479,14 +570,7 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
                 })
                 .unwrap_or_default();
             let fitted = crate::instances::variants::fitted(project, instance).populated();
-            let cut_trace = !fitted
-                && matches!(
-                    crate::instances::ties::form(project, instance),
-                    Some(crate::library::tie::TieForm::SolderJumper {
-                        bridge: crate::library::tie::JumperBridge::Trace,
-                        ..
-                    })
-                );
+            let cut_trace = cut_parts.contains(&instance.id);
             parts.push(AssemblyPart {
                 instance: instance.id,
                 designator: instance.designator.clone(),
@@ -500,8 +584,13 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
                 cut_trace,
             });
         }
-        if !parts.is_empty() {
-            sides.push(AssemblySide { side, parts });
+        let cuts: Vec<_> = cuts
+            .iter()
+            .filter(|(s, _)| *s == side)
+            .map(|(_, cut)| cut.clone())
+            .collect();
+        if !parts.is_empty() || !cuts.is_empty() {
+            sides.push(AssemblySide { side, parts, cuts });
         }
     }
     sides
@@ -639,6 +728,12 @@ mod tests {
             ))
         );
         Ok(())
+    }
+
+    #[test]
+    fn cut_marker_is_on_copper_for_a_bent_bridge() {
+        let ring = [[0., 0.], [4., 0.], [4., 1.], [1., 1.], [1., 4.], [0., 4.]];
+        assert_eq!(cut_position(&ring), Some([0.5, 2.0]));
     }
 
     #[test]

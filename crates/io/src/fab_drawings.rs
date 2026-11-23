@@ -889,12 +889,8 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
         let (bw, bh) = (hi[0] - lo[0], hi[1] - lo[1]);
         let tall = bh > bw * 1.2;
         let (long, short) = if tall { (bh, bw) } else { (bw, bh) };
-        let label = if part.cut_trace {
-            format!("Cut {}", part.designator)
-        } else {
-            part.designator.clone()
-        };
-        let unit = text_width(&label, 1.0).max(0.3);
+        let label = &part.designator;
+        let unit = text_width(label, 1.0).max(0.3);
         let size = (long * 0.8 / unit).min(short * 0.6).clamp(1.2, 5.0);
         let c = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0];
         let angle = if tall { 90.0 } else { 0.0 };
@@ -904,7 +900,9 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
         } else {
             [c[0], c[1] - off]
         };
-        page.text(at, size, &label, Font::Bold, Align::Centre, angle, INK);
+        if !part.cut_trace {
+            page.text(at, size, label, Font::Bold, Align::Centre, angle, INK);
+        }
         if let Some(p) = part.polarity {
             page.disc(view.map(p), (0.25 * view.scale).clamp(0.4, 1.0), POLARITY);
         }
@@ -914,6 +912,19 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
             page.polyline(&[lo, hi], false, &stroke);
             page.polyline(&[[lo[0], hi[1]], [hi[0], lo[1]]], false, &stroke);
         }
+    }
+    for cut in &side.cuts {
+        let [x, y] = view.map(cut.at);
+        page.disc([x, y], 0.45, POLARITY);
+        page.text(
+            [x, y + 1.0],
+            2.0,
+            &cut.label,
+            Font::Bold,
+            Align::Centre,
+            0.0,
+            INK,
+        );
     }
     title_block(
         &mut page,
@@ -947,6 +958,7 @@ pub fn assembly_pdf(data: &DrawingData) -> Result<Vec<u8>> {
             &AssemblySide {
                 side: Layer::Top,
                 parts: Vec::new(),
+                cuts: Vec::new(),
             },
         ))?;
     }
@@ -1032,6 +1044,32 @@ mod tests {
         }
         let pages = assembly_pages(&data);
         assert!(pages[1].texts().iter().any(|t| t.contains("mirrored")));
+        Ok(())
+    }
+
+    #[test]
+    fn assembly_pdf_prints_the_active_cut_instruction() -> Result<()> {
+        let mut data = showcase()?;
+        let side = data
+            .sides
+            .first_mut()
+            .ok_or_else(|| crate::Error::Invalid("a placed side".into()))?;
+        let part = side
+            .parts
+            .first_mut()
+            .ok_or_else(|| crate::Error::Invalid("a placed part".into()))?;
+        part.designator = "JP1".into();
+        part.fitted = false;
+        part.cut_trace = true;
+        side.cuts.push(drawing::TraceCut {
+            instance: part.instance,
+            group: sparksmith_core::ids::TieId(1),
+            bridge: sparksmith_core::ids::BridgeId(4),
+            at: part.at,
+            label: "Cut JP1 pads 2-3".into(),
+        });
+        let output = assembly_pdf(&data)?;
+        assert!(String::from_utf8_lossy(&output).contains("(Cut JP1 pads 2-3) Tj"));
         Ok(())
     }
 
