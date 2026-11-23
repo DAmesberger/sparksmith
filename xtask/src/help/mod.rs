@@ -1,5 +1,6 @@
 //! Build the offline manual from its registries, or compare it with a checkout.
 mod registries;
+mod site;
 #[cfg(test)]
 mod tests;
 
@@ -22,11 +23,20 @@ pub fn run(args: &[String]) -> Result<()> {
     {
         return stamp(&library, &id.parse()?);
     }
-    let update = match args {
-        [flag] if flag == "--check" => false,
-        [flag] if flag == "--update" => true,
-        _ => return Err("usage: cargo xtask help --check | --update | --stamp <topic-id>".into()),
-    };
+    if let [flag, out] = args
+        && flag == "--site"
+    {
+        return site::render(Path::new(out), &help::load(&library)?, &library);
+    }
+    let update =
+        match args {
+            [flag] if flag == "--check" => false,
+            [flag] if flag == "--update" => true,
+            _ => return Err(
+                "usage: cargo xtask help --check | --update | --stamp <topic-id> | --site <out>"
+                    .into(),
+            ),
+        };
     let mut generated = registries::generate(&library, &dir, update)?;
     generated.push(("findings", sparksmith_core::help::finding_entries()?));
     for (registry, mut entries) in generated {

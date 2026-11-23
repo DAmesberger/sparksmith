@@ -153,7 +153,7 @@ fn run() -> Result<()> {
         _ => Err(
             "usage: cargo xtask ci | ci-native | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
              | licences --check | brand-crates | clean-room | no-builtin-data | generic-terms | ui-containers | ui-forms | raw-keys | generators build [--ship] | check | reproduce | measure \
-             | surface --check | --update | help --check | --update | --stamp <topic-id> | kicad-compare [--design PATH]"
+             | surface --check | --update | help --check | --update | --stamp <topic-id> | --site <out> | kicad-compare [--design PATH]"
                 .into(),
         ),
     }
