@@ -599,22 +599,34 @@ fn help_resource_and_query_serve_identical_bytes_and_complete_ids() -> Fallible<
         "operation":{"editor":"Rules","operation":{"command":"rules.set_fab_profile",
         "params":{"profile":profile["fab_profile"]}}}}}));
     assert_eq!(configured["ok"], true, "{configured}");
-    let server = Server::new(session, Grant::new(Mode::AutoAllowEdits, [dir.path().to_owned()]))?;
+    let server = Server::new(
+        session,
+        Grant::new(Mode::AutoAllowEdits, [dir.path().to_owned()]),
+    )?;
     block_on(async move {
         let (mut wire, serving) = Wire::open(server);
         let id = "finding/board.via_annular_ring";
         let cases = [
             (1, help::INDEX.to_owned(), "help.search", json!({"text":""})),
-            (3, format!("{}/{}", help::INDEX, id.replace('/', "%2F")), "help.topic", json!({"id":id})),
+            (
+                3,
+                format!("{}/{}", help::INDEX, id.replace('/', "%2F")),
+                "help.topic",
+                json!({"id":id}),
+            ),
         ];
         for (n, uri, name, params) in cases {
             let read = request(n, "resources/read", json!({"uri":uri}));
             wire.send(&read.to_string()).await?;
             let resource = wire.reply().await?;
-            let text = resource["result"]["contents"][0]["text"].as_str()
+            let text = resource["result"]["contents"][0]["text"]
+                .as_str()
                 .ok_or_else(|| format!("resource failed: {resource}"))?;
-            let query = request(n + 1, "tools/call",
-                json!({"name":"query","arguments":{"name":name,"params":params}}));
+            let query = request(
+                n + 1,
+                "tools/call",
+                json!({"name":"query","arguments":{"name":name,"params":params}}),
+            );
             wire.send(&query.to_string()).await?;
             assert_eq!(wire.reply().await?["result"]["content"][0]["text"], text);
             if name == "help.topic" {
@@ -623,27 +635,54 @@ fn help_resource_and_query_serve_identical_bytes_and_complete_ids() -> Fallible<
                 assert!(topic["facts"]["checks"].is_null());
             }
         }
-        let complete = request(5, "completion/complete", json!({
-            "ref":{"type":"ref/resource","uri":help::TEMPLATE},
-            "argument":{"name":"id","value":id}
-        }));
+        let complete = request(
+            5,
+            "completion/complete",
+            json!({
+                "ref":{"type":"ref/resource","uri":help::TEMPLATE},
+                "argument":{"name":"id","value":id}
+            }),
+        );
         wire.send(&complete.to_string()).await?;
-        assert_eq!(wire.reply().await?["result"]["completion"]["values"], json!([id]));
-        let inspect = request(6, "tools/call", json!({"name":"query",
-            "arguments":{"name":"project.inspect","params":{}}}));
+        assert_eq!(
+            wire.reply().await?["result"]["completion"]["values"],
+            json!([id])
+        );
+        let inspect = request(
+            6,
+            "tools/call",
+            json!({"name":"query",
+            "arguments":{"name":"project.inspect","params":{}}}),
+        );
         wire.send(&inspect.to_string()).await?;
         let reply = wire.reply().await?;
-        let handle: Value = serde_json::from_str(reply["result"]["content"][0]["text"].as_str()
-            .ok_or("missing project reply")?)?;
+        let handle: Value = serde_json::from_str(
+            reply["result"]["content"][0]["text"]
+                .as_str()
+                .ok_or("missing project reply")?,
+        )?;
         let project = handle["project"].as_str().ok_or("missing project handle")?;
-        let query = request(7, "tools/call", json!({"name":"query","arguments":{
-            "name":"help.topic","project":project,"params":{"id":id}}}));
+        let query = request(
+            7,
+            "tools/call",
+            json!({"name":"query","arguments":{
+            "name":"help.topic","project":project,"params":{"id":id}}}),
+        );
         wire.send(&query.to_string()).await?;
         let reply = wire.reply().await?;
-        let topic: Value = serde_json::from_str(reply["result"]["content"][0]["text"].as_str()
-            .ok_or("missing contextual reply")?)?;
-        assert_eq!(topic["facts"]["checks"], "rule/jlcpcb-2-layer/via_annular_ring_min");
-        assert_eq!(topic["active_rule"]["source"], profile["fab_profile"]["source"]);
+        let topic: Value = serde_json::from_str(
+            reply["result"]["content"][0]["text"]
+                .as_str()
+                .ok_or("missing contextual reply")?,
+        )?;
+        assert_eq!(
+            topic["facts"]["checks"],
+            "rule/jlcpcb-2-layer/via_annular_ring_min"
+        );
+        assert_eq!(
+            topic["active_rule"]["source"],
+            profile["fab_profile"]["source"]
+        );
         drop(wire);
         serving.await??;
         Fallible::Ok(())
@@ -660,14 +699,21 @@ fn help_resource_and_guide_honor_the_module_grant() -> Fallible<()> {
         let read = request(1, "resources/read", json!({"uri":help::INDEX}));
         wire.send(&read.to_string()).await?;
         assert_eq!(wire.reply().await?["error"]["data"]["code"], "gate.module");
-        let describe = request(2, "tools/call", json!({
-            "name":"describe","arguments":{"name":"guide:routing"}
-        }));
+        let describe = request(
+            2,
+            "tools/call",
+            json!({
+                "name":"describe","arguments":{"name":"guide:routing"}
+            }),
+        );
         wire.send(&describe.to_string()).await?;
         let reply = wire.reply().await?;
         assert_eq!(reply["result"]["isError"], true, "{reply}");
-        let diagnostic: Value = serde_json::from_str(reply["result"]["content"][0]["text"]
-            .as_str().ok_or("missing guide error")?)?;
+        let diagnostic: Value = serde_json::from_str(
+            reply["result"]["content"][0]["text"]
+                .as_str()
+                .ok_or("missing guide error")?,
+        )?;
         assert_eq!(diagnostic["code"], "gate.module");
         drop(wire);
         serving.await??;

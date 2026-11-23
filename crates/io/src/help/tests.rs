@@ -69,8 +69,8 @@ fn installing_a_shared_method_makes_the_same_prose_readable() -> Result<()> {
 
 #[test]
 fn screenshot_version_is_the_captured_build_even_when_the_topic_is_older() -> Result<()> {
-    let body = blocks(r#"![Help search results](help-search.png "1.2.3")"#)
-        .map_err(Error::Invalid)?;
+    let body =
+        blocks(r#"![Help search results](help-search.png "1.2.3")"#).map_err(Error::Invalid)?;
     assert!(matches!(body.as_slice(), [Block::Image { version, .. }] if version == "1.2.3"));
     assert!(blocks("![Help search results](help-search.png)").is_err());
     assert!(blocks(r#"![](help-search.png "1.2.3")"#).is_err());

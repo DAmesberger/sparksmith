@@ -314,8 +314,8 @@ impl ServerHandler for Server {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
         one_page(request.as_ref())?;
-        let resource = Resource::new(help::INDEX, "Offline help index")
-            .with_mime_type("application/json");
+        let resource =
+            Resource::new(help::INDEX, "Offline help index").with_mime_type("application/json");
         Ok(ListResourcesResult::with_all_items(vec![resource])
             .with_ttl_ms(LIST_TTL_MS)
             .with_cache_scope(CacheScope::Public))
@@ -326,8 +326,8 @@ impl ServerHandler for Server {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
         one_page(request.as_ref())?;
-        let template = ResourceTemplate::new(help::TEMPLATE, "Help topic")
-            .with_mime_type("application/json");
+        let template =
+            ResourceTemplate::new(help::TEMPLATE, "Help topic").with_mime_type("application/json");
         Ok(ListResourceTemplatesResult::with_all_items(vec![template])
             .with_ttl_ms(LIST_TTL_MS)
             .with_cache_scope(CacheScope::Public))
@@ -337,7 +337,9 @@ impl ServerHandler for Server {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
-        self.help_resource(&request.uri).await.map(ReadResourceResponse::from)
+        self.help_resource(&request.uri)
+            .await
+            .map(ReadResourceResponse::from)
     }
     async fn complete(
         &self,

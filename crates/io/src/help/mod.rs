@@ -75,10 +75,14 @@ pub fn blocks(md: &str) -> std::result::Result<Vec<Block>, String> {
                 .and_then(|s| s.split_once("]("))
                 .ok_or("Invalid help image")?;
             let (file, version) = target
-                .strip_suffix('"').and_then(|s| s.rsplit_once(" \""))
+                .strip_suffix('"')
+                .and_then(|s| s.rsplit_once(" \""))
                 .ok_or("An image needs the captured app version in quotes")?;
-            if version.is_empty() || version.len() > 64
-                || !version.bytes().all(|b| b.is_ascii_alphanumeric() || b".-+".contains(&b))
+            if version.is_empty()
+                || version.len() > 64
+                || !version
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b".-+".contains(&b))
             {
                 return Err("Invalid captured app version".into());
             }
@@ -271,8 +275,8 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Index> {
             .join(entry.id.name())
             .join("method.md");
         let raw = source(&method)?;
-        entry.body = blocks(&raw)
-            .map_err(|e| Error::Invalid(format!("{}: {e}", method.display())))?;
+        entry.body =
+            blocks(&raw).map_err(|e| Error::Invalid(format!("{}: {e}", method.display())))?;
     }
     // This topic appears when the harness ships its shared method. Both
     // MCP and chat consume that same library file; no help copy is stored.
@@ -297,8 +301,7 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Index> {
                 .into(),
             since: env!("CARGO_PKG_VERSION").into(),
             facts: Facts::Guide,
-            body: blocks(body)
-                .map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))?,
+            body: blocks(body).map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))?,
             related: vec![],
             keywords: vec![],
         };

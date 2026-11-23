@@ -4,8 +4,11 @@ use crate::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sparksmith_core::{Error, rules::{RuleKey, RuleProfile, RuleValue, profile::ProfileSource}};
 use sparksmith_core::help::{Block, Facts, HelpEntry, HelpId, HelpKind, Index, Inline, search};
+use sparksmith_core::{
+    Error,
+    rules::{RuleKey, RuleProfile, RuleValue, profile::ProfileSource},
+};
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -67,7 +70,7 @@ pub struct TopicReply {
     pub title: String,
     pub summary: String,
     pub facts: Facts,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub active_rule: Option<ActiveRule>,
     pub excerpt: Vec<Block>,
     pub truncated: bool,
@@ -152,11 +155,18 @@ fn topic(
         }
         if let Some(key) = rule_key.as_deref().and_then(RuleKey::from_name) {
             *checks = None;
-            if let Some(p) = profile && let Some((_, row)) = p.active(key) {
-                let id = format!("rule/{}/{}", p.id, key.name()).parse::<HelpId>().ok();
+            if let Some(p) = profile
+                && let Some((_, row)) = p.active(key)
+            {
+                let id = format!("rule/{}/{}", p.id, key.name())
+                    .parse::<HelpId>()
+                    .ok();
                 *checks = id.filter(|id| index.contains_key(id));
                 active_rule = Some(ActiveRule {
-                    name: p.name.clone(), value: key.get(p.rules()), row: row.into(), source: p.source.clone(),
+                    name: p.name.clone(),
+                    value: key.get(p.rules()),
+                    row: row.into(),
+                    source: p.source.clone(),
                 });
             }
         }
@@ -204,21 +214,32 @@ fn topic(
 mod tests {
     use super::*;
     #[test]
-    fn a_byte_budget_preserves_facts_and_resumes_at_the_first_unread_block() -> std::result::Result<(),Box<dyn std::error::Error>> {
-        let entry = HelpEntry { id:"guide/example".parse()?, title:"Example".into(), summary:"Two paragraphs.".into(),
-            since:"0.1.0".into(), facts:Facts::Guide,related:vec![],keywords:vec![],body: vec![
-                Block::Paragraph(vec![Inline::Text("Étape".into())]), Block::Note(vec![Inline::Text("最後".into())])] };
-        let mut params:TopicParams = serde_json::from_value(serde_json::json!({"id":entry.id}))?;
+    fn a_byte_budget_preserves_facts_and_resumes_at_the_first_unread_block()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let entry = HelpEntry {
+            id: "guide/example".parse()?,
+            title: "Example".into(),
+            summary: "Two paragraphs.".into(),
+            since: "0.1.0".into(),
+            facts: Facts::Guide,
+            related: vec![],
+            keywords: vec![],
+            body: vec![
+                Block::Paragraph(vec![Inline::Text("Étape".into())]),
+                Block::Note(vec![Inline::Text("最後".into())]),
+            ],
+        };
+        let mut params: TopicParams = serde_json::from_value(serde_json::json!({"id":entry.id}))?;
         params.budget_bytes = Some(serde_json::to_vec(&entry.body[..1])?.len());
         let index = Index::new();
         let first = topic(&entry, params, None, &index)?;
         assert_eq!(first.excerpt, entry.body[..1]);
         assert!(first.truncated);
         let next = first.next.ok_or("Missing continuation")?;
-        let tail = topic(&entry,next,None,&index)?;
-        assert_eq!(tail.excerpt,entry.body[1..]);
+        let tail = topic(&entry, next, None, &index)?;
+        assert_eq!(tail.excerpt, entry.body[1..]);
         assert!(!tail.truncated);
-        assert_eq!(tail.facts,entry.facts);
+        assert_eq!(tail.facts, entry.facts);
         Ok(())
     }
 }

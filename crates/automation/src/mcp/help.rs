@@ -2,7 +2,10 @@
 //! the same desk and caller grant as the corresponding query tool.
 use super::{Server, tools};
 use rmcp::ErrorData;
-use rmcp::model::{CacheScope, CompleteRequestParams, CompleteResult, CompletionInfo, ReadResourceResult, ResourceContents};
+use rmcp::model::{
+    CacheScope, CompleteRequestParams, CompleteResult, CompletionInfo, ReadResourceResult,
+    ResourceContents,
+};
 use serde_json::{Value, json};
 
 pub(super) const INDEX: &str = "sparksmith://help";
@@ -34,7 +37,10 @@ impl Server {
         } else if let Some(id) = uri.strip_prefix("sparksmith://help/") {
             // RFC 6570 simple expansion escapes the two reserved characters
             // permitted in a HelpId. Also accept the readable URI in topic replies.
-            let id = id.replace("%2F", "/").replace("%2f", "/").replace("%23", "#");
+            let id = id
+                .replace("%2F", "/")
+                .replace("%2f", "/")
+                .replace("%23", "#");
             self.help_query("help.topic", json!({"id":id})).await?
         } else {
             return Err(ErrorData::invalid_params(
@@ -42,9 +48,12 @@ impl Server {
                 None,
             ));
         };
-        let content = ResourceContents::text(value.to_string(), uri).with_mime_type("application/json");
+        let content =
+            ResourceContents::text(value.to_string(), uri).with_mime_type("application/json");
         // In a window the active profile can change between two reads of the same URI.
-        Ok(ReadResourceResult::new(vec![content]).with_ttl_ms(0).with_cache_scope(CacheScope::Private))
+        Ok(ReadResourceResult::new(vec![content])
+            .with_ttl_ms(0)
+            .with_cache_scope(CacheScope::Private))
     }
     pub(super) async fn help_completion(
         &self,
@@ -66,9 +75,17 @@ impl Server {
             .filter(|id| id.starts_with(prefix))
             .collect();
         let total = ids.len();
-        let values = ids.into_iter().take(CompletionInfo::MAX_VALUES).map(str::to_owned).collect();
-        let completion = CompletionInfo::with_pagination(values, u32::try_from(total).ok(), total > CompletionInfo::MAX_VALUES)
-            .map_err(|e| ErrorData::internal_error(e, None))?;
+        let values = ids
+            .into_iter()
+            .take(CompletionInfo::MAX_VALUES)
+            .map(str::to_owned)
+            .collect();
+        let completion = CompletionInfo::with_pagination(
+            values,
+            u32::try_from(total).ok(),
+            total > CompletionInfo::MAX_VALUES,
+        )
+        .map_err(|e| ErrorData::internal_error(e, None))?;
         Ok(CompleteResult::new(completion))
     }
 }

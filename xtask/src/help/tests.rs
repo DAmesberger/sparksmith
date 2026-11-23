@@ -40,7 +40,10 @@ fn a_finding_names_the_missing_rule_and_profile() -> crate::Result<()> {
         .find(|e| e.id.name() == "board.via_annular_ring")
         .ok_or("missing annular ring declaration")?;
     if let Facts::Finding {
-        rule_key, cause, fix, ..
+        rule_key,
+        cause,
+        fix,
+        ..
     } = &mut finding.facts
     {
         *rule_key = Some("via_annular_ring_min".into());
@@ -61,7 +64,10 @@ fn a_finding_names_the_missing_rule_and_profile() -> crate::Result<()> {
     let err = validate_entries(&index, Path::new("."))
         .err()
         .ok_or("missing profile rule accepted")?;
-    assert!(err.to_string().contains("rule/fixture/via_annular_ring_min"));
+    assert!(
+        err.to_string()
+            .contains("rule/fixture/via_annular_ring_min")
+    );
     if let Facts::Finding { rule_key, .. } = &mut finding.facts {
         *rule_key = Some("misspelled".into());
     }
@@ -69,7 +75,10 @@ fn a_finding_names_the_missing_rule_and_profile() -> crate::Result<()> {
     let err = validate_entries(&index, Path::new("."))
         .err()
         .ok_or("unknown rule accepted")?;
-    assert!(err.to_string().contains("unknown fabrication rule misspelled"));
+    assert!(
+        err.to_string()
+            .contains("unknown fabrication rule misspelled")
+    );
     Ok(())
 }
 
