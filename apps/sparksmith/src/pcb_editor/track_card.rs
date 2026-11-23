@@ -44,6 +44,7 @@ impl PcbEditor {
         let mut open_classes = false;
         let mut focused = false;
         kit::section(ui, "pcb-track", "Track", true, None, |ui| {
+            crate::app::help_sheet::region(ui, ui.max_rect(), "entry/layout.track_set", 2);
             kit::row(ui, "Net", |ui| {
                 if ui_kit::button(ui, project.net_name(track.net), Button::Small)
                     .on_hover_text("Highlight this net")

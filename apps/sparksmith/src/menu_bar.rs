@@ -143,6 +143,7 @@ pub const WINDOW: &[Entry] = &[
 ];
 
 pub const HELP: &[Entry] = &[
+    C("app.help", "Sparksmith Help"),
     C("app.shortcuts", "Keyboard Shortcuts"),
     C("app.connect-assistants", "Connect AI Assistants…"),
 ];
@@ -174,6 +175,7 @@ pub const IN_WINDOW_FILE: &[Entry] = &[
     C("library.sources", "Library sources…"),
     Sep,
     C("app.settings", "Settings…"),
+    C("app.help", "Help…"),
     C("app.shortcuts", "Keyboard shortcuts…"),
     C("app.connect-assistants", "Connect AI assistants…"),
     C("view.messages", "Messages…"),

@@ -46,7 +46,13 @@ pub(crate) enum PaletteEvent {
 pub(crate) fn arrange(rows: &mut Vec<PaletteRow>, empty_query: bool) {
     let mut seen = std::collections::BTreeSet::new();
     rows.retain(|r| seen.insert((r.title.clone(), r.detail.clone())));
-    rows.sort_by_key(|r| (!(empty_query && r.recent), !r.enabled));
+    rows.sort_by_key(|r| {
+        (
+            r.id.starts_with(super::help_sheet::PALETTE_PREFIX),
+            !(empty_query && r.recent),
+            !r.enabled,
+        )
+    });
 }
 
 #[derive(Default)]
@@ -175,18 +181,25 @@ impl CommandPalette {
                     let mut group = None;
                     for (index, row) in rows.iter().take(MAX_ROWS).enumerate() {
                         let recent = empty && row.recent;
-                        if group != Some(recent) {
+                        let group_name = if row.id.starts_with(super::help_sheet::PALETTE_PREFIX) {
+                            "Help"
+                        } else if recent {
+                            "Recent"
+                        } else {
+                            "Commands"
+                        };
+                        if group != Some(group_name) {
                             let count = rows
                                 .iter()
                                 .take(MAX_ROWS)
-                                .filter(|r| (empty && r.recent) == recent)
+                                .filter(|r| {
+                                    (empty && r.recent) == recent
+                                        && r.id.starts_with(super::help_sheet::PALETTE_PREFIX)
+                                            == row.id.starts_with(super::help_sheet::PALETTE_PREFIX)
+                                })
                                 .count();
-                            kit::search_heading(
-                                ui,
-                                if recent { "Recent" } else { "Commands" },
-                                count,
-                            );
-                            group = Some(recent);
+                            kit::search_heading(ui, group_name, count);
+                            group = Some(group_name);
                         }
                         let response = kit::command_row(
                             ui,

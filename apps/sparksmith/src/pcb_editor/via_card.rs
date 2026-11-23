@@ -56,12 +56,15 @@ impl PcbEditor {
             let mut tented = via.tented;
             let tent =
                 ui.add_enabled_ui(!via.locked, |ui| kit::check_row(ui, "Tented", &mut tented));
+            crate::app::help_sheet::region(ui, tent.response.rect, "entry/layout.via_tent", 3);
             tent.response.on_disabled_hover_text(LOCKED);
             if tent.inner && tented != via.tented {
                 action = Some(LayoutCommand::SetViaTented { id: via.id, tented });
             }
             let mut locked = via.locked;
-            if kit::check_row(ui, "Locked", &mut locked) {
+            let lock = ui.scope(|ui| kit::check_row(ui, "Locked", &mut locked));
+            crate::app::help_sheet::region(ui, lock.response.rect, "entry/layout.via_lock", 3);
+            if lock.inner {
                 action = Some(LayoutCommand::SetViaLock { id: via.id, locked });
             }
         });

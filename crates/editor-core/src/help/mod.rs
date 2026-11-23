@@ -2,6 +2,8 @@
 mod findings;
 pub use findings::finding_entries;
 
+mod parameters;
+pub use parameters::{parameter_type, parameter_value};
 mod search;
 pub use search::{search, score, match_score, WORD_MATCH};
 use crate::{Class, Stage, diagnostics::Severity, rules::profile::ProfileSource};

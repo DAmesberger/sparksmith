@@ -26,6 +26,7 @@ todo = "deny"
 unreachable = "deny"
 
 [dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
 sparksmith-core.workspace = true
 sparksmith-io.workspace = true
 sparksmith-solidcraft.workspace = true

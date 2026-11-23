@@ -1036,3 +1036,39 @@ fn assistant_mentions_load_replace_results_and_attach_from_keyboard_and_pointer(
     }
     Ok(())
 }
+
+#[test]
+fn offline_help_opens_with_f1_and_reads_a_result_from_the_keyboard() -> Fallible {
+    let mut ax = Ax::new(Workspace::Schematic)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    ax.key(Key::F1);
+    ax.settle();
+    assert!(ax.has(Role::Button, "Close help"), "{}", ax.dump());
+    ax.type_text("route.width-next");
+    ax.key(Key::Enter);
+    ax.settle();
+    assert!(ax.texts.iter().any(|s| s == "Shortcut"), "{}", ax.dump());
+    ax.button("Back")?;
+    ax.button("Forward")?;
+    ax.key(Key::Escape);
+    assert!(!ax.has(Role::Button, "Close help"));
+    Ok(())
+}
+
+#[test]
+fn settings_question_opens_the_source_of_the_default() -> Fallible {
+    let mut ax = Ax::new(Workspace::Pcb)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    ax.app.settings_window.open();
+    ax.settle();
+    ax.button("Help for Impedance tolerance")?;
+    ax.settle();
+    assert!(ax.has(Role::Heading, "Default source"), "{}", ax.dump());
+    ax.button("Close help")?;
+    assert!(!ax.has(Role::Heading, "Default source"));
+    Ok(())
+}

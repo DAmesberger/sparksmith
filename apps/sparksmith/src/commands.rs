@@ -439,6 +439,7 @@ pub enum Handler {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppCommand {
     Palette,
+    Help,
     Shortcuts,
     New,
     Open,
@@ -614,6 +615,17 @@ pub fn workspace_page(workspace: Workspace) -> &'static str {
 }
 
 impl Command {
+    /// Give the registry title its context once; gesture-only commands tell
+    /// readers where the input takes effect.
+    #[cfg(test)]
+    fn help_summary(&self) -> String {
+        let title = self.title.trim_end_matches('…');
+        match self.context {
+            Context::Global => format!("{title} from any workspace."),
+            context => format!("{}: {title}.", context.label()),
+        }
+    }
+
     /// The surface entry this action invokes, or the workspace/panel
     /// that owns an interactive command. Tool gestures can span several edits.
     #[cfg(test)]
@@ -622,6 +634,7 @@ impl Command {
         match self.action {
             Action::App(app) => match app {
                 A::Palette => "panel/palette",
+                A::Help => "panel/help",
                 A::Shortcuts => "panel/keyboard-shortcuts",
                 A::New => "entry/project.new",
                 A::Open => "entry/project.open",
@@ -637,11 +650,15 @@ impl Command {
                 A::Settings => "panel/settings",
                 A::ToggleAssistant | A::ConnectAssistants => "panel/assistant",
                 A::Workspace(workspace) => workspace_page(workspace),
-                A::View3d(_) | A::ToggleFollowNet | A::ToggleRealistic | A::TogglePcb3d => "panel/model-3d",
+                A::View3d(_) | A::ToggleFollowNet | A::ToggleRealistic | A::TogglePcb3d => {
+                    "panel/model-3d"
+                }
                 A::ToggleParts => "panel/layout",
                 A::Cut | A::Copy | A::Paste => "panel/schematic",
                 A::SelectAll | A::FitView => "panel/properties",
-                A::ClearRecent | A::ImportKicad | A::ImportReport | A::Quit | A::CloseWindow => "panel/files",
+                A::ClearRecent | A::ImportKicad | A::ImportReport | A::Quit | A::CloseWindow => {
+                    "panel/files"
+                }
             },
             Action::Ribbon(workspace, _) => workspace_page(workspace),
             Action::Pcb(_) | Action::PcbLayer(_) | Action::PcbDialog(_) => "panel/layout",
@@ -651,8 +668,12 @@ impl Command {
                 Context::Component | Context::Symbol | Context::Footprint => "panel/component",
                 Context::Schematic | Context::SchematicWire => "panel/schematic",
                 Context::Pcb3d => "panel/model-3d",
-                Context::Pcb | Context::PcbLayout | Context::PcbRoute | Context::PcbFill
-                    | Context::PcbTune | Context::BoardShape => "panel/layout",
+                Context::Pcb
+                | Context::PcbLayout
+                | Context::PcbRoute
+                | Context::PcbFill
+                | Context::PcbTune
+                | Context::BoardShape => "panel/layout",
                 Context::List | Context::Global => "panel/keyboard-shortcuts",
             },
         }
@@ -1071,9 +1092,13 @@ impl Registry {
 use sparksmith_core::help::WORD_MATCH;
 
 pub fn match_score(q: &str, command: &Command) -> u32 {
-    sparksmith_core::help::match_score(q, &command.title, &command.id,
+    sparksmith_core::help::match_score(
+        q,
+        &command.title,
+        &command.id,
         &format!("{} {}", command.keywords, command.context.label()),
-        matches!(&command.action, Action::App(AppCommand::Workspace(_))))
+        matches!(&command.action, Action::App(AppCommand::Workspace(_))),
+    )
 }
 
 /// Whether `a` and `b` sharing `chord` is a conflict: both could see the
@@ -1231,6 +1256,10 @@ fn defaults() -> Vec<Command> {
             .chord(Chord::cmd(K::P).with_shift())
             .icon("zoom")
             .keywords("search find run commands"),
+        app("app.help", "Help", A::Help)
+            .chord(Chord::key(K::F1))
+            .icon("list")
+            .keywords("manual documentation guide context"),
         app("app.shortcuts", "Keyboard shortcuts", A::Shortcuts)
             .chord(Chord::cmd(K::Slash))
             .icon("list")

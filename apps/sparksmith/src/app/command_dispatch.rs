@@ -307,12 +307,16 @@ impl App {
     fn app_command(&mut self, ctx: &egui::Context, app: AppCommand) {
         match app {
             AppCommand::Palette => {
-                self.shortcut_sheet.close();
+                self.help.close();
                 self.palette.toggle();
+            }
+            AppCommand::Help => {
+                self.help.pending_context = true;
+                ctx.data_mut(|d| d.insert_temp(egui::Id::unique("issue-context-help"), true));
             }
             AppCommand::Shortcuts => {
                 self.palette.close();
-                self.shortcut_sheet.toggle();
+                self.help.shortcuts();
             }
             AppCommand::New => self.files.request(file_ui::Action::New),
             AppCommand::Open => self.files.request(file_ui::Action::Open),
@@ -422,7 +426,12 @@ impl App {
     /// palette: the palette's and the sheet's own. Runs before the
     /// workspace, so nothing below sees them.
     pub(super) fn early_keys(&mut self, ctx: &egui::Context) {
-        for id in ["app.palette", "app.palette-alt", "app.shortcuts"] {
+        for id in [
+            "app.palette",
+            "app.palette-alt",
+            "app.shortcuts",
+            "app.help",
+        ] {
             let chord = self.registry.get(id).and_then(|c| self.registry.chord(c));
             if let Some(chord) = chord
                 && chord.consume(ctx)
@@ -511,6 +520,9 @@ impl App {
                 .collect();
             rows.extend(super::workflow_host::workflow_rows(&workflows, query));
             rows.extend(recent_rows(&projects, query));
+            if let Some(index) = self.engine.context().and_then(|c| c.help().ok()) {
+                rows.extend(super::help_sheet::palette_rows(index, query));
+            }
             rows
         });
         if let Some(PaletteEvent::Run(id)) = &event
@@ -530,6 +542,11 @@ impl App {
         {
             self.palette = palette;
             self.run_workflow_row(id);
+        } else if let Some(PaletteEvent::Run(id)) = &event
+            && let Some(topic) = id.strip_prefix(super::help_sheet::PALETTE_PREFIX)
+        {
+            self.palette = palette;
+            self.help.open_topic(topic);
         } else if let Some(PaletteEvent::Run(id)) = event {
             palette.used(&id);
             self.palette = palette;

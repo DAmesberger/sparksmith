@@ -214,6 +214,13 @@ impl SharedReports {
         self.0.try_borrow().map_or(0, |r| r.computed)
     }
 
+    /// Whether the displayed report belongs to the open document and revision.
+    pub fn shows(&self, key: ReportKey) -> bool {
+        self.0
+            .try_borrow()
+            .is_ok_and(|reports| reports.shown.as_ref().is_some_and(|(at, _)| *at == key))
+    }
+
     /// [`Reports::latest`]; `None` too while another view holds it, which
     /// one thread never does across a call.
     pub fn latest(&self, engine: &Engine) -> Option<Answer> {
