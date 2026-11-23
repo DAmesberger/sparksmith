@@ -195,6 +195,16 @@ impl CopperGraph {
                 }
             }
         }
+        let anchors = ties
+            .iter()
+            .filter_map(|t| {
+                Some((
+                    t.instance,
+                    &project.instance(t.instance)?.tie.as_ref()?.anchors,
+                ))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut anchored_ends = std::collections::BTreeSet::new();
         let mut near = Vec::new();
         let mut record = |a: Id, b: Id, x: ObjectRef, y: ObjectRef, at: crate::geometry::Point| {
             let Some(tied) = pairs.get(&(a.min(b), a.max(b))) else {
@@ -205,6 +215,34 @@ impl CopperGraph {
                     continue;
                 }
                 self.tie_contacts.insert((y, x, t.instance));
+                if t.purpose == crate::library::tie::TiePurpose::KelvinSense {
+                    let mut allowed = false;
+                    if let Some(ends) = anchors.get(&t.instance) {
+                        for (end, anchor) in *ends {
+                            let land = ObjectRef::Pad {
+                                instance: anchor.instance,
+                                pad: anchor.pad,
+                            };
+                            if (land == x && t.ends.get(end) == Some(&Some(b)))
+                                || (land == y && t.ends.get(end) == Some(&Some(a)))
+                            {
+                                allowed = true;
+                                anchored_ends.insert((t.instance, *end));
+                            }
+                        }
+                    }
+                    if !allowed {
+                        self.tie_findings.push(Finding::new(
+                            "tie.kelvin_off_anchor",
+                            format!(
+                                "{} sense copper meets the other net away from its anchor land.",
+                                t.designator
+                            ),
+                            vec![ObjectRef::Instance { id: t.instance }, x, y],
+                        ));
+                    }
+                    continue;
+                }
                 self.tie_findings.push(Finding::new(
                     "tie.second_join",
                     format!(
@@ -272,6 +310,26 @@ impl CopperGraph {
                         bounds.center(),
                     );
                 }
+            }
+        }
+        for tie in ties
+            .iter()
+            .filter(|t| t.purpose == crate::library::tie::TiePurpose::KelvinSense)
+        {
+            if !anchored_ends.iter().any(|(id, _)| *id == tie.instance)
+                || anchors.get(&tie.instance).is_some_and(|ends| {
+                    ends.keys()
+                        .any(|e| !anchored_ends.contains(&(tie.instance, *e)))
+                })
+            {
+                self.tie_findings.push(Finding::new(
+                    "tie.kelvin_off_anchor",
+                    format!(
+                        "{} needs sense copper joined at its anchor land.",
+                        tie.designator
+                    ),
+                    vec![ObjectRef::Instance { id: tie.instance }],
+                ));
             }
         }
     }

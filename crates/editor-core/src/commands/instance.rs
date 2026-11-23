@@ -15,6 +15,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "command", content = "params", deny_unknown_fields)]
 pub enum InstanceCommand {
+    #[serde(rename = "tie.set_purpose")]
+    SetPurpose {
+        instance: Id,
+        purpose: crate::library::tie::TiePurpose,
+    },
+    #[serde(rename = "tie.set_anchor")]
+    SetAnchor {
+        instance: Id,
+        end: TerminalId,
+        anchor: Option<crate::library::tie::Anchor>,
+    },
     /// Create one instance and the occurrence of its first unit. Without a
     /// designator the core numbers it under the component's prefix.
     #[serde(rename = "component.place")]
@@ -141,6 +152,8 @@ pub struct BoardPlace {
 
 // A new command chooses its permission class here.
 declare_entries!(InstanceCommand in schematic {
+    SetPurpose "tie.set_purpose" Edit "Set the purpose of a tie" [since(1, 9)],
+    SetAnchor "tie.set_anchor" Edit "Set or clear a Kelvin anchor" [in layout, since(2, 8)],
     Place "component.place" Edit "Place a component" [returns(instance_placed)],
     PlaceBoardOnly "component.place_board_only" Edit "Place a board-only part" [in layout, returns(part_placed)],
     Remove "component.remove" Edit "Remove a component",
@@ -263,6 +276,14 @@ pub(crate) fn apply_instance(project: &mut Project, command: InstanceCommand) ->
             &InstanceChange::Remove { instance },
             EditPolicy::Direct,
         )?,
+        InstanceCommand::SetPurpose { instance, purpose } => {
+            instances::ties::set_purpose(project, instance, purpose)?
+        }
+        InstanceCommand::SetAnchor {
+            instance,
+            end,
+            anchor,
+        } => instances::ties::set_anchor(project, instance, end, anchor)?,
         InstanceCommand::SetDesignator {
             instance,
             designator,

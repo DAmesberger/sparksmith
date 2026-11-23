@@ -225,3 +225,102 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
     }
     out
 }
+
+/// A landless copper package is the Kelvin implementation. It defaults to
+/// that purpose as soon as the placement chooses its physical binding.
+pub(super) fn initial_usage(
+    library: &crate::library::Library,
+    component: &crate::library::ComponentDefinition,
+    choice: Option<crate::model::PhysicalChoice>,
+) -> Option<crate::library::tie::TieUse> {
+    let spec = component.tie.as_ref()?;
+    let landless = spec.form == TieForm::Copper
+        && choice
+            .and_then(|c| super::resolve_physical(library, component, c).ok())
+            .is_some_and(|p| p.footprint.definition.pads.is_empty());
+    Some(crate::library::tie::TieUse {
+        purpose: if landless {
+            TiePurpose::KelvinSense
+        } else {
+            TiePurpose::None
+        },
+        ..Default::default()
+    })
+}
+
+pub fn set_purpose(
+    project: &mut Project,
+    instance: Id,
+    purpose: TiePurpose,
+) -> crate::diagnostics::Result<()> {
+    let i = super::instance_mut(project, instance)?;
+    let name = &i.designator;
+    let usage = i
+        .tie
+        .as_mut()
+        .ok_or_else(|| super::invalid(format!("{name} is an ordinary component.")))?;
+    if !usage.anchors.is_empty() && purpose != TiePurpose::KelvinSense {
+        return Err(super::invalid(format!(
+            "Clear the anchors of {name} before changing its purpose."
+        )));
+    }
+    usage.purpose = purpose;
+    super::check_instance(project, instance)
+}
+
+pub fn set_anchor(
+    project: &mut Project,
+    instance: Id,
+    end: TerminalId,
+    anchor: Option<crate::library::tie::Anchor>,
+) -> crate::diagnostics::Result<()> {
+    let i = project
+        .instance(instance)
+        .ok_or_else(|| super::invalid("Choose a tie first.".into()))?;
+    let spec = project
+        .library
+        .component(i.component)
+        .and_then(|c| c.definition.tie.as_ref());
+    if !spec.is_some_and(|s| s.ends.contains(&end))
+        || !i
+            .tie
+            .as_ref()
+            .is_some_and(|u| u.purpose == TiePurpose::KelvinSense)
+    {
+        return Err(super::invalid(format!(
+            "Choose a sense end of a Kelvin tie for {}.",
+            i.designator
+        )));
+    }
+    if let Some(a) = anchor {
+        let valid = project
+            .instance(a.instance)
+            .filter(|other| other.id != instance && project.placement_of(other.id).is_some())
+            .and_then(|other| super::resolve(&project.library, other).ok()?.physical)
+            .and_then(|p| {
+                p.binding
+                    .definition
+                    .terminal_of(p.footprint.definition.pad(a.pad)?.terminal?)
+            })
+            .is_some();
+        if !valid {
+            return Err(super::invalid(format!(
+                "Anchor {} on an electrical pad of another placed part.",
+                i.designator
+            )));
+        }
+    }
+    let usage = super::instance_mut(project, instance)?
+        .tie
+        .as_mut()
+        .ok_or_else(|| super::invalid("Choose a tie first.".into()))?;
+    match anchor {
+        Some(a) => {
+            usage.anchors.insert(end, a);
+        }
+        None => {
+            usage.anchors.remove(&end);
+        }
+    }
+    Ok(())
+}

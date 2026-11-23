@@ -292,6 +292,19 @@ fn check_with<'a>(
                     "{name} is fabricated copper and is always closed."
                 )));
             }
+            let landless = resolved
+                .physical
+                .is_some_and(|p| p.footprint.definition.pads.is_empty());
+            if resolved.physical.is_some()
+                && (usage.purpose == crate::library::tie::TiePurpose::KelvinSense) != landless
+            {
+                return Err(invalid(format!(
+                    "{name} needs a landless copper implementation for Kelvin sense."
+                )));
+            }
+            if usage.anchors.values().any(|a| a.instance == instance.id) {
+                return Err(invalid(format!("Anchor {name} on another part.")));
+            }
             if usage.anchors.keys().any(|end| !spec.ends.contains(end))
                 || (!usage.anchors.is_empty()
                     && usage.purpose != crate::library::tie::TiePurpose::KelvinSense)
@@ -753,7 +766,7 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
     let population = tie
         .map(|s| crate::model::Population::from(s.form))
         .unwrap_or_default();
-    let tie = tie.map(|_| Default::default());
+    let tie = ties::initial_usage(&project.library, &component.definition, request.physical);
     let id = project.allocate()?;
     project.instances.push(ComponentInstance {
         tie,
@@ -832,7 +845,7 @@ pub fn place_off_sheet(
     let population = tie
         .map(|s| crate::model::Population::from(s.form))
         .unwrap_or_default();
-    let tie = tie.map(|_| Default::default());
+    let tie = ties::initial_usage(&project.library, &published.definition, Some(physical));
     let id = project.allocate()?;
     project.instances.push(ComponentInstance {
         tie,

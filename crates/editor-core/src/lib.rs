@@ -166,6 +166,8 @@ impl Operation {
                 | InstanceCommand::SelectFunctions { instance, .. }
                 | InstanceCommand::SetUnitUnused { instance, .. }
                 | InstanceCommand::SetNoConnect { instance, .. }
+                | InstanceCommand::SetPurpose { instance, .. }
+                | InstanceCommand::SetAnchor { instance, .. }
                 | InstanceCommand::SetPhysical { instance, .. }
                 | InstanceCommand::SetPinConfig { instance, .. }
                 | InstanceCommand::SetMarking { instance, .. }

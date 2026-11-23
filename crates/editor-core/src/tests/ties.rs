@@ -131,3 +131,29 @@ fn the_erc_network_sees_parallel_closed_ties_as_a_loop() {
     let network = Network::of(&[first, second, row(3, [13, 11], Open)]);
     assert!(network.loops.is_empty());
 }
+
+#[test]
+fn an_ordinary_copper_tie_rejects_an_anchor_without_changing_the_document() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let fixture = copper_draft(&mut engine)?;
+    add_bridge(&mut engine, fixture, 0.0)?;
+    publish(&mut engine, fixture.all())?;
+    let (id, _) = place(&mut engine, &fixture, "NT1", 1, [45.0, 20.0])?;
+    let before = Snapshot::of(&engine);
+    assert!(
+        apply(
+            &mut engine,
+            Operation::Instance(crate::InstanceCommand::SetAnchor {
+                instance: id,
+                end: TerminalId(1),
+                anchor: Some(crate::library::tie::Anchor {
+                    instance: id,
+                    pad: PadId(1)
+                })
+            })
+        )
+        .is_err()
+    );
+    before.assert_kept(&engine, "self anchor");
+    Ok(())
+}
