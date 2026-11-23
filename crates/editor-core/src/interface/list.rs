@@ -209,11 +209,13 @@ fn parameter(project: &Project, name: &str) -> Option<Option<DatumGeometry>> {
         ParamUnit::Deg => "deg",
         ParamUnit::Count => "",
     };
+    // A number, alone or with the parameter's own unit as the board sketch
+    // writes it ("40 mm"), is its value; anything else is an expression,
+    // which the host's evaluator reads.
+    let text = param.expr.0.trim();
+    let number = text.strip_suffix(unit).map_or(text, str::trim_end);
     Some(
-        param
-            .expr
-            .0
-            .trim()
+        number
             .parse::<f64>()
             .ok()
             .map(|value| DatumGeometry::Parameter {
