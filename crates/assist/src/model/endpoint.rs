@@ -63,9 +63,14 @@ impl Endpoint {
         }
     }
 
+    /// Whether this transport may carry model keys or registry credentials.
+    pub(crate) fn allows_credentials(&self) -> bool {
+        self.https || self.loopback
+    }
+
     /// Refuse a key over plain HTTP to another computer.
     pub fn check_key_allowed(&self) -> Result<()> {
-        if self.https || self.loopback {
+        if self.allows_credentials() {
             Ok(())
         } else {
             Err(Error::Config(format!(

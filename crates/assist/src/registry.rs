@@ -16,7 +16,7 @@
 //! requests carry the sign-in's token, searches and the catalog never do.
 pub mod account;
 
-use crate::model::Secret;
+use crate::model::{Endpoint, Secret};
 use account::{Auth, DeviceCode};
 use serde::Deserialize;
 use sparksmith_automation::session::online::{
@@ -102,10 +102,8 @@ impl Synced {
 
 /// A blocking client of one registry.
 pub struct RegistryClient {
-    base: String,
+    endpoint: Endpoint,
     host: String,
-    /// The registry is on this computer.
-    loopback: bool,
     agent: ureq::Agent,
     /// The sign-in: its keychain and what is known of it.
     auth: Auth,
@@ -116,7 +114,7 @@ pub struct RegistryClient {
 impl std::fmt::Debug for RegistryClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RegistryClient")
-            .field("base", &self.base)
+            .field("base", &self.endpoint.base())
             .finish_non_exhaustive()
     }
 }
@@ -155,12 +153,12 @@ pub fn index_date(seconds: u64) -> String {
     format!("index of {day} {name}")
 }
 
-/// The HTTP methods the client sends.
+/// Only a read without a bearer may use plaintext transport off this computer.
 #[derive(Clone, Copy)]
-enum Method {
-    Get,
-    Post,
-    Delete,
+enum Request<'a> {
+    Read(Option<&'a Secret>),
+    SignIn(&'a serde_json::Value),
+    Revoke(&'a Secret),
 }
 
 /// A reply of any status.
@@ -209,17 +207,13 @@ impl RegistryClient {
 
     fn with_auth(url: &str, cache: Option<&Path>, auth: Auth) -> Result<Self, String> {
         sparksmith_io::settings::check_registry_url(url).map_err(|e| e.to_string())?;
-        let base = url.trim_end_matches('/').to_owned();
-        let host = base
-            .split_once("://")
-            .map_or(base.as_str(), |(_, h)| h)
-            .to_owned();
-        let loopback =
-            host.starts_with("localhost") || host.starts_with("127.") || host.starts_with("[::1]");
+        let endpoint = Endpoint::parse(url).map_err(|e| e.to_string())?;
+        let base = endpoint.base();
+        let host = base.split_once("://").map_or(base, |(_, h)| h).to_owned();
         let mut config = ureq::Agent::config_builder()
             .http_status_as_error(false)
             .max_redirects(0);
-        if loopback {
+        if endpoint.is_loopback() {
             config = config.proxy(None);
         }
         let mirror = cache
@@ -227,9 +221,8 @@ impl RegistryClient {
             .transpose()
             .map_err(|e| e.to_string())?;
         Ok(Self {
-            base,
+            endpoint,
             host,
-            loopback,
             agent: config.build().into(),
             auth,
             mirror,
@@ -242,20 +235,34 @@ impl RegistryClient {
         &self.host
     }
 
-    /// One request to this registry, with `token` as its bearer when
-    /// given; the reply whatever its status. Nothing the token could reach
-    /// comes back in an error.
+    fn request_url(&self, request: Request<'_>, path: &str) -> Result<String, String> {
+        if !path.starts_with('/') {
+            return Err("A registry request path must start with /.".into());
+        }
+        if !matches!(request, Request::Read(None)) && !self.may_sign_in() {
+            return Err(format!(
+                "Signing in to {} needs https://: a sign-in never travels over plain HTTP to \
+                 another computer.",
+                self.host
+            ));
+        }
+        Ok(format!("{}{path}", self.endpoint.base()))
+    }
+
+    /// Check the destination before constructing or sending the HTTP request.
     fn send(
         &self,
-        method: Method,
+        request: Request<'_>,
         path: &str,
-        body: Option<&serde_json::Value>,
-        token: Option<&Secret>,
         timeout: Duration,
         limit: u64,
     ) -> Result<Reply, String> {
-        let url = format!("{}{path}", self.base);
-        let bearer = token.map(|t| format!("Bearer {}", t.expose()));
+        let url = self.request_url(request, path)?;
+        let token = match request {
+            Request::Read(token) => token,
+            Request::SignIn(_) => None,
+            Request::Revoke(token) => Some(token),
+        };
         let clean = |error: ureq::Error| {
             let message = get_err(error);
             match token {
@@ -263,27 +270,22 @@ impl RegistryClient {
                 None => message,
             }
         };
-        let sent = match method {
-            Method::Post => {
-                let mut request = self
-                    .agent
-                    .post(&url)
-                    .config()
-                    .timeout_global(Some(timeout))
-                    .build();
-                if let Some(bearer) = &bearer {
-                    request = request.header("authorization", bearer);
-                }
-                request.send_json(body.cloned().unwrap_or_else(|| serde_json::json!({})))
-            }
-            Method::Get | Method::Delete => {
-                let request = match method {
-                    Method::Delete => self.agent.delete(&url),
+        let sent = match request {
+            Request::SignIn(body) => self
+                .agent
+                .post(&url)
+                .config()
+                .timeout_global(Some(timeout))
+                .build()
+                .send_json(body),
+            Request::Read(_) | Request::Revoke(_) => {
+                let request = match request {
+                    Request::Revoke(_) => self.agent.delete(&url),
                     _ => self.agent.get(&url),
                 };
                 let mut request = request.config().timeout_global(Some(timeout)).build();
-                if let Some(bearer) = &bearer {
-                    request = request.header("authorization", bearer);
+                if let Some(token) = token {
+                    request = request.header("authorization", format!("Bearer {}", token.expose()));
                 }
                 request.call()
             }
@@ -328,7 +330,7 @@ impl RegistryClient {
     /// need no account, so a 401 here is the server closed to the public
     /// (a password in front of it), not a missing sign-in.
     fn get(&self, path: &str, timeout: Duration, limit: u64) -> Result<Vec<u8>, String> {
-        let reply = self.send(Method::Get, path, None, None, timeout, limit)?;
+        let reply = self.send(Request::Read(None), path, timeout, limit)?;
         if reply.status == 401 {
             return Err(format!(
                 "{} is not open to the public: it asked for a password to search, which needs no account. Use another online library, or wait until this one opens",
@@ -345,7 +347,7 @@ impl RegistryClient {
     /// one. A token the registry refuses is forgotten.
     fn download(&self, path: &str, timeout: Duration, limit: u64) -> Result<Vec<u8>, String> {
         let token = self.token();
-        let reply = self.send(Method::Get, path, None, token.as_ref(), timeout, limit)?;
+        let reply = self.send(Request::Read(token.as_ref()), path, timeout, limit)?;
         if reply.status >= 300 {
             if reply.status == 401 && token.is_some() {
                 self.token_refused();

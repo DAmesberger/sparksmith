@@ -781,6 +781,54 @@ fn no_token_travels_over_plain_http_to_another_computer() -> TestResult {
     Ok(())
 }
 
+/// Prepare the same destinations as the HTTP sender, without DNS, sockets
+/// or a system keychain. Only an anonymous read is public.
+#[test]
+fn registry_credentials_follow_the_parsed_endpoint() -> TestResult {
+    let token = Secret::new("inert-test-marker").ok_or("missing marker")?;
+    let start = serde_json::json!({"client_name": "test"});
+    let poll = serde_json::json!({"device_code": "inert-code-marker"});
+    for (base, local, allowed) in [
+        ("http://LOCALHOST:8787", true, true),
+        ("http://127.1.2.3", true, true),
+        ("http://[::1]:8787", true, true),
+        ("http://[::ffff:127.0.0.1]", true, true),
+        ("http://localhost.parts.example", false, false),
+        ("http://127.0.0.1.parts.example", false, false),
+        ("http://parts.example", false, false),
+        ("http://192.0.2.1", false, false),
+        ("https://parts.example", false, true),
+    ] {
+        let client = plain(base, None)?;
+        assert_eq!(client.endpoint.is_loopback(), local, "{base}");
+        assert_eq!(client.may_sign_in(), allowed, "{base}");
+        assert!(
+            client
+                .request_url(Request::Read(Some(&token)), "parts.example")
+                .is_err()
+        );
+        assert_eq!(
+            client.request_url(Request::Read(None), "/v1/index")?,
+            format!("{base}/v1/index")
+        );
+        for (request, path) in [
+            (Request::SignIn(&start), "/v1/device/code"),
+            (Request::SignIn(&poll), "/v1/device/token"),
+            (Request::Read(Some(&token)), "/v1/bundles/1/1"),
+            (Request::Read(Some(&token)), "/v1/account"),
+            (Request::Revoke(&token), "/v1/auth/token"),
+        ] {
+            let url = client.request_url(request, path);
+            if allowed {
+                assert_eq!(url?, format!("{base}{path}"));
+            } else {
+                assert!(url.is_err_and(|e| e.contains("https://")), "{base}{path}");
+            }
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn the_client_name_names_this_computer_within_its_bound() {
     let product = sparksmith_core::product::NAME;

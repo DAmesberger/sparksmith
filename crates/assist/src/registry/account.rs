@@ -8,7 +8,7 @@
 //!
 //! The token is a [`Secret`]: never written to a file, a log, an error or
 //! a recording. The device code that can be exchanged for it is one too.
-use super::{RegistryClient, Reply, unreachable};
+use super::{RegistryClient, Reply, Request, unreachable};
 use crate::model::Secret;
 use crate::model::keys::{Keychain, Store};
 use serde::Deserialize;
@@ -220,7 +220,7 @@ impl RegistryClient {
     /// Whether a token may travel to this registry: HTTPS, or plain HTTP
     /// to this computer.
     pub fn may_sign_in(&self) -> bool {
-        self.base.starts_with("https://") || self.loopback
+        self.endpoint.allows_credentials()
     }
 
     /// The kept token, read from the keychain once.
@@ -236,7 +236,7 @@ impl RegistryClient {
             let read = self
                 .auth
                 .store
-                .get(SERVICE, &self.base)
+                .get(SERVICE, self.endpoint.base())
                 .ok()
                 .flatten()
                 .and_then(|text| Secret::new(&text));
@@ -255,7 +255,7 @@ impl RegistryClient {
         }
         self.auth
             .store
-            .delete(SERVICE, &self.base)
+            .delete(SERVICE, self.endpoint.base())
             .map_err(|e| e.to_string())
     }
 
@@ -299,10 +299,8 @@ impl RegistryClient {
             return Ok(None);
         };
         let reply = self.send(
-            super::Method::Get,
+            Request::Read(Some(&token)),
             "/v1/account",
-            None,
-            Some(&token),
             ACCOUNT_TIMEOUT,
             MAX_ACCOUNT_BYTES,
         )?;
@@ -325,19 +323,10 @@ impl RegistryClient {
 
     /// Ask for a sign-in code (`POST /v1/device/code`) under `client_name`.
     pub fn start_sign_in(&self, client_name: &str) -> Result<DeviceCode, String> {
-        if !self.may_sign_in() {
-            return Err(format!(
-                "Signing in to {} needs https://: a sign-in never travels over plain HTTP to \
-                 another computer.",
-                self.host
-            ));
-        }
         let name: String = client_name.chars().take(MAX_CLIENT_NAME).collect();
         let reply = self.send(
-            super::Method::Post,
+            Request::SignIn(&json!({"client_name": name})),
             "/v1/device/code",
-            Some(&json!({"client_name": name})),
-            None,
             ACCOUNT_TIMEOUT,
             MAX_ACCOUNT_BYTES,
         )?;
@@ -367,10 +356,8 @@ impl RegistryClient {
     /// token goes to the keychain before this returns.
     pub fn poll_sign_in(&self, code: &DeviceCode) -> Result<Poll, String> {
         let reply = self.send(
-            super::Method::Post,
+            Request::SignIn(&json!({"device_code": code.device_code.expose()})),
             "/v1/device/token",
-            Some(&json!({"device_code": code.device_code.expose()})),
-            None,
             ACCOUNT_TIMEOUT,
             MAX_ACCOUNT_BYTES,
         )?;
@@ -382,7 +369,7 @@ impl RegistryClient {
                     Secret::new(&wire.access_token).ok_or("the registry sent an empty sign-in")?;
                 self.auth
                     .store
-                    .set(SERVICE, &self.base, token.expose())
+                    .set(SERVICE, self.endpoint.base(), token.expose())
                     .map_err(|e| format!("The system keychain did not keep the sign-in: {e}"))?;
                 if let Ok(mut held) = self.auth.token.lock() {
                     *held = Some(Some(token));
@@ -447,10 +434,8 @@ impl RegistryClient {
             return Ok(SignOut::default());
         };
         let revoked = self.send(
-            super::Method::Delete,
+            Request::Revoke(&token),
             "/v1/auth/token",
-            None,
-            Some(&token),
             REVOKE_TIMEOUT,
             MAX_ACCOUNT_BYTES,
         );
