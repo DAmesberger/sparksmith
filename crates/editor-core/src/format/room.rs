@@ -17,7 +17,6 @@ use super::{
 use crate::diagnostics::{Error, Result};
 use crate::library::Drafts;
 use crate::model::{Document, Project};
-use crate::shared::Shared;
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -271,21 +270,24 @@ impl Room {
                         .next()
                         .ok_or_else(|| Error::Invalid("a section is not counted".into()))?;
                     let unchanged = before.is_some_and(|b| {
-                        Shared::ptr_eq(&b.document.project.$($field).+, &new.$($field).+)
+                        same_section(&*b.document.project.$($field).+, &*new.$($field).+)
                     });
                     *slot = if unchanged {
                         kept
                     } else {
                         Count::of(&new.$($field).+)?.at($depth)
                     };
-                    skeleton.$($field).+ = Shared::default();
+                    skeleton.$($field).+ = Default::default();
                 )*
             };
         }
         sections!(measure_sections);
         let assets = match before {
             Some(before)
-                if Shared::ptr_eq(&before.document.project.library.assets, &new.library.assets) =>
+                if same_section(
+                    &*before.document.project.library.assets,
+                    &*new.library.assets,
+                ) =>
             {
                 before.assets
             }
@@ -303,7 +305,7 @@ impl Room {
                 Count::of(&stripped)?.at(3)
             }
         };
-        skeleton.library.assets = Shared::default();
+        skeleton.library.assets = Default::default();
         let drafts = match before {
             Some(before) if Arc::ptr_eq(&before.document.drafts, &candidate.drafts) => {
                 before.drafts
@@ -329,6 +331,12 @@ impl Room {
             rest,
         })
     }
+}
+
+/// Whether two copy-on-write sections are one, unchanged: a section's
+/// value lives in its one shared allocation.
+fn same_section<T>(a: &T, b: &T) -> bool {
+    std::ptr::eq(a, b)
 }
 
 /// The saved form's outline, with the sections measured on their own left
