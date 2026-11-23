@@ -823,6 +823,63 @@ fn with_solved_board(p: &mut Project, solved: crate::model::board::SolvedBoard) 
     }));
 }
 
+/// A fill computed up to a keepout shares the keepout's edges, and the
+/// polygon arithmetic's rounding may leave it a fraction of a nanometre
+/// inside along an edge: on a board with rounded corners, however tall, a
+/// fresh fill is not reported in the wide keepout at its edge (a module's
+/// antenna keep-out) that it was cut by.
+#[test]
+fn a_fresh_fill_is_never_reported_in_the_keepout_it_was_cut_by() -> Fallible<()> {
+    use crate::model::board::SolvedBoard;
+    let (engine, id, _) = showcase_with(CopperLayer::Bottom)?;
+    let bulge = (std::f64::consts::FRAC_PI_8).tan();
+    let (w, r) = (44.0, 1.5);
+    let mut bad = Vec::new();
+    for k in 0..80 {
+        let h = 60.0 + 0.25 * f64::from(k);
+        let mut p = engine.project().clone();
+        p.board_size = [w, h];
+        let mut solved = SolvedBoard::rectangle(p.board_size);
+        solved.outer = Outline {
+            start: [0.0, r],
+            segments: vec![
+                Segment::Arc { to: [r, 0.0], bulge },
+                Segment::Line { to: [w - r, 0.0] },
+                Segment::Arc { to: [w, r], bulge },
+                Segment::Line { to: [w, h - r] },
+                Segment::Arc { to: [w - r, h], bulge },
+                Segment::Line { to: [r, h] },
+                Segment::Arc { to: [0.0, h - r], bulge },
+                Segment::Line { to: [0.0, r] },
+            ],
+        };
+        with_solved_board(&mut p, solved);
+        if let Some(f) = p.fills.iter_mut().find(|f| f.id == id) {
+            f.outline = rect(0.0, 0.0, w, h);
+        }
+        let keepout = p.allocate()?;
+        p.keepouts.push(crate::model::Keepout {
+            id: keepout,
+            name: "Antenna".into(),
+            outline: rect(9.0, h - 6.0, 31.0, h),
+            layers: KeepoutLayers::Only(vec![CopperLayer::Bottom]),
+            forbid: KeepoutRules::default(),
+        });
+        let copper = super::compute(&p, id)?;
+        if let Some(f) = p.fills.iter_mut().find(|f| f.id == id) {
+            f.computed = Some(copper);
+        }
+        if layout::checks(&p, &Default::default())
+            .iter()
+            .any(|f| f.code == "keepout.fill")
+        {
+            bad.push(h);
+        }
+    }
+    assert!(bad.is_empty(), "reported on boards this tall, mm: {bad:?}");
+    Ok(())
+}
+
 #[test]
 fn cutouts_mounting_holes_and_edge_clearance_shape_the_fill() -> Fallible<()> {
     use crate::model::board::{
