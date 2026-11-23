@@ -938,7 +938,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
- "toml",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]
@@ -1453,8 +1453,8 @@ dependencies = [
 
 [[package]]
 name = "craft-plugin"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "image",
  "schemars",
@@ -1465,8 +1465,8 @@ dependencies = [
 
 [[package]]
 name = "craft-plugin-wasm"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "cap-std",
  "craft-plugin",
@@ -1960,6 +1960,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "directories-next"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "339ee130d97a610ea5a5872d2bbb130fdf68884ff09d3028b81bec8a1ac23bbc"
+dependencies = [
+ "cfg-if",
+ "dirs-sys-next",
+]
+
+[[package]]
+name = "dirs-sys-next"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d"
+dependencies = [
+ "libc",
+ "redox_users",
+ "winapi",
+]
+
+[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2090,7 +2111,7 @@ dependencies = [
 [[package]]
 name = "ecolor"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "bytemuck",
  "emath",
@@ -2124,7 +2145,7 @@ dependencies = [
 [[package]]
 name = "eframe"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -2159,7 +2180,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "accesskit",
  "ahash",
@@ -2178,7 +2199,7 @@ dependencies = [
 [[package]]
 name = "egui-wgpu"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -2197,7 +2218,7 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "accesskit_winit",
  "arboard",
@@ -2220,7 +2241,7 @@ dependencies = [
 [[package]]
 name = "egui_glow"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "bytemuck",
  "egui",
@@ -2273,7 +2294,7 @@ dependencies = [
 [[package]]
 name = "emath"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "bytemuck",
 ]
@@ -2334,7 +2355,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -2359,7 +2380,7 @@ dependencies = [
 [[package]]
 name = "epaint_default_fonts"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 
 [[package]]
 name = "equivalent"
@@ -5544,6 +5565,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_users"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
+dependencies = [
+ "getrandom 0.2.17",
+ "libredox",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "ref-cast"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6490,7 +6522,7 @@ dependencies = [
 [[package]]
 name = "solidcore"
 version = "1.0.1"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -6499,7 +6531,7 @@ dependencies = [
 [[package]]
 name = "solidcore-cadir"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "cadmpeg-ir",
  "solidcore",
@@ -6511,7 +6543,7 @@ dependencies = [
 [[package]]
 name = "solidcore-convert"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "solidcore",
  "solidcore-record",
@@ -6520,7 +6552,7 @@ dependencies = [
 [[package]]
 name = "solidcore-ops"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "serde",
  "solidcore",
@@ -6531,7 +6563,7 @@ dependencies = [
 [[package]]
 name = "solidcore-record"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "serde",
  "serde_json",
@@ -6541,7 +6573,7 @@ dependencies = [
 [[package]]
 name = "solidcore-step"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "solidcore",
  "solidcore-convert",
@@ -6552,7 +6584,7 @@ dependencies = [
 [[package]]
 name = "solidcore-tess"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "rayon",
  "serde",
@@ -6565,13 +6597,13 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-color"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 
 [[package]]
 name = "solidcraft-control"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "getrandom 0.3.4",
  "serde",
@@ -6580,8 +6612,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-derive"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6590,8 +6622,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-develop"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "solidcore-ops",
  "solidcore-record",
@@ -6600,8 +6632,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-doc"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "log",
  "serde",
@@ -6626,8 +6658,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-dynamics"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "serde",
  "solidcore-record",
@@ -6637,8 +6669,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-engine"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "craft-plugin",
  "craft-plugin-wasm",
@@ -6675,8 +6707,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-format"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "serde_json",
  "sha2 0.10.9",
@@ -6685,8 +6717,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-geom"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "serde",
  "solidcore",
@@ -6698,8 +6730,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-io"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "cadmpeg-core",
  "cadmpeg-ir",
@@ -6741,13 +6773,14 @@ dependencies = [
  "thiserror 2.0.21",
  "tiny-skia",
  "trash",
+ "unicode-normalization",
  "zip",
 ]
 
 [[package]]
 name = "solidcraft-kernel"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "log",
  "rayon",
@@ -6767,8 +6800,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-panel-layout"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "schemars",
  "serde",
@@ -6778,8 +6811,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-profile"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "serde_json",
  "web-time",
@@ -6787,8 +6820,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-render"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "image",
  "moxcms",
@@ -6809,8 +6842,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-sketch"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "harfrust",
  "serde",
@@ -6825,8 +6858,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-smlib"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "log",
  "serde_json",
@@ -6839,16 +6872,16 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-ui-registry"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "egui",
 ]
 
 [[package]]
 name = "solidcraft-ui-text"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "log",
  "serde_json",
@@ -6858,8 +6891,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-viewport"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "image",
  "moxcms",
@@ -6873,8 +6906,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-viewport-egui"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "egui",
  "egui-wgpu",
@@ -6885,8 +6918,8 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-viewport-gpu"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "log",
  "naga",
@@ -6903,9 +6936,11 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-views"
-version = "0.45.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+version = "0.47.0"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
+ "schemars",
+ "serde",
  "serde_json",
  "solidcraft-viewport",
 ]
@@ -7342,7 +7377,7 @@ dependencies = [
  "solidcraft-viewport-gpu",
  "sparksmith-core",
  "tiny-skia",
- "toml",
+ "toml 1.1.8+spec-1.1.0",
  "ttf-parser",
  "web-time",
 ]
@@ -7766,6 +7801,21 @@ dependencies = [
 
 [[package]]
 name = "toml"
+version = "0.9.12+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863"
+dependencies = [
+ "indexmap",
+ "serde_core",
+ "serde_spanned",
+ "toml_datetime 0.7.5+spec-1.1.0",
+ "toml_parser",
+ "toml_writer",
+ "winnow 0.7.15",
+]
+
+[[package]]
+name = "toml"
 version = "1.1.8+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20489e00e4d8741d6be680764cc12e270655e375a20d1011e844a9c3379e678d"
@@ -7773,10 +7823,19 @@ dependencies = [
  "indexmap",
  "serde_core",
  "serde_spanned",
- "toml_datetime",
+ "toml_datetime 1.1.2+spec-1.1.0",
  "toml_parser",
  "toml_writer",
- "winnow",
+ "winnow 1.0.4",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "0.7.5+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
+dependencies = [
+ "serde_core",
 ]
 
 [[package]]
@@ -7795,10 +7854,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3641d5bbb5349a79e1020a242d251efbc546ad8048d133958323ce9c40a9c9c"
 dependencies = [
  "indexmap",
- "toml_datetime",
+ "toml_datetime 1.1.2+spec-1.1.0",
  "toml_parser",
  "toml_writer",
- "winnow",
+ "winnow 1.0.4",
 ]
 
 [[package]]
@@ -7807,7 +7866,7 @@ version = "1.1.5+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baa693a8032d7e1cada7d0041e96126df243179ff061456783ac7f12bda4744c"
 dependencies = [
- "winnow",
+ "winnow 1.0.4",
 ]
 
 [[package]]
@@ -8454,6 +8513,7 @@ dependencies = [
  "target-lexicon",
  "wasmparser 0.254.2",
  "wasmtime-environ",
+ "wasmtime-internal-cache",
  "wasmtime-internal-component-macro",
  "wasmtime-internal-component-util",
  "wasmtime-internal-core",
@@ -8495,6 +8555,26 @@ dependencies = [
  "wasmprinter",
  "wasmtime-internal-component-util",
  "wasmtime-internal-core",
+]
+
+[[package]]
+name = "wasmtime-internal-cache"
+version = "48.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc15ec65327e0dc659da1c15658e94a3d4ad3a2ed75a35a320c84af5984b13c2"
+dependencies = [
+ "base64 0.22.1",
+ "directories-next",
+ "log",
+ "postcard",
+ "rustix 1.1.6",
+ "serde",
+ "serde_derive",
+ "sha2 0.10.9",
+ "toml 0.9.12+spec-1.1.0",
+ "wasmtime-environ",
+ "windows-sys 0.61.2",
+ "zstd",
 ]
 
 [[package]]
@@ -9311,7 +9391,7 @@ checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 [[package]]
 name = "winit"
 version = "0.30.13"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=97817e1d6d8601d6488456325445701c7cb31d9f#97817e1d6d8601d6488456325445701c7cb31d9f"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
 dependencies = [
  "ahash",
  "android-activity",
@@ -9357,6 +9437,12 @@ dependencies = [
  "x11rb",
  "xkbcommon-dl",
 ]
+
+[[package]]
+name = "winnow"
+version = "0.7.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 
 [[package]]
 name = "winnow"
@@ -9648,7 +9734,7 @@ dependencies = [
  "uds_windows",
  "uuid",
  "windows-sys 0.61.2",
- "winnow",
+ "winnow 1.0.4",
  "zbus_macros 5.19.0",
  "zbus_names 4.3.5",
  "zvariant 5.15.1",
@@ -9724,7 +9810,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812a12be4ead7a59e18ea8f047d08add0066b73bc62fc1467066a2472ae088dd"
 dependencies = [
  "serde",
- "winnow",
+ "winnow 1.0.4",
  "zvariant 5.15.1",
 ]
 
@@ -9735,7 +9821,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d1586c021a01ca0a9216dcd874e546382e156a5cbab5fab6cb5f10087e22682a"
 dependencies = [
  "serde",
- "winnow",
+ "winnow 1.0.4",
  "zbus_names 4.3.5",
  "zvariant 5.15.1",
 ]
@@ -9885,6 +9971,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "zstd"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50adf04cf3ec914b0b9905c9dde90c80fe74bfd701e331fc80a39c512c525278"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "7.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498d94ad68720c89b4fbe41b9090850651e68cb2dd9210ce7ffbff3a94653819"
+dependencies = [
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.1.3+zstd.1.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f729a06d0257428fd9d997ac8db7e1407bd0262ab016b085b36bc52957c0052d"
+dependencies = [
+ "cc",
+ "pkg-config",
+]
+
+[[package]]
 name = "zune-core"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9921,7 +10035,7 @@ dependencies = [
  "endi",
  "enumflags2",
  "serde",
- "winnow",
+ "winnow 1.0.4",
  "zcheapstr",
  "zvariant_derive 5.15.1",
  "zvariant_utils 4.2.0",
@@ -9974,5 +10088,5 @@ dependencies = [
  "quote",
  "serde",
  "syn 3.0.9",
- "winnow",
+ "winnow 1.0.4",
 ]
