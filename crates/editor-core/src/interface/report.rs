@@ -114,6 +114,9 @@ pub enum EffectKind {
 pub struct AssemblyEffect {
     /// The feature's name in SolidCraft ("USB opening").
     pub feature: String,
+    /// Native feature identity when the effect identifies an operation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feature_id: Option<u64>,
     pub effect: EffectKind,
     /// The datum it references, when it is one Sparksmith published.
     #[serde(default, skip_serializing_if = "Option::is_none")]

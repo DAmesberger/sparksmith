@@ -296,6 +296,7 @@ fn b4_the_dry_run_names_the_feature_that_follows() -> TestResult {
     };
     assert_eq!(moves["effect"], "moves");
     assert_eq!(moves["feature"], "USB opening");
+    assert!(moves["feature_id"].is_u64(), "{moves}");
     assert_eq!(
         moves["message"],
         "The linked design's ‘USB opening’ follows J1 opening: it moves 2 mm along X"

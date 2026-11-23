@@ -475,13 +475,23 @@ pub(super) fn publish_blockers(preview: &PublishPreview) -> Vec<ReviewLine> {
     let Some(dry) = &preview.dry_run else {
         return lines;
     };
+    let mut labels = std::collections::BTreeMap::new();
+    for e in &dry.effects {
+        *labels.entry(e.feature.as_str()).or_insert(0usize) += 1;
+    }
+    let label = |e: &sparksmith_core::interface::AssemblyEffect| match e.feature_id {
+        Some(id) if labels.get(e.feature.as_str()).copied().unwrap_or_default() > 1 => {
+            format!("{} (F{id})", e.feature)
+        }
+        _ => e.feature.clone(),
+    };
     lines.extend(dry.effects.iter().filter_map(|e| match e.effect {
         EffectKind::Fails | EffectKind::JointUnsolved => Some(ReviewLine {
             level: Level::Error,
             title: e.message.clone(),
             ack: Some(format!(
                 "Publish anyway: ‘{}’ will fail in SolidCraft",
-                e.feature
+                label(e)
             )),
             locate: false,
         }),
