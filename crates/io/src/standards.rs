@@ -32,6 +32,8 @@ pub const E96: (Shelf, &str) = (Shelf::Standards, "e96.json");
 pub const EIA96: (Shelf, &str) = (Shelf::Standards, "eia-96.json");
 /// The named rated-voltage letter tables.
 pub const VOLTAGE_LETTERS: (Shelf, &str) = (Shelf::Standards, "voltage-letters.json");
+/// Differential pair name conventions and sourced targets.
+pub const DIFFERENTIAL_PAIRS: (Shelf, &str) = (Shelf::Standards, "differential-pairs.json");
 /// The resistor colour code.
 pub const COLOUR_CODE: (Shelf, &str) = (Shelf::Standards, "colour-code.json");
 /// The generic-part search grammar.
@@ -87,6 +89,8 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Standards> {
     checked(shipped, EIA96, eia96.check())?;
     let letters: VoltageLetterTables = read(shipped, VOLTAGE_LETTERS)?;
     checked(shipped, VOLTAGE_LETTERS, letters.check())?;
+    let pairs: sparksmith_core::rules::signal::PairCatalog = read(shipped, DIFFERENTIAL_PAIRS)?;
+    checked(shipped, DIFFERENTIAL_PAIRS, pairs.check())?;
     let colours: ColourCode = read(shipped, COLOUR_CODE)?;
     checked(shipped, COLOUR_CODE, colours.check())?;
     let marking = MarkingCodes::new(e96, eia96, letters, colours)?;
@@ -118,7 +122,7 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Standards> {
     checked(
         shipped,
         GENERIC_FAMILIES,
-        Standards::new(fields, marking, grammar, symbols, categories),
+        Standards::new(fields, marking, grammar, symbols, categories, pairs),
     )
 }
 
@@ -359,6 +363,48 @@ mod tests {
         std::fs::write(&colours, text)?;
         let error = message(load(&shipped));
         assert!(error.contains("colour-code.json"), "{error}");
+        Ok(())
+    }
+
+    #[test]
+    fn pair_recognition_and_targets_follow_the_library() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let shipped = copy(temp.path())?;
+        let file = temp.path().join("standards/differential-pairs.json");
+        let mut catalog = serde_json::json!({
+            "format": 1, "endings": [[".high", ".low"]],
+            "interfaces": [{
+                "target": { "interface": "Fixture", "ohms": 123.5, "tolerance_pct": 4.5,
+                    "source": "Fixture routing table", "url": "https://example.org/fixture" },
+                "names": [{"name": "Link", "positive": "Alpha", "negative": "Beta"}]
+            }, {
+                "names": [{"name": "Clock", "positive": "ClockA", "negative": "ClockB"}]
+            }]
+        });
+        std::fs::write(&file, serde_json::to_vec(&catalog)?)?;
+        let library = load(&shipped)?;
+        let rows = library.pairs.suggest(
+            &Default::default(),
+            [
+                (1, "Alpha"),
+                (2, "Beta"),
+                (3, "Wire.high"),
+                (4, "Wire.low"),
+                (5, "USB_D+"),
+                (6, "USB_D-"),
+                (7, "ClockA"),
+                (8, "ClockB"),
+            ],
+        );
+        assert_eq!(rows.len(), 3);
+        assert_eq!(
+            rows[0].target.as_ref().map(|t| (t.ohms, t.tolerance_pct)),
+            Some((123.5, 4.5))
+        );
+        assert!(rows[1..].iter().all(|s| s.target.is_none()));
+        catalog["interfaces"][0]["target"]["source"] = "".into();
+        std::fs::write(&file, serde_json::to_vec(&catalog)?)?;
+        assert!(message(load(&shipped)).contains("differential-pairs.json"));
         Ok(())
     }
 

@@ -21,6 +21,7 @@ fn paired(skew: f64) -> Fallible<(Project, DiffPair)> {
         engine.revision(),
         Operation::Rules(RulesCommand::AddDiffPair {
             pair: DiffPairSpec {
+                target: None,
                 name: "USB".into(),
                 positive: A,
                 negative: B,

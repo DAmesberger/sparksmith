@@ -142,7 +142,7 @@ pub(super) fn impedance_section(ui: &mut Ui, project: &Project) {
 pub(super) fn route_rows(
     ui: &mut Ui,
     project: &Project,
-    class: Option<NetClassId>,
+    net: sparksmith_core::Id,
     layer: CopperLayer,
     width: f64,
     pair: Option<(f64, f64)>,
@@ -163,7 +163,14 @@ pub(super) fn route_rows(
         );
     }
     kit::value_row(ui, "Impedance", &text);
-    let derived = impedance::derive(project, class, layer);
+    let derived = match pair.and_then(|_| project.rules.pair_of(net)) {
+        Some(pair) => impedance::derive_pair(project, pair, layer),
+        None => impedance::derive(
+            project,
+            sparksmith_core::layout::net_class(project, net),
+            layer,
+        ),
+    };
     if derived.width.is_some() || derived.pair_width.is_some() {
         kit::value_row(ui, "Target", &derived_text(&derived));
     }

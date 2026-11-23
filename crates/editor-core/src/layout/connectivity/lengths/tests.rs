@@ -25,6 +25,7 @@ fn pair(positive: crate::ids::Id, negative: crate::ids::Id) -> DiffPair {
         positive,
         negative,
         endpoints: None,
+        target: None,
     }
 }
 

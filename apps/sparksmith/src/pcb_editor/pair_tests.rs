@@ -145,6 +145,7 @@ fn usb() -> Result<Usb, Box<dyn std::error::Error>> {
         &mut engine,
         Operation::Rules(RulesCommand::AddDiffPair {
             pair: DiffPairSpec {
+                target: None,
                 name: "USB_D".into(),
                 positive: nets[0],
                 negative: nets[1],

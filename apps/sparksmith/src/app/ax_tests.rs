@@ -6,6 +6,53 @@ use super::*;
 use egui::{Key, Modifiers, Role};
 use sparksmith_core::{Point, schematic};
 
+#[test]
+fn suggested_pair_shows_its_source_before_add() -> Fallible {
+    let mut engine = Engine::demo()?;
+    let nets: Vec<_> = engine
+        .project()
+        .nets
+        .iter()
+        .map(|net| net.id)
+        .take(2)
+        .collect();
+    assert_eq!(nets.len(), 2);
+    for (net, name) in nets.into_iter().zip(["USB_DP", "USB_DN"]) {
+        engine.apply(
+            engine.revision(),
+            sparksmith_core::Operation::Schematic(schematic::SchematicCommand::RenameNet {
+                net,
+                name: name.into(),
+            }),
+        )?;
+    }
+    let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
+    ax.app.pcb.open_signals();
+    ax.settle();
+    for text in ["90 Ω ± 15 %", "SLLU149E §5.3"] {
+        assert!(
+            ax.texts.iter().any(|line| line.contains(text)),
+            "{text}: {:?}",
+            ax.texts
+        );
+    }
+    ax.find(Role::Button, "Open source")?;
+    assert!(ax.app.engine.project().rules.diff_pairs.is_empty());
+    ax.button("Add pair only")?;
+    assert!(ax.app.engine.project().rules.diff_pairs[0].target.is_none());
+    ax.app.engine.undo()?;
+    ax.settle();
+    ax.button("Add with target")?;
+    let rules = &ax.app.engine.project().rules;
+    assert_eq!(rules.diff_pairs.len(), 1);
+    let target = rules.diff_pairs[0]
+        .target
+        .as_ref()
+        .ok_or("missing confirmed target")?;
+    assert_eq!((target.ohms, target.tolerance_pct), (90.0, 15.0));
+    Ok(())
+}
+
 /// Where the sheet point `p` is on the schematic canvas now, in the part
 /// no docked card covers.
 fn on_sheet(ax: &Ax, p: Point) -> Fallible<egui::Pos2> {

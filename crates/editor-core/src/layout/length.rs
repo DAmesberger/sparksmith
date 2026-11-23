@@ -657,7 +657,7 @@ fn check_pair(
     let class_name = class
         .and_then(|c| rules.class(c))
         .map_or_else(String::new, |c| c.name.clone());
-    let signal = rules.signal(class);
+    let signal = pair.signal(rules.signal(class));
     let (a, b) = (len(pair.positive), len(pair.negative));
     let objects = vec![net(pair.positive), net(pair.negative)];
     // Skew is checked only against a limit the net class sets.

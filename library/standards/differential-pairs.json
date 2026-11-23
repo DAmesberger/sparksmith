@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "endings": [
+    ["+", "-"],
+    ["_P", "_N"],
+    ["DP", "DM"],
+    ["P", "N"]
+  ],
+  "interfaces": [
+    {
+      "target": {
+        "interface": "USB 2.0 High-Speed",
+        "ohms": 90,
+        "tolerance_pct": 15,
+        "source": "Texas Instruments SLLU149E §5.3, TUSB73x0 Board Design and Layout Guidelines",
+        "url": "https://www.ti.com/lit/ug/sllu149e/sllu149e.pdf#page=19"
+      },
+      "names": [
+        { "name": "USB_D", "positive": "USB_D+", "negative": "USB_D-" },
+        { "name": "USB_D", "positive": "USB_DP", "negative": "USB_DM" },
+        { "name": "USB_D", "positive": "USB_DP", "negative": "USB_DN" },
+        { "name": "USB2_D", "positive": "USB2_D+", "negative": "USB2_D-" },
+        { "name": "USB2_D", "positive": "USB2_DP", "negative": "USB2_DM" },
+        { "name": "USB2_D", "positive": "USB2_DP", "negative": "USB2_DN" }
+      ]
+    },
+    {
+      "target": {
+        "interface": "USB 3.0 SuperSpeed",
+        "ohms": 90,
+        "tolerance_pct": 15,
+        "source": "Texas Instruments SLLU149E §5.4, TUSB73x0 Board Design and Layout Guidelines",
+        "url": "https://www.ti.com/lit/ug/sllu149e/sllu149e.pdf#page=19"
+      },
+      "names": [
+        { "name": "USB_SSTX", "positive": "USB_SSTXP", "negative": "USB_SSTXM" },
+        { "name": "USB_SSRX", "positive": "USB_SSRXP", "negative": "USB_SSRXM" },
+        { "name": "USB_SSTX", "positive": "USB_SSTXP", "negative": "USB_SSTXN" },
+        { "name": "USB_SSRX", "positive": "USB_SSRXP", "negative": "USB_SSRXN" }
+      ]
+    }
+  ]
+}

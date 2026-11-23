@@ -25,6 +25,7 @@ fn paired() -> Fallible<(Project, DiffPair, f64)> {
         engine.revision(),
         Operation::Rules(RulesCommand::AddDiffPair {
             pair: DiffPairSpec {
+                target: None,
                 name: "USB".into(),
                 positive: A,
                 negative: B,
