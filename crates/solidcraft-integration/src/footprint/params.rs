@@ -174,7 +174,10 @@ pub(crate) fn expression_error(
 /// The expression definitions of the parameters and the package values.
 fn defs(params: &[FootprintParam], package: &[PackageValue]) -> Outcome<Vec<ParamDef>> {
     if params.len() > MAX_PARAMETERS || package.len() > MAX_PARAMETERS {
-        return Err(problem(FindingCode::FootprintTooLarge, "too many parameters"));
+        return Err(problem(
+            FindingCode::FootprintTooLarge,
+            "too many parameters",
+        ));
     }
     let mut defs = Vec::with_capacity(params.len() + package.len());
     for p in params {

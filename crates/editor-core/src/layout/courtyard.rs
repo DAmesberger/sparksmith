@@ -8,11 +8,11 @@
 //! edges is not overlap), so two parts may abut courtyard to courtyard
 //! under the default rules. A positive `courtyard clearance` design rule
 //! also reports courtyards closer than it (`board.courtyard_clearance`).
-use crate::diagnostics::FindingCode;
 use super::check_pair_budget;
 use super::grid::BoundsGrid;
 use super::limits::{mm_against, need};
 use super::placed::{BoardDrawing, PlacedItem, placed_graphics};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, Shape, polygons_overlap, polyline_polygon_distance};
 use crate::ids::{GraphicId, Id};
@@ -23,7 +23,8 @@ use std::collections::BTreeSet;
 /// The finding code for overlapping courtyards.
 pub const COURTYARD_OVERLAP: &str = crate::diagnostics::FindingCode::BoardCourtyardOverlap.as_str();
 /// The finding code for courtyards closer than the courtyard clearance.
-pub const COURTYARD_CLEARANCE: &str = crate::diagnostics::FindingCode::BoardCourtyardClearance.as_str();
+pub const COURTYARD_CLEARANCE: &str =
+    crate::diagnostics::FindingCode::BoardCourtyardClearance.as_str();
 /// The finding code the board checks use when a bound leaves geometry
 /// unchecked.
 pub const COURTYARD_LIMIT: &str = crate::diagnostics::FindingCode::BoardCheckLimit.as_str();

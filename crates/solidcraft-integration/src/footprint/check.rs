@@ -70,8 +70,8 @@ fn load(json: &str, free_form: bool) -> Outcome<Sketch> {
     }
     let sketch: Sketch = serde_json::from_value(given.clone())
         .map_err(|e| problem(UNSUPPORTED, format!("not a Solidcraft sketch: {e}")))?;
-    let again =
-        serde_json::to_value(&sketch).map_err(|e| problem(FindingCode::FootprintInternal, e.to_string()))?;
+    let again = serde_json::to_value(&sketch)
+        .map_err(|e| problem(FindingCode::FootprintInternal, e.to_string()))?;
     if again != given {
         return Err(problem(
             UNSUPPORTED,

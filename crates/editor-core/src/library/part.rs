@@ -4,9 +4,9 @@
 //!
 //! Only identity the user chose is stored (D9): manufacturer, MPN,
 //! distributor, SKU and links. No price, stock or supplier observation.
-use crate::diagnostics::FindingCode;
 use super::publish::{issue, object};
 use super::{ComponentDefinition, Library, printable};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::fields::{self, MAX_RATED_SPECS, RatedSpec};
 use crate::ids::{BindingRef, ComponentRef, DefinitionId, MAX_LABEL};

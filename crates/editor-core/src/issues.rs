@@ -551,11 +551,18 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
         detail: IssueDetail {
             // A merged row's first message speaks for one finding only.
             cause: (also.is_empty() && cause != title).then_some(cause),
-            fix: crate::library::standards::Context::current().ok().and_then(|context| {
-                let id = format!("finding/{}", finding.code).parse::<crate::help::HelpId>().ok()?;
-                let entry = context.help().ok()?.get(&id)?;
-                match &entry.facts { crate::help::Facts::Finding { fix, .. } => Some(fix.clone()), _ => None }
-            }),
+            fix: crate::library::standards::Context::current()
+                .ok()
+                .and_then(|context| {
+                    let id = format!("finding/{}", finding.code)
+                        .parse::<crate::help::HelpId>()
+                        .ok()?;
+                    let entry = context.help().ok()?.get(&id)?;
+                    match &entry.facts {
+                        crate::help::Facts::Finding { fix, .. } => Some(fix.clone()),
+                        _ => None,
+                    }
+                }),
         },
         title,
         finding,

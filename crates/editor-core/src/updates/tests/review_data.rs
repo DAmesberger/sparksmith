@@ -1,6 +1,6 @@
 //! Slice C2: the structured review data of an update plan.
-use crate::diagnostics::FindingCode;
 use super::*;
+use crate::diagnostics::FindingCode;
 use crate::issues::style;
 
 /// Every plan of `routed()` the review shows, with the copper still in place.
@@ -326,7 +326,10 @@ fn findings_diff_counts_new_and_resolved_by_code_and_objects() {
             finding(FindingCode::ErcDriverConflict, "two outputs", 3),
         ],
     );
-    assert_eq!(diff.new, vec![finding(FindingCode::ErcDriverConflict, "two outputs", 3)]);
+    assert_eq!(
+        diff.new,
+        vec![finding(FindingCode::ErcDriverConflict, "two outputs", 3)]
+    );
     assert_eq!(
         diff.resolved,
         vec![finding(FindingCode::BoardUnrouted, "N2 is unrouted", 2)]

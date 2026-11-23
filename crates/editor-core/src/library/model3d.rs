@@ -8,13 +8,13 @@
 //! designations, and package lead maps; an assist only proposes entries
 //! in a preview. Hints (`mount`, `pins`, `pitch`, family text) serve search
 //! only and are never identity.
-use crate::diagnostics::FindingCode;
 use super::Library;
 use super::bundle::MAX_MEDIA_TYPE;
 use super::package::PackageDefinition;
 use super::package_model::PackageModel;
 use super::part::{MAX_URL, Provenance};
 use super::{MAX_LABEL, printable};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::ids::{ContentHash, DefinitionId, ModelRef, PackageTerminalId};
 use crate::materials::MaterialId;
@@ -503,11 +503,15 @@ impl ModelDefinition {
     /// is a snapshot rule ([`snapshot_problems`]).
     pub(super) fn findings(&self, id: DefinitionId, out: &mut Vec<Finding>) {
         let this = || vec![ObjectRef::Definition { id }];
-        let block =
-            |code: FindingCode, message: String| Finding::blocking(code, message, this(), Stage::Publish);
+        let block = |code: FindingCode, message: String| {
+            Finding::blocking(code, message, this(), Stage::Publish)
+        };
         // Assets.
         if let Some(problem) = asset_problem(&self.asset, self.format.media_types()) {
-            out.push(block(FindingCode::ModelAsset, format!("The model {problem}.")));
+            out.push(block(
+                FindingCode::ModelAsset,
+                format!("The model {problem}."),
+            ));
         }
         if let Some(pair) = &self.pair {
             if self.format != ModelFormat::Step {

@@ -2,8 +2,8 @@
 //! package (`library.package_from_generator`, slice D1): which current
 //! terminals carry over, the footprint rebuilt from the generated one, and
 //! the findings the change gives the binding drafts.
-use crate::diagnostics::FindingCode;
 use super::Outcome;
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::ids::{DefinitionId, FootprintRef, PackageRef, PackageTerminalId, PadId, Revision};
 use crate::library::package_fit;
@@ -155,7 +155,11 @@ fn bind_created(
             names.join(", ")
         )
     };
-    Err(Finding::new(FindingCode::BindingFootprintUnbound, message, objects))
+    Err(Finding::new(
+        FindingCode::BindingFootprintUnbound,
+        message,
+        objects,
+    ))
 }
 
 /// The first local identity a package draft may allocate: above its

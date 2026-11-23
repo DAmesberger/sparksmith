@@ -1,8 +1,8 @@
 //! Component definitions: electrical terminals and the exact symbols,
 //! bindings and fields a revision allows.
-use crate::diagnostics::FindingCode;
 use super::publish::{issue, object};
 use super::{Library, MAX_COMPONENT_LISTS, MAX_LABEL, MAX_TERMINALS, printable};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::fields::{self, FieldSelection, MAX_FIELDS};
 use crate::functions::{

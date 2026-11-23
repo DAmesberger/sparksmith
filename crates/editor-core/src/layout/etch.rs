@@ -18,12 +18,12 @@
 //!   but draws the hatch after it.
 //!
 //! Both rules are unset (0) by default: no citable source gives a number.
-use crate::diagnostics::FindingCode;
 use super::connectivity::CopperGraph;
 use super::copper::CopperRing;
 use super::fill::{self, FILL_CHORD_MM, RegionIndex};
 use super::grid::BoundsGrid;
 use super::limits::{cite, mm, mm_against};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, distance, polygon_contains, segments_cross};
 use crate::ids::Id;

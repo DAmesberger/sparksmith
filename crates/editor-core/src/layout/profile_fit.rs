@@ -19,7 +19,8 @@ use crate::model::{PadFinish, Project};
 /// The board's copper layer count is not one its fab profile is for.
 pub const LAYERS: &str = crate::diagnostics::FindingCode::BoardProfileLayers.as_str();
 /// A chosen manufacturing option needs a thinner board.
-pub const CHOICE_THICKNESS: &str = crate::diagnostics::FindingCode::BoardFabChoiceThickness.as_str();
+pub const CHOICE_THICKNESS: &str =
+    crate::diagnostics::FindingCode::BoardFabChoiceThickness.as_str();
 /// A chosen manufacturing option needs another surface finish.
 pub const CHOICE_FINISH: &str = crate::diagnostics::FindingCode::BoardFabChoiceFinish.as_str();
 
@@ -115,7 +116,10 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             ));
         }
     }
-    for (code, messages) in [(FindingCode::BoardFabChoiceThickness, thin), (FindingCode::BoardFabChoiceFinish, finished)] {
+    for (code, messages) in [
+        (FindingCode::BoardFabChoiceThickness, thin),
+        (FindingCode::BoardFabChoiceFinish, finished),
+    ] {
         if !messages.is_empty() {
             out.push(Finding::new(
                 code,

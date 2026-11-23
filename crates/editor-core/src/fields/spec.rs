@@ -4,8 +4,8 @@
 //! `satisfies` is shared by catalog search, `instance.assign_part` and
 //! purchasing completeness. It compares by the spec's declared meaning,
 //! never by matching names or text.
-use crate::diagnostics::FindingCode;
 use super::{FieldValue, ToleranceBasis, ValueType, tolerance_interval};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::ids::FieldRef;
 use schemars::JsonSchema;

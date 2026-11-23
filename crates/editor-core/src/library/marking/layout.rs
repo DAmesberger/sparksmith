@@ -7,13 +7,13 @@
 //! ([`MarkingSpec::text_height_mm`], [`MAX_AUTO_TEXT_HEIGHT_MM`] by default). A line that
 //! does not fit at the minimum legible height is dropped from the end with
 //! a `marking.does_not_fit` finding; text never shrinks below the minimum.
-use crate::diagnostics::FindingCode;
 use super::codes;
 use super::template::{self, Missing};
 use super::{
     AREA_MARGIN, Align, Anchor, Chart, LINE_GAP, LaidElement, LaidText, MAX_RENDERED_LINE,
     MarkingInputs, MarkingItem, MarkingLayout, MarkingSpec, PolarityMark, TEXT_ADVANCE, positive,
 };
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, Result};
 use crate::quantity::format_number;
 use crate::units::Nm;

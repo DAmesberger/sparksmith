@@ -694,10 +694,14 @@ fn every_declared_finding_has_an_owner() -> Fallible<()> {
         for entry in std::fs::read_dir(dir)? {
             let path = entry?.path();
             if path.is_dir() {
-                if !path.ends_with("tests") { dirs.push(path); }
+                if !path.ends_with("tests") {
+                    dirs.push(path);
+                }
             } else if path.extension().is_some_and(|ext| ext == "rs")
                 && !path.ends_with("diagnostics/finding_code.rs")
-                && !path.file_name().is_some_and(|n| n.to_string_lossy().contains("test"))
+                && !path
+                    .file_name()
+                    .is_some_and(|n| n.to_string_lossy().contains("test"))
             {
                 texts.push(std::fs::read_to_string(path)?);
             }
@@ -705,7 +709,10 @@ fn every_declared_finding_has_an_owner() -> Fallible<()> {
     }
     for code in crate::diagnostics::FindingCode::ALL {
         let reference = format!("FindingCode::{code:?}");
-        assert!(texts.iter().any(|source| source.contains(&reference)), "{code} has no owner");
+        assert!(
+            texts.iter().any(|source| source.contains(&reference)),
+            "{code} has no owner"
+        );
     }
     Ok(())
 }

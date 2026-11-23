@@ -1,9 +1,9 @@
 //! Publication: the per-kind rules, aggregated once, and the atomic publish
 //! of a draft set in dependency order.
-use crate::diagnostics::FindingCode;
 use super::bundle::{RefSite, references};
 use super::drafts::{Draft, Drafts};
 use super::{Definition, Library, check_bounds, printable, publish_rank};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::fields;
 use crate::ids::{DefinitionId, DefinitionRef, Revision};

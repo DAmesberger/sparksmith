@@ -19,13 +19,13 @@
 //!
 //! Every limit is the project's ([`BoardRules`]); pairs are found through
 //! a bounds grid reaching as far as the largest clearance.
-use crate::diagnostics::FindingCode;
 use super::connectivity::CopperGraph;
 use super::copper::{check_reach, limit_finding};
 use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
 use super::physical::{self, HoleOwner};
 use super::{BoardCopper, CopperRing, EPS, PlacedPad, check_pair_budget, pad_labels, placed_pads};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::Shape;
 use crate::ids::{Id, PadId};
@@ -568,7 +568,11 @@ impl<'a> PadHoleCx<'a> {
                     vec![hole.object, other.object],
                 )
             };
-            issues.push(Finding::new(FindingCode::BoardPadHoleSpacing, text, objects));
+            issues.push(Finding::new(
+                FindingCode::BoardPadHoleSpacing,
+                text,
+                objects,
+            ));
         }
         Ok(pairs)
     }

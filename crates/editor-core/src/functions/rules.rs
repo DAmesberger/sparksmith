@@ -795,7 +795,11 @@ pub fn explanations(compiled: &CompiledRules, evaluation: &RuleEvaluation) -> Ru
     }
 }
 
-fn publish_issue(code: crate::diagnostics::FindingCode, message: String, objects: Vec<ObjectRef>) -> Finding {
+fn publish_issue(
+    code: crate::diagnostics::FindingCode,
+    message: String,
+    objects: Vec<ObjectRef>,
+) -> Finding {
     Finding::blocking(code, message, objects, Stage::Publish)
 }
 

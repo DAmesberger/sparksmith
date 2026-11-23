@@ -7,8 +7,8 @@
 //! Part and physical implementation fitted. The copper never changes
 //! between variants: a substitute must sit on the same land pattern with
 //! the same pad grouping ([`substitute_fit`]).
-use crate::diagnostics::FindingCode;
 use super::{PhysicalView, designator_key, instance_mut, invalid, resolve};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::fields;
 use crate::ids::{ComponentRef, FootprintRef, Id, PartRef, TerminalId};
@@ -34,7 +34,8 @@ pub const SUBSTITUTE_UNFIT: &str = crate::diagnostics::FindingCode::VariantSubst
 /// The finding of a substitute nobody has reviewed as electrically
 /// equivalent to the part it replaces: it fits the lands, which says
 /// nothing about what each pin does.
-pub const SUBSTITUTE_UNREVIEWED: &str = crate::diagnostics::FindingCode::VariantSubstituteUnreviewed.as_str();
+pub const SUBSTITUTE_UNREVIEWED: &str =
+    crate::diagnostics::FindingCode::VariantSubstituteUnreviewed.as_str();
 
 /// The finding of a substitute that does not meet, rate or compare with a
 /// requirement of the part it replaces, and no review excepts it.

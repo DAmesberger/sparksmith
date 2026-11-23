@@ -159,8 +159,9 @@ impl PackageRowDefinition {
     /// made. A row without a citation is estimated, which is allowed.
     pub(crate) fn findings(&self, id: DefinitionId, out: &mut Vec<Finding>) {
         let this = || vec![ObjectRef::Definition { id }];
-        let block =
-            |code: FindingCode, message: String| Finding::blocking(code, message, this(), Stage::Publish);
+        let block = |code: FindingCode, message: String| {
+            Finding::blocking(code, message, this(), Stage::Publish)
+        };
         let generator_ok = !self.generator.is_empty()
             && self
                 .generator

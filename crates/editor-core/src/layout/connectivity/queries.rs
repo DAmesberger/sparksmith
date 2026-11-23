@@ -1,7 +1,7 @@
 //! What the graph answers: stubs, the connectivity findings and airwires.
-use crate::diagnostics::FindingCode;
 use super::build::joins;
 use super::{CopperGraph, Dsu, EdgeKind, ElementKind, JOIN_TOLERANCE_MM};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::Point;
 use crate::ids::Id;
@@ -446,7 +446,11 @@ impl CopperGraph {
                 .chain(stub.vias.iter().map(|&id| ObjectRef::Via { id }))
                 .chain([ObjectRef::Net { id: stub.net }])
                 .collect();
-            out.push(Finding::new(FindingCode::BoardTrackDangling, message, objects));
+            out.push(Finding::new(
+                FindingCode::BoardTrackDangling,
+                message,
+                objects,
+            ));
         }
         out.extend(self.unjoined_islands(project));
         out

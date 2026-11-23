@@ -309,7 +309,12 @@ impl Finding {
         }
     }
     /// A finding that prevents `stage` while it exists.
-    pub fn blocking(code: FindingCode, message: String, objects: Vec<ObjectRef>, stage: Stage) -> Self {
+    pub fn blocking(
+        code: FindingCode,
+        message: String,
+        objects: Vec<ObjectRef>,
+        stage: Stage,
+    ) -> Self {
         Self {
             blocks: Some(stage),
             ..Self::new(code, message, objects)

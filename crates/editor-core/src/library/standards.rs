@@ -256,7 +256,9 @@ impl Context {
     }
 
     pub fn help(&self) -> Result<&crate::help::Index> {
-        self.help.as_deref().map_err(|why| Error::Invalid(why.clone()))
+        self.help
+            .as_deref()
+            .map_err(|why| Error::Invalid(why.clone()))
     }
 
     /// This context with the installed marking artwork, by id.
@@ -839,16 +841,24 @@ pub mod fixture {
     // the same authored fix lines as the installed library. The generation
     // gate checks the complete topic, references and stamps.
     pub fn finding_help() -> std::result::Result<crate::help::Index, String> {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library/help/topics/findings");
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../library/help/topics/findings");
         let mut index = crate::help::Index::new();
         for mut entry in crate::help::finding_entries()? {
             let path = dir.join(format!("{}.md", entry.id.name()));
-            let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-            let (front, _) = text.strip_prefix("---\n").and_then(|s| s.split_once("\n---\n"))
+            let text =
+                std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let (front, _) = text
+                .strip_prefix("---\n")
+                .and_then(|s| s.split_once("\n---\n"))
                 .ok_or_else(|| format!("{} has no frontmatter", path.display()))?;
             #[derive(serde::Deserialize)]
-            struct Wording { fix: String, cause: String }
-            let words: Wording = serde_json::from_str(front).map_err(|e| format!("{}: {e}", path.display()))?;
+            struct Wording {
+                fix: String,
+                cause: String,
+            }
+            let words: Wording =
+                serde_json::from_str(front).map_err(|e| format!("{}: {e}", path.display()))?;
             if let crate::help::Facts::Finding { fix, cause, .. } = &mut entry.facts {
                 *fix = words.fix;
                 *cause = words.cause;

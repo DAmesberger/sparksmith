@@ -1,12 +1,12 @@
 //! Slice C3: turning a checked [`PinoutDocument`] into draft bodies, the
 //! planned changes and the review items. Pure over the library and the
 //! drafts; the command layer allocates lineages and stores the result.
-use crate::diagnostics::FindingCode;
 use super::{
     ChangeKind, MAX_PINOUT_NOTE, MAX_PINOUT_PERIPHERALS, MAX_PINOUT_PINS, MAX_PINOUT_RULES,
     MAX_PINOUT_VARIANTS, MAX_ROW_NUMBERS, PINOUT_FORMAT, PinoutAccept, PinoutChange, PinoutClass,
     PinoutDocument, PinoutPin, PinoutTarget, RULE_ROW_PREFIX, ReviewItem, ReviewReason,
 };
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::functions::rules::{MAX_RULE_SOURCE, PinRule, PinRuleScript};
 use crate::functions::{

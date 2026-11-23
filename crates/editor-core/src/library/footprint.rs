@@ -3,12 +3,12 @@
 //! solved data; an optional [`FootprintSource`] records how it was derived
 //! and is interpreted by a [`FootprintEvaluator`](super::footprint_source::FootprintEvaluator)
 //! outside the core. Opening a project never needs the solver.
-use crate::diagnostics::FindingCode;
 use super::footprint_source::FootprintSource;
 use super::graphics::{FootprintGraphic, Polarity, ShapeNm};
 use super::package::PackageDefinition;
 use super::publish::{issue, object};
 use super::{Library, MAX_PADS};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef, Result};
 use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::{DefinitionId, PackageRef, PackageTerminalId, PadId};

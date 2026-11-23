@@ -19,12 +19,12 @@
 //! - [`COPPER`]: a track or via reaches into the clear area of a fiducial
 //!   that carries no keep-out (an error: the copper would show in the
 //!   opening, or touch the dot).
-use crate::diagnostics::FindingCode;
 use super::legend::text_strokes;
 use super::limits::cite;
 use super::placed::{
     BoardDrawing, PlacedItem, opposite, placed_graphics, placed_keepouts, placed_pads,
 };
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{
     Point, distance, polygon_contains, polygons_overlap, polyline_polygon_distance,

@@ -20,19 +20,24 @@ pub const ASSEMBLY_STALE: &str = crate::diagnostics::FindingCode::AssemblyStale.
 /// The linked design still links an older published board.
 pub const ASSEMBLY_OLDER_BOARD: &str = crate::diagnostics::FindingCode::AssemblyOlderBoard.as_str();
 /// The board and the linked design both changed since they last agreed.
-pub const ASSEMBLY_BOTH_CHANGED: &str = crate::diagnostics::FindingCode::AssemblyBothChanged.as_str();
+pub const ASSEMBLY_BOTH_CHANGED: &str =
+    crate::diagnostics::FindingCode::AssemblyBothChanged.as_str();
 /// A linked design feature uses a datum that no longer resolves.
-pub const ASSEMBLY_REFERENCE_LOST: &str = crate::diagnostics::FindingCode::AssemblyReferenceLost.as_str();
+pub const ASSEMBLY_REFERENCE_LOST: &str =
+    crate::diagnostics::FindingCode::AssemblyReferenceLost.as_str();
 /// A linked design feature's datum was found again only by geometry.
-pub const ASSEMBLY_REFERENCE_INEXACT: &str = crate::diagnostics::FindingCode::AssemblyReferenceInexact.as_str();
+pub const ASSEMBLY_REFERENCE_INEXACT: &str =
+    crate::diagnostics::FindingCode::AssemblyReferenceInexact.as_str();
 /// A linked design feature references a face that is not exported.
-pub const ASSEMBLY_UNEXPORTED_FACE: &str = crate::diagnostics::FindingCode::AssemblyUnexportedFace.as_str();
+pub const ASSEMBLY_UNEXPORTED_FACE: &str =
+    crate::diagnostics::FindingCode::AssemblyUnexportedFace.as_str();
 /// The board and the linked design depend on each other's positions in a
 /// loop.
 pub const ASSEMBLY_CYCLE: &str = crate::diagnostics::FindingCode::AssemblyCycle.as_str();
 /// The board follows linked design geometry whose extent, but not its
 /// position, the linked design takes from the board (advisory).
-pub const ASSEMBLY_EXTENT_CYCLE: &str = crate::diagnostics::FindingCode::AssemblyExtentCycle.as_str();
+pub const ASSEMBLY_EXTENT_CYCLE: &str =
+    crate::diagnostics::FindingCode::AssemblyExtentCycle.as_str();
 /// The linked design file was not found; the board uses its snapshot.
 pub const ASSEMBLY_MISSING: &str = crate::diagnostics::FindingCode::AssemblyMissing.as_str();
 /// The linked design was saved by a newer SolidCraft than this build reads.
@@ -102,7 +107,11 @@ pub fn unpublished(changed: usize, revision: Option<u32>) -> Finding {
         Some(r) => format!("{changed} {datums} changed since revision {r}"),
         None => "The board interface has not been published".into(),
     };
-    Finding::new(FindingCode::InterfaceUnpublished, message, vec![ObjectRef::Board])
+    Finding::new(
+        FindingCode::InterfaceUnpublished,
+        message,
+        vec![ObjectRef::Board],
+    )
 }
 
 /// `interface.datum_lost`: `datum` is its display name ("J1 opening"),

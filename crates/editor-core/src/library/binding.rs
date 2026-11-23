@@ -1,9 +1,9 @@
 //! Bindings: the explicit mapping from one component lineage's terminals to
 //! one exact package revision, with the footprint variants it allows.
-use crate::diagnostics::FindingCode;
 use super::component::unique_lineages;
 use super::publish::{issue, object};
 use super::{Library, MAX_FOOTPRINTS_PER_BINDING, MAX_PACKAGE_TERMINALS};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::functions::MAX_UNAVAILABLE;
 use crate::ids::{

@@ -30,16 +30,24 @@ macro_rules! declare_findings {
 
 impl Deref for FindingCode {
     type Target = str;
-    fn deref(&self) -> &str { self.as_str() }
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
 }
 impl fmt::Display for FindingCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 impl PartialEq<&str> for FindingCode {
-    fn eq(&self, name: &&str) -> bool { self.as_str() == *name }
+    fn eq(&self, name: &&str) -> bool {
+        self.as_str() == *name
+    }
 }
 impl PartialEq<FindingCode> for &str {
-    fn eq(&self, code: &FindingCode) -> bool { *self == code.as_str() }
+    fn eq(&self, code: &FindingCode) -> bool {
+        *self == code.as_str()
+    }
 }
 
 declare_findings! {

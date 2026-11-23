@@ -23,8 +23,8 @@
 //! [`gap_tolerance`]; the rest of each half (pad fan-out included) is
 //! uncoupled. Parallel stretches closer than the gap are `pair.gap`
 //! findings.
-use crate::diagnostics::FindingCode;
 use super::{CopperGraph, impedance};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::geometry::Point;
 use crate::ids::Id;

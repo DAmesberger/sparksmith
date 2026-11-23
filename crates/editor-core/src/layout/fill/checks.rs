@@ -15,10 +15,10 @@
 //! shows as soon as a joined pad or via moves off the pour, not after the
 //! refill lands. The graph also reports islands that join nothing
 //! (`fill.island_unconnected`).
-use crate::diagnostics::FindingCode;
 use super::FILL_CHORD_MM;
 use super::compute::Ctx;
 use super::geom::{self, Region, RegionIndex};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Point, polygon_contains, polygons_overlap};
 use crate::ids::Id;
@@ -97,7 +97,8 @@ pub const MAX_FILL_ROWS: usize = 256;
 /// A fill's audit found more violations than it lists ([`MAX_FILL_ROWS`]):
 /// an error that may not be waived, since a waiver could not say which
 /// copper it accepts.
-pub const CLEARANCE_UNLISTED: &str = crate::diagnostics::FindingCode::FillClearanceUnlisted.as_str();
+pub const CLEARANCE_UNLISTED: &str =
+    crate::diagnostics::FindingCode::FillClearanceUnlisted.as_str();
 
 /// Stored fill copper beyond the board outline, in a cutout or slot, or
 /// closer to an edge than the fill-to-board-edge clearance.

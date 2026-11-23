@@ -37,8 +37,8 @@
 //! agreed, an update is not refused: the preview lists both sides'
 //! changes ([`conflicts`], [`board_changes`]) and the update says, per
 //! item both changed, which side wins ([`Resolution`]).
-use crate::diagnostics::FindingCode;
 use super::findings;
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::geometry::Point;
 use crate::ids::{ContentHash, Id, printable};

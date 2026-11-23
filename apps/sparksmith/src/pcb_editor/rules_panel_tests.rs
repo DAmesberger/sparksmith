@@ -1,10 +1,10 @@
 //! The Design rules panel: live per-field overrides with reset, the
 //! previewed profile switch as one undo step, saving the rules as a user
 //! profile, and "Show rule" from a board finding.
-use sparksmith_core::diagnostics::FindingCode;
 use super::*;
 use egui::{Pos2, Shape};
 use sparksmith_core::Engine;
+use sparksmith_core::diagnostics::FindingCode;
 use sparksmith_core::rules::fixtures;
 use sparksmith_ui::fonts;
 

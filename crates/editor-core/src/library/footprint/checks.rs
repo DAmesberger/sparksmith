@@ -1,7 +1,7 @@
 //! The footprint publish rules and the advisory footprint lint.
-use crate::diagnostics::FindingCode;
 use super::geometry::{CHECK_CHORD_MM, TerminalRule, ring_gap, ring_within};
 use super::{FootprintDefinition, HoleShape, Pad, PadKind, PadShape, PadSide, PasteRule};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{polygon_self_intersects, signed_area2, size_valid};
 use crate::ids::DefinitionId;

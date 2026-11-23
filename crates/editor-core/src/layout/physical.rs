@@ -17,10 +17,10 @@
 //! clearance finding. Which copper joins is still the copper graph's alone
 //! ([`super::connectivity`]); it reads the lands that have a net
 //! ([`super::pads`]).
-use crate::diagnostics::FindingCode;
 use super::copper::CopperRing;
 use super::limits::mm;
 use super::placed::PlacedPad;
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Point, Shape, distance};
 use crate::ids::{Endpoint, Id, PadId};

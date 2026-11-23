@@ -3,8 +3,8 @@
 //! use an exact table, so copies carry no cos(90°) residue. Identity is the
 //! generation key `(array, i, j)`, never position or number.
 
-use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::Vec2;
+use sparksmith_core::diagnostics::FindingCode;
 use sparksmith_core::library::footprint_source::{
     ArrayLayout, NumberingScheme, PadArray, Pin1Position,
 };

@@ -1,10 +1,10 @@
 //! Package definitions: physical terminals, the envelope, the lead
 //! contacts, the 3D model source and its placement.
-use crate::diagnostics::FindingCode;
 use super::datum::{PackageDatum, PackageDatumOrigin};
 use super::package_model::{ModelPlacement, PackageModel};
 use super::publish::{issue, object};
 use super::{MAX_LABEL, MAX_PACKAGE_TERMINALS, printable};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef, Result};
 use crate::geometry::{Point3, finite_within, size_valid};
 use crate::ids::{DefinitionId, PackageTerminalId};

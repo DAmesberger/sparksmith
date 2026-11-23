@@ -1,13 +1,13 @@
 //! Symbol definitions: units, each an ordered list of drawn graphics plus
 //! pins. A symbol belongs to one component lineage, whose terminal IDs its
 //! pins use; unit and graphic IDs share the symbol's local namespace.
-use crate::diagnostics::FindingCode;
 use super::graphics::{
     self, Graphic, Item, MAX_GRAPHICS, MAX_GRAPHICS_PER_UNIT, MAX_VERTICES, PIN_TEXT_HEIGHT, Pin,
     TEXT_HEIGHT, TextMetric,
 };
 use super::publish::{issue, object};
 use super::{Library, MAX_LABEL, MAX_TERMINALS, MAX_UNITS, printable};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::Bounds;
 use crate::ids::{DefinitionId, GraphicId, TerminalId, UnitId};

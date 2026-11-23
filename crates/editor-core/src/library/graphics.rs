@@ -4,10 +4,10 @@
 //! the rules for it. Text is a structured reference (designator, field,
 //! name), never a placeholder string, so it is never the authority for a
 //! value.
-use crate::diagnostics::FindingCode;
 use super::drafts::{Draft, Drafts};
 use super::publish::{issue, object};
 use super::{Definition, Library, MAX_LABEL};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::Result;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, Shape, cos_sin, polygon_self_intersects};
@@ -820,7 +820,11 @@ pub(super) fn item_findings(
                         this,
                     )
                 } else {
-                    issue(FindingCode::TextEmpty, "A text needs printable content.".into(), this)
+                    issue(
+                        FindingCode::TextEmpty,
+                        "A text needs printable content.".into(),
+                        this,
+                    )
                 });
             }
         }

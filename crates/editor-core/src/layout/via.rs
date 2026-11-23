@@ -6,7 +6,6 @@
 //! here are the default profile's values. Connectivity through vias lives
 //! in the copper graph ([`super::connectivity`]): one land per layer the
 //! via reaches, joined by its barrel.
-use crate::diagnostics::FindingCode;
 use super::board_edge::{BoardEdges, EdgeVerdict};
 use super::copper::check_reach;
 use super::grid::BoundsGrid;
@@ -16,6 +15,7 @@ use super::{
     BoardCopper, CopperRing, EPS, Error, Result, RouteEditSet, RouteRequest, WorldPad,
     check_pair_budget, distance, invalid,
 };
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::Id;

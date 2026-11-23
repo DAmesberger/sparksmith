@@ -11,12 +11,12 @@
 //! before it is truly under the rule, and is never missed. A track's round
 //! caps are exact instead: its gaps are measured from its centre line less
 //! its half-width.
-use crate::diagnostics::FindingCode;
 use super::board_edge::{BoardEdges, EdgeVerdict};
 use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
 use super::physical::{Conductor, Land};
 use super::{CLEARANCE_MM, EPS, WorldPad, check_pair_budget, sync_preview};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{
     Bounds, Point, Shape, polygons_overlap, polyline_polygon_distance, segments_gap,

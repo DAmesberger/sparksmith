@@ -10,8 +10,8 @@
 //! ([`dimensions_using`]), parameter values ([`parameter_values`]) and the
 //! dimension layout share one loaded sketch, [`LiveSketch`], which the
 //! Footprint tab keeps per source change instead of reloading every frame.
-use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::prelude::*;
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::BTreeSet;
 
 use crate::geom::Vec2;

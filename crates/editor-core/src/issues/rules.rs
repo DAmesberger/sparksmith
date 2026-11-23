@@ -9,14 +9,20 @@ pub(super) const NO_PART: &str = FindingCode::PurchasingNoPart.as_str();
 pub(super) const UNMAPPED_PACKAGE_TERMINAL: &str = FindingCode::BindingMappingMissing.as_str();
 
 pub(super) fn severity(finding: &Finding) -> Severity {
-    if finding.code == FindingCode::BindingMappingMissing { return Severity::ToDo; }
-    if finding.blocks.is_some() { return Severity::Error; }
+    if finding.code == FindingCode::BindingMappingMissing {
+        return Severity::ToDo;
+    }
+    if finding.blocks.is_some() {
+        return Severity::Error;
+    }
     finding.code.severity()
 }
 
 /// Includes production-only group names which are not document findings.
 pub fn group_title(name: &str) -> String {
-    if let Ok(code) = name.parse::<FindingCode>() { return code.group_title().into(); }
+    if let Ok(code) = name.parse::<FindingCode>() {
+        return code.group_title().into();
+    }
     let rule = name.rsplit('.').next().unwrap_or(name).replace('_', " ");
     crate::library::names::capitalised(rule.trim())
 }

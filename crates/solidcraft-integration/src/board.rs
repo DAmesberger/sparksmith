@@ -20,8 +20,8 @@
 //! their virtual intersection (a point on both lines), so dimensions to it
 //! keep holding and a named edge still runs corner to corner.
 
-use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::prelude::*;
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::TAU;
 
@@ -35,7 +35,7 @@ use sparksmith_core::geometry::Point;
 use sparksmith_core::layout::dimensions::{PartsRequest, PartsSolution};
 use sparksmith_core::layout::outline::{
     BoardEvaluation, BoardShapeEvaluator, DrawnSlot, FATAL_PREFIX, Fillets, FixedEdit,
-    FreeFormCurve, SHAPE_UNSOLVED, refuses,
+    FreeFormCurve, refuses,
 };
 use sparksmith_core::library::footprint_source::{
     DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, ParamUnit, SketchBlob, SketchCurveId,
@@ -853,8 +853,12 @@ fn extended(
 }
 
 fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
-    let values = params::evaluate(&board.parameters, &[])
-        .map_err(|p| problem(FindingCode::BoardShapeUnsolved, format!("board parameters: {}", p.message)))?;
+    let values = params::evaluate(&board.parameters, &[]).map_err(|p| {
+        problem(
+            FindingCode::BoardShapeUnsolved,
+            format!("board parameters: {}", p.message),
+        )
+    })?;
     if !OUTLINE_FIT_RANGE_MM.contains(&board.outline_fit) {
         return Err(problem(
             RANGE,
@@ -887,8 +891,8 @@ fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
     } else {
         Vec::new()
     };
-    let bytes =
-        serde_json::to_vec(&solved).map_err(|e| problem(FindingCode::BoardInternal, e.to_string()))?;
+    let bytes = serde_json::to_vec(&solved)
+        .map_err(|e| problem(FindingCode::BoardInternal, e.to_string()))?;
     let dof = u32::try_from(dof).unwrap_or(u32::MAX);
     Ok(BoardEvaluation {
         solved,

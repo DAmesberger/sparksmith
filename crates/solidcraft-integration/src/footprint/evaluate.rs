@@ -4,8 +4,8 @@
 //! mask/paste and vias → arrays and overrides → derived graphics → datum
 //! → quantization to 1e-6 mm and the result hash.
 
-use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::prelude::*;
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::geom::Vec2;
@@ -110,7 +110,10 @@ pub(crate) fn solve(stored: &Sketch, values: &Values) -> Outcome<(Sketch, usize)
     }
     let flips = flips_from_stored(&sketch, stored);
     if !flips.is_empty() {
-        return Err(problem(FindingCode::FootprintFlipped, flipped(stored, &flips)));
+        return Err(problem(
+            FindingCode::FootprintFlipped,
+            flipped(stored, &flips),
+        ));
     }
     Ok((sketch, report.dof))
 }
@@ -196,9 +199,12 @@ fn direction(sk: &Sketch, id: &str) -> Outcome<Vec2> {
             "a line names a missing point",
         ));
     };
-    (b - a)
-        .normalized()
-        .ok_or_else(|| problem(FindingCode::FootprintOrientation, format!("`{id}` has no length")))
+    (b - a).normalized().ok_or_else(|| {
+        problem(
+            FindingCode::FootprintOrientation,
+            format!("`{id}` has no length"),
+        )
+    })
 }
 
 fn angle_of(sk: &Sketch, id: &str) -> Outcome<f64> {
@@ -424,7 +430,10 @@ fn classify_roles(
 ) -> Outcome<BTreeMap<PadId, Seed>> {
     let roles = &request.source.pads;
     if roles.len() > MAX_PADS {
-        return Err(problem(FindingCode::FootprintTooLarge, "too many pad roles"));
+        return Err(problem(
+            FindingCode::FootprintTooLarge,
+            "too many pad roles",
+        ));
     }
     let copper = copper_only(sketch, non_copper);
     let profiles = find_profiles(&copper);
@@ -432,7 +441,7 @@ fn classify_roles(
     let mut taken: BTreeMap<usize, PadId> = BTreeMap::new();
     for role in roles {
         let anchor = point_at(sketch, &role.anchor.0, FindingCode::FootprintAnchorMissing)?;
-        let unclassified = |why: String| problem(FindingCode::FootprintPadShapeUnclassified, format!("pad {}: {why}", role.pad));
+        let unclassified = |why: String| problem(UNCLASSIFIED, format!("pad {}: {why}", role.pad));
         let index = profile_at_point(&profiles, anchor)
             .ok_or_else(|| unclassified("no closed copper profile around the anchor".into()))?;
         let profile = profiles
@@ -922,7 +931,8 @@ fn qp(p: Point) -> Outcome<Point> {
 /// A solved shape stored: rounded to whole nanometres, the 1e-6 mm
 /// quantum ([`ShapeNm::from_mm_rounded`]).
 fn stored_shape(shape: &Shape) -> Outcome<ShapeNm> {
-    ShapeNm::from_mm_rounded(shape).map_err(|e| problem(FindingCode::FootprintTooLarge, e.to_string()))
+    ShapeNm::from_mm_rounded(shape)
+        .map_err(|e| problem(FindingCode::FootprintTooLarge, e.to_string()))
 }
 
 /// [`Pad::fold_rotation`], whose turned paste windows are stored rounded.

@@ -4,13 +4,13 @@
 //! the package's stored lead contacts ([`PackageDefinition::leads`], each
 //! naming its terminal) or from the host (the integration crate, for
 //! imported models) as [`LeadPair`]s.
-use crate::diagnostics::FindingCode;
 use super::footprint::{FootprintDefinition, PAD_ARC_TOLERANCE_MM, PadKind};
 use super::package_model::{
     self, Axis, ModelPlacement, PackageEdit, PackageModel, QuickAction, model_frame,
 };
 use super::publish::object;
 use super::{Datum, PackageDefinition, Pad};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, Result};
 use crate::geometry::{Bounds, Point, Point3, Transform3, cos_sin};
 use crate::ids::{DefinitionId, PackageTerminalId, PadId};

@@ -3,10 +3,10 @@
 //! with its rotation, or an exact custom outline. Holes come from their
 //! role-owned construction curves.
 
-use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::prelude::*;
 use crate::geom::{Loop2, Seg2, Vec2};
 use solidcraft_engine::sketch::{CurveKind, Sketch};
+use sparksmith_core::diagnostics::FindingCode;
 use sparksmith_core::library::{CornerMask, Hole, HoleShape, Outline, PadShape, Segment};
 use sparksmith_core::units::{Angle, Nm, PointNm};
 

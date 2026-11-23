@@ -6,8 +6,8 @@
 //! component update may leave a Part behind and the editor never re-points
 //! it silently. `instance.assign_part` ([`assign_part`]) refuses a Part that
 //! does not agree.
-use crate::diagnostics::FindingCode;
 use super::{check_instance, effective_fields, instance_mut, invalid};
+use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::fields::{self, FieldValue, Requirement, ToleranceBasis, ValueType};
 use crate::ids::{BindingRef, ComponentRef, Id, PartRef};

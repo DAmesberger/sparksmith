@@ -397,7 +397,11 @@ pub fn checks(project: &Project) -> Vec<Finding> {
                     target_words(project, f.target())
                 ),
             };
-            out.push(Finding::new(FindingCode::BoardReferenceLost, message, objects));
+            out.push(Finding::new(
+                FindingCode::BoardReferenceLost,
+                message,
+                objects,
+            ));
         }
     }
     out
@@ -449,7 +453,10 @@ fn model_words(
         // The host's reason already names it ("J1 · top face is parallel
         // to the board; …").
         (_, Some(why)) if why.starts_with(&what) => (FindingCode::BoardReferenceLost, why),
-        (_, Some(why)) => (FindingCode::BoardReferenceLost, format!("{what} is lost: {why}")),
+        (_, Some(why)) => (
+            FindingCode::BoardReferenceLost,
+            format!("{what} is lost: {why}"),
+        ),
         (_, None) => (FindingCode::BoardReferenceLost, format!("{what} is lost")),
     }
 }

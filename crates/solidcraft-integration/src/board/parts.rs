@@ -17,9 +17,9 @@
 //! points that copy one coordinate each), then pins the free ones and
 //! solves again. Pins that turn out to be coupled (two parts held only to
 //! each other) are placed in halves until each lands or proves determined.
-use sparksmith_core::diagnostics::FindingCode;
 use crate::geom::Vec2;
 use crate::geom::prelude::*;
+use sparksmith_core::diagnostics::FindingCode;
 use std::collections::BTreeMap;
 
 use crate::footprint::check::{self, MAX_COORD_MM};
@@ -708,7 +708,7 @@ fn solve_outcome(request: &PartsRequest<'_>) -> Outcome<PartsSolution> {
             .filter_map(|k| owner.get(k).copied())
             .collect();
         findings.push(Finding::new(
-            FindingCode::LayoutDimensionConflict,
+            CONFLICT,
             // Never the solver's constraint ids: the core names the
             // dimensions from `failing`.
             match first.oversized {
