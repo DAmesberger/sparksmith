@@ -565,10 +565,12 @@ References use typed ids (`{"part": {"feature": "face", "placement": <id>, "face
 
 The ESP32-S31 dev board's J1 uses an original USB4105 part file (`examples/esp32-s31-devboard/parts/usb4105.solidcraft`, authored by `author_parts`). It is held by two part dimensions:
 
-- its shell's front face at distance 0 from the bottom edge;
+- its shell's front face at distance 0 from the `bottom` edge, the edge of the tab that carries it;
 - its origin at `width / 2` from the left edge.
 
 `the_usb_c_receptacle_follows_the_board_width` widens the board from 40 mm to 50 mm and J1 moves from x = 20 to x = 25 with its face still on the edge.
+
+The module U1 is held the same way, by the antenna end of its own board (`F1:+y` of the body `board` in the module's part file) on the `top` edge and its origin at `width / 2`. Every other part of that board is held by two part dimensions as well, to an edge or to J1 or U1, and its outline is a sketch with no freedom left ([the example](../examples/esp32-s31-devboard/README.md#parameters), `crates/automation/tests/esp32_parametric.rs`).
 
 ### For S4 and S5
 

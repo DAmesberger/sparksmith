@@ -1,6 +1,7 @@
 //! Slice B1 through the JSON transport, over the ESP32-S31 dev board
 //! example: the board interface's slots survive undo, redo, save and
-//! reopen, and a retired slot is never used again. The mounting holes are
+//! reopen, and a retired slot is never used again (the board's slot and
+//! window take slots 5 and 6, before its holes). The mounting holes are
 //! edited with the host's board evaluator, as the app and an agent edit
 //! them, and J1's front face (a 3D model reference the example's
 //! dimension already traces) is exported as a feature.
@@ -118,10 +119,11 @@ fn the_interface_slots_survive_undo_redo_save_and_reopen() -> TestResult {
             "board.bottom",
             "board.thickness",
             "board.outline",
+            "cut4",
+            "cut5",
             "h1",
             "h2",
             "h3",
-            "h4",
             "i106.opening",
             "side.bottom",
             "side.top",
@@ -157,36 +159,36 @@ fn the_interface_slots_survive_undo_redo_save_and_reopen() -> TestResult {
         .and_then(|d| d.last())
         .ok_or("exported")?
         .clone();
-    assert_eq!(row["slot"], 12);
+    assert_eq!(row["slot"], 13);
     assert_eq!(row["name"], "USB opening face");
     assert_eq!(row["status"], "resolved");
     assert_eq!(row["kind"], "plane", "{row}");
-    assert_eq!(slots(&exported)[..12], slots(&board)[..]);
+    assert_eq!(slots(&exported)[..13], slots(&board)[..]);
 
     // A deleted hole retires its slot; undo brings it back in that slot.
     remove_hole(&mut session, 2)?;
     let removed = list(&mut session)?;
-    assert_eq!(retired(&removed), [6]);
+    assert_eq!(retired(&removed), [8]);
     assert!(slots(&removed).iter().all(|(_, t)| t != "h2"));
     history(&mut session, "project.undo")?;
     assert_eq!(slots(&list(&mut session)?), slots(&exported));
     assert!(retired(&list(&mut session)?).is_empty());
     history(&mut session, "project.redo")?;
-    assert_eq!(retired(&list(&mut session)?), [6]);
+    assert_eq!(retired(&list(&mut session)?), [8]);
 
     // Undo the export too, then export again: a new slot, the old one
     // retired.
     history(&mut session, "project.undo")?;
     history(&mut session, "project.undo")?;
-    assert_eq!(retired(&list(&mut session)?), [12]);
+    assert_eq!(retired(&list(&mut session)?), [13]);
     interface(
         &mut session,
         "interface.export",
         json!({"target": {"target": "feature", "feature": face}}),
     )?;
     let again = list(&mut session)?;
-    assert_eq!(slots(&again).last().map(|(s, _)| *s), Some(13));
-    assert_eq!(retired(&again), [12]);
+    assert_eq!(slots(&again).last().map(|(s, _)| *s), Some(14));
+    assert_eq!(retired(&again), [13]);
 
     // Save and reopen: the same list, and the counters keep going.
     let dir = tempfile::tempdir()?;
@@ -200,7 +202,7 @@ fn the_interface_slots_survive_undo_redo_save_and_reopen() -> TestResult {
     assert_eq!(list(&mut reopened)?, again);
     remove_hole(&mut reopened, 3)?;
     let after = list(&mut reopened)?;
-    assert_eq!(retired(&after), [7, 12]);
+    assert_eq!(retired(&after), [9, 13]);
     interface(
         &mut reopened,
         "interface.export",
@@ -209,7 +211,7 @@ fn the_interface_slots_survive_undo_redo_save_and_reopen() -> TestResult {
     let last = list(&mut reopened)?;
     assert_eq!(
         slots(&last).last(),
-        Some(&(14, "board.parameter.width".to_owned()))
+        Some(&(15, "board.parameter.width".to_owned()))
     );
     Ok(())
 }

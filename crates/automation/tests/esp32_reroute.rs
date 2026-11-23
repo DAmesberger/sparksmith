@@ -1,19 +1,24 @@
-//! Parts moved by a board parameter or a turn re-route the copper they
-//! drag (`layout::router::reroute`): on the ESP32-S31 dev board, widening
-//! the board moves J1 and U3, which dimensions hold, and their USB pair is
-//! re-routed as a pair instead of being carried into clearance errors or
-//! out of coupling; a part turned 37° re-routes its tracks. After each edit
+//! Parts moved by a dimension or a turn re-route the copper they drag
+//! (`layout::router::reroute`): on the ESP32-S31 dev board, J1 moved along
+//! the tab's edge by its dimension takes U3 with it, which dimensions hold
+//! beside it, while the module stays, and their USB pair is re-routed as a
+//! pair instead of being carried into clearance errors or out of coupling;
+//! a part turned 37° re-routes its tracks. (The board's width once moved
+//! J1 alone; it now moves the module with it, so the same move is made by
+//! J1's own dimension from the left edge.) After each edit
 //! the stale fills are refilled as the desktop's fill worker does, the
 //! board has no rule error, the pair keeps within its class limits, the
 //! report names what was re-routed, and one undo restores the board.
 use sparksmith_automation::session::{ApplyParams, Request, Session, hosted};
 use sparksmith_core::format::EditorFile;
 use sparksmith_core::layout::fill::{FillCache, compute_stale};
-use sparksmith_core::layout::outline::{BoardCommand, BoardEdit};
+use sparksmith_core::layout::dimensions::DimensionCommand;
 use sparksmith_core::layout::pair::{PairLeg, PairRouteRequest};
 use sparksmith_core::layout::{self, LayoutCommand, RouteEditSet, length};
-use sparksmith_core::library::footprint_source::{Expr, FootprintParam, ParamName, ParamUnit};
+use sparksmith_core::library::footprint_source::{DimValue, Expr};
 use sparksmith_core::model::CopperLayer;
+use sparksmith_core::model::board::ConstraintTarget;
+use sparksmith_core::model::dimension::{BoardRef, FeatureRef};
 use sparksmith_core::{Engine, Operation};
 use std::path::Path;
 
@@ -25,17 +30,29 @@ fn example() -> Fallible<Engine> {
     Ok(Engine::from_file(sparksmith_io::read_project(&path)?)?)
 }
 
-fn set_width(mm: f64) -> Operation {
-    Operation::Board(BoardCommand::Edit {
-        edits: vec![BoardEdit::SetParameter {
-            param: FootprintParam {
-                name: ParamName("width".into()),
-                expr: Expr(format!("{mm} mm")),
-                unit: ParamUnit::Mm,
-                comment: String::new(),
-            },
-        }],
-    })
+/// J1 `mm` right of the board's centre line: its dimension from the left
+/// edge, `width / 2`, edited. The parts held beside J1 go with it; the
+/// module and the headers stay.
+fn j1_right(engine: &Engine, mm: f64) -> Fallible<Operation> {
+    let j1 = engine
+        .project()
+        .instance_by_designator("J1")
+        .ok_or("J1")?
+        .id;
+    let mut dimension = engine
+        .project()
+        .part_dimensions
+        .iter()
+        .find(|d| {
+            matches!(d.refs.first(), Some(BoardRef::Part(FeatureRef::Origin {
+                target: ConstraintTarget::Placement(p),
+            })) if *p == j1)
+                && matches!(d.refs.get(1), Some(BoardRef::Board(_)))
+        })
+        .cloned()
+        .ok_or("J1's dimension from the left edge")?;
+    dimension.value = Some(DimValue::Expr(Expr(format!("width / 2 + {mm} mm"))));
+    Ok(Operation::Dimension(DimensionCommand::Edit { dimension }))
 }
 
 fn turn(engine: &Engine, designator: &str, by: f64) -> Fallible<Operation> {
@@ -168,22 +185,26 @@ fn pair_rerouted(engine: &Engine) {
     }
 }
 
-/// Night finding R3 "pair coupling on resize": 40 → 41 mm carried the two
-/// halves differently, leaving 21.03 mm uncoupled.
+/// Night finding R3 "pair coupling on resize": J1 moved 0.5 mm along the
+/// edge (then by a board 41 mm wide) carried the two halves differently,
+/// leaving 21.03 mm uncoupled.
 #[test]
-fn widening_the_board_to_41_mm_keeps_the_usb_pair_coupled() -> Fallible {
+fn j1_moved_half_a_millimetre_keeps_the_usb_pair_coupled() -> Fallible {
     let mut engine = example()?;
-    let before = clean_edit(&mut engine, set_width(41.0))?;
+    let operation = j1_right(&engine, 0.5)?;
+    let before = clean_edit(&mut engine, operation)?;
     pair_rerouted(&engine);
     undo_to(&mut engine, &before)
 }
 
-/// Night finding R7-1: with the pair re-routed by hand, 40 → 42 mm carried
-/// it across U3's pad and into itself (clearance errors).
+/// Night finding R7-1: with the pair re-routed by hand, J1 moved 1 mm
+/// along the edge (then by a board 42 mm wide) carried it across U3's pad
+/// and into itself (clearance errors).
 #[test]
-fn widening_the_board_to_42_mm_reroutes_a_hand_routed_usb_pair_clear() -> Fallible {
+fn j1_moved_a_millimetre_reroutes_a_hand_routed_usb_pair_clear() -> Fallible {
     let mut engine = rerouted_by_hand()?;
-    let before = clean_edit(&mut engine, set_width(42.0))?;
+    let operation = j1_right(&engine, 1.0)?;
+    let before = clean_edit(&mut engine, operation)?;
     pair_rerouted(&engine);
     undo_to(&mut engine, &before)
 }
@@ -209,7 +230,8 @@ fn rerouting_is_deterministic() -> Fallible {
     for _ in 0..2 {
         let mut engine = rerouted_by_hand()?;
         let mut reports = Vec::new();
-        engine.apply_hosted(engine.revision(), set_width(42.0), hosted())?;
+        let operation = j1_right(&engine, 1.0)?;
+        engine.apply_hosted(engine.revision(), operation, hosted())?;
         reports.push(engine.rerouted().clone());
         let operation = turn(&engine, "U2", 37.0)?;
         engine.apply_hosted(engine.revision(), operation, hosted())?;
@@ -230,19 +252,21 @@ fn the_reply_names_what_was_rerouted() -> Fallible {
     let mut session = Session::new(example()?);
     let reply = session.execute(Request::Apply(ApplyParams {
         expected_revision: session.engine().revision(),
-        operation: set_width(41.0),
+        operation: j1_right(session.engine(), 0.5)?,
     }))?;
+    // The pair, and the regulator's and the power LED's routes: both
+    // stand beside J1 and move with it.
     let rerouted = &reply["rerouted"];
     assert_eq!(
         rerouted["rerouted"],
-        serde_json::json!(["USB_DP", "USB_DN"])
+        serde_json::json!(["USB_DP", "USB_DN", "+3V3", "IO42"])
     );
     assert_eq!(rerouted["unrouted"], serde_json::json!([]));
-    assert_eq!(rerouted["summary"], "Re-routed 2 connections");
+    assert_eq!(rerouted["summary"], "Re-routed 4 connections");
     // An edit that moves nothing has no report.
     let reply = session.execute(Request::Apply(ApplyParams {
         expected_revision: session.engine().revision(),
-        operation: set_width(41.0),
+        operation: j1_right(session.engine(), 0.5)?,
     }))?;
     assert!(reply.get("rerouted").is_none());
     Ok(())
@@ -258,12 +282,12 @@ fn reroute_timings() -> Fallible {
     };
     type Start = fn() -> Fallible<Engine>;
     let cases: Vec<(&str, Start, &str)> = vec![
-        ("width 40 → 41 mm, example", example, "41"),
-        ("width 40 → 42 mm, example", example, "42"),
+        ("J1 0.5 mm along the edge, example", example, "0.5"),
+        ("J1 1 mm along the edge, example", example, "1"),
         (
-            "width 40 → 42 mm, pair re-routed by hand",
+            "J1 1 mm along the edge, pair re-routed by hand",
             rerouted_by_hand,
-            "42",
+            "1",
         ),
         ("U2 turned 37°", example, "U2"),
     ];
@@ -273,7 +297,7 @@ fn reroute_timings() -> Fallible {
             let mut engine = start()?;
             let operation = match edit {
                 "U2" => turn(&engine, "U2", 37.0)?,
-                mm => set_width(mm.parse()?),
+                mm => j1_right(&engine, mm.parse()?)?,
             };
             let t = std::time::Instant::now();
             engine.apply_hosted(engine.revision(), operation, hosted())?;

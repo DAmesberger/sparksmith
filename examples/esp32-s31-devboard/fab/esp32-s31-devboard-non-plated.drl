@@ -1,7 +1,7 @@
 M48
 ; Sparksmith 0.1.0 drill file: non-plated
 ; #@! TF.GenerationSoftware,Sparksmith,Sparksmith,0.1.0
-; #@! TF.ProjectId,ESP32-S31 dev board,ef0dcbd1-5dc8-8010-bcd6-3c43ba11616e,2abffb7f23fb97a4
+; #@! TF.ProjectId,ESP32-S31 dev board,d6a950d8-ac4f-8ba0-a631-8196cc9fbbd6,c186488a14bf79cd
 ; #@! TF.SameCoordinates
 ; #@! TF.FileFunction,NonPlated,1,4,NPTH
 ; #@! TF.FilePolarity,Positive
@@ -22,6 +22,5 @@ T5
 X3.500Y3.500
 X36.500Y3.500
 X3.500Y60.500
-X36.500Y60.500
 T0
 M30

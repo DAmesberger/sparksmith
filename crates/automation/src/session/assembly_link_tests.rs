@@ -143,6 +143,45 @@ pub(super) fn edge(session: &Session, name: &str) -> TestResult<([f64; 2], [f64;
     Ok((e.a, e.b))
 }
 
+/// The board sketch's `height` dimension and an end of its `top` edge, by
+/// their sketch ids.
+pub(super) fn height_and_top(
+    session: &Session,
+) -> TestResult<(SketchConstraintId, SketchPointId)> {
+    let BoardShape::Sketch(sketch) = &session.engine().project().board_shape else {
+        return Err("a sketch board".into());
+    };
+    let stored: Value = serde_json::from_str(&sketch.sketch.0)?;
+    let height = stored["constraints"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|k| k["param"] == "height")
+        .and_then(|k| k["id"].as_str())
+        .ok_or("the height dimension")?;
+    let top = &sketch
+        .edges
+        .iter()
+        .find(|e| e.name.0 == "top")
+        .ok_or("the top edge")?
+        .curve
+        .0;
+    let end = stored["curves"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|c| c["id"] == top.as_str())
+        .and_then(|c| c["a"].as_u64())
+        .and_then(|a| usize::try_from(a).ok())
+        .and_then(|a| stored["points"].get(a))
+        .and_then(|p| p["id"].as_str())
+        .ok_or("an end of the top edge")?;
+    Ok((
+        SketchConstraintId(height.into()),
+        SketchPointId(end.into()),
+    ))
+}
+
 pub(super) fn position(session: &Session, designator: &str) -> TestResult<[f64; 2]> {
     let id = instance(session, designator)?;
     Ok(session
@@ -342,16 +381,17 @@ fn b4_the_board_follows_the_linked_design_wall() -> TestResult {
     }
 
     // The top edge follows the wall: the height dimension gives way to
-    // 0.5 mm from the top-right corner to the wall's trace.
+    // 0.5 mm from an end of the top edge to the wall's trace.
     let (top_a, _) = edge(&session, "top")?;
     assert!((top_a[1] - 64.0).abs() <= 1e-9);
+    let (height, top_end) = height_and_top(&session)?;
     apply(
         &mut session,
         Operation::Board(BoardCommand::Edit {
             edits: vec![
                 BoardEdit::Sketch {
                     edit: SketchEdit::Delete {
-                        ids: vec![SketchRef::Constraint(SketchConstraintId("k6".into()))],
+                        ids: vec![SketchRef::Constraint(height)],
                     },
                 },
                 BoardEdit::RemoveParameter {
@@ -361,7 +401,7 @@ fn b4_the_board_follows_the_linked_design_wall() -> TestResult {
                     edit: SketchEdit::AddDimension {
                         kind: DimKind::Distance,
                         refs: vec![
-                            SketchRef::Point(SketchPointId("p2".into())),
+                            SketchRef::Point(top_end),
                             SketchRef::Curve(SketchCurveId(curve)),
                         ],
                         value: DimValue::Fixed(FAR_WALL_Y - 64.0),
@@ -371,18 +411,8 @@ fn b4_the_board_follows_the_linked_design_wall() -> TestResult {
         }),
     )?;
     assert!((edge(&session, "top")?.0[1] - 64.0).abs() <= 1e-9);
-    // SW2 held 7 mm below the top edge.
-    let sw2 = instance(&session, "SW2")?;
-    apply(
-        &mut session,
-        serde_json::from_value(json!({"editor": "Dimension", "operation": {
-            "command": "layout.dimension_add", "params": {"dimension": {
-                "kind": {"dim": "distance"},
-                "refs": [
-                    {"part": {"feature": "origin", "target": {"kind": "placement", "id": sw2}}},
-                    {"board": {"curve": "l3"}}],
-                "value": {"fixed": 7.0}}}}}))?,
-    )?;
+    // SW2 stands 7 mm below the top edge: the board holds it beside the
+    // module, whose antenna end is on that edge.
     let sw2_before = position(&session, "SW2")?;
     assert!((sw2_before[1] - 57.0).abs() <= 1e-9, "{sw2_before:?}");
     let j1_before = position(&session, "J1")?;
