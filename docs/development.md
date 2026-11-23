@@ -72,8 +72,9 @@ cargo run --locked --profile ci -p sparksmith-cli -- check-bodies example.sparks
 cargo run --locked --profile ci -p sparksmith-cli -- commands
 cargo run --locked --profile ci -p sparksmith-cli -- stdio [--permission-mode MODE] [--allow-folder DIR]... [FILE.sparksmith]
 cargo run --locked --profile ci -p sparksmith-cli -- stdio --operator [FILE.sparksmith]
-cargo run --locked --profile ci -p sparksmith-cli -- mcp [--permission-mode MODE] [--allow-folder DIR]... [FILE.sparksmith]
-cargo run --locked --profile ci -p sparksmith-cli -- mcp --live [--port PORT]   # the project open in the desktop window
+cargo run --locked --profile ci -p sparksmith-cli -- mcp [--permission-mode MODE] [--allow-folder DIR]... [--wire-log NEW_FILE] [FILE.sparksmith]
+cargo run --locked --profile ci -p sparksmith-cli -- mcp --live [--port PORT] [--wire-log NEW_FILE]   # the project open in the desktop window
+cargo run --locked --profile ci -p sparksmith-cli -- mcp-replay WIRE.jsonl NEW_REPLAY.jsonl [--root DIR] [--session N]   # a recorded MCP run as a stdio replay
 ANTHROPIC_API_KEY=… cargo run --locked --profile ci -p sparksmith-cli -- design-part \
   --datasheet PART.pdf --name PART --out part.sparksmith   # drafts + PART.review.md; publishes nothing
 cargo run --locked --profile ci -p sparksmith-cli -- design-part --provider openai \
@@ -90,6 +91,35 @@ For a named entry, the JSON-lines `project.schema` match includes its parameter 
 Replies on both are compact: a mutation answers with `revision`, `outcome`, `changes` (added, changed and removed stable ids by collection, such as `{"added":{"vias":[644]}}`), `findings` (the new ones, resolved counts per code, the open total) and the changed `drafts`. `project.inspect` answers with counts, drafts and findings per code, and with `at` (a JSON pointer such as `/project/nets`) reads one piece of the document. `verbose: true`, beside `command` or inside `params`, returns the whole snapshot instead. In MCP, `tools/list` is the six verbs and nothing else (3,398 bytes, held under 3.5 KB by a test); `find {text}` names the entries that do something and `describe {name}` returns one's exact schema and the verb call that sends it (`project.schema` on JSON lines). `prompts/list` offers the workflows: `datasheet_to_component` (arguments `part`, `datasheets`, `notes`) is the [datasheet-to-component workflow](datasheet-assistant.md#mcp-workflow), served from `skills/sparksmith-datasheet-part/SKILL.md`.
 
 Every command has a permission class: read, edit, ask or never, shown by `find` and `describe` and in `project.schema`. The front door (`Surface::call`) enforces the class for every model-facing transport (headless MCP, live MCP and `stdio`): the never class is always refused (over MCP it is not even in the catalog a model finds), and so is a path outside the run's folders. `mcp` and `stdio` are gated alike, because Sparksmith cannot tell a script from a model; `--permission-mode` chooses how: `ask-every-time` runs only reads, `auto-allow-edits` (the default) also runs edits, and `allow-all` runs everything except the never class. Neither has a way to ask, so whatever would need a person is refused with `gate.needs_person` and a message saying how to run it where a person can allow it; `--permission-mode allow-all` is the operator's explicit choice to let ask-class requests run. Under any mode, a path must be absolute and inside an `--allow-folder` or the folder of the project named on the command line. `stdio --operator` says you are running it yourself, not a model: every class runs, including the never class (favourites), with any path, as at the command line. It takes no mode or folders, and `mcp` does not accept it. Your own replays use it (`examples/esp32-s31-devboard/regenerate.sh`).
+
+### Recording and replaying an MCP run
+
+`mcp --wire-log NEW_FILE` writes the wire log of a run: every line the server reads from its client and every line it writes back, byte for byte, with its direction, its order and the server's clock. It is off unless asked for, refuses a file that exists, and works for the headless server and for `mcp --live`. It sits on the server's own pipes, so it shows what the client sent and what it was answered, and changes neither. If a row cannot be written the server stops instead of serving a message it did not record.
+
+- **Format.** JSON lines. The first row is `{"record":"start","format":1,…}` with the server's name and version, the protocol, the permission mode, the allowed folders and the project file the server was started on (`live` for the window). The server takes no key, and no environment variable is written. Every other row is `{"record":"in"|"out","n":N,"t_ms":T,"text":"…"}`: `in` is from the client, `n` counts from 1 in the order the server saw the lines, `t_ms` is milliseconds since 1970-01-01 UTC, and `text` is the line without its newline. Bytes that are not UTF-8 are in `hex` instead of `text`. `"nl":false` marks bytes no newline followed: a piece of a line over 4 MiB, which the next row of that direction continues, or what a pipe held when it closed. Each direction's rows in order, with a newline after every row but those, are that direction's exact bytes.
+- **Refusals are in it.** A call the gate refuses is a request row and an answer row like any other, so a `gate.needs_person` answer is the record of a gate request.
+- **Where to put it.** Outside the folders the client may write (`--allow-folder`). A client allowed to write a folder can replace a file in it.
+
+`mcp-replay WIRE.jsonl NEW_REPLAY.jsonl [--root DIR] [--session N]` turns a wire log into an engine replay: the JSON-lines requests that rebuild the project through `stdio --operator`, with no model. Run it with the build that served the run, because it maps each call with that build's own verbs.
+
+- **Kept:** every accepted call that changes something. That is each `apply`, each `act` (saves, exports, publishing, `project.new`, `project.open`) and the reads that hold session state a later call builds on (`assist.pinout_edit` and `assist.pinout_preview`, which `assist.pinout_apply` imports from).
+- **Dropped:** refused and failed calls, dry runs, every other read, and `find`, `describe` and `show`.
+- **Paths** inside the run's folder come out relative to it. The folder is `--root`, or the one folder the wire log's first row names.
+- **Stops, naming the call,** on anything it cannot map: an accepted call this build does not read, a kept call without an answer, a revision the kept calls do not explain (something outside the record changed the project), a path outside the folder, or a call that builds on what a refused call left behind. It writes nothing then, and never replaces a file.
+- **One replay is one project.** The server holds several projects; `stdio` holds one. For a run that changed several, convert each with `--session N` (counted in the order the run first used them) and replay them in the order the run saved them.
+- **Summary.** It prints what it kept and dropped as JSON: the counts, the refusals by code, the gate requests (`needs_person`) and the paths the replay names.
+
+To replay, start in a folder that holds the files the replay reads and the folders it writes into (the summary's `paths`), and check that no reply is a refusal:
+
+```sh
+sparksmith stdio --operator < replay.jsonl > replies.jsonl
+grep -c '"ok":false' replies.jsonl        # must print 0
+sparksmith fab board.sparksmith fab/ --date none
+```
+
+`apps/sparksmith-cli/tests/run_record.rs` proves the chain without a model: a scripted client builds a small board over the real transport, and the replay saves a byte-identical project and fabrication files with the same release revision.
+
+`mcp-replay --transcript` reads a client's own transcript instead (Claude Code's `stream-json`, as in `examples/*-mcp-1/`). A transcript has the calls and whether each failed, but it is not the wire: it has no first row, so `--root` is needed, and a result it cut hides the revision the converter checks. Use it for runs recorded before the wire log existed.
 
 ### Live MCP
 

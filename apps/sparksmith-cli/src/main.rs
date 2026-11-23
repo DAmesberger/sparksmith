@@ -10,6 +10,7 @@ mod import_kicad;
 mod part;
 mod pinout;
 mod plugin;
+mod replay;
 mod review_diff;
 
 use serde_json::{Value, json};
@@ -36,14 +37,16 @@ const USAGE: &str = concat!(
                                    not a model; every class runs (settings, library
                                    sources, any path), as at the command line
   mcp [--permission-mode MODE] [--allow-folder DIR]... [FILE.sparksmith]
-      [--bench-trace NEW_FILE [--bench-detail line|input|full]]
+      [--wire-log NEW_FILE] [--bench-trace NEW_FILE [--bench-detail line|input|full]]
                                    MCP server on stdio (protocol 2026-07-28), always
                                    gated: the mode (ask-every-time, auto-allow-edits
                                    by default, allow-all) decides what runs, paths are
                                    limited to the given folders and FILE's, what would
                                    need a person is refused (gate.needs_person), and
-                                   settings never change
-  mcp --live [--port PORT]         MCP server for the project open in the ",
+                                   settings never change; --wire-log records every
+                                   line in and out, byte for byte, in a new file
+  mcp --live [--port PORT] [--wire-log NEW_FILE]
+                                   MCP server for the project open in the ",
     sparksmith_core::product_name!(),
     "
                                    window (Help › Connect AI assistants…): the
@@ -93,6 +96,7 @@ fn usage() -> String {
         part::USAGE,
         import_kicad::USAGE,
         plugin::USAGE,
+        replay::USAGE,
     ]
     .into_iter()
     .filter(|u| !u.is_empty())
@@ -167,6 +171,8 @@ struct McpOptions {
     project: Option<String>,
     bench_trace: Option<std::path::PathBuf>,
     bench_detail: Option<session::SchemaDetail>,
+    /// `--wire-log`: every line in and out, in a new file (`mcp` only).
+    wire_log: Option<std::path::PathBuf>,
 }
 
 impl McpOptions {
@@ -184,6 +190,7 @@ impl McpOptions {
                 }
                 "--allow-folder" => options.folders.push(value("--allow-folder")?.clone()),
                 "--bench-trace" => options.bench_trace = Some(value("--bench-trace")?.into()),
+                "--wire-log" => options.wire_log = Some(value("--wire-log")?.into()),
                 "--bench-detail" => {
                     options.bench_detail = Some(serde_json::from_value(serde_json::json!(value(
                         "--bench-detail"
@@ -227,8 +234,8 @@ impl McpOptions {
     /// The gate for `stdio`: [`McpOptions::policy`], as for `mcp`, unless
     /// `--operator` names the person's own script.
     fn stdio_policy(&self) -> Result<Option<Grant>> {
-        if self.bench_trace.is_some() {
-            return Err("--bench-trace is available for mcp".into());
+        if self.bench_trace.is_some() || self.wire_log.is_some() {
+            return Err("--bench-trace and --wire-log are available for mcp".into());
         }
         if self.operator {
             Ok(None)
@@ -260,16 +267,28 @@ fn run() -> Result<()> {
             )
         }
         [command, live, rest @ ..] if command == "mcp" && live == "--live" => {
-            let port = match rest {
-                [] => None,
-                [flag, port] if flag == "--port" => Some(
-                    port.parse::<u16>()
-                        .map_err(|_| format!("--port takes a port number, not {port}"))?,
-                ),
-                _ => return Err(format!("unexpected arguments after --live\n{USAGE}").into()),
-            };
+            let (mut port, mut wire_log) = (None, None);
+            let mut flags = rest.iter();
+            while let Some(flag) = flags.next() {
+                match (flag.as_str(), flags.next()) {
+                    ("--port", Some(given)) => {
+                        port = Some(
+                            given
+                                .parse::<u16>()
+                                .map_err(|_| format!("--port takes a port number, not {given}"))?,
+                        );
+                    }
+                    ("--wire-log", Some(path)) => wire_log = Some(std::path::PathBuf::from(path)),
+                    _ => return Err(format!("unexpected arguments after --live\n{USAGE}").into()),
+                }
+            }
             let client = live::Client::find(&live::APP, port, None)?;
-            Ok(mcp::Server::live(client)?.serve_stdio()?)
+            let server = mcp::Server::live(client)?;
+            let server = match wire_log {
+                Some(path) => wire_logged(server, &path)?,
+                None => server,
+            };
+            Ok(server.serve_stdio()?)
         }
         [command, rest @ ..] if command == "mcp" => {
             let options = McpOptions::parse(rest)?;
@@ -293,6 +312,10 @@ fn run() -> Result<()> {
                 Some(path) => {
                     server.with_bench_trace(&path, options.bench_detail.unwrap_or_default())?
                 }
+                None => server,
+            };
+            let server = match options.wire_log {
+                Some(path) => wire_logged(server, &path)?,
                 None => server,
             };
             Ok(server.serve_stdio()?)
@@ -391,8 +414,16 @@ fn run() -> Result<()> {
         [command, rest @ ..] if command == "part" => part::run(rest),
         [command, rest @ ..] if command == "import-kicad" => import_kicad::run(rest),
         [command, rest @ ..] if command == "plugin" => plugin::run(rest),
+        [command, rest @ ..] if command == "mcp-replay" => replay::run(rest),
         _ => Err(usage().into()),
     }
+}
+
+/// `server` recording its wire in a new file at `path`.
+fn wire_logged(server: mcp::Server, path: &std::path::Path) -> Result<mcp::Server> {
+    server
+        .with_wire_log(path)
+        .map_err(|error| format!("--wire-log {}: {error}", path.display()).into())
 }
 
 /// Sheet IDs from `--sheet ID` pairs.
@@ -539,6 +570,22 @@ mod mcp_option_tests {
         assert!(parse(&["--operator", "--allow-folder", "/x"]).is_err());
         assert!(parse(&["a.sparksmith", "b.sparksmith"]).is_err());
         assert!(parse(&["--gate"]).is_err());
+        assert!(parse(&["--wire-log"]).is_err());
+    }
+
+    /// The wire log is the MCP server's: `mcp` takes the file, `stdio`
+    /// refuses the flag.
+    #[test]
+    fn the_wire_log_is_for_mcp_only() -> Result<()> {
+        let options = parse(&["--wire-log", "wire.jsonl", "--permission-mode", "allow-all"])?;
+        assert_eq!(
+            options.wire_log.as_deref(),
+            Some(std::path::Path::new("wire.jsonl"))
+        );
+        assert!(options.policy().is_ok());
+        assert!(options.stdio_policy().is_err());
+        assert!(parse(&[])?.wire_log.is_none());
+        Ok(())
     }
 
     /// The replies `stdio` gives to `requests` under the options `args`.

@@ -226,6 +226,18 @@ pub struct WorkingApplyParams {
     pub target: Option<PinoutTarget>,
 }
 
+/// Whether a call of `entry` replaces a working pinout document with one
+/// its `params` give, even when the call is then refused.
+/// `assist.pinout_preview` given a `document` takes it as the working
+/// document before it previews, and keeps it when the preview is refused,
+/// so the model can correct it with `assist.pinout_edit`
+/// ([`Session::working_preview`]). No other refused call keeps anything. A
+/// replay cannot repeat a refused call, so the replay converter
+/// ([`crate::mcp::replay`]) refuses a run that built on one.
+pub(crate) fn takes_working_document(entry: &str, params: &Value) -> bool {
+    entry == "assist.pinout_preview" && params.get("document").is_some_and(|d| !d.is_null())
+}
+
 fn refused(code: &str, message: String) -> Error {
     Error::refused(Box::new(crate::front::Error {
         code: code.to_owned(),
