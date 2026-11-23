@@ -1768,7 +1768,7 @@
  "variant.substitutes": {"properties":{"report":{"const":"substitutes","type":"string"},"result":{"items":{"$ref":"#/$defs/Substitute"},"type":"array"}},"required":["report","result"],"type":"object"},
  "view.context": {"properties":{"revision":{"format":"uint64","minimum":0,"type":"integer"},"selection":{"items":{"$ref":"#/$defs/Selected"},"type":"array"},"sheet":{"anyOf":[{"$ref":"#/$defs/Sheet~2"},{"type":"null"}]},"view":{"anyOf":[{"$ref":"#/$defs/PcbView"},{"type":"null"}]},"workspace":{"$ref":"#/$defs/Workspace"}},"required":["revision","workspace","selection"],"type":"object"},
  "view.open": {"properties":{"revision":{"format":"uint64","minimum":0,"type":"integer"},"selection":{"items":{"$ref":"#/$defs/Selected"},"type":"array"},"sheet":{"anyOf":[{"$ref":"#/$defs/Sheet~2"},{"type":"null"}]},"view":{"anyOf":[{"$ref":"#/$defs/PcbView"},{"type":"null"}]},"workspace":{"$ref":"#/$defs/Workspace"}},"required":["revision","workspace","selection"],"type":"object"},
- "view.select": {"properties":{"selected":{"format":"uint","minimum":0,"type":"integer"},"workspace":{"$ref":"#/$defs/Workspace"}},"required":["selected","workspace"],"type":"object"},
+ "view.select": {"properties":{"selected":{"format":"uint","minimum":0,"type":"integer"},"selection":{"items":{"$ref":"#/$defs/Selected"},"type":"array"},"unselected":{"items":{"$ref":"#/$defs/ObjectRef~2"},"type":"array"},"workspace":{"$ref":"#/$defs/Workspace"}},"required":["selected","workspace","selection","unselected"],"type":"object"},
  "wire.draw": {"$ref":"#/$defs/@reply.assembly.record_binding"},
  "wire.insert_corner": {"$ref":"#/$defs/@reply.assembly.record_binding"},
  "wire.move_corner": {"$ref":"#/$defs/@reply.assembly.record_binding"},

@@ -26,4 +26,4 @@ Select a symbol, placement, pad or track. The card header identifies what is sel
 
 Commit an edited field with Enter or by leaving it. For a coordinate, the paired values commit together. Invalid input stays marked in the field until you correct or revert it. Review dialogs have their own Apply action.
 
-While a drawing or routing tool is armed, the tool card occupies this space. Return to Select to inspect the object again. The Issues bar remains available. [[entry/view.select]] lets automation select objects by identity or designator in the live window.
+While a drawing or routing tool is armed, the tool card occupies this space. Return to Select to inspect the object again. The Issues bar remains available. [[entry/view.select]] lets automation select objects by identity or designator in the live window. Its reply lists the objects the window selected and any requested objects left out.

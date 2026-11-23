@@ -204,10 +204,14 @@ fn name_of(project: &Project, object: &ObjectRef) -> Option<String> {
 /// What `view.select` selected.
 #[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 pub struct Selection {
-    /// Objects named.
+    /// Distinct requested objects present in the resulting selection.
     pub selected: usize,
     /// The workspace that shows them.
     pub workspace: Workspace,
+    /// What the window now shows, exactly as in view.context.
+    pub selection: Vec<Selected>,
+    /// Requested objects absent from the resulting selection.
+    pub unselected: Vec<ObjectRef>,
 }
 
 /// The window, as the front door reaches it. The desktop app gives one for
@@ -220,7 +224,7 @@ pub trait WindowHost {
     /// What the window shows.
     fn context(&self, engine: &Engine) -> Context;
     /// Select and frame `objects`, every one of which exists.
-    fn select(&mut self, engine: &Engine, objects: &[ObjectRef]) -> Result<Selection, Box<Error>>;
+    fn select(&mut self, engine: &Engine, objects: &[ObjectRef]) -> Result<(), Box<Error>>;
     /// Show what `params` names, already checked against `engine`.
     fn open(&mut self, engine: &Engine, params: &OpenParams) -> Result<Context, Box<Error>>;
     /// Show a workflow's card in the chat (`assist.offer`), already checked
@@ -278,8 +282,21 @@ pub fn run(
     let value = match request {
         Request::Context => serde_json::to_value(window.context(engine)),
         Request::Select(params) => {
-            let objects = objects(engine.project(), &params)?;
-            serde_json::to_value(window.select(engine, &objects)?)
+            let mut objects = objects(engine.project(), &params)?;
+            let mut seen = std::collections::HashSet::new();
+            objects.retain(|object| seen.insert(*object));
+            window.select(engine, &objects)?;
+            let context = window.context(engine);
+            let shown: std::collections::HashSet<_> =
+                context.selection.iter().map(|s| s.object).collect();
+            let requested = objects.len();
+            objects.retain(|object| !shown.contains(object));
+            serde_json::to_value(Selection {
+                selected: requested - objects.len(),
+                workspace: context.workspace,
+                selection: context.selection,
+                unselected: objects,
+            })
         }
         Request::Open(params) => {
             check_open(engine, &params)?;
@@ -591,12 +608,9 @@ impl WindowHost for Fake {
             self.selection.clone(),
         )
     }
-    fn select(&mut self, _: &Engine, objects: &[ObjectRef]) -> Result<Selection, Box<Error>> {
+    fn select(&mut self, _: &Engine, objects: &[ObjectRef]) -> Result<(), Box<Error>> {
         self.selection = objects.to_vec();
-        Ok(Selection {
-            selected: objects.len(),
-            workspace: self.workspace,
-        })
+        Ok(())
     }
     fn offer(&mut self, offer: &crate::workflow::Offer) -> Result<String, Box<Error>> {
         self.offers.push(offer.clone());

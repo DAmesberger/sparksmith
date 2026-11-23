@@ -18,7 +18,7 @@ use crate::schematic_editor::SchematicEditor;
 use crate::shell::Workspace;
 use sparksmith_automation::WindowHost;
 use sparksmith_automation::front::Error;
-use sparksmith_automation::view::{self, Context, OpenParams, PcbView, Selection};
+use sparksmith_automation::view::{self, Context, OpenParams, PcbView};
 use sparksmith_core::{Engine, ObjectRef, SheetId};
 
 /// The window's view state, borrowed from the app for one call or command.
@@ -141,13 +141,7 @@ fn selection(
 ) -> Vec<ObjectRef> {
     match workspace {
         Workspace::Part => issues::selection(workspace, part.lineage(), None, None, vec![]),
-        Workspace::Schematic => issues::selection(
-            workspace,
-            None,
-            schematic.selected_instance(),
-            schematic.selected_net(engine),
-            schematic.selected_item_refs(engine.project()),
-        ),
+        Workspace::Schematic => schematic.selected_objects(engine),
         // Every selected object, a group's too, then the lit net apart.
         Workspace::Pcb => {
             let group = pcb.selected();
@@ -194,7 +188,7 @@ impl WindowHost for Window<'_> {
         )
     }
 
-    fn select(&mut self, engine: &Engine, objects: &[ObjectRef]) -> Result<Selection, Box<Error>> {
+    fn select(&mut self, engine: &Engine, objects: &[ObjectRef]) -> Result<(), Box<Error>> {
         let mut editors = issues::Editors {
             part: &mut *self.part,
             schematic: &mut *self.schematic,
@@ -210,10 +204,7 @@ impl WindowHost for Window<'_> {
                 ))
             })?;
         self.show_workspace(shown);
-        Ok(Selection {
-            selected: objects.len(),
-            workspace: wire(shown),
-        })
+        Ok(())
     }
 
     fn open(&mut self, engine: &Engine, params: &OpenParams) -> Result<Context, Box<Error>> {

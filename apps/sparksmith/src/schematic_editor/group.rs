@@ -18,7 +18,9 @@ use sparksmith_core::schematic::arrange::{Arrangement, centre, turn_about};
 use sparksmith_core::schematic::wire_edit::Bend;
 use sparksmith_core::schematic::{self, ClipObject, Pasted, SchematicCommand, labels};
 use sparksmith_core::updates::Change;
-use sparksmith_core::{EditPolicy, Engine, Id, LabelKind, Operation, Point, Project, SheetItem};
+use sparksmith_core::{
+    EditPolicy, Engine, Id, LabelKind, ObjectRef, Operation, Point, Project, SheetItem,
+};
 use sparksmith_core::{Wire, WireEnd};
 use sparksmith_ui::selection::BoxSel;
 use sparksmith_ui::theme::Tokens;
@@ -197,6 +199,29 @@ pub(crate) fn paint_box(painter: &egui::Painter, bx: BoxSel) {
 }
 
 impl SchematicEditor {
+    /// The current selection that the window can name as project objects.
+    pub fn selected_objects(&self, engine: &Engine) -> Vec<ObjectRef> {
+        if !self.group.is_empty() {
+            return self
+                .group
+                .instances
+                .iter()
+                .map(|&id| ObjectRef::Instance { id })
+                .chain(self.group.labels.iter().map(|&id| ObjectRef::Label { id }))
+                .chain(self.group.wires.iter().map(|&id| ObjectRef::Wire { id }))
+                .collect();
+        }
+        let mut items = self.selected_item_refs(engine.project());
+        items.extend(self.selected_wire.map(|id| ObjectRef::Wire { id }));
+        crate::issues::selection(
+            crate::shell::Workspace::Schematic,
+            None,
+            self.selected_instance(),
+            self.selected_net(engine),
+            items,
+        )
+    }
+
     /// What is selected, as a group of any size.
     pub(super) fn selection(&self, project: &Project) -> Group {
         if !self.group.is_empty() {

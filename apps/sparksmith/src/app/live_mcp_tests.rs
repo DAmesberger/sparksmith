@@ -9,6 +9,9 @@ use serde_json::{Value, json};
 use sparksmith_automation::live::{self, Client, ClientToken};
 use sparksmith_ui::fonts;
 
+#[path = "live_mcp_selection_tests.rs"]
+mod selection;
+
 type Fallible<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 /// No token or discovery files: the test never touches the user's folders.
