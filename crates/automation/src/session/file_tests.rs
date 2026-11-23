@@ -261,8 +261,15 @@ fn two_spellings_of_one_file_keep_both_editors_work() -> Fallible {
         // The second editor saves to the first's spelling, as a person
         // typing the usual path would.
         let refused = save(&mut b, Some(&path));
-        assert_eq!(refused["error"]["code"], "file_conflict", "{other:?}: {refused}");
-        assert_eq!(std::fs::read(&path)?, first, "{other:?}: the first save stays");
+        assert_eq!(
+            refused["error"]["code"], "file_conflict",
+            "{other:?}: {refused}"
+        );
+        assert_eq!(
+            std::fs::read(&path)?,
+            first,
+            "{other:?}: the first save stays"
+        );
         let kept = dir.path().join("board (conflict 1).sparksmith");
         assert_eq!(
             sparksmith_io::read_project(&kept)?.project.name,
@@ -273,10 +280,17 @@ fn two_spellings_of_one_file_keep_both_editors_work() -> Fallible {
         assert_eq!(open(&mut c, &other)["ok"], true);
         rename(&mut c, "Third editor")?;
         rename(&mut a, &format!("First editor {n}, again"))?;
-        assert_eq!(save(&mut a, None)["ok"], true, "the first editor saves again");
+        assert_eq!(
+            save(&mut a, None)["ok"],
+            true,
+            "the first editor saves again"
+        );
         let again = std::fs::read(&path)?;
         let refused = save(&mut c, None);
-        assert_eq!(refused["error"]["code"], "file_conflict", "{other:?}: {refused}");
+        assert_eq!(
+            refused["error"]["code"], "file_conflict",
+            "{other:?}: {refused}"
+        );
         assert_eq!(std::fs::read(&path)?, again);
     }
     Ok(())
@@ -299,7 +313,10 @@ fn a_failed_first_save_leaves_the_project_without_an_identity() -> Fallible {
     assert_eq!(session.engine().can_undo(), undo);
     assert!(session.engine().project().production.project_id.is_none());
     assert_eq!(save(&mut session, Some(&good))["ok"], true);
-    let saved = sparksmith_io::read_project(&good)?.project.production.project_id;
+    let saved = sparksmith_io::read_project(&good)?
+        .project
+        .production
+        .project_id;
     assert!(saved.is_some());
     assert_eq!(session.engine().project().production.project_id, saved);
     // A control saved straight to the good name has the same identity.
@@ -308,7 +325,10 @@ fn a_failed_first_save_leaves_the_project_without_an_identity() -> Fallible {
     let mut direct = Session::new(Engine::demo()?);
     assert_eq!(save(&mut direct, Some(&control))["ok"], true);
     assert_eq!(
-        sparksmith_io::read_project(&control)?.project.production.project_id,
+        sparksmith_io::read_project(&control)?
+            .project
+            .production
+            .project_id,
         saved
     );
     Ok(())
@@ -409,7 +429,10 @@ fn a_project_filled_to_the_limit_saves_identifies_and_recovers() -> Fallible {
     assert!(id.is_some());
     let reopened = sparksmith_io::read_project(&path)?;
     assert_eq!(reopened.project.production.project_id, id);
-    assert_eq!(reopened.project.drawings.len(), before.0.project.drawings.len());
+    assert_eq!(
+        reopened.project.drawings.len(),
+        before.0.project.drawings.len()
+    );
     assert_eq!(&reopened, &session.engine().to_file());
     // The recovery writer keeps the same state.
     let store = sparksmith_io::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;

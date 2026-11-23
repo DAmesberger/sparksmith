@@ -1607,7 +1607,8 @@ impl Session {
                 // failed write leaves the project as it was (review
                 // finding 16).
                 let mut document = self.engine.document().clone();
-                let identified = sparksmith_core::identify_by_file(&mut document.project, &path, "");
+                let identified =
+                    sparksmith_core::identify_by_file(&mut document.project, &path, "");
                 // The session's own file, under any spelling, is replaced
                 // only while it holds what this session opened or saved;
                 // another file the request names is replaced whatever it
@@ -1632,24 +1633,23 @@ impl Session {
                 {
                     self.engine.adopt_project_id(id)?;
                 }
-                let identity =
-                    match written {
-                        Ok(identity) => identity,
-                        Err(sparksmith_io::Error::Conflict(conflict)) => {
-                            // Both versions are kept; this session's document
-                            // is in the new file, which is its file from now
-                            // on, so a later save never replaces the other.
-                            self.path = Some(conflict.kept.clone());
-                            self.disk = Some(conflict.identity);
-                            self.host_changed(FileChange::Saved {
-                                path: conflict.kept.clone(),
-                                identity: conflict.identity,
-                                revision,
-                            });
-                            return Err(sparksmith_io::Error::Conflict(conflict).into());
-                        }
-                        Err(error) => return Err(error.into()),
-                    };
+                let identity = match written {
+                    Ok(identity) => identity,
+                    Err(sparksmith_io::Error::Conflict(conflict)) => {
+                        // Both versions are kept; this session's document
+                        // is in the new file, which is its file from now
+                        // on, so a later save never replaces the other.
+                        self.path = Some(conflict.kept.clone());
+                        self.disk = Some(conflict.identity);
+                        self.host_changed(FileChange::Saved {
+                            path: conflict.kept.clone(),
+                            identity: conflict.identity,
+                            revision,
+                        });
+                        return Err(sparksmith_io::Error::Conflict(conflict).into());
+                    }
+                    Err(error) => return Err(error.into()),
+                };
                 let saved = path.display().to_string();
                 self.path = Some(path.clone());
                 self.disk = Some(identity);

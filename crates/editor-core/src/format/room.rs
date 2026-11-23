@@ -239,7 +239,8 @@ impl Room {
             bound = bound.saturating_add(IDENTITY_SLACK);
         }
         let assets = asset_bytes(&candidate.project);
-        let fits = bound <= self.limit && (bound as u64).saturating_add(assets) <= CONTAINER_MAX_BYTES;
+        let fits =
+            bound <= self.limit && (bound as u64).saturating_add(assets) <= CONTAINER_MAX_BYTES;
         if !fits {
             let file = EditorFile {
                 version: FILE_VERSION,

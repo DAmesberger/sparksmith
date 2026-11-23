@@ -14,8 +14,8 @@
 pub mod files;
 pub mod layout;
 pub mod order;
-pub mod room;
 pub mod records;
+pub mod room;
 pub mod table;
 
 use crate::diagnostics::{Error, Result};

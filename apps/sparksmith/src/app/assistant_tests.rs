@@ -744,7 +744,13 @@ fn a_read_after_the_persons_edit_does_not_make_it_the_assistants() -> Fallible {
     assert_eq!(summary.changes, ["Vias: 2 added"]);
     assert_eq!(summary.others, ["Vias: 1 added"]);
     assert_eq!(summary.show.len(), 2);
-    let persons = ax.app.engine.project().vias.iter().find(|v| (v.position[0] - 3.0).abs() < 1e-9);
+    let persons = ax
+        .app
+        .engine
+        .project()
+        .vias
+        .iter()
+        .find(|v| (v.position[0] - 3.0).abs() < 1e-9);
     let persons = persons.map(|v| v.id).ok_or("the person's via")?;
     assert!(!summary.show.contains(&persons), "{:?}", summary.show);
     Ok(())
@@ -794,8 +800,10 @@ fn undo_turn_is_off_when_the_persons_edit_came_between() -> Fallible {
     );
     assert!(ax.find(Role::Button, "Undo turn")?.disabled);
     // The action itself refuses too, whatever sends it.
-    ax.app
-        .assistant_action(&ax.ctx.clone(), crate::assistant::Action::UndoTurn(summary.id));
+    ax.app.assistant_action(
+        &ax.ctx.clone(),
+        crate::assistant::Action::UndoTurn(summary.id),
+    );
     ax.settle();
     assert_eq!(ax.app.engine.project().vias.len(), vias + 3);
     // A turn without the person's edit between still undoes as one step.
@@ -807,11 +815,15 @@ fn undo_turn_is_off_when_the_persons_edit_came_between() -> Fallible {
     let summary = last_summary(&ax)?;
     assert_eq!(summary.steps, 1);
     assert!(
-        ax.all(Role::Button, "Undo turn").iter().any(|n| !n.disabled),
+        ax.all(Role::Button, "Undo turn")
+            .iter()
+            .any(|n| !n.disabled),
         "the last turn's Undo turn is offered"
     );
-    ax.app
-        .assistant_action(&ax.ctx.clone(), crate::assistant::Action::UndoTurn(summary.id));
+    ax.app.assistant_action(
+        &ax.ctx.clone(),
+        crate::assistant::Action::UndoTurn(summary.id),
+    );
     ax.settle();
     assert_eq!(ax.app.engine.project().vias.len(), vias + 3);
     Ok(())
@@ -866,6 +878,12 @@ fn a_hosted_save_and_a_window_save_keep_one_identity() -> Fallible {
         .project_id;
     assert!(first.is_some());
     assert_eq!(ax.app.engine.project().production.project_id, first);
+    // Saved again unedited, as the review did: an edit between would hide
+    // a stale copy, since the window takes the engine's document on it.
+    ax.app.files.request(crate::file_ui::Action::Save);
+    ax.until("the save", |ax| !ax.app.files.busy())?;
+    let reopened = sparksmith_io::read_project(&path)?;
+    assert_eq!(reopened.project.production.project_id, first);
     rename(&mut ax, "Saved again")?;
     save_in_window(&mut ax)?;
     let reopened = sparksmith_io::read_project(&path)?;

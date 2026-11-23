@@ -308,7 +308,13 @@ enum Job {
     /// identity, when one is given. With a nonce, a project without an
     /// identity takes one first (`sparksmith_core::identify_by_file`),
     /// here, off the UI thread: it reads the whole document.
-    Write(Ticket, PathBuf, Document, Option<DiskIdentity>, Option<String>),
+    Write(
+        Ticket,
+        PathBuf,
+        Document,
+        Option<DiskIdentity>,
+        Option<String>,
+    ),
     SchematicPdf(Ticket, PathBuf, Arc<Project>),
     Recover(Ticket, Document, Option<PathBuf>),
     ClearRecovery(Ticket, bool),
