@@ -3,7 +3,7 @@
   "covers": {
     "entry/instance.set_properties": "7c8e1a4e6a53618d",
     "entry/library.search": "b8b0cb4373806d60",
-    "entry/project.preview_update": "ddee0d5306fed713",
+    "entry/project.preview_update": "504d73c473ec9a87",
     "term/component-definition": "594eab48265807fa15f099e00c5985ec68a0abf0a3855318bc81f041adbb346a"
   },
   "id": "guide/libraries",

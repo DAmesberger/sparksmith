@@ -2003,7 +2003,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "296910126c0cd0f5",
+      "schema_digest": "080e227a1a5f5d07",
       "examples": []
     }
   },
@@ -2017,7 +2017,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "08e315f1b263b133",
+      "schema_digest": "0020d5608cc5c6c6",
       "examples": []
     }
   },
@@ -2031,7 +2031,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "bf4b07f150bf9400",
+      "schema_digest": "e6ba4bf398f24121",
       "examples": []
     }
   },
@@ -2129,7 +2129,7 @@
       "module": "library",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "bf4b07f150bf9400",
+      "schema_digest": "e6ba4bf398f24121",
       "examples": []
     }
   },
@@ -2185,7 +2185,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "08e315f1b263b133",
+      "schema_digest": "0020d5608cc5c6c6",
       "examples": []
     }
   },
@@ -2339,7 +2339,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "ee7f44821262d6ef",
+      "schema_digest": "d9255599e6f652d1",
       "examples": []
     }
   },
@@ -2367,7 +2367,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "61ab806d09deb2c6",
+      "schema_digest": "5e528acecfd96a35",
       "examples": []
     }
   },
@@ -2451,7 +2451,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "1fccc4e244f72f65",
+      "schema_digest": "97f122f4e44aed32",
       "examples": []
     }
   },
@@ -2927,7 +2927,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "a7a2f029a026aeec",
+      "schema_digest": "b8069a404da8f09c",
       "examples": []
     }
   },
@@ -2941,7 +2941,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "4dda4e2b6b754fc6",
+      "schema_digest": "327a67068d3ad2a1",
       "examples": []
     }
   },
@@ -2955,7 +2955,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "acb71994d3e80997",
+      "schema_digest": "9cd6815262afbd5a",
       "examples": []
     }
   },
@@ -3109,7 +3109,7 @@
       "module": "library",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "ddee0d5306fed713",
+      "schema_digest": "504d73c473ec9a87",
       "examples": []
     }
   },
@@ -3123,7 +3123,7 @@
       "module": "project",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "2250c6e17436f239",
+      "schema_digest": "4dc0a05527699b4d",
       "examples": []
     }
   },
@@ -3579,7 +3579,7 @@
       "module": "schematic",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "3bfd9a8822c636c5",
+      "schema_digest": "c8e47e89a1ee2e73",
       "examples": []
     }
   },
@@ -3971,7 +3971,7 @@
       "module": "library",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "acb71994d3e80997",
+      "schema_digest": "9cd6815262afbd5a",
       "examples": []
     }
   },

@@ -7039,6 +7039,26 @@
           "group": "fiducial"
         },
         {
+          "key": "role",
+          "label": "Registration",
+          "type": {
+            "enum": {
+              "choices": [
+                {
+                  "key": "global",
+                  "label": "Board (global)"
+                },
+                {
+                  "key": "local",
+                  "label": "Component (local)"
+                }
+              ]
+            }
+          },
+          "default": "global",
+          "group": "fiducial"
+        },
+        {
           "key": "sides",
           "label": "Sides",
           "help": "One: the dot on the side the part is placed on (place it on the bottom for a bottom fiducial). Both: a second dot opposite it on the far side.",
@@ -7125,6 +7145,7 @@
             "clear_diameter": 2000000,
             "copper_diameter": 1000000,
             "mask_diameter": 2000000,
+            "role": "global",
             "sides": "one"
           },
           "citation": {
@@ -7146,6 +7167,7 @@
             "clear_diameter": 2000000,
             "copper_diameter": 1000000,
             "mask_diameter": 2000000,
+            "role": "global",
             "sides": "both"
           },
           "citation": {
@@ -7167,6 +7189,7 @@
             "clear_diameter": 3000000,
             "copper_diameter": 1000000,
             "mask_diameter": 3000000,
+            "role": "global",
             "sides": "one"
           },
           "citation": {
@@ -7188,6 +7211,7 @@
             "clear_diameter": 2000000,
             "copper_diameter": 1000000,
             "mask_diameter": 2000000,
+            "role": "local",
             "sides": "one"
           },
           "citation": {
@@ -7204,6 +7228,7 @@
       "generator/fiducial#copper_diameter",
       "generator/fiducial#mask_diameter",
       "generator/fiducial#clear_diameter",
+      "generator/fiducial#role",
       "generator/fiducial#sides",
       "generator/fiducial#land_pattern",
       "generator/fiducial#pin_table",
@@ -7411,6 +7436,41 @@
           },
           "default": [],
           "group": "pin_table"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/fiducial"
+    ]
+  },
+  {
+    "id": "generator/fiducial#role",
+    "title": "Registration",
+    "summary": "Registration",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "role",
+          "label": "Registration",
+          "type": {
+            "enum": {
+              "choices": [
+                {
+                  "key": "global",
+                  "label": "Board (global)"
+                },
+                {
+                  "key": "local",
+                  "label": "Component (local)"
+                }
+              ]
+            }
+          },
+          "default": "global",
+          "group": "fiducial"
         }
       ],
       "presets": []
