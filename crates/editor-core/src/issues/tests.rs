@@ -133,7 +133,7 @@ fn an_incomplete_board_check_is_a_counted_error_that_locates() {
         crate::layout::courtyard_limit_finding(),
         crate::layout::copper_limit_finding(),
     ] {
-        assert_eq!(rules::severity(&layout), Severity::Error);
+        assert_eq!(rules::severity(&project, &layout), Severity::Error);
         let row = row(&names, IssueArea::Board, vec![layout]);
         assert_eq!(counts(std::iter::once(&row)).error, 1);
         assert_eq!(

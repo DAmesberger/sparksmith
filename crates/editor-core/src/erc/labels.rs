@@ -42,6 +42,7 @@ pub(super) fn power_nets(project: &Project) -> BTreeSet<Id> {
 pub(super) fn checks(
     project: &Project,
     resolutions: &BTreeMap<Id, Resolution>,
+    tie_driven: &dyn Fn(Id) -> bool,
     out: &mut Vec<Finding>,
 ) {
     let wired: BTreeSet<WireEnd> = project
@@ -107,7 +108,7 @@ pub(super) fn checks(
     }
     hierarchy(project, out);
     conflicts(project, out);
-    power(project, resolutions, out);
+    power(project, resolutions, tie_driven, out);
 }
 
 fn capitalised(text: &str) -> String {
@@ -212,7 +213,7 @@ fn conflicts(project: &Project, out: &mut Vec<Finding>) {
 
 /// Nets a ground-style power port names: the reference node, which
 /// returns current and is supplied by nothing, so it needs no source.
-fn grounded(project: &Project) -> BTreeSet<Id> {
+pub(super) fn grounded(project: &Project) -> BTreeSet<Id> {
     nets::name_sources(project)
         .into_iter()
         .filter(|(_, sources)| {
@@ -230,10 +231,15 @@ fn grounded(project: &Project) -> BTreeSet<Id> {
         .collect()
 }
 
-fn power(project: &Project, resolutions: &BTreeMap<Id, Resolution>, out: &mut Vec<Finding>) {
+fn power(
+    project: &Project,
+    resolutions: &BTreeMap<Id, Resolution>,
+    tie_driven: &dyn Fn(Id) -> bool,
+    out: &mut Vec<Finding>,
+) {
     let grounded = grounded(project);
     for net_id in power_nets(project) {
-        if grounded.contains(&net_id) {
+        if grounded.contains(&net_id) || tie_driven(net_id) {
             continue;
         }
         let Some(net) = project.net(net_id) else {

@@ -26,6 +26,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod part;
 pub mod pins;
 pub mod text;
+pub mod ties;
 pub mod variants;
 pub use part::{
     assign_part, binding_name, part_findings, rating_findings, republished_part, requirements,

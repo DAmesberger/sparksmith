@@ -1940,7 +1940,7 @@ pub fn check_families(
         if stopped && check.after_copper_limit() {
             continue;
         }
-        let findings = match kept(check) {
+        let mut findings = match kept(check) {
             Some(findings) => findings,
             None => {
                 let (findings, stop) = check.run(project, copper, graph, settings);
@@ -1948,6 +1948,14 @@ pub fn check_families(
                 findings
             }
         };
+        if matches!(check, BoardCheck::Clearance | BoardCheck::Fills)
+            && project.instances.iter().any(|i| i.tie.is_some())
+        {
+            findings.retain(|f| {
+                !matches!(f.code.as_str(), "board.clearance" | "fill.clearance")
+                    || !graph.get().accounts_for(&f.objects)
+            });
+        }
         out.push((check, findings));
     }
     (out, stopped)

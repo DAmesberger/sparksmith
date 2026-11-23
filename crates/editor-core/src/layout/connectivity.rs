@@ -127,6 +127,11 @@ struct Group {
 #[derive(Debug, Default)]
 pub struct CopperGraph {
     ties: Vec<TieJoin>,
+    tie_contacts: std::collections::HashSet<(
+        crate::diagnostics::ObjectRef,
+        crate::diagnostics::ObjectRef,
+        Id,
+    )>,
     tie_findings: Vec<crate::diagnostics::Finding>,
     layers: Vec<CopperLayer>,
     /// The z of each copper layer's foil mid-plane in the stackup, mm.

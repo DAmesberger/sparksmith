@@ -216,12 +216,36 @@ pub fn checks(project: &Project) -> Vec<Finding> {
                 .map(|r| (i.id, r))
         })
         .collect();
-    let mut out = Vec::new();
-    let power_nets = labels::power_nets(project);
+    let ties = instances::ties::rows(project);
+    let network = instances::ties::Network::of(&ties);
+    let mut out = instances::ties::findings(project, &ties, &network);
+    let named_power = labels::power_nets(project);
+    let mut power_nets = named_power.clone();
+    let mut driven = std::collections::BTreeSet::new();
+    if !ties.is_empty() {
+        driven.extend(labels::grounded(project).iter().map(|n| network.group(*n)));
+        for net in &project.nets {
+            if net.terminals.iter().any(|e| matches!(behavior(&resolutions,*e),Some(Behavior::Active(f)) if supplies(f.direction))) {
+                driven.insert(network.group(net.id));
+            }
+        }
+        power_nets.extend(
+            project
+                .nets
+                .iter()
+                .filter(|n| driven.contains(&network.group(n.id)))
+                .map(|n| n.id),
+        );
+    }
     for net in &project.nets {
         net_checks(project, net, &resolutions, &power_nets, &mut out);
     }
-    labels::checks(project, &resolutions, &mut out);
+    labels::checks(
+        project,
+        &resolutions,
+        &|net| driven.contains(&network.group(net)),
+        &mut out,
+    );
     for instance in &project.instances {
         if let Some(resolution) = resolutions.get(&instance.id) {
             let rules = project

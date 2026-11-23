@@ -40,10 +40,11 @@ impl CopperGraph {
     }
 
     pub(super) fn record_ties(&mut self, project: &Project, fills: &[fill::Fresh<'_>]) {
-        let bridges = placed_bridges(project);
-        if bridges.is_empty() {
+        let tie_rows = crate::instances::ties::rows(project);
+        if tie_rows.is_empty() {
             return;
         }
+        let bridges = placed_bridges(project);
         let mut items = Vec::new();
         for land in physical::lands(project) {
             items.push(Item {
@@ -102,6 +103,14 @@ impl CopperGraph {
         let grid = BoundsGrid::new(items.iter().map(|i| i.ring.bounds), reach);
         let mut near = Vec::new();
         let mut remaining = check_pair_budget(items.len());
+        self.other_contacts(
+            project,
+            &tie_rows,
+            &items,
+            &grid,
+            &fill_indices,
+            &mut remaining,
+        );
         for bridge in bridges {
             let copper = bridge_ring(&bridge);
             let Some(bounds) = copper.bounds else {
@@ -167,6 +176,112 @@ impl CopperGraph {
                 foreign,
             });
         }
+    }
+    fn other_contacts(
+        &mut self,
+        project: &Project,
+        ties: &[crate::instances::ties::TieRow],
+        items: &[Item],
+        grid: &BoundsGrid,
+        fills: &[(&fill::Fresh<'_>, fill::RegionIndex)],
+        remaining: &mut usize,
+    ) {
+        let mut pairs = BTreeMap::<(Id, Id), Vec<&crate::instances::ties::TieRow>>::new();
+        for t in ties {
+            let ends: std::collections::BTreeSet<Id> = t.ends.values().flatten().copied().collect();
+            for &a in &ends {
+                for &b in ends.range((std::ops::Bound::Excluded(a), std::ops::Bound::Unbounded)) {
+                    pairs.entry((a, b)).or_default().push(t);
+                }
+            }
+        }
+        let mut near = Vec::new();
+        let mut record = |a: Id, b: Id, x: ObjectRef, y: ObjectRef, at: crate::geometry::Point| {
+            let Some(tied) = pairs.get(&(a.min(b), a.max(b))) else {
+                return;
+            };
+            for t in tied {
+                if !self.tie_contacts.insert((x, y, t.instance)) {
+                    continue;
+                }
+                self.tie_contacts.insert((y, x, t.instance));
+                self.tie_findings.push(Finding::new(
+                    "tie.second_join",
+                    format!(
+                        "{} and {} also meet near ({:.2}, {:.2}) mm outside {}.",
+                        project.net_name(a),
+                        project.net_name(b),
+                        at[0],
+                        at[1],
+                        t.designator
+                    ),
+                    vec![ObjectRef::Instance { id: t.instance }, x, y],
+                ));
+                if t.purpose == crate::library::tie::TiePurpose::StarGround {
+                    self.tie_findings.push(Finding::new(
+                        "tie.star_points",
+                        format!("{} has an additional copper join.", t.designator),
+                        vec![ObjectRef::Instance { id: t.instance }, x, y],
+                    ));
+                }
+            }
+        };
+        for (i, item) in items.iter().enumerate() {
+            let (Some(a), Some(bounds)) = (item.net, item.ring.bounds) else {
+                continue;
+            };
+            grid.near(&bounds, build::JOIN_REACH_MM, &mut near);
+            for other in near
+                .iter()
+                .filter(|j| **j > i)
+                .filter_map(|j| items.get(*j))
+            {
+                let Some(b) = other.net else {
+                    continue;
+                };
+                if !(item.through || other.through || item.layer == other.layer)
+                    || !pairs.contains_key(&(a.min(b), a.max(b)))
+                {
+                    continue;
+                }
+                if *remaining == 0 {
+                    self.partial = true;
+                    return;
+                }
+                *remaining -= 1;
+                if build::joins(&item.ring, &other.ring) {
+                    record(
+                        a,
+                        b,
+                        item.object,
+                        other.object,
+                        other.ring.bounds.map_or(bounds.center(), |v| v.center()),
+                    );
+                }
+            }
+            for (f, index) in fills {
+                if (item.through || item.layer == f.layer)
+                    && pairs.contains_key(&(a.min(f.net), a.max(f.net)))
+                    && !build::islands_joined(index, &item.ring).is_empty()
+                {
+                    record(
+                        a,
+                        f.net,
+                        item.object,
+                        ObjectRef::Fill { id: f.id },
+                        bounds.center(),
+                    );
+                }
+            }
+        }
+    }
+
+    /// A clearance report about these exact objects is already represented by a tie finding.
+    pub(crate) fn accounts_for(&self, objects: &[ObjectRef]) -> bool {
+        let [a, b, ..] = objects else {
+            return false;
+        };
+        self.tie_contacts.iter().any(|(x, y, _)| a == x && b == y)
     }
 }
 

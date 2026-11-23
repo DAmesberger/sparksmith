@@ -105,3 +105,29 @@ fn a_bridge_records_both_islands_without_merging_them() -> Result<()> {
     assert_ne!(join.islands[0].island, join.islands[1].island);
     Ok(())
 }
+
+#[test]
+fn the_erc_network_sees_parallel_closed_ties_as_a_loop() {
+    use crate::instances::ties::{Network, TieRow};
+    use crate::library::tie::TiePurpose;
+    let row = |instance, nets: [u64; 2], state| TieRow {
+        instance,
+        designator: format!("NT{instance}"),
+        form: TieForm::Copper,
+        purpose: TiePurpose::StarGround,
+        state,
+        ends: [
+            (TerminalId(1), Some(nets[0])),
+            (TerminalId(2), Some(nets[1])),
+        ]
+        .into(),
+    };
+    use crate::library::tie::JumperState::{Closed, Open};
+    let first = row(1, [11, 12], Closed);
+    let second = row(2, [12, 13], Closed);
+    let network = Network::of(&[first.clone(), second.clone(), row(3, [13, 11], Closed)]);
+    assert_eq!(network.loops, [1, 2, 3].into());
+    assert_eq!(network.group(13), network.group(11));
+    let network = Network::of(&[first, second, row(3, [13, 11], Open)]);
+    assert!(network.loops.is_empty());
+}
