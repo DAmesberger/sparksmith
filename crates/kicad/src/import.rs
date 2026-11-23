@@ -304,13 +304,19 @@ pub fn import_with_models(
         );
         // Mask and paste polygons that are a pad's opening become its rule.
         let openings = translate::take_openings(&board, fp, &mut pads);
+        let tie = translate::copper_tie(fp, &pads);
+        let drawings = if tie.is_some() {
+            fp.tie_copper.len()
+        } else {
+            0
+        };
         per_footprint.push(records);
         pad_nets.push(nets);
         zone_overrides.push(overrides);
         let symbol = by_reference
             .get(&fp.reference.to_ascii_uppercase())
             .cloned();
-        let mut key = format!("{:?}\u{0}", fp.lib_id);
+        let mut key = format!("{:?}\u{0}{tie:?}\u{0}", fp.lib_id);
         key.push_str(
             &serde_json::to_string(&pads).map_err(|e| ImportError::Refused {
                 step: "footprint key",
@@ -330,6 +336,7 @@ pub fn import_with_models(
         let index = *by_key.entry(key).or_insert(next);
         if index == next {
             definitions.push(SourceDefinition {
+                tie: tie.clone(),
                 pads,
                 symbol,
                 value,
@@ -339,15 +346,38 @@ pub fn import_with_models(
         uses.push(index);
         report.add_n(
             Case::FootprintFabGraphics,
-            fp.fab_graphics.saturating_sub(openings),
+            fp.fab_graphics.saturating_sub(openings + drawings),
         );
         report.add_n(Case::FootprintOpenings, openings);
         report.add_n(Case::FootprintDrawings, fp.drawings);
         if models.is_none() {
             report.add_n(Case::Models, fp.models.len());
         }
-        if fp.net_tie {
-            report.add_detail(Case::NetTie, &fp.reference, "", "");
+        if tie.is_some() {
+            report.add_detail(
+                Case::ImportedTie,
+                &fp.reference,
+                "",
+                "Choose the purpose of this tie.",
+            );
+        } else if fp.net_tie {
+            report.add_detail(
+                Case::NetTie,
+                &fp.reference,
+                "",
+                "The pad groups and copper drawings do not describe one supported connected tie.",
+            );
+        }
+        if fp.reference.to_ascii_uppercase().starts_with("JP")
+            && fp.pads.len() >= 2
+            && fp.models.is_empty()
+        {
+            report.add_detail(
+                Case::JumperSuggestion,
+                &fp.reference,
+                "",
+                "Review whether to convert this part to a solder jumper.",
+            );
         }
         report.add_n(
             Case::PadZoneOverrides,
@@ -368,6 +398,7 @@ pub fn import_with_models(
         .any(|fp| fp.pads.iter().any(|p| p.net.is_some()));
     for (k, definition) in definitions.into_iter().enumerate() {
         let SourceDefinition {
+            tie,
             pads,
             symbol,
             value,
@@ -398,7 +429,11 @@ pub fn import_with_models(
             .filter(|(_, u)| **u == k)
             .map(|(n, _)| n.clone())
             .collect();
-        let no_body = first.and_then(|fp| crate::models::no_body(fp, board_nets));
+        let no_body = if tie.is_some() {
+            Some("fabricated copper tie")
+        } else {
+            first.and_then(|fp| crate::models::no_body(fp, board_nets))
+        };
         let outcome = match (models.as_deref_mut(), first) {
             (Some(provider), Some(fp)) if no_body.is_none() => Some(
                 provider
@@ -486,6 +521,7 @@ pub fn import_with_models(
                 source_id,
                 pads,
                 prefix: &prefix,
+                tie,
                 kicad_symbol: symbol.as_ref(),
                 no_body: no_body_model.as_deref(),
             },
@@ -644,7 +680,13 @@ pub fn import_with_models(
                 Why::DoNotPopulate => Case::NotPopulatedAttribute,
             };
             report.add_detail(case, &fp.reference, "", why.text());
-            unfitted.push(*instance);
+            let p = session.engine.project();
+            if !p.instance(*instance).is_some_and(|i| {
+                sparksmith_core::instances::ties::form(p, i)
+                    == Some(sparksmith_core::library::tie::TieForm::Copper)
+            }) {
+                unfitted.push(*instance);
+            }
         }
     }
     if !unfitted.is_empty() {
@@ -937,7 +979,12 @@ fn prefix_of(reference: &str) -> String {
 
 /// One distinct source footprint: its pads, KiCad symbol, value and part
 /// number.
+type ImportedTie = (
+    sparksmith_core::library::tie::TieSpec,
+    Vec<sparksmith_core::library::tie::Bridge>,
+);
 struct SourceDefinition {
+    tie: Option<ImportedTie>,
     pads: Vec<Pad>,
     symbol: Option<crate::schematic::LibSymbol>,
     value: Option<String>,
@@ -1083,6 +1130,7 @@ fn value_text(value: &str) -> Option<String> {
 
 /// Parsed electrical data and the optional mechanical model for one definition.
 struct ComponentSource<'a> {
+    tie: Option<ImportedTie>,
     name: &'a str,
     /// The KiCad footprint id (`Library:Name`), recorded in the provenance.
     source_id: &'a str,
@@ -1607,6 +1655,7 @@ impl Session<'_> {
         report: &mut Report,
     ) -> Result<Set, ImportError> {
         let ComponentSource {
+            tie,
             name,
             source_id,
             pads,
@@ -1687,6 +1736,25 @@ impl Session<'_> {
                 if let Definition::Package(package) = &mut edit.definition {
                     package.model = PackageModel::NoBody;
                     edit.meta.provenance.push_str(&format!("\n{why}"));
+                }
+            }
+        }
+        if let Some((spec, bridges)) = tie {
+            for edit in &mut edits {
+                match &mut edit.definition {
+                    Definition::Footprint(fp) => {
+                        fp.next_local = bridges
+                            .iter()
+                            .map(|b| b.id.0 + 1)
+                            .max()
+                            .unwrap_or(fp.next_local);
+                        fp.bridges = bridges.clone();
+                    }
+                    Definition::Component(c) => {
+                        c.assembly = spec.form.assembly();
+                        c.tie = Some(spec.clone());
+                    }
+                    _ => {}
                 }
             }
         }

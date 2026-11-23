@@ -780,7 +780,17 @@ fn custom_ring(kpad: &KPad, size: Point) -> Result<(Vec<Point>, bool), Case> {
         let (hx, hy) = (size[0] / 2.0, size[1] / 2.0);
         parts.push(vec![vec![[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]]]);
     }
-    for primitive in &kpad.primitives {
+    let (union, curved) = primitive_union(parts, &kpad.primitives);
+    chords |= curved;
+    match union.as_slice() {
+        [only] if only.len() == 1 => Ok((only[0].clone(), chords)),
+        _ => Err(Case::CustomPadNotOneOutline),
+    }
+}
+
+fn primitive_union(mut parts: Vec<Rings>, primitives: &[Primitive]) -> (Vec<Rings>, bool) {
+    let mut chords = false;
+    for primitive in primitives {
         match primitive {
             Primitive::Poly { points, width } => {
                 let ring: Vec<Point> = points.iter().map(|p| local(*p)).collect();
@@ -848,10 +858,7 @@ fn custom_ring(kpad: &KPad, size: Point) -> Result<(Vec<Point>, bool), Case> {
         OverlayRule::Subject,
         FillRule::NonZero,
     );
-    match union.as_slice() {
-        [only] if only.len() == 1 => Ok((only[0].clone(), chords)),
-        _ => Err(Case::CustomPadNotOneOutline),
-    }
+    (union, chords)
 }
 
 /// The package terminal a pad lands, for the pads that need one.
@@ -1071,4 +1078,127 @@ fn boxes_overlap(a: &[Point], b: &[Point]) -> bool {
     };
     let ((alo, ahi), (blo, bhi)) = (bounds(a), bounds(b));
     alo[0] <= bhi[0] && blo[0] <= ahi[0] && alo[1] <= bhi[1] && blo[1] <= ahi[1]
+}
+
+/// Translate only the source's drawn copper and its explicitly authorised pads.
+/// Multiple independent groups need more than one schematic tie.
+pub(crate) fn copper_tie(
+    fp: &Footprint,
+    pads: &[Pad],
+) -> Option<(
+    sparksmith_core::library::tie::TieSpec,
+    Vec<sparksmith_core::library::tie::Bridge>,
+)> {
+    use sparksmith_core::library::tie::{Bridge, TieForm, TieSpec};
+    use std::collections::BTreeSet;
+    if !fp.net_tie
+        || fp.unsupported_tie_copper
+        || fp.tie_copper.is_empty()
+        || fp.tie_groups.len() > 1
+    {
+        return None;
+    }
+    let names: BTreeSet<&str> = match fp.tie_groups.first() {
+        Some(group) => group.iter().map(String::as_str).collect(),
+        None => pads
+            .iter()
+            .filter(|p| p.terminal.is_some())
+            .map(|p| p.number.as_str())
+            .collect(),
+    };
+    let declared: Vec<_> = pads
+        .iter()
+        .filter(|p| p.terminal.is_some() && names.contains(p.number.as_str()))
+        .collect();
+    if names
+        .iter()
+        .any(|name| !declared.iter().any(|p| p.number == *name))
+    {
+        return None;
+    }
+    let ends: BTreeSet<_> = declared
+        .iter()
+        .filter_map(|p| p.terminal.map(|t| sparksmith_core::TerminalId(t.0)))
+        .collect();
+    if !(2..=8).contains(&ends.len()) {
+        return None;
+    }
+    let mut bridges = Vec::new();
+    for layer in ["F.Cu", "B.Cu"] {
+        let shapes = fp
+            .tie_copper
+            .iter()
+            .filter(|(l, _)| l == layer)
+            .map(|(_, p)| p.clone())
+            .collect::<Vec<_>>();
+        if shapes.is_empty() {
+            continue;
+        }
+        let side = if (layer == "F.Cu") != fp.back {
+            PadSide::Top
+        } else {
+            PadSide::Bottom
+        };
+        for region in primitive_union(vec![], &shapes).0 {
+            let [ring] = region.as_slice() else {
+                return None;
+            };
+            if ring.len() > MAX_OUTLINE_SEGMENTS {
+                return None;
+            }
+            let outline = polygon_outline(
+                &ring
+                    .iter()
+                    .map(|p| Local { flip: fp.back }.point(*p))
+                    .collect::<Vec<_>>(),
+            );
+            let contact = outline.flatten(CHORD_MM);
+            let lands: Vec<_> = declared
+                .iter()
+                .filter(|p| {
+                    (p.side == side || p.kind == PadKind::PlatedThrough)
+                        && sparksmith_core::geometry::polygons_overlap(
+                            &contact,
+                            &p.outline(CHORD_MM),
+                        )
+                })
+                .map(|p| p.id)
+                .collect();
+            if lands.len() < 2 {
+                return None;
+            }
+            bridges.push(Bridge {
+                id: sparksmith_core::ids::BridgeId(
+                    u32::try_from(pads.len() + bridges.len() + 1).ok()?,
+                ),
+                outline,
+                side,
+                pads: lands,
+            });
+        }
+    }
+    if bridges.is_empty() {
+        return None;
+    }
+    let mut reached: BTreeSet<_> = bridges.first()?.pads.iter().copied().collect();
+    loop {
+        let before = reached.len();
+        for b in &bridges {
+            if b.pads.iter().any(|p| reached.contains(p)) {
+                reached.extend(b.pads.iter().copied());
+            }
+        }
+        if before == reached.len() {
+            break;
+        }
+    }
+    declared.iter().all(|p| reached.contains(&p.id)).then(|| {
+        (
+            TieSpec {
+                form: TieForm::Copper,
+                ends: ends.into_iter().collect(),
+            },
+            bridges,
+        )
+    })
 }

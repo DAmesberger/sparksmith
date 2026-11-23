@@ -675,12 +675,9 @@ fn a_placeholder_body_is_centred_on_its_pads_not_on_the_footprint_origin() -> Fa
     Ok(())
 }
 
-/// A net tie (KiCad's `net_tie_pad_groups`) joins distinct nets on
-/// purpose; Sparksmith has no net-tie part, so its pads come in on their
-/// own nets and the tie does not. The import names each such footprint
-/// as not carried over, for the person importing their own project.
+/// A declaration with no copper in the gap cannot be fabricated as a tie.
 #[test]
-fn net_tie_footprints_are_named_as_not_carried_over() -> Fallible<()> {
+fn a_missing_bridge_is_reported_by_designator() -> Fallible<()> {
     let mut tie = Footprint::new(
         "NT1",
         [10.0, 10.0, 0.0],
@@ -701,7 +698,8 @@ fn net_tie_footprints_are_named_as_not_carried_over() -> Fallible<()> {
   (gr_rect (start 0 0) (end 20 20) (stroke (width 0.1) (type default)) (layer \"Edge.Cuts\"))\n"
             .into(),
     };
-    let imported = import(board.text().as_bytes())?;
+    let text = board.text();
+    let imported = import(text.as_bytes())?;
     let report = &imported.report;
     assert_eq!(report.count(Case::NetTie), 1);
     let detail = report
@@ -715,5 +713,19 @@ fn net_tie_footprints_are_named_as_not_carried_over() -> Fallible<()> {
     let named = report.summary_named();
     assert!(named.contains("NT1"), "{named}");
     assert!(!report.summary().contains("NT1"));
+    let drawn=text.replace("(net_tie_pad_groups \"1, 2\")","(net_tie_pad_groups \"1, 2\") (fp_rect (start -0.5 -0.1) (end 0.5 0.1) (stroke (width 0) (type solid)) (fill solid) (layer \"F.Cu\"))");
+    let with_copper = import(drawn.as_bytes())?;
+    assert_eq!(with_copper.report.count(Case::ImportedTie), 1);
+    assert_eq!(with_copper.report.count(Case::NetTie), 0);
+    let project = with_copper.engine.project();
+    let rows = sparksmith_core::instances::ties::rows(project);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].purpose,
+        sparksmith_core::library::tie::TiePurpose::None
+    );
+    let bridges = sparksmith_core::layout::placed_bridges(project);
+    assert_eq!(bridges.len(), 1);
+    assert_eq!(bridges[0].nets.len(), 2);
     Ok(())
 }

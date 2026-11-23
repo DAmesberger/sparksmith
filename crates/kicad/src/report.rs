@@ -67,6 +67,8 @@ pub enum Case {
     /// G5: net-tie footprints: pads imported on their own nets, the tie
     /// between the nets not (no net-tie part yet), each named.
     NetTie,
+    ImportedTie,
+    JumperSuggestion,
     /// G6: per-pad zone connection and clearance overrides.
     PadZoneOverrides,
     /// G6: footprint-wide zone connection and clearance overrides.
@@ -339,10 +341,16 @@ impl Case {
                 Report,
                 "footprint text and drawings, not imported in this slice",
             ),
+            Self::ImportedTie => ("G5", Exact, "imported as a copper tie; choose its purpose"),
+            Self::JumperSuggestion => (
+                "G5",
+                Report,
+                "possible solder jumpers to review for conversion",
+            ),
             Self::NetTie => (
                 "G5",
                 Report,
-                "net-tie footprints: pads imported on their own nets, the tie between them not imported (no net-tie part)",
+                "net ties not imported because their drawings and declared lands do not form one supported copper tie",
             ),
             Self::PadZoneOverrides => (
                 "G6",
@@ -916,8 +924,10 @@ pub struct Counts {
 
 /// The cases whose occurrences [`Report::summary_named`] lists by name:
 /// what the import left for the person to resolve.
-pub const NAMED_CASES: [Case; 3] = [
+pub const NAMED_CASES: [Case; 5] = [
     Case::NetTie,
+    Case::ImportedTie,
+    Case::JumperSuggestion,
     Case::StackupMaskSides,
     Case::SymbolWithoutFootprint,
 ];
