@@ -468,6 +468,7 @@ fn a_replacement_turned_a_quarter_fits_by_turning() -> Fallible {
     let preview = call(&mut session, "project.preview_replace", request.clone());
     let plan = &preview["result"]["plan"];
     assert_eq!(plan["blockers"], json!([]), "{plan}");
+    assert_eq!(plan["copper"][0]["identical"], true, "{plan}");
     let fit = &plan["fits"][0];
     assert_eq!(
         fit["turned_deg"].as_f64().map(f64::abs),

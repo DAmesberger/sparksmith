@@ -280,9 +280,9 @@ pub struct UpdatePlan {
     pub fits: Vec<PlacementFit>,
 }
 
-/// Whether a replaced instance's copper stays the same: each pad compared
-/// by shape, position, rotation and layer on the board, whatever its
-/// number or identity.
+/// Whether a replaced instance keeps its lands and drills. Each pad's copper
+/// layers, outline and plated or bare bores are compared in board coordinates
+/// independently of its number, terminal or net.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CopperIdentity {
