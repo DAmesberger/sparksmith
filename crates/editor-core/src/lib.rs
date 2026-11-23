@@ -528,7 +528,7 @@ declare_entries!(Query in project {
     InspectLineage "library.inspect" Read "Inspect a lineage" [in library, link, returns(lineage)],
     Bom "project.bom" Read "Bill of materials" [link, returns(bom)],
     ResolveGroups "library.resolve_groups" Read "Group instances for purchasing" [in library, link, returns(resolve_groups)],
-    Ties "tie.list" Read "List deliberate net ties" [link,since(7,23),returns(ties)],
+    Ties "tie.list" Read "List deliberate net ties" [long,link,since(7,23),returns(ties)],
     Variants "variant.list" Read "List assembly variants" [link, since(7, 13), returns(variants)],
     Substitutes "variant.substitutes" Read "Parts that fit a footprint" [link, since(7, 13), returns(substitutes)],
     FootprintPreview "library.footprint_preview" Read "Preview a footprint" [in library, long, link, returns(footprint_preview)],

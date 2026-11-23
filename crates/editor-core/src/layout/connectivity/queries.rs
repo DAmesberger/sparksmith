@@ -323,7 +323,7 @@ impl CopperGraph {
             let Some(row) = groups.get(&(id, tie.bridge.group)) else {
                 continue;
             };
-            let name = &row.designator;
+            let name = row.label(project);
             for object in &tie.foreign {
                 out.push(Finding::new(
                     "tie.bridge_contact",

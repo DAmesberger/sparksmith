@@ -27,11 +27,14 @@ pub(super) fn severity(project: &crate::model::Project, finding: &Finding) -> Se
         return Severity::Error;
     }
     match finding.code.as_str() {
-        "tie.loop" if finding.objects.iter().any(|o| {
-            let ObjectRef::Terminal{endpoint}=o else {return false};
-            project.instance(endpoint.instance).is_some_and(|i|project.library.component(i.component).is_some_and(|c|c.definition.ties.iter().any(|s|s.ends.contains(&endpoint.terminal) && i.ties.get(&s.id).is_some_and(|u|u.purpose==crate::library::tie::TiePurpose::StarGround))))
-        }) => Severity::Error,
-        "tie.same_net" | "tie.star_points" | "tie.second_join" | "tie.bridge_contact" | "tie.kelvin_off_anchor" | "tie.current_exceeded" | "board.clearance"
+        "tie.loop" if finding.objects.iter().any(|object| star_terminal(project, *object)) => Severity::Error,
+        "tie.same_net"
+        | "tie.star_points"
+        | "tie.second_join"
+        | "tie.bridge_contact"
+        | "tie.kelvin_off_anchor"
+        | "tie.current_exceeded"
+        | "board.clearance"
         | "board.courtyard_overlap"
         | "board.courtyard_clearance"
         | "board.edge_clearance"
@@ -91,6 +94,25 @@ pub(super) fn severity(project: &crate::model::Project, finding: &Finding) -> Se
         | "marking.does_not_fit" => Severity::Info,
         _ => Severity::Warning,
     }
+}
+
+fn star_terminal(project: &crate::model::Project, object: ObjectRef) -> bool {
+    let ObjectRef::Terminal { endpoint } = object else {
+        return false;
+    };
+    let Some(instance) = project.instance(endpoint.instance) else {
+        return false;
+    };
+    let Some(component) = project.library.component(instance.component) else {
+        return false;
+    };
+    component.definition.ties.iter().any(|spec| {
+        spec.ends.contains(&endpoint.terminal)
+            && instance
+                .ties
+                .get(&spec.id)
+                .is_some_and(|usage| usage.purpose == crate::library::tie::TiePurpose::StarGround)
+    })
 }
 
 /// The group header of a code: "Clearance", "Unrouted connections".
