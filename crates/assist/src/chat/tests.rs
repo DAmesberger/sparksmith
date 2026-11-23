@@ -703,3 +703,14 @@ mod board_trace;
 
 #[path = "board_chat.rs"]
 mod board_chat;
+
+#[test]
+fn chat_and_mcp_share_one_copy_of_the_method() -> Fallible {
+    let library = ShippedLibrary::locate()?;
+    let method = sparksmith_automation::mcp::agent_method(&library)?;
+    let chat = ChatLibrary::load(&library)?;
+    assert_eq!(chat.system.matches(&method).count(), 1);
+    assert_eq!(sparksmith_automation::mcp::instructions(false)?, method);
+    assert!(sparksmith_automation::mcp::instructions(true)?.starts_with(&method));
+    Ok(())
+}

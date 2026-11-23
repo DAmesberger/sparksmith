@@ -92,7 +92,8 @@ impl ChatLibrary {
             Ok(text)
         };
         let system = format!(
-            "{}\n\n{}",
+            "{}\n\n{}\n\n{}",
+            sparksmith_automation::mcp::agent_method(shipped).map_err(Error::Config)?,
             nonempty(PROMPT_FILE)?.trim_end(),
             nonempty(PLAYBOOK_FILE)?.trim_end()
         );

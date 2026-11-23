@@ -75,7 +75,7 @@ fn rmcp_client_discovers_and_lists_at_2026_07_28() -> Fallible<()> {
         assert_eq!(info.server_info.as_ref().ok_or("serverInfo")?.name, NAME);
         assert_eq!(
             info.instructions.as_deref(),
-            Some(instructions(false).as_str())
+            Some(instructions(false)?.as_str())
         );
         assert!(info.capabilities.tools.is_some());
         assert!(info.capabilities.prompts.is_some());
@@ -501,9 +501,9 @@ fn the_catalog_resolves_each_entry_by_its_kind() {
 }
 
 #[test]
-fn the_instructions_hold_their_budget() {
-    let headless = instructions(false);
-    let live = instructions(true);
+fn the_instructions_hold_their_budget() -> Fallible<()> {
+    let headless = instructions(false)?;
+    let live = instructions(true)?;
     assert!(headless.len() <= INSTRUCTIONS_TARGET, "{}", headless.len());
     assert!(
         live.len() <= INSTRUCTIONS_TARGET + LIVE_TARGET,
@@ -525,6 +525,7 @@ fn the_instructions_hold_their_budget() {
             );
         }
     }
+    Ok(())
 }
 
 /// The datasheet workflow is served as a prompt: its method, then the task;
@@ -580,5 +581,31 @@ fn the_datasheet_prompt_serves_the_method() -> Fallible<()> {
         }
     }
     assert!(named >= 10, "{named} entries named");
+    Ok(())
+}
+
+#[test]
+fn instruction_limit_counts_characters_and_includes_live_guidance() -> Fallible<()> {
+    use sparksmith_io::shipped::{MARKER, Shelf, ShippedLibrary};
+
+    let temp = tempfile::tempdir()?;
+    std::fs::write(temp.path().join(MARKER), "")?;
+    let lib = ShippedLibrary::at(temp.path())?;
+    let dir = lib.shelf(Shelf::Assist);
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join("method.md");
+    let method = "ö".repeat(MAX_INSTRUCTIONS);
+    std::fs::write(&path, &method)?;
+    std::fs::write(dir.join("mcp-live.md"), "Live window.")?;
+    assert_eq!(instructions_for(&lib, false)?, method);
+    let error = instructions_for(&lib, true)
+        .err()
+        .ok_or("accepted excess live guidance")?;
+    assert!(error.contains("4096"), "{error}");
+    std::fs::write(&path, "   ")?;
+    let error = instructions_for(&lib, false)
+        .err()
+        .ok_or("accepted empty method")?;
+    assert!(error.contains("method.md"), "{error}");
     Ok(())
 }
