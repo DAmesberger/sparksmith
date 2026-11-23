@@ -703,3 +703,62 @@ fn a_built_in_profile_is_copied_to_edit_and_checked_on_save() -> Fallible {
     );
     Ok(())
 }
+
+#[test]
+fn only_the_last_owner_of_a_normalized_endpoint_releases_its_key() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let mut page = read_page(dir.path());
+    let ring = page.keyring;
+    let state = page.state();
+    let mut settings = state.settings.clone()?;
+    let mut a = local_draft()?;
+    a.base_url = "https://shared.example/v1/".into();
+    let mut b = a.clone();
+    b.name = "Second model".into();
+    b.base_url = "https://shared.example/v1".into();
+    let old = b.endpoint()?;
+    (ring.store)(&old, &Secret::new("fixture-key").ok_or("missing key")?)?;
+    settings.endpoints = vec![a, b.clone()];
+    assert!(state.commit(settings.clone()));
+    assert!(remove_endpoint(state, &settings, ring, 0));
+    assert!(ring.has(&old));
+    let settings = state.settings.clone()?;
+    b.base_url = "https://changed.example/v1".into();
+    let mut edit = EndpointEdit {
+        at: Some(0),
+        draft: b,
+        key: String::new(),
+        stored: false,
+    };
+    assert!(save_endpoint(state, &settings, ring, &mut edit, false));
+    assert!(!ring.has(&old));
+    Ok(())
+}
+
+#[test]
+fn orphan_key_cleanup_failure_names_the_saved_change_and_address() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let mut page = read_page(dir.path());
+    let ring = Keyring {
+        delete: |_| Err("keychain is locked".into()),
+        ..page.keyring
+    };
+    let state = page.state();
+    let mut settings = state.settings.clone()?;
+    let draft = local_draft()?;
+    let url = draft.endpoint()?;
+    settings.endpoints = vec![draft];
+    assert!(state.commit(settings.clone()));
+    assert!(remove_endpoint(state, &settings, ring, 0));
+    let why = state.refusal.as_deref().ok_or("missing cleanup failure")?;
+    assert!(
+        why.contains("saved") && why.contains(url.base()) && why.contains("locked"),
+        "{why}"
+    );
+    assert!(
+        stored::read(&stored::user_file(dir.path()))?
+            .endpoints
+            .is_empty()
+    );
+    Ok(())
+}

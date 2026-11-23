@@ -1351,6 +1351,9 @@ fn save_endpoint(
     if !state.commit(next) {
         return false;
     }
+    if let Some(previous) = edit.at.and_then(|i| settings.endpoints.get(i)) {
+        clean_unused_key(state, keyring, previous);
+    }
     if let Some(key) = key {
         if let Err(why) = (keyring.store)(&endpoint, &key) {
             state.refusal = Some(why);
@@ -1375,17 +1378,28 @@ fn remove_endpoint(
     if next.connection.as_deref() == Some(gone.name.as_str()) {
         next.connection = None;
     }
-    if !state.commit(next.clone()) {
+    if !state.commit(next) {
         return false;
     }
-    let shared = next.endpoints.iter().any(|e| e.base_url == gone.base_url);
-    if !shared
-        && let Ok(e) = gone.endpoint()
-        && let Err(why) = (keyring.delete)(&e)
-    {
-        state.refusal = Some(why);
-    }
+    clean_unused_key(state, keyring, &gone);
     true
+}
+
+/// A keychain entry belongs to every model using the parsed endpoint base.
+fn clean_unused_key(state: &mut State, keyring: Keyring, old: &EndpointSetting) {
+    let (Ok(settings), Ok(endpoint)) = (&state.settings, old.endpoint()) else {
+        return;
+    };
+    let shared = settings
+        .endpoints
+        .iter()
+        .any(|e| e.endpoint().is_ok_and(|e| e.base() == endpoint.base()));
+    if !shared && let Err(why) = (keyring.delete)(&endpoint) {
+        state.refusal = Some(format!(
+            "Connection settings saved. Remove the unused key for {} from the system keychain: {why}",
+            endpoint.base()
+        ));
+    }
 }
 
 /// The agent form; whether it closed.
