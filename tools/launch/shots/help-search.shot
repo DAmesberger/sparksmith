@@ -1,0 +1,5 @@
+# Fresh example project, default bindings. Wait for the reader before typing.
+key f1
+expect "Close help"
+type "annular ring"
+expect "Thin via annular rings"
