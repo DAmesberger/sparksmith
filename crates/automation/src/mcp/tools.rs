@@ -61,6 +61,9 @@ pub struct FindArgs {
     /// 1 to 50; 10 by default.
     #[serde(default)]
     pub limit: Option<usize>,
+    /// Continue at next_offset.
+    #[serde(default)]
+    pub offset: Option<usize>,
 }
 
 /// `describe` arguments.
@@ -160,7 +163,7 @@ fn build() -> Vec<Tool> {
         tool(
             FIND,
             "Find a catalog entry",
-            "Searches the catalog by what an entry does. A hit's kind names its tool: query, operation (apply), show or action (act).",
+            "Search by task. Hit kinds: query, operation (apply), show or action (act).",
             schema::<FindArgs>(),
             read,
         ),
@@ -464,9 +467,18 @@ fn find(args: FindArgs, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
         .collect();
     // Stable: equal scores keep catalog order.
     scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
-    let more = scored.len().saturating_sub(limit);
+    let offset = args.offset.unwrap_or_default();
+    if offset > scored.len() {
+        return desk::failure(
+            "arguments.invalid",
+            "offset exceeds the matching entries".into(),
+        );
+    }
+    let end = offset.saturating_add(limit).min(scored.len());
+    let more = scored.len() - end;
     let hits = scored
         .into_iter()
+        .skip(offset)
         .take(limit)
         .map(|(_, entry)| entry.line_card())
         .collect::<Result<Vec<_>, _>>();
@@ -477,6 +489,7 @@ fn find(args: FindArgs, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
     let mut result = json!({"hits": hits});
     if more > 0 {
         result["more"] = json!(more);
+        result["next_offset"] = json!(end);
     }
     if hits_empty(&result) {
         result["hint"] = json!("nothing matched: try other words, or fewer");

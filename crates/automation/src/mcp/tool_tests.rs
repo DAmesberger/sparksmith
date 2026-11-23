@@ -297,6 +297,52 @@ fn line_find_describe_and_raw_schema_agree() -> Fallible<()> {
     })?
 }
 
+#[test]
+fn find_continues_the_same_ranking_beyond_fifty_matches() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    block_on(async move {
+        let c = Connection::open(Mode::AutoAllowEdits, dir.path()).await?;
+        let text = "layout library project add set board schematic";
+        let mut rankings = Vec::new();
+        for limit in [10, 50] {
+            let mut names = Vec::new();
+            let mut offset = 0;
+            loop {
+                let page = c
+                    .ok(
+                        FIND,
+                        json!({"text": text, "offset": offset, "limit": limit}),
+                    )
+                    .await?;
+                let hits = page["hits"].as_array().ok_or("hits")?;
+                names.extend(
+                    hits.iter()
+                        .map(|h| h["name"].as_str().unwrap_or_default().to_owned()),
+                );
+                if page["more"].as_u64().unwrap_or(0) == 0 {
+                    assert!(page.get("next_offset").is_none());
+                    break;
+                }
+                assert_eq!(hits.len(), limit);
+                let next = page["next_offset"].as_u64().ok_or("next_offset")?;
+                assert_eq!(next, offset + limit as u64);
+                offset = next;
+            }
+            assert!(names.len() > 50);
+            assert_eq!(
+                names
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len(),
+                names.len()
+            );
+            rankings.push(names);
+        }
+        assert_eq!(rankings[0], rankings[1]);
+        c.close().await
+    })?
+}
+
 /// `find` names entries by what they do, of the kind asked, within its
 /// bounds; `describe` gives one's schema and the call that sends it.
 #[test]
