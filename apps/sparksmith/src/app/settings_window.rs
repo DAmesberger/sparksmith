@@ -935,15 +935,13 @@ fn account_rows(
                 ui,
                 &format!(
                     "Confirm this code at {} to sign in. Waiting for the browser…",
-                    code.verification_uri
+                    code.pages.manual()
                 ),
                 kit::Tone::Dim,
             );
             kit::actions(ui, |ui| {
-                if ui_kit::button(ui, "Open browser", Button::Enabled(true)).clicked() {
-                    action = Some(AccountAction::OpenBrowser(
-                        code.verification_uri_complete.clone(),
-                    ));
+                if ui_kit::button(ui, code.pages.button_label(), Button::Enabled(true)).clicked() {
+                    action = Some(AccountAction::OpenBrowser(code.pages.browser().to_string()));
                 }
                 if ui_kit::button(ui, "Copy code", Button::Enabled(true)).clicked() {
                     action = Some(AccountAction::Copy(code.user_code.clone()));

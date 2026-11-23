@@ -63,13 +63,64 @@ pub struct DeviceCode {
     device_code: Secret,
     /// What the person types or checks ("BCDF-GHJK").
     pub user_code: String,
-    pub verification_uri: String,
-    /// The page with the code filled in: what the browser opens.
-    pub verification_uri_complete: String,
+    pub pages: VerificationPages,
     /// Seconds the code is valid.
     pub expires_in: u64,
     /// Seconds between polls.
     pub interval: u64,
+}
+
+/// Both addresses use the browser URL parser. The button names the origin
+/// of the very URL it opens, including a separate identity provider.
+#[derive(Clone, Debug)]
+pub struct VerificationPages {
+    manual: url::Url,
+    browser: url::Url,
+}
+
+impl VerificationPages {
+    pub(super) fn parse(manual: &str, complete: &str) -> Result<Self, String> {
+        fn page(input: &str) -> Result<url::Url, String> {
+            const INVALID: &str = "The registry supplied an invalid sign-in address.";
+            let url = url::Url::parse(input).map_err(|_| INVALID)?;
+            if !matches!(url.scheme(), "http" | "https")
+                || !url.username().is_empty()
+                || url.password().is_some()
+            {
+                return Err(INVALID.into());
+            }
+            let origin = url.origin().ascii_serialization();
+            let endpoint = crate::model::Endpoint::parse(&origin).map_err(|_| INVALID)?;
+            if !endpoint.allows_credentials() {
+                return Err("The registry sign-in page needs HTTPS or a loopback address.".into());
+            }
+            Ok(url)
+        }
+        let manual = page(manual)?;
+        let browser = if complete.is_empty() {
+            manual.clone()
+        } else {
+            page(complete)?
+        };
+        Ok(Self { manual, browser })
+    }
+
+    pub fn manual(&self) -> &url::Url {
+        &self.manual
+    }
+    pub fn browser(&self) -> &url::Url {
+        &self.browser
+    }
+
+    pub fn button_label(&self) -> String {
+        let destination = self.browser.origin();
+        let origin = destination.ascii_serialization();
+        if self.manual.origin() == destination {
+            format!("Open {origin}")
+        } else {
+            format!("Open identity provider {origin}")
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -337,16 +388,12 @@ impl RegistryClient {
             .map_err(|_| "the registry's sign-in code is unreadable")?;
         let device_code =
             Secret::new(&wire.device_code).ok_or("the registry sent an empty sign-in code")?;
-        let complete = if wire.verification_uri_complete.is_empty() {
-            wire.verification_uri.clone()
-        } else {
-            wire.verification_uri_complete
-        };
+        let pages =
+            VerificationPages::parse(&wire.verification_uri, &wire.verification_uri_complete)?;
         Ok(DeviceCode {
             device_code,
             user_code: wire.user_code.chars().take(32).collect(),
-            verification_uri: wire.verification_uri,
-            verification_uri_complete: complete,
+            pages,
             expires_in: wire.expires_in,
             interval: wire.interval,
         })

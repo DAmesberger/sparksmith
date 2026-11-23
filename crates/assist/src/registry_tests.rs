@@ -636,6 +636,40 @@ fn a_refused_token_is_forgotten() -> TestResult {
     Ok(())
 }
 
+#[test]
+fn sign_in_button_names_the_origin_of_its_parsed_destination() -> TestResult {
+    use account::VerificationPages;
+    let manual = "https://parts.example/device";
+    for (complete, origin, separate) in [
+        ("", "https://parts.example", false),
+        (
+            "https://PARTS.example:443/approve?c=123",
+            "https://parts.example",
+            false,
+        ),
+        (
+            "https://identity.example:8443/approve?c=123",
+            "https://identity.example:8443",
+            true,
+        ),
+    ] {
+        let pages = VerificationPages::parse(manual, complete)?;
+        assert_eq!(pages.browser().origin().ascii_serialization(), origin);
+        assert!(pages.button_label().contains(origin));
+        assert_eq!(pages.button_label().contains("identity provider"), separate);
+    }
+    for invalid in [
+        "file:///device",
+        "https://user@example.org/device",
+        "http://remote.example/device",
+        "/relative",
+    ] {
+        assert!(VerificationPages::parse(invalid, manual).is_err());
+        assert!(VerificationPages::parse(manual, invalid).is_err());
+    }
+    Ok(())
+}
+
 /// The device flow: a code under the client's name, polled at the
 /// registry's interval, 5 s longer after `slow_down`, until approved; the
 /// token goes to the keychain and the account is known.
@@ -656,7 +690,7 @@ fn signing_in_polls_until_approved_and_keeps_the_token() -> TestResult {
     let code = client.start_sign_in("Sparksmith on bench")?;
     assert_eq!(code.user_code, "BCDF-GHJK");
     assert_eq!(
-        code.verification_uri_complete,
+        code.pages.browser().as_str(),
         "https://parts.example/device?code=BCDF-GHJK"
     );
     assert!(!format!("{code:?}").contains("dev-secret-code"));
