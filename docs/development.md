@@ -13,8 +13,12 @@ This is an early working editor foundation, not a manufacturing-ready release. S
 ```sh
 nix develop          # optional: pinned toolchain without rustup
 cargo run --locked --profile ci -p sparksmith [FILE.sparksmith]
-cargo xtask ci
+cargo xtask affected --run   # while iterating: tests of what the change can reach
+cargo xtask fast             # before any full CI: format, structural gates, Clippy on changed crates
+cargo xtask ci               # once per merge batch
 ```
+
+`cargo xtask affected [--base REV] [--run]` lists the workspace packages a change can affect: those whose folder holds a file changed since REV (default: the merge-base with `main`, plus uncommitted and untracked files), every package that depends on them (from `cargo metadata`, any dependency kind), and the packages whose tests read changed shared data outside their folder, as `xtask/affected.txt` lists them (library data, examples; the toolchain, the lock file and the workspace manifest select the whole workspace). `--run` runs `cargo test --profile ci` on exactly those. `cargo xtask fast [--base REV]` runs `cargo fmt --check`, the structural gates (layers, core-modules, connectivity, copper-source, f64-lengths, generic-terms, no-builtin-data, clean-room, brand-crates, ui-containers, ui-forms, raw-keys, and licences when `Cargo.lock` changed), strict Clippy on the changed packages only, and `surface --check` when the automation crate is affected; it prints one line per gate and stops after the first class that fails. Neither replaces `cargo xtask ci`: it runs once per merge batch, and hosted CI runs it again on push. The order is in [verification](../skills/sparksmith-verification/SKILL.md#which-gate-when).
 
 The app starts with an empty project (as File › New does); open a project, or write the showcase with the CLI below. Component authoring includes Symbol, Footprint, Mapping and 3D modes; each finished edit of the five component drafts (component, symbol, package, footprint, binding) is one undo step, and Publish creates immutable project revisions. In Schematic, Place (or P) opens the Place palette: type a query such as `10k 0603`, `res>=10k` or `tol<=1%`, move with ↑/↓, press Enter to place (Shift+Enter keeps the palette open) or click a row to place it with the mouse; the properties card previews the highlighted part. Connect terminals with Wire and rename a selected wire's net. The Browser's Components section has a filter field that uses the same search. In PCB, preview/apply Update PCB, move placements and route between pads. Switch between 2D and 3D within PCB; selection and whole-net highlighting are shared.
 

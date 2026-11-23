@@ -1,3 +1,4 @@
+mod affected;
 mod brand_crates;
 mod clean_room;
 mod connectivity;
@@ -66,6 +67,16 @@ fn run() -> Result<()> {
         && command == "surface"
     {
         return surface(rest);
+    }
+    if let Some((command, rest)) = args.split_first()
+        && command == "fast"
+    {
+        return affected::run_fast(rest);
+    }
+    if let Some((command, rest)) = args.split_first()
+        && command == "affected"
+    {
+        return affected::run_affected(rest);
     }
     if let Some((command, rest)) = args.split_first()
         && command == "kicad-compare"
@@ -144,7 +155,7 @@ fn run() -> Result<()> {
         "ui-forms" => ui_forms::check(),
         "raw-keys" => raw_keys::check(),
         _ => Err(
-            "usage: cargo xtask ci | ci-native | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
+            "usage: cargo xtask ci | ci-native | fast [--base REV] | affected [--base REV] [--run] | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
              | licences --check | brand-crates | clean-room | no-builtin-data | generic-terms | ui-containers | ui-forms | raw-keys | generators build [--ship] | check | reproduce | measure \
              | surface --check | --update | kicad-compare [--design PATH]"
                 .into(),
