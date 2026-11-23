@@ -113,6 +113,11 @@ pub struct OpenTurn {
     pub others: Vec<(Document, Document)>,
     /// The revision and document where the turn's last call left off.
     at: (u64, Document),
+    /// The revision the last of [`Self::own`] ended at: a call from there
+    /// carries it on. A read after someone else's edit moves [`Self::at`]
+    /// on, never this, so the turn never claims that edit (review,
+    /// turn ownership).
+    own_end: Option<u64>,
 }
 
 impl OpenTurn {
@@ -124,13 +129,14 @@ impl OpenTurn {
             own: Vec::new(),
             others: Vec::new(),
             at: (engine.revision(), engine.document().clone()),
+            own_end: None,
         }
     }
 
     /// One of the turn's calls ran from `from` (revision and document) to
     /// where `engine` stands now.
     pub fn called(&mut self, from: (u64, Document), engine: &sparksmith_core::Engine) {
-        let joined = from.0 == self.at.0;
+        let joined = self.own_end == Some(from.0);
         self.caught_up(from.0, &from.1);
         if engine.revision() == from.0 {
             return;
@@ -140,6 +146,7 @@ impl OpenTurn {
             Some(last) if joined => last.1 = now.clone(),
             _ => self.own.push((from.1, now.clone())),
         }
+        self.own_end = Some(engine.revision());
         self.at = (engine.revision(), now);
     }
 
@@ -1152,17 +1159,21 @@ fn ask(ui: &mut Ui, card: &AskCard, actions: &mut Vec<Action>) {
     actions.push(Action::Answer { id: card.id, allow });
 }
 
-/// The card's title: how the turn ended and whether it is one undo step.
-pub fn summary_title(card: &TurnSummary) -> &'static str {
+/// The card's title: how the turn ended and how many undo steps its own
+/// changes are (more than one when someone else's edit came between them).
+pub fn summary_title(card: &TurnSummary) -> String {
     let changed = card.after != card.before;
-    match (&card.limit, &card.end, changed) {
-        (Some(_), _, true) => "Stopped at a limit · 1 undo step",
-        (Some(_), _, false) => "Stopped at a limit · nothing changed",
-        (None, None, true) => "Done · 1 undo step",
-        (None, None, false) => "Done · nothing changed",
-        (None, Some(_), true) => "Ended early · 1 undo step",
-        (None, Some(_), false) => "Ended early · nothing changed",
-    }
+    let steps = match (changed, card.steps > 1) {
+        (false, _) => "nothing changed".to_owned(),
+        (true, false) => "1 undo step".to_owned(),
+        (true, true) => format!("{} undo steps", card.steps),
+    };
+    let ending = match (&card.limit, &card.end) {
+        (Some(_), _) => "Stopped at a limit",
+        (None, None) => "Done",
+        (None, Some(_)) => "Ended early",
+    };
+    format!("{ending} · {steps}")
 }
 
 /// The card at the end of a turn. A turn stopped at a limit says which,
@@ -1170,6 +1181,10 @@ pub fn summary_title(card: &TurnSummary) -> &'static str {
 fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, last: bool, actions: &mut Vec<Action>) {
     let t = Tokens::get();
     let changed = card.after != card.before;
+    // The turn's own changes split around someone else's edit are that
+    // many undo steps, with the other edit between them (review, Undo
+    // turn): the card says so instead of offering to undo them as one.
+    let split = card.steps > 1;
     card_frame(ui, |ui| {
         ui.label(
             egui::RichText::new(summary_title(card))
@@ -1220,7 +1235,14 @@ fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, last: bool, actions: &mut
         for line in &card.spend {
             kit::note(ui, line);
         }
+        if split && changed {
+            kit::note(
+                ui,
+                "You edited between the assistant's changes, so Undo turn is off. Undo steps back one change at a time, yours included.",
+            );
+        }
         let undoable = changed
+            && !split
             && now.revision == card.after
             && now.undo_label.as_deref() == Some(card.label.as_str());
         kit::actions(ui, |ui| {

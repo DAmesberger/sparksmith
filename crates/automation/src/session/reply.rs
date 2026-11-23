@@ -874,11 +874,11 @@ pub(crate) fn touched(before: &Document, after: &Document) -> Result<Touched> {
         fields.extend(changes.fields);
     };
     if !Arc::ptr_eq(&before.project, &after.project) {
-        compare(
-            "",
-            serde_json::to_value(before.project.as_ref())?,
-            serde_json::to_value(after.project.as_ref())?,
-        );
+        // Only the sections either changed: a shared one (the packed
+        // assets, the unchanged tracks) is never serialized (review,
+        // rebase cost).
+        let (old, new) = unshared(&before.project, &after.project)?;
+        compare("", old, new);
     }
     if !Arc::ptr_eq(&before.drafts, &after.drafts) {
         compare(

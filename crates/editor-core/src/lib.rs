@@ -801,6 +801,9 @@ pub struct Engine {
     /// setting like the generator runtime, kept across documents. Current
     /// on the calling thread while an operation applies or a query answers.
     context: Option<Arc<library::standards::Context>>,
+    /// The measure that keeps every committed document one that saves
+    /// (review finding 15): a commit that would not fit is refused.
+    room: format::room::Room,
 }
 
 impl Engine {
@@ -933,6 +936,7 @@ impl Engine {
             rerouted: layout::router::reroute::Rerouted::default(),
             generators: None,
             context: Self::fixture_context(),
+            room: format::room::Room::default(),
         }
     }
 
@@ -1519,6 +1523,12 @@ impl Engine {
         if document.project.stackup.dk_estimates.0.0.is_empty() {
             Arc::make_mut(&mut document.project).stackup.dk_estimates = estimates;
         }
+        // A document that comes in whole (an import, a recovery) is one
+        // that saves, as every edit of it must be.
+        let mut room = self.room.clone();
+        room.forget();
+        room.admit(&document)?;
+        self.room = room;
         self.document = document;
         self.set_revision(revision);
         self.undo.clear();
@@ -1618,6 +1628,8 @@ impl Engine {
             checked: self.checked.clone(),
             generators: self.generators.clone(),
             context: self.context.clone(),
+            // Only the batch's end is committed here, and measured then.
+            room: format::room::Room::unchecked(),
             ..Engine::with_document(self.document.clone())
         };
         let mut outcomes = Vec::with_capacity(count);
@@ -1691,6 +1703,7 @@ impl Engine {
             rerouted: self.rerouted.clone(),
             generators: self.generators.clone(),
             context: self.context.clone(),
+            room: self.room.clone(),
         }
     }
 
@@ -2133,6 +2146,7 @@ impl Engine {
                     &parsed,
                     context,
                     catalog::SearchOptions {
+                        offset: 0,
                         limit: limit.unwrap_or(catalog::DEFAULT_LIMIT),
                         include_drafts,
                     },
@@ -2569,6 +2583,13 @@ impl Engine {
         Ok(())
     }
 
+    /// Measure documents against `room` from now on: a test's smaller
+    /// limit.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn set_room(&mut self, room: format::room::Room) {
+        self.room = room;
+    }
+
     /// Give the project its identity when it has none, as it is first
     /// saved to `file` ([`identify_by_file`]). It names the project, not a
     /// state of it, so it takes no revision and no undo step, and undo and
@@ -2726,6 +2747,7 @@ impl Engine {
     /// steps around it stay as they were.
     fn store_unrecorded(&mut self, candidate: Document) -> Result<()> {
         let revision = self.next_revision()?;
+        self.room.admit(&candidate)?;
         self.document = candidate;
         self.last_step = None;
         self.set_revision(revision);
@@ -2734,6 +2756,7 @@ impl Engine {
 
     fn commit(&mut self, candidate: Document, mut step: Step) -> Result<()> {
         let revision = self.next_revision()?;
+        self.room.admit(&candidate)?;
         let history = next_history();
         if let Some(group) = &mut self.group {
             step.label = Some(group.label.clone());

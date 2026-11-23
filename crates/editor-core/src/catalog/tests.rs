@@ -33,6 +33,7 @@ fn search(index: &Index, text: &str) -> std::result::Result<SearchReport, QueryE
         &CatalogContext::default(),
         SearchOptions {
             limit: MAX_RESULTS,
+            offset: 0,
             include_drafts: false,
         },
     ))
@@ -470,6 +471,7 @@ fn ranking_is_deterministic_and_follows_the_tiers() -> TestResult {
         &context,
         SearchOptions {
             limit: 2,
+            offset: 0,
             include_drafts: false,
         },
     );
@@ -839,4 +841,42 @@ fn part_predicates_are_decided_by_satisfies() {
 #[allow(clippy::expect_used)]
 pub fn dec(value: f64) -> crate::quantity::Decimal {
     crate::quantity::Decimal::from_f64(value).expect("a finite literal")
+}
+
+/// A page past the first [`MAX_RESULTS`] results holds the results ranked
+/// there (review, offline registry): paging through every match lists
+/// each once, in the order one ranked list gives.
+#[test]
+fn pages_past_the_result_limit_hold_the_results_ranked_there() -> TestResult {
+    let index = index(700)?;
+    let query = index.parse("")?;
+    let page = |offset: usize, limit: usize| {
+        index.search(
+            &query,
+            &CatalogContext::default(),
+            SearchOptions {
+                limit,
+                offset,
+                include_drafts: false,
+            },
+        )
+    };
+    let first = page(0, MAX_RESULTS);
+    assert!(first.total > MAX_RESULTS, "{} matches", first.total);
+    let mut listed: Vec<String> = Vec::new();
+    let mut offset = 0;
+    while offset < first.total {
+        let report = page(offset, 100);
+        assert_eq!(report.total, first.total);
+        assert!(!report.results.is_empty(), "page at {offset} is empty");
+        listed.extend(names(&report).into_iter().map(str::to_owned));
+        offset += 100;
+    }
+    assert_eq!(listed.len(), first.total);
+    assert_eq!(listed[..MAX_RESULTS], names(&first)[..]);
+    let keys: std::collections::BTreeSet<_> = (0..first.total)
+        .flat_map(|o| page(o, 1).results.into_iter().map(|h| h.entry.key()))
+        .collect();
+    assert_eq!(keys.len(), first.total, "every match once");
+    Ok(())
 }

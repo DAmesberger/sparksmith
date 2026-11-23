@@ -15,6 +15,7 @@ pub mod files;
 pub mod layout;
 pub mod order;
 pub mod records;
+pub mod room;
 pub mod table;
 
 use crate::diagnostics::{Error, Result};
@@ -79,10 +80,19 @@ const _: () = assert!(crate::library::bundle::MAX_ASSETS + 2 <= CONTAINER_MAX_EN
 /// its own. The document stays bounded by [`CONTAINER_MAX_DOCUMENT_BYTES`].
 pub fn encode_container_document(file: &EditorFile) -> Result<Vec<u8>> {
     file.validate()?;
-    encode_within(
+    let bytes = encode_within(
         &Stored::of(&without_asset_bytes(file)),
         CONTAINER_MAX_DOCUMENT_BYTES,
-    )
+    )?;
+    // A document that would not fit once a first save identifies it is
+    // one reading refuses, so it is not written either: near the limit,
+    // measure it as that save would write it.
+    if file.project.production.project_id.is_none()
+        && bytes.len().saturating_add(room::IDENTITY_SLACK) > CONTAINER_MAX_DOCUMENT_BYTES
+    {
+        room::check_file(file)?;
+    }
+    Ok(bytes)
 }
 
 /// The bytes [`encode_container_document`] would write for an already

@@ -376,6 +376,7 @@ impl App {
             Action::UndoTurn(id) => {
                 let undoable = self.assistant.conversation.summary(id).is_some_and(|card| {
                     card.after != card.before
+                        && card.steps <= 1
                         && card.after == self.engine.revision()
                         && self.engine.undo_step().map(|s| s.line()).as_deref()
                             == Some(card.label.as_str())
@@ -740,7 +741,7 @@ impl App {
         }
         // An open, new project or save the call made: the file workflow
         // takes it on with the engine (review finding 8).
-        self.file_changes(changes);
+        self.file_changes(changes, true);
         let asked = self.asks.shown.take();
         match (asker.question, asked) {
             (Some(question), _) if !allowed => self.hold(request, question),
@@ -1006,6 +1007,7 @@ fn summary_card(
         usage: outcome.usage,
         before: turn.revision,
         after: engine.revision(),
+        steps: turn.own.len(),
         show,
         end,
         spend: Vec::new(),

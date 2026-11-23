@@ -655,3 +655,269 @@ fn without_the_persons_limits_a_turn_is_not_stopped_and_offers_no_continue() -> 
     assert!(!ax.has(Role::Button, crate::assistant::CONTINUE));
     Ok(())
 }
+
+/// The summary card of the conversation's last turn.
+fn last_summary(ax: &Ax) -> Fallible<crate::assistant::TurnSummary> {
+    ax.app
+        .assistant
+        .conversation
+        .items
+        .iter()
+        .rev()
+        .find_map(|i| match i {
+            Item::Summary(card) => Some(card.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| "no summary card".into())
+}
+
+/// A via of the person's own on the demo board's first net at `x`.
+fn persons_via(ax: &mut Ax, x: f64) -> Fallible {
+    let net = ax.app.engine.project().nets.first().map_or(0, |n| n.id);
+    let rules = ax.app.engine.project().rules.effective();
+    let via = sparksmith_core::layout::via::ViaRequest::through(&rules, net, [x, 1.0]);
+    ax.app.engine.apply(
+        ax.app.engine.revision(),
+        sparksmith_core::Operation::Layout(sparksmith_core::layout::LayoutCommand::AddVia { via }),
+    )?;
+    Ok(())
+}
+
+/// One hosted call of the chat, as its worker sends it, under `grant`.
+fn hosted_call(
+    ax: &mut Ax,
+    entry: &str,
+    params: Value,
+    grant: sparksmith_automation::Grant,
+) -> Fallible<Value> {
+    use crate::assistant::worker::{RunCall, ToolRequest};
+    let (reply, answer) = std::sync::mpsc::channel();
+    ax.app.run_chat_call(
+        &ax.ctx,
+        ToolRequest {
+            verb: entry.into(),
+            input: params,
+            reply,
+            run: Some(RunCall {
+                grant,
+                turn: None,
+                entry: true,
+            }),
+        },
+        true,
+    );
+    Ok(answer
+        .recv_timeout(std::time::Duration::from_secs(2))?
+        .envelope)
+}
+
+/// Review, turn ownership: a read between the person's edit and the
+/// assistant's next one does not make the person's edit the assistant's.
+/// The card counts the assistant's two vias, the person's beside them,
+/// and Show selects only the assistant's.
+#[test]
+fn a_read_after_the_persons_edit_does_not_make_it_the_assistants() -> Fallible {
+    let mut ax = chat(LARGE, vec![])?;
+    let start = ax.app.engine.revision();
+    let vias = ax.app.engine.project().vias.len();
+    let first = add_via(&ax, 1.0);
+    let mut second = add_via(&ax, 2.0);
+    second["expected_revision"] = json!(start + 2);
+    script(
+        &mut ax,
+        vec![
+            tool("apply", first),
+            tool("act", json!({"name": "project.save", "params": {}})),
+            tool("query", json!({"name": "view.context"})),
+            tool("apply", second),
+            text("Added two vias."),
+        ],
+    );
+    send(&mut ax, "Add two vias")?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Deny"))?;
+    persons_via(&mut ax, 3.0)?;
+    ax.button("Deny")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    assert_eq!(ax.app.engine.project().vias.len(), vias + 3);
+    let summary = last_summary(&ax)?;
+    assert_eq!(summary.changes, ["Vias: 2 added"]);
+    assert_eq!(summary.others, ["Vias: 1 added"]);
+    assert_eq!(summary.show.len(), 2);
+    let persons = ax
+        .app
+        .engine
+        .project()
+        .vias
+        .iter()
+        .find(|v| (v.position[0] - 3.0).abs() < 1e-9);
+    let persons = persons.map(|v| v.id).ok_or("the person's via")?;
+    assert!(!summary.show.contains(&persons), "{:?}", summary.show);
+    Ok(())
+}
+
+/// Review, Undo turn: after the assistant's via, the person's, then the
+/// assistant's again, the turn is two undo steps with the person's between
+/// them. The card says so and offers no Undo turn, so nothing of the
+/// person's is taken back and nothing of the assistant's is left behind
+/// by a partial undo.
+#[test]
+fn undo_turn_is_off_when_the_persons_edit_came_between() -> Fallible {
+    let mut ax = chat(LARGE, vec![])?;
+    let start = ax.app.engine.revision();
+    let vias = ax.app.engine.project().vias.len();
+    let first = add_via(&ax, 1.0);
+    let mut second = add_via(&ax, 2.0);
+    second["expected_revision"] = json!(start + 2);
+    script(
+        &mut ax,
+        vec![
+            tool("apply", first),
+            tool("act", json!({"name": "project.save", "params": {}})),
+            tool("apply", second),
+            text("Added two vias."),
+        ],
+    );
+    send(&mut ax, "Add two vias")?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Deny"))?;
+    persons_via(&mut ax, 3.0)?;
+    ax.button("Deny")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    let summary = last_summary(&ax)?;
+    assert_eq!(summary.steps, 2);
+    assert!(
+        ax.texts.iter().any(|t| t == "Done · 2 undo steps"),
+        "{:?}",
+        ax.texts
+    );
+    assert!(
+        ax.texts
+            .iter()
+            .any(|t| t.starts_with("You edited between the assistant's changes")),
+        "{:?}",
+        ax.texts
+    );
+    assert!(ax.find(Role::Button, "Undo turn")?.disabled);
+    // The action itself refuses too, whatever sends it.
+    ax.app.assistant_action(
+        &ax.ctx.clone(),
+        crate::assistant::Action::UndoTurn(summary.id),
+    );
+    ax.settle();
+    assert_eq!(ax.app.engine.project().vias.len(), vias + 3);
+    // A turn without the person's edit between still undoes as one step.
+    let one = add_via(&ax, 4.0);
+    script(&mut ax, vec![tool("apply", one), text("Added one.")]);
+    send(&mut ax, "Add one more")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    let summary = last_summary(&ax)?;
+    assert_eq!(summary.steps, 1);
+    assert!(
+        ax.all(Role::Button, "Undo turn")
+            .iter()
+            .any(|n| !n.disabled),
+        "the last turn's Undo turn is offered"
+    );
+    ax.app.assistant_action(
+        &ax.ctx.clone(),
+        crate::assistant::Action::UndoTurn(summary.id),
+    );
+    ax.settle();
+    assert_eq!(ax.app.engine.project().vias.len(), vias + 3);
+    Ok(())
+}
+
+/// Review finding 17: an approved rename and an approved New in one frame.
+/// The window has not looked at the rename when New arrives; New is still
+/// refused, and the rename and its undo stay.
+#[test]
+fn a_new_project_right_after_an_unseen_edit_is_refused() -> Fallible {
+    use sparksmith_automation::{Grant, Mode};
+    let mut ax = chat(LARGE, vec![])?;
+    save_in_window(&mut ax)?;
+    assert!(!ax.app.files.dirty());
+    let all = || Grant::new(Mode::AllowAll, []);
+    let rename = hosted_call(
+        &mut ax,
+        "project.rename",
+        json!({"name": "Unsaved same-frame edit"}),
+        all(),
+    )?;
+    assert_eq!(rename["ok"], true, "{rename}");
+    let new = hosted_call(&mut ax, "project.new", json!({}), all())?;
+    assert_eq!(new["ok"], false, "{new}");
+    assert_eq!(ax.app.engine.project().name, "Unsaved same-frame edit");
+    assert!(ax.app.engine.can_undo());
+    ax.settle();
+    assert!(ax.app.files.dirty());
+    assert_eq!(ax.app.files.path(), Some(ax.path().as_path()));
+    Ok(())
+}
+
+/// Review finding 17: a hosted Save, then the window's Save, of one board
+/// keep its one identity, on disk and in the engine, and after reopening.
+#[test]
+fn a_hosted_save_and_a_window_save_keep_one_identity() -> Fallible {
+    use sparksmith_automation::{Grant, Mode};
+    let mut ax = chat(LARGE, vec![])?;
+    assert!(ax.app.engine.project().production.project_id.is_none());
+    let path = ax.path();
+    let folder = path.parent().ok_or("parent")?.to_path_buf();
+    let saved = hosted_call(
+        &mut ax,
+        "project.save",
+        json!({}),
+        Grant::new(Mode::AllowAll, [folder]),
+    )?;
+    assert_eq!(saved["ok"], true, "{saved}");
+    let first = sparksmith_io::read_project(&path)?
+        .project
+        .production
+        .project_id;
+    assert!(first.is_some());
+    assert_eq!(ax.app.engine.project().production.project_id, first);
+    // Saved again unedited, as the review did: an edit between would hide
+    // a stale copy, since the window takes the engine's document on it.
+    ax.app.files.request(crate::file_ui::Action::Save);
+    ax.until("the save", |ax| !ax.app.files.busy())?;
+    let reopened = sparksmith_io::read_project(&path)?;
+    assert_eq!(reopened.project.production.project_id, first);
+    rename(&mut ax, "Saved again")?;
+    save_in_window(&mut ax)?;
+    let reopened = sparksmith_io::read_project(&path)?;
+    assert_eq!(reopened.project.name, "Saved again");
+    assert_eq!(reopened.project.production.project_id, first);
+    assert_eq!(ax.app.engine.project().production.project_id, first);
+    Ok(())
+}
+
+/// Review, document switch: a project opened or started by another client
+/// ends the conversation about the one it replaced, as File › Open does;
+/// one the conversation itself opened keeps it.
+#[test]
+fn another_clients_open_ends_the_conversation() -> Fallible {
+    use sparksmith_automation::FileChange;
+    let mut ax = chat(LARGE, vec![text("Hello.")])?;
+    send(&mut ax, "Hi")?;
+    ax.until("the turn's end", idle)?;
+    let spoken = |ax: &Ax| {
+        ax.app
+            .assistant
+            .conversation
+            .items
+            .iter()
+            .any(|i| matches!(i, Item::Reply(t) if t == "Hello."))
+    };
+    assert!(spoken(&ax));
+    let revision = ax.app.engine.revision();
+    ax.app
+        .file_changes(vec![FileChange::New { revision }], true);
+    assert!(spoken(&ax), "the conversation's own new project keeps it");
+    ax.app
+        .file_changes(vec![FileChange::New { revision }], false);
+    assert!(!spoken(&ax), "another client's ends it");
+    assert!(ax.app.assistant.history.is_empty());
+    Ok(())
+}

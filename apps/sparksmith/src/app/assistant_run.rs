@@ -214,7 +214,7 @@ impl App {
                     let host = self.files.host_file();
                     let (_, engine, assistant) = self.window_for_assistant(None);
                     let ((), changes) = assistant.session.lend_file(engine, &host, work);
-                    self.file_changes(changes);
+                    self.file_changes(changes, true);
                     let _ = done.send(());
                 }
                 FromRun::Done(result) => self.finish_run(*result),
