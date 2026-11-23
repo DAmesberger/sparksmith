@@ -598,7 +598,7 @@ fn native_inspection_names_every_failing_feature_after_sixteen() -> Result<()> {
             size: ["wall_width".into(), 2.into(), 1.into()],
         })?;
     }
-    let mut document = native.session().doc.clone();
+    let mut document = (*native.session().doc).clone();
     document.params.retain(|p| p.name != "wall_width");
     let bytes = solidcraft_engine::io::write_design(&document)
         .map_err(|e| Error::Invalid(e.to_string()))?;
