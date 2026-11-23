@@ -91,19 +91,6 @@ pub fn with_symbol_fallback(mut fonts: egui::FontDefinitions) -> egui::FontDefin
     fonts
 }
 
-/// `fonts` with `bytes` appended under `name` as the last fallback of every interface
-/// family. `None` when the bytes are not a font.
-fn with_fallback(mut fonts: egui::FontDefinitions, name: &str, bytes: Vec<u8>) -> Option<egui::FontDefinitions> {
-    ttf_parser::Face::parse(&bytes, 0).ok()?;
-    fonts.font_data.insert(name.to_owned(), Arc::new(egui::FontData::from_owned(bytes)));
-    for family in all_families() {
-        let list = fonts.families.entry(family).or_default();
-        list.retain(|entry| entry != name);
-        list.push(name.to_owned());
-    }
-    Some(fonts)
-}
-
 /// Use one primary CJK face for mixed-script labels in every sans weight family.
 /// An explicit interface font stays first; Plex and the other fallbacks remain available.
 fn promote_font_to_front(fonts: &mut FontDefinitions, name: &str) {
@@ -116,65 +103,6 @@ fn promote_font_to_front(fonts: &mut FontDefinitions, name: &str) {
             list.insert(first, item);
         }
     }
-}
-
-/// Lower-case file-name fragments that identify CJK fonts. Deliberately specific: generic
-/// words such as "noto" or "gothic" also match Latin-only fonts (NotoSans-Regular, Century Gothic).
-pub const CJK_FONT_KEYWORDS: &[&str] = &[
-    "cjk",
-    "notosansjp",
-    "notoserifjp",
-    "bizud",
-    "biz-ud",
-    "yugoth",
-    "meiryo",
-    "msgothic",
-    "hiragino",
-    "pingfang",
-    "songti",
-    "arial unicode",
-    "ipag",
-    "ipaexg",
-    "takao",
-    "vlgothic",
-    "droidsansfallback",
-];
-
-/// Whether a font file name looks like a CJK font.
-pub fn is_cjk_font_name(file_name: &str) -> bool {
-    let name = file_name.to_ascii_lowercase();
-    CJK_FONT_KEYWORDS.iter().any(|k| name.contains(k))
-}
-
-/// Lower-case file-name fragments that identify fonts covering simplified Chinese. Deliberately
-/// separate from [`CJK_FONT_KEYWORDS`]: many Japanese fonts (Hiragino Gothic, Meiryo, Yu Gothic)
-/// match those but lack simplified characters, so a Chinese fallback searches these instead.
-pub const CHINESE_FONT_KEYWORDS: &[&str] = &[
-    "pingfang",
-    "hiragino sans gb",
-    "stheiti",
-    "songti",
-    "arial unicode",
-    "msyh",
-    "yahei",
-    "simhei",
-    "simsun",
-    "wqy",
-    "wenquanyi",
-    "notosanscjk",
-    "notosanssc",
-    "notoserifcjk",
-    "notoserifsc",
-    "droidsansfallback",
-    "sourcehansans",
-    "sourcehanserif",
-    "siyuan",
-];
-
-/// Whether a font file name looks like a font covering simplified Chinese.
-pub fn is_chinese_font_name(file_name: &str) -> bool {
-    let name = file_name.to_ascii_lowercase();
-    CHINESE_FONT_KEYWORDS.iter().any(|k| name.contains(k))
 }
 
 /// Candidate font paths to look for on different operating systems.
@@ -334,65 +262,6 @@ const CHINESE_FONT_CANDIDATES: &[&str] = &[
     "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 ];
 
-/// Whether the first face in `bytes` draws `c`: some candidates (an older Arial, a trimmed
-/// DejaVu) may lack the script they are listed for.
-#[cfg(not(target_arch = "wasm32"))]
-fn covers(bytes: &[u8], c: char) -> bool {
-    ttf_parser::Face::parse(bytes, 0).is_ok_and(|face| face.glyph_index(c).is_some())
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn try_read_font(path: &std::path::Path) -> Option<Vec<u8>> {
-    if let Ok(bytes) = std::fs::read(path)
-        && ttf_parser::Face::parse(&bytes, 0).is_ok()
-    {
-        Some(bytes)
-    } else {
-        None
-    }
-}
-
-/// Recursively search for matching font files up to a bounded depth, testing names with `matches`.
-#[cfg(not(target_arch = "wasm32"))]
-fn scan_dir_for_font(dir: &std::path::Path, depth_remaining: usize, matches: fn(&str) -> bool) -> Option<Vec<u8>> {
-    scan_dir_for_font_where(dir, depth_remaining, matches, |_| true)
-}
-
-/// [`scan_dir_for_font`] that also skips a font whose bytes `accept` refuses.
-#[cfg(not(target_arch = "wasm32"))]
-fn scan_dir_for_font_where(dir: &std::path::Path, depth_remaining: usize, matches: fn(&str) -> bool, accept: fn(&[u8]) -> bool) -> Option<Vec<u8>> {
-    if depth_remaining == 0 {
-        return None;
-    }
-    let rd = std::fs::read_dir(dir).ok()?;
-    let mut subdirs = Vec::new();
-
-    for entry in rd.flatten() {
-        let p = entry.path();
-        if p.is_file() {
-            let name = p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
-            let is_font = name.ends_with(".ttc") || name.ends_with(".ttf") || name.ends_with(".otf");
-            if is_font
-                && matches(&name)
-                && let Some(bytes) = try_read_font(&p)
-                && accept(&bytes)
-            {
-                return Some(bytes);
-            }
-        } else if p.is_dir() {
-            subdirs.push(p);
-        }
-    }
-
-    for sub in subdirs {
-        if let Some(bytes) = scan_dir_for_font_where(&sub, depth_remaining.saturating_sub(1), matches, accept) {
-            return Some(bytes);
-        }
-    }
-
-    None
-}
-
 /// The font folders named by `SOLIDCRAFT_FONT_DIRS` (a path list), or else by the single folder
 /// in `CRAFT_FONTS_DIR` (the craft-fonts pack).
 #[cfg(not(target_arch = "wasm32"))]
@@ -404,98 +273,108 @@ fn font_override_dirs(dirs: Option<std::ffi::OsString>, pack: Option<std::ffi::O
     }
 }
 
-/// Find a CJK fallback font on the local system or in SOLIDCRAFT_FONT_DIRS / CRAFT_FONTS_DIR.
 #[cfg(not(target_arch = "wasm32"))]
-fn find_system_cjk_font() -> Option<Vec<u8>> {
-    // 1. Check the font folders the user named.
-    for dir in font_override_dirs(std::env::var_os("SOLIDCRAFT_FONT_DIRS"), std::env::var_os("CRAFT_FONTS_DIR")) {
-        let names = ["BIZUDPGothic-Regular.ttf", "BIZ-UDGothicR.ttc", "NotoSansCJK-Regular.ttc", "NotoSansJP-Regular.ttf"];
-        for name in names {
-            if let Some(bytes) = try_read_font(&dir.join(name)) {
-                return Some(bytes);
-            }
-        }
-    }
-
-    // 2. Check well-known candidate paths.
-    for path in FONT_CANDIDATES {
-        if let Some(bytes) = try_read_font(std::path::Path::new(path)) {
-            return Some(bytes);
-        }
-    }
-
-    // 3. Platform-specific dynamic directory search.
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(windir) = std::env::var("WINDIR").or_else(|_| std::env::var("SystemRoot")) {
-            let fonts_dir = std::path::PathBuf::from(windir).join("Fonts");
-            let names = ["meiryo.ttc", "YuGothM.ttc", "YuGothR.ttc", "msgothic.ttc", "BIZ-UDGothicR.ttc"];
-            for name in names {
-                if let Some(bytes) = try_read_font(&fonts_dir.join(name)) {
-                    return Some(bytes);
-                }
-            }
-        }
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            let user_fonts = std::path::PathBuf::from(local).join("Microsoft").join("Windows").join("Fonts");
-            if let Some(bytes) = scan_dir_for_font(&user_fonts, 2, is_cjk_font_name) {
-                return Some(bytes);
-            }
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let mut dirs = vec![
-            std::path::PathBuf::from("/System/Library/Fonts"),
-            std::path::PathBuf::from("/System/Library/Fonts/Supplemental"),
-            std::path::PathBuf::from("/Library/Fonts"),
-        ];
-        if let Ok(home) = std::env::var("HOME") {
-            dirs.push(std::path::PathBuf::from(home).join("Library/Fonts"));
-        }
-        for d in &dirs {
-            if let Some(bytes) = scan_dir_for_font(d, 2, is_cjk_font_name) {
-                return Some(bytes);
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let search_dirs = [
-            std::path::PathBuf::from("/usr/share/fonts"),
-            std::path::PathBuf::from("/usr/local/share/fonts"),
-            std::path::PathBuf::from("/run/host/fonts"),
-            std::path::PathBuf::from("/run/host/user-fonts"),
-        ];
-        for dir in &search_dirs {
-            if let Some(bytes) = scan_dir_for_font(dir, 3, is_cjk_font_name) {
-                return Some(bytes);
-            }
-        }
-        if let Ok(home) = std::env::var("HOME") {
-            let user_fonts = std::path::PathBuf::from(home).join(".local/share/fonts");
-            if let Some(bytes) = scan_dir_for_font(&user_fonts, 2, is_cjk_font_name) {
-                return Some(bytes);
-            }
-        }
-    }
-
-    None
+#[derive(Clone, Copy)]
+struct Script {
+    name: &'static str,
+    probes: &'static str,
+    candidates: &'static [&'static str],
 }
 
-/// The system fallback faces, searched for once and kept: reading them takes long on a system
-/// with large CJK fonts, so the app starts that search on a thread and draws its first frame
-/// with the bundled faces (see [`load_system_fonts_in_background`]).
 #[cfg(not(target_arch = "wasm32"))]
-struct SystemFonts {
-    cjk: Option<Vec<u8>>,
-    chinese: Option<Vec<u8>>,
-    hangul: Option<Vec<u8>>,
-    thai: Option<Vec<u8>>,
-    hebrew: Option<Vec<u8>>,
-    arabic: Option<Vec<u8>>,
+const SCRIPTS: [Script; 6] = [
+    Script { name: CJK_FALLBACK, probes: "あ漢", candidates: FONT_CANDIDATES },
+    Script { name: CHINESE_FALLBACK, probes: "设置", candidates: CHINESE_FONT_CANDIDATES },
+    Script { name: HANGUL_FALLBACK, probes: "한글", candidates: HANGUL_FONT_CANDIDATES },
+    Script { name: THAI_FALLBACK, probes: "กา่", candidates: THAI_FONT_CANDIDATES },
+    Script { name: HEBREW_FALLBACK, probes: "את", candidates: HEBREW_FONT_CANDIDATES },
+    Script { name: ARABIC_FALLBACK, probes: "بم", candidates: ARABIC_FONT_CANDIDATES },
+];
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Default)]
+struct SystemFonts(std::collections::BTreeMap<&'static str, Arc<egui::FontData>>);
+
+#[cfg(not(target_arch = "wasm32"))]
+impl SystemFonts {
+    /// Collections may have different coverage in each face. Keep the index
+    /// of the face that actually contains all the script's probe characters.
+    fn consider(&mut self, path: &std::path::Path, scripts: &[Script]) {
+        let Ok(bytes) = std::fs::read(path) else { return };
+        let count = ttf_parser::fonts_in_collection(&bytes).unwrap_or(1);
+        // A TTC offset array physically needs four bytes per face.
+        if count as usize > bytes.len() / 4 {
+            return;
+        }
+        for index in 0..count {
+            let Ok(face) = ttf_parser::Face::parse(&bytes, index) else { continue };
+            let mut data = None;
+            for script in scripts {
+                if !self.0.contains_key(script.name) && script.probes.chars().all(|c| face.glyph_index(c).is_some()) {
+                    let shared = data.get_or_insert_with(|| {
+                        let mut font = egui::FontData::from_owned(bytes.clone());
+                        font.index = index;
+                        Arc::new(font)
+                    });
+                    self.0.insert(script.name, Arc::clone(shared));
+                }
+            }
+            if scripts.iter().all(|s| self.0.contains_key(s.name)) {
+                break;
+            }
+        }
+    }
+
+    fn search(&mut self, roots: &[std::path::PathBuf], scripts: &[Script]) {
+        let mut dirs: Vec<_> = roots.iter().rev().cloned().collect();
+        while let Some(dir) = dirs.pop() {
+            if scripts.iter().all(|s| self.0.contains_key(s.name)) {
+                break;
+            }
+            let Ok(entries) = std::fs::read_dir(dir) else { continue };
+            let mut entries: Vec<_> = entries.flatten().collect();
+            entries.sort_by_key(|e| e.file_name());
+            let mut children = Vec::new();
+            for entry in entries {
+                let path = entry.path();
+                // Descend only real directories, so symlink cycles cannot
+                // recurse indefinitely. A symlink to a font file is fine.
+                if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                    children.push(path);
+                } else if path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|ext| ["ttf", "otf", "ttc", "otc"].iter().any(|e| ext.eq_ignore_ascii_case(e)))
+                    && path.is_file()
+                {
+                    self.consider(&path, scripts);
+                    if scripts.iter().all(|s| self.0.contains_key(s.name)) {
+                        return;
+                    }
+                }
+            }
+            dirs.extend(children.into_iter().rev());
+        }
+    }
+}
+
+/// Explicit font directories take precedence. Prefer familiar system fonts
+/// when available, then examine the remaining system and user directories.
+/// File names never establish script coverage.
+#[cfg(not(target_arch = "wasm32"))]
+fn discover_fonts(overrides: &[std::path::PathBuf], scripts: &[Script], roots: &[std::path::PathBuf]) -> SystemFonts {
+    let mut found = SystemFonts::default();
+    found.search(overrides, scripts);
+    for script in scripts {
+        for path in script.candidates {
+            if found.0.contains_key(script.name) {
+                break;
+            }
+            found.consider(std::path::Path::new(path), std::slice::from_ref(script));
+        }
+    }
+    found.search(roots, scripts);
+    found
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -504,13 +383,8 @@ static SYSTEM_FONTS: std::sync::OnceLock<SystemFonts> = std::sync::OnceLock::new
 #[cfg(not(target_arch = "wasm32"))]
 fn system_fallbacks() -> &'static SystemFonts {
     SYSTEM_FONTS.get_or_init(|| {
-        let cjk = find_system_cjk_font();
-        let chinese = find_system_chinese_font().filter(|bytes| cjk.as_ref() != Some(bytes));
-        let hangul = HANGUL_FONT_CANDIDATES.iter().find_map(|path| try_read_font(std::path::Path::new(path)));
-        let thai = THAI_FONT_CANDIDATES.iter().find_map(|path| try_read_font(std::path::Path::new(path)));
-        let hebrew = HEBREW_FONT_CANDIDATES.iter().find_map(|path| try_read_font(std::path::Path::new(path)).filter(|bytes| covers(bytes, 'א')));
-        let arabic = arabic_font();
-        SystemFonts { cjk, chinese, hangul, thai, hebrew, arabic }
+        let overrides = font_override_dirs(std::env::var_os("SOLIDCRAFT_FONT_DIRS"), std::env::var_os("CRAFT_FONTS_DIR"));
+        discover_fonts(&overrides, &SCRIPTS, &system_font_dirs())
     })
 }
 
@@ -551,30 +425,20 @@ pub fn setup_fonts_without_waiting(ctx: &egui::Context, language: &str) {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn install_fonts(ctx: &egui::Context, language: &str, system: Option<&SystemFonts>) {
-    let (cjk, chinese, hangul, thai, hebrew, arabic) = match system {
-        Some(f) => (f.cjk.clone(), f.chinese.clone(), f.hangul.clone(), f.thai.clone(), f.hebrew.clone(), f.arabic.clone()),
-        None => (None, None, None, None, None, None),
-    };
     let mut fonts = base_font_definitions();
     let order = fallback_order(language);
     for name in order {
-        let bytes = match name {
-            CJK_FALLBACK => cjk.clone(),
-            CHINESE_FALLBACK => chinese.clone(),
-            HANGUL_FALLBACK => hangul.clone(),
-            THAI_FALLBACK => thai.clone(),
-            HEBREW_FALLBACK => hebrew.clone(),
-            _ => arabic.clone(),
-        };
-        if let Some(bytes) = bytes
-            && let Some(with_fallback) = with_fallback(fonts.clone(), name, bytes)
-        {
-            fonts = with_fallback;
+        if let Some(data) = system.and_then(|f| f.0.get(name)) {
+            fonts.font_data.insert(name.to_owned(), Arc::clone(data));
+            for family in all_families() {
+                let list = fonts.families.entry(family).or_default();
+                list.retain(|entry| entry != name);
+                list.push(name.to_owned());
+            }
         }
     }
     if needs_cjk_font(language) {
-        // Select the first installed face in language order (a duplicate Chinese face may
-        // already be installed as CJK_FALLBACK). Keep explicit interface choices ahead of it.
+        // Select the first installed face in language order. Keep explicit interface choices ahead of it.
         if let Some(primary) =
             order.into_iter().find(|name| ![THAI_FALLBACK, HEBREW_FALLBACK, ARABIC_FALLBACK].contains(name) && fonts.font_data.contains_key(*name))
         {
@@ -584,34 +448,9 @@ fn install_fonts(ctx: &egui::Context, language: &str, system: Option<&SystemFont
     install(ctx, fonts);
 }
 
-/// Find a font covering simplified Chinese in the known candidate paths or by scanning the
-/// system font directories for [`CHINESE_FONT_KEYWORDS`] names.
+/// Platform system and per-user font folders for all script fallbacks.
 #[cfg(not(target_arch = "wasm32"))]
-fn find_system_chinese_font() -> Option<Vec<u8>> {
-    for path in CHINESE_FONT_CANDIDATES {
-        if let Some(bytes) = try_read_font(std::path::Path::new(path)) {
-            return Some(bytes);
-        }
-    }
-    find_chinese_font_in(&chinese_font_dirs())
-}
-
-/// A character only fonts covering simplified Chinese draw: 设 (as in 设置, "settings"), boxed in
-/// the report of #3376. Japanese fonts (Meiryo, Yu Gothic, BIZ UDPGothic, IPA) lack it.
-#[cfg(not(target_arch = "wasm32"))]
-const SIMPLIFIED_CHINESE_PROBE: char = '设';
-
-/// Whether the font's first face draws simplified Chinese (see [`SIMPLIFIED_CHINESE_PROBE`]).
-#[cfg(not(target_arch = "wasm32"))]
-fn draws_simplified_chinese(bytes: &[u8]) -> bool {
-    ttf_parser::Face::parse(bytes, 0).is_ok_and(|face| face.glyph_index(SIMPLIFIED_CHINESE_PROBE).is_some())
-}
-
-/// The system and per-user font folders searched for a Chinese font when no candidate path has
-/// one, on every desktop system (#3376: Linux and Windows searched only the fixed paths, so a
-/// Japanese CJK font drew the Chinese UI alone and its simplified characters showed as boxes).
-#[cfg(not(target_arch = "wasm32"))]
-fn chinese_font_dirs() -> Vec<std::path::PathBuf> {
+fn system_font_dirs() -> Vec<std::path::PathBuf> {
     let mut dirs = Vec::new();
     #[cfg(target_os = "windows")]
     {
@@ -645,21 +484,63 @@ fn chinese_font_dirs() -> Vec<std::path::PathBuf> {
     dirs
 }
 
-/// The first font in `dirs` (searched three folders deep, which reaches
-/// `/usr/share/fonts/truetype/wqy/`) with a Chinese font's name that draws simplified Chinese.
-/// The drawing check keeps out a Japanese-only file whose name matches, such as a
-/// `SourceHanSansJP` subset, and Windows' SimSun extension fonts.
-#[cfg(not(target_arch = "wasm32"))]
-fn find_chinese_font_in(dirs: &[std::path::PathBuf]) -> Option<Vec<u8>> {
-    dirs.iter().find_map(|dir| scan_dir_for_font_where(dir, 3, is_chinese_font_name, draws_simplified_chinese))
-}
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod discovery_tests {
+    use super::*;
 
-/// The first Arabic font in `CRAFT_FONTS_DIR` (`NotoSansArabic-Regular.ttf`) or the candidate
-/// paths that draws Arabic.
-#[cfg(not(target_arch = "wasm32"))]
-fn arabic_font() -> Option<Vec<u8>> {
-    let pack = std::env::var("CRAFT_FONTS_DIR").ok().map(|dir| std::path::PathBuf::from(dir).join("NotoSansArabic-Regular.ttf"));
-    pack.into_iter()
-        .chain(ARABIC_FONT_CANDIDATES.iter().map(std::path::PathBuf::from))
-        .find_map(|path| try_read_font(&path).filter(|bytes| covers(bytes, 'ب')))
+    // Give the bundled test face a synthetic Unicode cmap. The font parser
+    // still checks real TrueType tables; this test reads no installed fonts.
+    fn font_with(chars: &[char]) -> Result<Vec<u8>, &'static str> {
+        let mut bytes = PLEX_MONO.to_vec();
+        let tables = u16::from_be_bytes([bytes[4], bytes[5]]) as usize;
+        let record = bytes[12..].chunks_exact(16).take(tables).find(|r| &r[..4] == b"cmap").ok_or("cmap")?;
+        let offset = u32::from_be_bytes(record[8..12].try_into().map_err(|_| "offset")?) as usize;
+        let len = u32::from_be_bytes(record[12..].try_into().map_err(|_| "length")?) as usize;
+        let mut chars = chars.to_vec();
+        chars.sort_unstable();
+        chars.dedup();
+        // Platform 3, encoding 10, format 12, one single-glyph group per character.
+        let mut map = vec![0, 0, 0, 1, 0, 3, 0, 10, 0, 0, 0, 12, 0, 12, 0, 0];
+        map.extend((16 + 12 * chars.len() as u32).to_be_bytes());
+        map.extend(0u32.to_be_bytes());
+        map.extend((chars.len() as u32).to_be_bytes());
+        for c in chars {
+            map.extend(u32::from(c).to_be_bytes());
+            map.extend(u32::from(c).to_be_bytes());
+            map.extend(1u32.to_be_bytes());
+        }
+        if map.len() > len {
+            return Err("cmap space");
+        }
+        bytes[offset..offset + map.len()].copy_from_slice(&map);
+        Ok(bytes)
+    }
+
+    #[test]
+    fn installed_fallbacks_use_script_coverage_across_override_and_user_folders() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let override_dir = root.path().join("override");
+        let user = root.path().join("user");
+        let deep = user.join("family/weight/desktop/regular");
+        std::fs::create_dir_all(&override_dir)?;
+        std::fs::create_dir_all(&deep)?;
+        std::fs::write(override_dir.join("NotoSansThai-Regular.ttf"), font_with(&['A'])?)?;
+        let thai = font_with(&['ก', 'า', '่', 'ข'])?;
+        std::fs::write(override_dir.join("locally-named.otf"), &thai)?;
+        let mut scripts = SCRIPTS;
+        for script in &mut scripts {
+            script.candidates = &[];
+        }
+        let all: Vec<_> = scripts.iter().flat_map(|s| s.probes.chars()).collect();
+        std::fs::write(deep.join("our-family.ttf"), font_with(&all)?)?;
+        let fonts = discover_fonts(&[override_dir], &scripts, &[user]);
+        for script in &scripts {
+            let data = fonts.0.get(script.name).ok_or(script.name)?;
+            let face = ttf_parser::Face::parse(&data.font, data.index).map_err(|_| "face")?;
+            assert!(script.probes.chars().all(|c| face.glyph_index(c).is_some()), "{}", script.name);
+        }
+        let chosen = fonts.0.get(THAI_FALLBACK).ok_or("Thai")?;
+        assert_eq!(chosen.font.as_ref(), thai.as_slice(), "explicit font folder takes precedence");
+        Ok(())
+    }
 }
