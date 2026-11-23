@@ -54,7 +54,7 @@ use rmcp::model::{
     CompleteResult, ContentBlock, DiscoverResult, GetPromptRequestParams, GetPromptResponse,
     Implementation, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
     ListToolsResult, PaginatedRequestParams, ProtocolVersion, ReadResourceRequestParams,
-    ReadResourceResult, ServerCapabilities, ServerConfig, Tool,
+    ReadResourceResponse, Resource, ResourceTemplate, ServerCapabilities, ServerConfig, Tool,
 };
 use rmcp::service::{RequestContext, ServerInitializeError};
 use rmcp::transport::async_rw::AsyncRwTransport;
@@ -314,9 +314,11 @@ impl ServerHandler for Server {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
         one_page(request.as_ref())?;
-        help::model(
-            serde_json::json!({"resources":[{"uri": help::INDEX, "name":"Offline help index", "mimeType":"application/json"}], "ttlMs": LIST_TTL_MS, "cacheScope":"public"}),
-        )
+        let resource = Resource::new(help::INDEX, "Offline help index")
+            .with_mime_type("application/json");
+        Ok(ListResourcesResult::with_all_items(vec![resource])
+            .with_ttl_ms(LIST_TTL_MS)
+            .with_cache_scope(CacheScope::Public))
     }
     async fn list_resource_templates(
         &self,
@@ -324,23 +326,25 @@ impl ServerHandler for Server {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
         one_page(request.as_ref())?;
-        help::model(
-            serde_json::json!({"resourceTemplates":[{"uriTemplate":help::TEMPLATE, "name":"Help topic", "mimeType":"application/json"}], "ttlMs": LIST_TTL_MS, "cacheScope":"public"}),
-        )
+        let template = ResourceTemplate::new(help::TEMPLATE, "Help topic")
+            .with_mime_type("application/json");
+        Ok(ListResourceTemplatesResult::with_all_items(vec![template])
+            .with_ttl_ms(LIST_TTL_MS)
+            .with_cache_scope(CacheScope::Public))
     }
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, ErrorData> {
-        help::model(self.help_resource(&request.uri).await?)
+    ) -> Result<ReadResourceResponse, ErrorData> {
+        self.help_resource(&request.uri).await.map(ReadResourceResponse::from)
     }
     async fn complete(
         &self,
         request: CompleteRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, ErrorData> {
-        help::model(self.help_completion(&request).await?)
+        self.help_completion(&request).await
     }
 }
 

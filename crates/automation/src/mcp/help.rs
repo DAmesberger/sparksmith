@@ -2,15 +2,11 @@
 //! the same desk and caller grant as the corresponding query tool.
 use super::{Server, tools};
 use rmcp::ErrorData;
-use serde::{Serialize, de::DeserializeOwned};
+use rmcp::model::{CacheScope, CompleteRequestParams, CompleteResult, CompletionInfo, ReadResourceResult, ResourceContents};
 use serde_json::{Value, json};
 
 pub(super) const INDEX: &str = "sparksmith://help";
 pub(super) const TEMPLATE: &str = "sparksmith://help/{id}";
-
-pub(super) fn model<T: DeserializeOwned>(value: Value) -> Result<T, ErrorData> {
-    serde_json::from_value(value).map_err(|e| ErrorData::internal_error(e.to_string(), None))
-}
 
 impl Server {
     async fn help_query(&self, name: &'static str, params: Value) -> Result<Value, ErrorData> {
@@ -32,10 +28,13 @@ impl Server {
         }
         Ok(reply["result"].clone())
     }
-    pub(super) async fn help_resource(&self, uri: &str) -> Result<Value, ErrorData> {
+    pub(super) async fn help_resource(&self, uri: &str) -> Result<ReadResourceResult, ErrorData> {
         let value = if uri == INDEX {
             self.help_query("help.search", json!({"text":""})).await?
         } else if let Some(id) = uri.strip_prefix("sparksmith://help/") {
+            // RFC 6570 simple expansion escapes the two reserved characters
+            // permitted in a HelpId. Also accept the readable URI in topic replies.
+            let id = id.replace("%2F", "/").replace("%2f", "/").replace("%23", "#");
             self.help_query("help.topic", json!({"id":id})).await?
         } else {
             return Err(ErrorData::invalid_params(
@@ -43,21 +42,21 @@ impl Server {
                 None,
             ));
         };
-        Ok(json!({"contents":[{"uri":uri,"mimeType":"application/json","text":value.to_string()}]}))
+        let content = ResourceContents::text(value.to_string(), uri).with_mime_type("application/json");
+        // In a window the active profile can change between two reads of the same URI.
+        Ok(ReadResourceResult::new(vec![content]).with_ttl_ms(0).with_cache_scope(CacheScope::Private))
     }
     pub(super) async fn help_completion(
         &self,
-        request: &impl Serialize,
-    ) -> Result<Value, ErrorData> {
-        let req = serde_json::to_value(request)
-            .map_err(|e| ErrorData::invalid_params(e.to_string(), None))?;
-        if req["ref"]["uri"] != TEMPLATE || req["argument"]["name"] != "id" {
+        request: &CompleteRequestParams,
+    ) -> Result<CompleteResult, ErrorData> {
+        if request.r#ref.as_resource_uri() != Some(TEMPLATE) || request.argument.name != "id" {
             return Err(ErrorData::invalid_params(
                 "Unknown completion reference or argument",
                 None,
             ));
         }
-        let prefix = req["argument"]["value"].as_str().unwrap_or_default();
+        let prefix = request.argument.value.as_str();
         let found = self.help_query("help.search", json!({"text":""})).await?;
         let ids: Vec<_> = found["hits"]
             .as_array()
@@ -66,9 +65,10 @@ impl Server {
             .filter_map(|hit| hit["id"].as_str())
             .filter(|id| id.starts_with(prefix))
             .collect();
-        // MCP completion lists at most 100 values.
         let total = ids.len();
-        let values: Vec<_> = ids.into_iter().take(100).collect();
-        Ok(json!({"completion":{"values":values,"total":total,"hasMore":total>100}}))
+        let values = ids.into_iter().take(CompletionInfo::MAX_VALUES).map(str::to_owned).collect();
+        let completion = CompletionInfo::with_pagination(values, u32::try_from(total).ok(), total > CompletionInfo::MAX_VALUES)
+            .map_err(|e| ErrorData::internal_error(e, None))?;
+        Ok(CompleteResult::new(completion))
     }
 }
