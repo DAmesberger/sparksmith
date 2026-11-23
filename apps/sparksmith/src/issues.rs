@@ -271,6 +271,7 @@ impl Slot {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Summary {
     Counted {
+        checking: bool,
         counts: IssueCounts,
         /// Areas outside the workspace that hold blockers ("2 blocking in
         /// Component"), count first so a clipped bar still shows it.
@@ -297,9 +298,14 @@ impl Summary {
             .map(|a| format!("{} blocking in {}", a.blocking, area_label(a.area)))
             .collect();
         Self::Counted {
+            checking: false,
             counts: report.counts,
             elsewhere: (!elsewhere.is_empty()).then(|| elsewhere.join(" · ")),
         }
+    }
+
+    pub fn checking_changes(&self) -> bool {
+        matches!(self, Self::Counted { checking: true, .. })
     }
 
     /// The counts, or `None` while not counted.
@@ -333,6 +339,7 @@ fn nothing_selected(summary: &Summary, workspace: Workspace) -> String {
 const NOT_COUNTED: &str = "Not counted";
 
 /// Why nothing is counted yet: the first report is being made.
+pub const CHECKING_CHANGES: &str = "Checking changes…";
 const CHECKING: &str = "The checks are still running";
 
 /// Which issues the card lists. The bar always counts the workspace.
@@ -662,6 +669,7 @@ pub struct Surface {
     badges: Option<(crate::issue_reports::ViewKey, Arc<Badges>)>,
     waived: Option<Arc<WaivedRows>>,
     waiving: Option<Waiving>,
+    action_key: Option<sparksmith_core::ReportKey>,
     /// A row's right-click menu, by the row's key.
     menu: crate::context_menu::State<String>,
     /// The installed fab profiles that allow what rows need, per state.
@@ -754,13 +762,17 @@ impl Surface {
     /// lists, so a blocker is never out of the count.
     pub fn summary(&mut self, engine: &Engine, workspace: Workspace) -> Summary {
         let whole = self.whole(engine);
-        Summary::of(&self.area.get(
+        let mut summary = Summary::of(&self.area.get(
             engine,
             &whole,
             IssueScope::Area {
                 area: area(workspace),
             },
-        ))
+        ));
+        if let Summary::Counted { checking, .. } = &mut summary {
+            *checking = !self.has_current_report(engine);
+        }
+        summary
     }
 
     /// The bar's counts of `engine`'s current state, checked here when its
@@ -836,9 +848,18 @@ impl Surface {
         let summary = self.summary(engine, workspace);
         let zero = IssueCounts::default();
         let (counts, elsewhere, tip) = match &summary {
-            Summary::Counted { counts, elsewhere } => (counts, elsewhere.as_deref(), None),
+            Summary::Counted {
+                counts, elsewhere, ..
+            } => (counts, elsewhere.as_deref(), None),
             Summary::NotCounted(why) => (&zero, Some(NOT_COUNTED), Some(why.as_str())),
         };
+        let checking = summary.checking_changes().then(|| {
+            elsewhere.map_or_else(
+                || CHECKING_CHANGES.to_owned(),
+                |note| format!("{CHECKING_CHANGES} · {note}"),
+            )
+        });
+        let elsewhere = checking.as_deref().or(elsewhere);
         let mut bar = kit::issues_bar(ui, counts, self.expanded, elsewhere);
         if let Some(tip) = tip {
             bar = bar.on_hover_text(tip);
@@ -991,6 +1012,13 @@ impl Surface {
         idle: &str,
         height: f32,
     ) -> (Option<Request>, f32) {
+        let current = self.has_current_report(engine);
+        let key = current.then(|| engine.report_key());
+        if self.action_key != key {
+            self.menu.close();
+            self.waiving = None;
+            self.action_key = key;
+        }
         let groups = groups(report, self.filter);
         // Waivers are the project's: listed under every scope but the
         // selection's, and with every kind shown.
@@ -1136,6 +1164,19 @@ impl Surface {
         }
         let mut request = None;
         for event in out.events {
+            if !current
+                && !matches!(
+                    event,
+                    IssueListEvent::Group(_)
+                        | IssueListEvent::WaivedFold
+                        | IssueListEvent::Row {
+                            action: RowAction::Toggle,
+                            ..
+                        }
+                )
+            {
+                continue;
+            }
             // A row that needs more of the profile: its Fix is the switch.
             if let IssueListEvent::Row {
                 group,
@@ -1296,6 +1337,9 @@ impl Surface {
             self.shown = None;
             return None;
         };
+        if !self.has_current_report(engine) {
+            return None;
+        }
         let order = flat(&groups(report, self.filter));
         let Some(at) = order
             .iter()
@@ -1386,7 +1430,8 @@ impl Surface {
         engine: &Engine,
         workspace: Workspace,
     ) -> Option<Rect> {
-        let counts = self.summary(engine, workspace).counts()?;
+        let summary = self.summary(engine, workspace);
+        let counts = summary.counts()?;
         if counts.error + counts.warning + counts.to_do == 0 {
             return None;
         }
@@ -1407,7 +1452,12 @@ impl Surface {
         if badge.clicked() {
             self.toggle();
         }
-        Some(badge.rect)
+        let rect = if summary.checking_changes() {
+            badge.rect.union(child.label(CHECKING_CHANGES).rect)
+        } else {
+            badge.rect
+        };
+        Some(rect)
     }
 
     /// The ribbon's Issues toggle: the workspace's counts, lit while the
@@ -1417,8 +1467,10 @@ impl Surface {
         engine: &Engine,
         workspace: Workspace,
     ) -> crate::shell::IssuesToggle {
+        let summary = self.summary(engine, workspace);
         crate::shell::IssuesToggle {
-            counts: self.summary(engine, workspace).counts(),
+            checking: summary.checking_changes(),
+            counts: summary.counts(),
             expanded: self.expanded,
         }
     }
