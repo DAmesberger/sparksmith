@@ -142,21 +142,24 @@ impl Session {
             preview.dry_run = dry_run;
             dry_run_read = Some(read);
         }
+        let Some(destination) = params.path.as_deref() else {
+            return Ok(serde_json::to_value(preview)?);
+        };
+        if (project.assembly_link.is_some() || params.assembly_path.is_some())
+            && preview.dry_run.is_none()
+        {
+            return Ok(serde_json::to_value(preview)?);
+        }
         // The token binds the linked design's bytes the dry run read.
         let linked = match params.assembly_path.as_deref() {
             Some(path) => Some(self.linked_file(path, dry_run_read)?),
             None => None,
         };
-        let destination = params
-            .path
-            .as_deref()
-            .map(Path::new)
-            .unwrap_or(Path::new(""));
         preview.token = Some(publish_token(
             self.engine.revision(),
             preview.tier,
             preview.hash,
-            destination,
+            Path::new(destination),
             baseline
                 .as_ref()
                 .map_or((None, None), files::Baseline::identity),
@@ -233,6 +236,17 @@ impl Session {
                 "interface.preview_changed: the board, the destination, the published files or \
                  the linked design differ from the preview; preview again",
             ));
+        }
+        if let Some(path) = params.assembly_path.as_deref() {
+            let link = project.assembly_link.as_deref().ok_or_else(|| {
+                refuse("interface.token: the reviewed assembly is no longer linked")
+            })?;
+            self.same_files(link, Some(path), &params.path)?;
+            if baseline.sidecar.is_none() || project.interface.source_id.is_none() {
+                return Err(refuse(
+                    "interface.token: preview the linked design against its published board",
+                ));
+            }
         }
         Ok(linked)
     }

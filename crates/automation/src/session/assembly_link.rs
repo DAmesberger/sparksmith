@@ -159,7 +159,12 @@ impl Session {
 
     /// Whether the files a request names are the link's: the linked design
     /// (unless relinking) and the board's published design.
-    fn same_files(&self, link: &AssemblyLink, path: Option<&str>, design: &str) -> Result<()> {
+    pub(super) fn same_files(
+        &self,
+        link: &AssemblyLink,
+        path: Option<&str>,
+        design: &str,
+    ) -> Result<()> {
         let same = |a: &str, b: &str| {
             let (a, b) = (self.assembly_path(a), self.assembly_path(b));
             match (a.canonicalize(), b.canonicalize()) {

@@ -848,12 +848,34 @@ fn a_preview_without_a_path_publishes_nowhere() -> TestResult {
         json!({"command": "interface.publish_preview", "params": {
             "tier": "interface", "assembly_path": assembly.display().to_string()}}),
     )?;
-    let reply = session.dispatch(bound_publish(
+    assert!(preview["dry_run"].is_null(), "{preview}");
+    assert!(
+        preview["token"].is_null(),
+        "no authorization without a dry run: {preview}"
+    );
+    let unreviewed = session.dispatch(bound_publish(
         &session,
         &elsewhere,
         &assembly,
         "interface",
         &preview["token"],
+    ));
+    assert_eq!(unreviewed["ok"], false, "{unreviewed}");
+    assert!(!elsewhere.exists());
+    let complete = ok(
+        &mut session,
+        json!({"command":"interface.publish_preview","params":{
+            "path":design.display().to_string(),"assembly_path":assembly.display().to_string(),"tier":"interface"
+        }}),
+    )?;
+    assert!(complete["dry_run"]["effects"].is_array());
+    assert!(complete["token"].is_string());
+    let reply = session.dispatch(bound_publish(
+        &session,
+        &elsewhere,
+        &assembly,
+        "interface",
+        &complete["token"],
     ));
     assert_eq!(reply["ok"], false, "{reply}");
     assert!(
