@@ -23,7 +23,8 @@ fn a_missing_link_names_both_topics() -> crate::Result<()> {
     )]]));
     let index = Index::from([(source.id.clone(), source)]);
     let err = validate_entries(&index, Path::new("."))
-        .expect_err("dangling list link")
+        .err()
+        .ok_or("dangling list link accepted")?
         .to_string();
     assert!(
         err.contains("guide/first-board") && err.contains("entry/layout.missing"),
@@ -51,7 +52,9 @@ fn stale_dependency_requires_deliberate_restamping() -> crate::Result<()> {
         *default = json!(13);
     }
     let index = Index::from([(id.clone(), changed)]);
-    let err = check_covers(&"guide/test".parse()?, &stamps, &index).expect_err("stale");
+    let err = check_covers(&"guide/test".parse()?, &stamps, &index)
+        .err()
+        .ok_or("stale stamp accepted")?;
     assert!(err.to_string().contains("setting/pitch"));
     assert!(err.to_string().contains("guide/test"));
     Ok(())
