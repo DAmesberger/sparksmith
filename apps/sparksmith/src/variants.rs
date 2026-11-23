@@ -6,7 +6,9 @@
 //! out here.
 use crate::context_menu::Entry;
 use crate::kit;
+use sparksmith_core::instances::ties::form;
 use sparksmith_core::instances::variants::{self, VariantCommand};
+use sparksmith_core::library::tie::TieForm;
 use sparksmith_core::model::Population;
 use sparksmith_core::{ComponentInstance, Id, Operation, Project};
 
@@ -71,8 +73,22 @@ pub fn menu_entry<A>(
     enabled: bool,
 ) -> Option<Entry<A>> {
     let checked = all_not_populated(project, instances)?;
+    let forms = || {
+        instances
+            .iter()
+            .filter_map(|id| project.instance(*id))
+            .map(|i| form(project, i))
+    };
+    if forms().any(|f| f == Some(TieForm::Copper)) {
+        return None;
+    }
+    let label = if forms().all(|f| matches!(f, Some(TieForm::SolderJumper { .. }))) {
+        "Open"
+    } else {
+        "Not populated"
+    };
     Some(Entry::act(
-        format!("Not populated {}", scope(project)),
+        format!("{label} {}", scope(project)),
         if checked { "finish" } else { "suppress" },
         act,
         enabled,
@@ -97,13 +113,21 @@ pub fn assembly_section(
     let active = project.variants.active();
     let mut operation = None;
     kit::section(ui, "part-assembly", "Assembly", true, None, |ui| {
-        let label = if active.is_some() {
-            "Populated by default"
+        let label = match form(project, instance) {
+            Some(TieForm::Copper) => {
+                kit::value_row(ui, "State", "Always closed");
+                return;
+            }
+            Some(TieForm::SolderJumper { .. }) => "Closed",
+            _ => "Populated",
+        };
+        let default_label = if active.is_some() {
+            format!("{label} by default")
         } else {
-            "Populated"
+            label.to_owned()
         };
         let mut default = instance.population.is_populated();
-        if kit::check_row(ui, label, &mut default) {
+        if kit::check_row(ui, &default_label, &mut default) {
             crate::refusal::mark(ui.ctx(), crate::refusal::Origin::Command);
             operation = Some(Operation::Variant(VariantCommand::SetPopulation {
                 instances: vec![instance.id],
@@ -119,7 +143,7 @@ pub fn assembly_section(
             return;
         };
         let mut fitted = variants::population(instance, Some(variant)).is_populated();
-        if kit::check_row(ui, &format!("Populated in {}", variant.name), &mut fitted) {
+        if kit::check_row(ui, &format!("{label} in {}", variant.name), &mut fitted) {
             crate::refusal::mark(ui.ctx(), crate::refusal::Origin::Command);
             operation = set_population(project, vec![instance.id], fitted);
         }

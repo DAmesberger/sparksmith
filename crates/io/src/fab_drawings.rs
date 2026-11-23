@@ -837,7 +837,11 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
         0.0,
         INK,
     );
-    let not_fitted = side.parts.iter().filter(|p| !p.fitted).count();
+    let not_fitted = side
+        .parts
+        .iter()
+        .filter(|p| !p.fitted && !p.cut_trace)
+        .count();
     let crossed = if not_fitted == 0 {
         String::new()
     } else {
@@ -885,7 +889,12 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
         let (bw, bh) = (hi[0] - lo[0], hi[1] - lo[1]);
         let tall = bh > bw * 1.2;
         let (long, short) = if tall { (bh, bw) } else { (bw, bh) };
-        let unit = text_width(&part.designator, 1.0).max(0.3);
+        let label = if part.cut_trace {
+            format!("Cut {}", part.designator)
+        } else {
+            part.designator.clone()
+        };
+        let unit = text_width(&label, 1.0).max(0.3);
         let size = (long * 0.8 / unit).min(short * 0.6).clamp(1.2, 5.0);
         let c = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0];
         let angle = if tall { 90.0 } else { 0.0 };
@@ -895,20 +904,12 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
         } else {
             [c[0], c[1] - off]
         };
-        page.text(
-            at,
-            size,
-            &part.designator,
-            Font::Bold,
-            Align::Centre,
-            angle,
-            INK,
-        );
+        page.text(at, size, &label, Font::Bold, Align::Centre, angle, INK);
         if let Some(p) = part.polarity {
             page.disc(view.map(p), (0.25 * view.scale).clamp(0.4, 1.0), POLARITY);
         }
         // Do not populate: the body crossed out corner to corner.
-        if !part.fitted {
+        if !part.fitted && !part.cut_trace {
             let stroke = Stroke::new(0.3, POLARITY);
             page.polyline(&[lo, hi], false, &stroke);
             page.polyline(&[[lo[0], hi[1]], [hi[0], lo[1]]], false, &stroke);

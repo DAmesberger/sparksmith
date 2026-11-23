@@ -18,6 +18,40 @@ pub struct TieRow {
     pub state: JumperState,
 }
 
+pub fn form(project: &Project, instance: &crate::model::ComponentInstance) -> Option<TieForm> {
+    project
+        .library
+        .component(instance.component)?
+        .definition
+        .tie
+        .as_ref()
+        .map(|s| s.form)
+}
+
+/// The stencil for a three-pad jumper opens only the two lands of the chosen pair.
+pub fn prints_paste(project: &Project, pad: &crate::layout::PlacedPad) -> bool {
+    let Some(instance) = project.instance(pad.instance) else {
+        return true;
+    };
+    let Some(spec) = project
+        .library
+        .component(instance.component)
+        .and_then(|c| c.definition.tie.as_ref())
+    else {
+        return true;
+    };
+    match spec.form {
+        TieForm::Copper => false,
+        TieForm::ZeroOhm => true,
+        TieForm::SolderJumper { .. } => {
+            super::variants::population(instance, project.variants.active()).is_populated()
+                && pad
+                    .terminal
+                    .is_some_and(|e| spec.ends.contains(&e.terminal))
+        }
+    }
+}
+
 pub fn rows(project: &Project) -> Vec<TieRow> {
     if !project.instances.iter().any(|i| i.tie.is_some()) {
         return vec![];

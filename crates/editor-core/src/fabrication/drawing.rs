@@ -50,6 +50,7 @@ pub struct AssemblyPart {
     /// Fitted under the active assembly variant; a part that is not is
     /// drawn crossed out.
     pub fitted: bool,
+    pub cut_trace: bool,
 }
 
 /// One side of the assembly drawing.
@@ -477,6 +478,15 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
                     Some(vec![ring])
                 })
                 .unwrap_or_default();
+            let fitted = crate::instances::variants::fitted(project, instance).populated();
+            let cut_trace = !fitted
+                && matches!(
+                    crate::instances::ties::form(project, instance),
+                    Some(crate::library::tie::TieForm::SolderJumper {
+                        bridge: crate::library::tie::JumperBridge::Trace,
+                        ..
+                    })
+                );
             parts.push(AssemblyPart {
                 instance: instance.id,
                 designator: instance.designator.clone(),
@@ -486,7 +496,8 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
                 body,
                 pads: part_pads,
                 polarity: polarity.get(&instance.id).copied(),
-                fitted: crate::instances::variants::fitted(project, instance).populated(),
+                fitted,
+                cut_trace,
             });
         }
         if !parts.is_empty() {
