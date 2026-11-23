@@ -355,19 +355,18 @@ impl SchematicEditor {
         kit::section(ui, "sheet-symbol", "Sheet symbol", true, None, |ui| {
             if let Some(name) = self.live_text(
                 ui,
-                format!("symbol/{id}/sheet"),
-                "Sheet",
-                &child.name,
+                format!("symbol/{id}/name"),
+                "Channel",
+                symbol.name.as_deref().unwrap_or(&child.name),
                 false,
-                |t| t.trim().is_empty().then_some("Enter a sheet name"),
+                |t| t.trim().is_empty().then_some("Enter a channel name"),
             ) {
-                output = op(SchematicCommand::RenameSheet {
-                    sheet: child.id,
-                    name,
-                });
+                output = op(SchematicCommand::RenameSheetSymbol { symbol: id, name });
             }
-            let page = project.sheets.number(child.id).unwrap_or(0);
-            kit::value_row(ui, "Page", &page.to_string());
+            kit::value_row(ui, "Definition", &child.name);
+            if let Some(page) = project.child_page(&symbol, self.path.as_ref()) {
+                kit::value_row(ui, "Page", &page.to_string());
+            }
             if let Some(size) = self.live_pair(
                 ui,
                 &format!("symbol/{id}/size"),
@@ -432,7 +431,7 @@ impl SchematicEditor {
             },
         );
         if open {
-            self.show_sheet(child.id, project);
+            self.open_symbol(id, project);
         }
         if let Some(pin) = select {
             self.select_item(Some(Item::SheetPin(pin)), project);
@@ -639,14 +638,30 @@ impl SchematicEditor {
     /// The sheet-symbol tool's card: the name of the sheet it creates.
     pub(super) fn sheet_tool_section(&mut self, ui: &mut egui::Ui, project: &Project) {
         kit::section(ui, "sheet-tool", "Sheet symbol", true, None, |ui| {
-            // Empty, the sheet gets the name the placeholder shows.
-            let name = sparksmith_core::schematic::sheets::default_sheet_name(project);
-            kit::checked_text_row(ui, "New sheet", &mut self.drafts.sheet_name, &name, false);
-            kit::hint(
-                ui,
-                "A new child sheet",
-                "The symbol stands for a new sheet; its pins join hierarchical labels there.",
+            let mut choices = vec![(None, "New sheet".to_owned())];
+            choices.extend(
+                project
+                    .sheets
+                    .list
+                    .iter()
+                    .filter(|s| s.id != self.sheet)
+                    .map(|s| (Some(s.id), s.name.clone())),
             );
+            kit::choice_row(ui, "Definition", &mut self.drafts.child, &choices);
+            let (label, name) = self
+                .drafts
+                .child
+                .and_then(|id| project.sheet(id))
+                .map_or_else(
+                    || {
+                        (
+                            "New sheet",
+                            sparksmith_core::schematic::sheets::default_sheet_name(project),
+                        )
+                    },
+                    |s| ("Channel", s.name.clone()),
+                );
+            kit::checked_text_row(ui, label, &mut self.drafts.sheet_name, &name, false);
         });
     }
 

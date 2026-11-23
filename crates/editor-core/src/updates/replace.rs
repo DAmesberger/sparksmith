@@ -405,11 +405,27 @@ pub(super) fn replace(next: &mut Project, ids: &[Id], replacement: &Replacement)
         }
         None => only_choice(next, &target.definition, &target.meta.name)?,
     };
-    for id in ids {
-        replace_instance(next, *id, replacement, &mapping, representation, physical)?;
-    }
-    for id in ids {
-        instances::check_instance(next, *id)?;
+    for (local, family) in next.sheet_part_families(ids) {
+        // Run the terminal and unit mapping on the drawing exactly once. The
+        // original physical part may already have left the board.
+        super::edit_drawing_part(next, local, |next| {
+            replace_instance(next, local, replacement, &mapping, representation, physical)
+        })?;
+        for &id in &family {
+            if id != local {
+                // Its units are in the drawing. The independent physical
+                // part still needs its net references and pad fit carried.
+                let old = next
+                    .instance(id)
+                    .ok_or_else(|| invalid("Missing physical part."))?;
+                let mut choice = replacement.clone();
+                choice.units.retain(|u| old.unused_units.contains(&u.from));
+                replace_instance(next, id, &choice, &mapping, representation, physical)?;
+            }
+        }
+        for id in family {
+            instances::check_instance(next, id)?;
+        }
     }
     Ok(())
 }

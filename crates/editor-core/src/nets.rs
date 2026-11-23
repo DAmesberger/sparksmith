@@ -13,7 +13,8 @@
 //! review ([`named_merges`], [`refuse_named_merges`]).
 use crate::diagnostics::{Error, ObjectRef, Result};
 use crate::ids::{Endpoint, Id, SheetId};
-use crate::model::{Label, LabelKind, Net, Project, WireEnd};
+use crate::model::sheet::SheetPath;
+use crate::model::{LabelKind, Net, Project, WireEnd};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -77,67 +78,112 @@ pub fn accounted_for(project: &Project, terminal: Endpoint) -> bool {
 /// hierarchical labels of its name on the child sheet. Names compare
 /// ASCII-case-insensitively, as net names do.
 struct Nodes {
-    index: BTreeMap<WireEnd, usize>,
+    index: BTreeMap<(usize, WireEnd), usize>,
     parent: Vec<usize>,
 }
 
-/// Where a label's name joins: one sheet, or every sheet.
-fn scope_key(label: &Label) -> (Option<SheetId>, String) {
-    let name = label.name.to_ascii_lowercase();
-    if label.kind.is_global() {
-        (None, name)
-    } else {
-        (Some(label.sheet), name)
+/// Scope zero holds physical terminals and the drawing objects of top-level pages.
+/// Other indices identify full paths in the validated occurrence table.
+fn scopes(project: &Project) -> BTreeMap<SheetId, Vec<usize>> {
+    let mut scopes = BTreeMap::<_, Vec<_>>::new();
+    for sheet in &project.sheets.list {
+        if project.is_root_sheet(sheet.id) {
+            scopes.entry(sheet.id).or_default().push(0);
+        }
+    }
+    for (i, u) in project.sheets.uses.iter().enumerate() {
+        scopes.entry(u.definition).or_default().push(i + 1);
+    }
+    scopes
+}
+
+fn scoped_end(project: &Project, scope: usize, end: WireEnd) -> (usize, WireEnd) {
+    match end {
+        WireEnd::Terminal(mut pin) => {
+            if let Some(u) = scope
+                .checked_sub(1)
+                .and_then(|i| project.sheets.uses.get(i))
+                && let Some(id) = u.parts.get(&pin.instance)
+            {
+                pin.instance = *id;
+            }
+            (0, WireEnd::Terminal(pin))
+        }
+        _ => (scope, end),
     }
 }
 
 impl Nodes {
+    fn insert(&mut self, key: (usize, WireEnd)) -> usize {
+        *self.index.entry(key).or_insert_with(|| {
+            let at = self.parent.len();
+            self.parent.push(at);
+            at
+        })
+    }
+
     fn new(project: &Project, terminals: &BTreeSet<Endpoint>) -> Self {
-        let index: BTreeMap<WireEnd, usize> = terminals
-            .iter()
-            .map(|t| WireEnd::Terminal(*t))
-            .chain(project.junctions.iter().map(|j| WireEnd::junction(j.id)))
-            .chain(project.labels.iter().map(|l| WireEnd::label(l.id)))
-            .chain(
-                project
-                    .sheet_symbols
-                    .iter()
-                    .flat_map(|s| s.pins.iter().map(|p| WireEnd::sheet_pin(p.id))),
-            )
-            .enumerate()
-            .map(|(i, end)| (end, i))
-            .collect();
         let mut nodes = Self {
-            parent: (0..index.len()).collect(),
-            index,
+            index: BTreeMap::new(),
+            parent: Vec::new(),
         };
-        for wire in &project.wires {
-            if let (Some(&a), Some(&b)) = (nodes.index.get(&wire.from), nodes.index.get(&wire.to)) {
-                nodes.union(a, b);
+        for pin in terminals {
+            nodes.insert((0, WireEnd::Terminal(*pin)));
+        }
+        let scopes = scopes(project);
+        let on = |sheet: SheetId| scopes.get(&sheet).into_iter().flatten().copied();
+        for j in &project.junctions {
+            for scope in on(j.sheet) {
+                nodes.insert((scope, WireEnd::junction(j.id)));
             }
         }
-        let mut scoped: BTreeMap<(Option<SheetId>, String), usize> = BTreeMap::new();
-        let mut ports: BTreeMap<(SheetId, String), usize> = BTreeMap::new();
+        let mut names = BTreeMap::new();
+        let mut ports = BTreeMap::new();
         for label in &project.labels {
-            let Some(&at) = nodes.index.get(&WireEnd::label(label.id)) else {
-                continue;
-            };
-            let first = *scoped.entry(scope_key(label)).or_insert(at);
-            nodes.union(first, at);
-            if matches!(label.kind, LabelKind::Hierarchical { .. }) {
-                ports
-                    .entry((label.sheet, label.name.to_ascii_lowercase()))
-                    .or_insert(at);
+            for scope in on(label.sheet) {
+                let name = label.name.to_ascii_lowercase();
+                let at = nodes.insert((scope, WireEnd::label(label.id)));
+                let key = (
+                    (!label.kind.is_global()).then_some((scope, label.sheet)),
+                    name.clone(),
+                );
+                nodes.union(at, *names.entry(key).or_insert(at));
+                if matches!(label.kind, LabelKind::Hierarchical { .. }) {
+                    ports.insert((scope, name), at);
+                }
             }
         }
+        let child_scopes: BTreeMap<_, _> = project
+            .sheets
+            .uses
+            .iter()
+            .enumerate()
+            .map(|(i, u)| (&u.path, i + 1))
+            .collect();
         for symbol in &project.sheet_symbols {
-            for pin in &symbol.pins {
-                let key = (symbol.child, pin.name.to_ascii_lowercase());
-                if let (Some(&at), Some(&port)) = (
-                    nodes.index.get(&WireEnd::sheet_pin(pin.id)),
-                    ports.get(&key),
+            for scope in on(symbol.sheet) {
+                let parent = scope
+                    .checked_sub(1)
+                    .and_then(|i| project.sheets.uses.get(i))
+                    .map_or_else(|| SheetPath::root(symbol.sheet), |u| u.path.clone());
+                let child = child_scopes.get(&parent.child(symbol.id));
+                for pin in &symbol.pins {
+                    let at = nodes.insert((scope, WireEnd::sheet_pin(pin.id)));
+                    if let Some(port) =
+                        child.and_then(|c| ports.get(&(*c, pin.name.to_ascii_lowercase())))
+                    {
+                        nodes.union(at, *port);
+                    }
+                }
+            }
+        }
+        for wire in &project.wires {
+            for scope in on(wire.sheet) {
+                if let (Some(&a), Some(&b)) = (
+                    nodes.index.get(&scoped_end(project, scope, wire.from)),
+                    nodes.index.get(&scoped_end(project, scope, wire.to)),
                 ) {
-                    nodes.union(at, port);
+                    nodes.union(a, b);
                 }
             }
         }
@@ -156,7 +202,7 @@ impl Nodes {
         }
         at
     }
-    fn root(&mut self, end: WireEnd) -> Option<usize> {
+    fn root(&mut self, end: (usize, WireEnd)) -> Option<usize> {
         let at = *self.index.get(&end)?;
         Some(self.find(at))
     }
@@ -165,7 +211,7 @@ impl Nodes {
         let mut root_net = BTreeMap::new();
         for net in &project.nets {
             for terminal in &net.terminals {
-                if let Some(root) = self.root(WireEnd::Terminal(*terminal)) {
+                if let Some(root) = self.root((0, WireEnd::Terminal(*terminal))) {
                     root_net.insert(root, net.id);
                 }
             }
@@ -187,39 +233,95 @@ pub fn components(project: &Project, terminals: &BTreeSet<Endpoint>) -> Vec<Vec<
     groups.into_values().collect()
 }
 
+/// The occurrence shown for each definition, selected explicitly or the first use.
+fn visible_scopes(project: &Project, path: Option<&SheetPath>) -> BTreeMap<SheetId, usize> {
+    let mut visible: BTreeMap<_, _> = scopes(project)
+        .into_iter()
+        .filter_map(|(sheet, uses)| Some((sheet, *uses.first()?)))
+        .collect();
+    if let Some((i, u)) = path.and_then(|p| {
+        project
+            .sheets
+            .uses
+            .iter()
+            .enumerate()
+            .find(|(_, u)| &u.path == p)
+    }) {
+        visible.insert(u.definition, i + 1);
+    }
+    visible
+}
+
 /// The net each wire belongs to, by wire ID. A wire whose connected group
 /// reaches no terminal has none.
 pub fn wire_nets(project: &Project) -> BTreeMap<Id, Id> {
+    wire_nets_in(project, None)
+}
+
+pub fn wire_nets_in(project: &Project, path: Option<&SheetPath>) -> BTreeMap<Id, Id> {
     let terminals = terminals(project);
     let mut nodes = Nodes::new(project, &terminals);
     let root_net = nodes.root_nets(project);
+    let visible = visible_scopes(project, path);
     project
         .wires
         .iter()
         .filter_map(|w| {
-            // A free end joins nothing: take the other.
-            let root = nodes.root(w.from).or_else(|| nodes.root(w.to))?;
+            let scope = *visible.get(&w.sheet)?;
+            let root = nodes
+                .root(scoped_end(project, scope, w.from))
+                .or_else(|| nodes.root(scoped_end(project, scope, w.to)))?;
             Some((w.id, *root_net.get(&root)?))
         })
         .collect()
 }
 
-/// The net of every junction, label and sheet pin whose group reaches a
-/// terminal.
+/// The drawing and channel of a wire carrying a physical net.
+pub fn wire_of_net(project: &Project, net: Id) -> Option<(Id, SheetId, Option<&SheetPath>)> {
+    let scopes = scopes(project);
+    let mut nodes = Nodes::new(project, &terminals(project));
+    let nets = nodes.root_nets(project);
+    for wire in &project.wires {
+        for &scope in scopes.get(&wire.sheet).into_iter().flatten() {
+            let root = nodes
+                .root(scoped_end(project, scope, wire.from))
+                .or_else(|| nodes.root(scoped_end(project, scope, wire.to)));
+            if root.and_then(|r| nets.get(&r)) == Some(&net) {
+                let path = scope
+                    .checked_sub(1)
+                    .and_then(|i| project.sheets.uses.get(i))
+                    .map(|u| &u.path);
+                return Some((wire.id, wire.sheet, path));
+            }
+        }
+    }
+    None
+}
+
+/// The visible definition's first occurrence, for callers editing its drawing.
 pub fn point_nets(project: &Project) -> BTreeMap<WireEnd, Id> {
-    let terminals = terminals(project);
-    let mut nodes = Nodes::new(project, &terminals);
+    point_nets_in(project, None)
+}
+
+pub fn point_nets_in(project: &Project, path: Option<&SheetPath>) -> BTreeMap<WireEnd, Id> {
+    let scopes: BTreeSet<_> = visible_scopes(project, path).into_values().collect();
+    let mut nodes = Nodes::new(project, &terminals(project));
     let root_net = nodes.root_nets(project);
-    let points: Vec<WireEnd> = nodes
+    let points: Vec<_> = nodes
         .index
         .keys()
-        .filter(|e| e.terminal().is_none())
+        .filter(|(_, end)| end.terminal().is_none())
         .copied()
         .collect();
-    points
-        .into_iter()
-        .filter_map(|end| Some((end, *root_net.get(&nodes.root(end)?)?)))
-        .collect()
+    let mut result = BTreeMap::new();
+    for key in points {
+        if scopes.contains(&key.0)
+            && let Some(net) = nodes.root(key).and_then(|r| root_net.get(&r))
+        {
+            result.insert(key.1, *net);
+        }
+    }
+    result
 }
 
 /// What kind of object supplies a name to a net, in priority order: the
@@ -240,6 +342,7 @@ pub struct NameSource {
     pub end: WireEnd,
     pub name: String,
     pub kind: NameKind,
+    pub path: SheetPath,
     /// The sheet it is drawn on.
     pub sheet: SheetId,
 }
@@ -247,29 +350,14 @@ pub struct NameSource {
 /// Each sheet's depth below its top-level ancestor (0 for a top-level
 /// sheet), bounded by the sheet count so a malformed cycle terminates.
 pub fn sheet_depths(project: &Project) -> BTreeMap<SheetId, usize> {
-    let parent: BTreeMap<SheetId, SheetId> = project
-        .sheet_symbols
-        .iter()
-        .map(|s| (s.child, s.sheet))
-        .collect();
-    let limit = project.sheets.list.len();
-    project
-        .sheets
-        .list
-        .iter()
-        .map(|sheet| {
-            let mut depth = 0;
-            let mut at = sheet.id;
-            while let Some(up) = parent.get(&at) {
-                depth += 1;
-                at = *up;
-                if depth > limit {
-                    break;
-                }
-            }
-            (sheet.id, depth)
-        })
-        .collect()
+    let mut depths = BTreeMap::new();
+    for u in &project.sheets.uses {
+        depths.entry(u.definition).or_insert(u.path.symbols.len());
+    }
+    for s in &project.sheets.list {
+        depths.entry(s.id).or_insert(0);
+    }
+    depths
 }
 
 /// The labels and sheet pins on each net, by net ID, in priority order
@@ -279,9 +367,22 @@ pub fn name_sources(project: &Project) -> BTreeMap<Id, Vec<NameSource>> {
     let mut nodes = Nodes::new(project, &terminals);
     let root_net = nodes.root_nets(project);
     let mut out: BTreeMap<Id, Vec<NameSource>> = BTreeMap::new();
-    let mut push = |end: WireEnd, source: NameSource| {
-        if let Some(net) = nodes.root(end).and_then(|r| root_net.get(&r)) {
-            out.entry(*net).or_default().push(source);
+    let scopes = scopes(project);
+    let mut push = |sheet: SheetId, end, name: &str, kind| {
+        for &scope in scopes.get(&sheet).into_iter().flatten() {
+            if let Some(net) = nodes.root((scope, end)).and_then(|r| root_net.get(&r)) {
+                let path = scope
+                    .checked_sub(1)
+                    .and_then(|i| project.sheets.uses.get(i))
+                    .map_or_else(|| SheetPath::root(sheet), |u| u.path.clone());
+                out.entry(*net).or_default().push(NameSource {
+                    end,
+                    name: name.to_owned(),
+                    kind,
+                    sheet,
+                    path,
+                });
+            }
         }
     };
     for label in &project.labels {
@@ -291,38 +392,24 @@ pub fn name_sources(project: &Project) -> BTreeMap<Id, Vec<NameSource>> {
             LabelKind::Local => NameKind::Local,
             LabelKind::Hierarchical { .. } => NameKind::Hierarchical,
         };
-        let end = WireEnd::label(label.id);
-        push(
-            end,
-            NameSource {
-                end,
-                name: label.name.clone(),
-                kind,
-                sheet: label.sheet,
-            },
-        );
+        push(label.sheet, WireEnd::label(label.id), &label.name, kind);
     }
     for symbol in &project.sheet_symbols {
         for pin in &symbol.pins {
-            let end = WireEnd::sheet_pin(pin.id);
             push(
-                end,
-                NameSource {
-                    end,
-                    name: pin.name.clone(),
-                    kind: NameKind::Hierarchical,
-                    sheet: symbol.sheet,
-                },
+                symbol.sheet,
+                WireEnd::sheet_pin(pin.id),
+                &pin.name,
+                NameKind::Hierarchical,
             );
         }
     }
-    let depths = sheet_depths(project);
     let order = |s: SheetId| project.sheets.number(s).unwrap_or(usize::MAX);
     for sources in out.values_mut() {
         sources.sort_by(|a, b| {
-            (a.kind, depths.get(&a.sheet), order(a.sheet), &a.name, a.end).cmp(&(
+            (a.kind, a.path.symbols.len(), order(a.sheet), &a.name, a.end).cmp(&(
                 b.kind,
-                depths.get(&b.sheet),
+                b.path.symbols.len(),
                 order(b.sheet),
                 &b.name,
                 b.end,
@@ -413,9 +500,7 @@ pub fn names(project: &Project) -> BTreeMap<Id, String> {
         let lower = source.name.to_ascii_lowercase();
         let shared = local_count.get(&lower).copied().unwrap_or(0) > 1 || taken.contains(&lower);
         let wanted = if shared {
-            let sheet = project
-                .sheet(source.sheet)
-                .map_or_else(|| source.sheet.to_string(), |s| qualifier(&s.name));
+            let sheet = qualifier(&source.path.display(project));
             format!("{sheet}/{}", source.name)
         } else {
             source.name.clone()

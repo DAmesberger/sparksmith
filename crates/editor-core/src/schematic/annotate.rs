@@ -71,10 +71,21 @@ fn number(designator: &str, prefix: &str) -> Option<usize> {
 /// Where an instance is visited: page, then the order's coordinates.
 type Key = (usize, i64, i64, Id);
 
-fn key(project: &Project, instance: Id, order: AnnotateOrder) -> Key {
+fn key(
+    project: &Project,
+    instance: Id,
+    order: AnnotateOrder,
+    pages: &BTreeMap<(SheetId, Option<&crate::model::sheet::SheetPath>), usize>,
+) -> Key {
+    let binding = project.sheet_binding(instance);
     let first = project
-        .occurrences_of(instance)
-        .filter_map(|o| Some((project.sheets.number(o.sheet)?, o)))
+        .physical_units(instance)
+        .filter_map(|o| {
+            let path = binding
+                .filter(|(u, _)| u.definition == o.sheet)
+                .map(|(u, _)| &u.path);
+            Some((*pages.get(&(o.sheet, path))?, o))
+        })
         .min_by_key(|(page, o)| (*page, o.unit));
     let Some((page, o)) = first else {
         return (usize::MAX, 0, 0, instance);
@@ -110,20 +121,24 @@ pub fn annotate(
             .designator_prefix;
         crate::library::designator_prefix_valid(prefix).then(|| prefix.clone())
     };
+    let printed = project.printed_pages();
+    let pages: BTreeMap<_, _> = printed
+        .iter()
+        .enumerate()
+        .map(|(i, (s, p))| ((s.id, *p), i + 1))
+        .collect();
     let mut visited: Vec<(Key, Id, String)> = project
         .instances
         .iter()
         .filter_map(|i| {
-            let key = key(project, i.id, order);
+            let key = key(project, i.id, order, &pages);
             let in_scope = if sheets.is_empty() {
                 true
             } else {
                 key.0 != usize::MAX
-                    && project
-                        .sheets
-                        .list
+                    && printed
                         .get(key.0 - 1)
-                        .is_some_and(|s| sheets.contains(&s.id))
+                        .is_some_and(|(s, _)| sheets.contains(&s.id))
             };
             let prefix = prefix_of(i.id)?;
             let annotated = number(&i.designator, &prefix).is_some();

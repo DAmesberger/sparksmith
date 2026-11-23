@@ -226,7 +226,7 @@ pub fn unit_states(
         .iter()
         .map(|unit| {
             let state = match project
-                .occurrences_of(instance.id)
+                .physical_units(instance.id)
                 .find(|o| o.unit == unit.id)
             {
                 Some(o) => UnitState::Placed { occurrence: o.id },
@@ -538,8 +538,9 @@ pub fn default_fields(
 /// conflict-free, including availability in the chosen binding.
 pub fn check_instance(project: &Project, id: Id) -> Result<()> {
     let instance = project
-        .instance(id)
+        .drawing_instance(id)
         .ok_or_else(|| Error::NotFound("Unknown component instance.".into()))?;
+    let local = project.sheet_binding(id).map_or(id, |(_, local)| local);
     let endpoints = project
         .wires
         .iter()
@@ -548,8 +549,8 @@ pub fn check_instance(project: &Project, id: Id) -> Result<()> {
     check_with(
         project,
         instance,
-        project.occurrences_of(id),
-        endpoints.filter(move |e| e.instance == id),
+        project.occurrences_of(local),
+        endpoints.filter(move |e| e.instance == local),
     )
 }
 
@@ -575,7 +576,7 @@ pub fn check_all(project: &Project) -> Result<()> {
                 .push(endpoint);
         }
     }
-    for instance in &project.instances {
+    for instance in project.instances.iter().chain(&project.sheets.locals) {
         check_with(
             project,
             instance,

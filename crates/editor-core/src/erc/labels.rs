@@ -69,7 +69,13 @@ pub(super) fn checks(
     for label in &project.labels {
         if label.kind.is_global() {
             let entry = global.entry(label.name.to_ascii_lowercase()).or_default();
-            entry.0 += 1;
+            entry.0 += usize::from(project.is_root_sheet(label.sheet))
+                + project
+                    .sheets
+                    .uses
+                    .iter()
+                    .filter(|u| u.definition == label.sheet)
+                    .count();
             entry.1 |= matches!(label.kind, LabelKind::Power { .. });
         }
     }
@@ -144,12 +150,12 @@ fn hierarchy(project: &Project, out: &mut Vec<Finding>) {
         if !matches!(label.kind, LabelKind::Hierarchical { .. }) {
             continue;
         }
-        let pin = project.parent_symbol(label.sheet).and_then(|s| {
-            s.pins
-                .iter()
-                .find(|p| p.name.eq_ignore_ascii_case(&label.name))
-        });
-        if pin.is_none() {
+        let parents: Vec<_> = project
+            .sheet_symbols
+            .iter()
+            .filter(|s| s.child == label.sheet)
+            .collect();
+        if parents.is_empty() && project.is_root_sheet(label.sheet) {
             out.push(Finding::new(
                 "erc.hierarchy_mismatch",
                 format!(
@@ -160,13 +166,36 @@ fn hierarchy(project: &Project, out: &mut Vec<Finding>) {
                 vec![ObjectRef::Label { id: label.id }],
             ));
         }
+        for parent in parents {
+            if !parent
+                .pins
+                .iter()
+                .any(|pin| pin.name.eq_ignore_ascii_case(&label.name))
+            {
+                let channel = parent
+                    .name
+                    .as_deref()
+                    .map_or_else(|| sheet_name(project, label.sheet), str::to_owned);
+                out.push(Finding::new(
+                    "erc.hierarchy_mismatch",
+                    format!(
+                        "Hierarchical label {} on {channel} has no sheet pin.",
+                        label.name
+                    ),
+                    vec![
+                        ObjectRef::Label { id: label.id },
+                        ObjectRef::SheetSymbol { id: parent.id },
+                    ],
+                ));
+            }
+        }
     }
 }
 
 fn conflicts(project: &Project, out: &mut Vec<Finding>) {
     for (net, sources) in nets::name_sources(project) {
         let mut global: BTreeMap<String, &str> = BTreeMap::new();
-        let mut local: BTreeMap<SheetId, BTreeMap<String, &str>> = BTreeMap::new();
+        let mut local: BTreeMap<_, BTreeMap<String, &str>> = BTreeMap::new();
         for source in &sources {
             let lower = source.name.to_ascii_lowercase();
             match source.kind {
@@ -175,7 +204,7 @@ fn conflicts(project: &Project, out: &mut Vec<Finding>) {
                 }
                 NameKind::Local => {
                     local
-                        .entry(source.sheet)
+                        .entry(&source.path)
                         .or_default()
                         .entry(lower)
                         .or_insert(&source.name);

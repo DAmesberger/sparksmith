@@ -39,6 +39,7 @@ pub const MAX_CORNERS: usize = 256;
 pub mod annotate;
 pub mod arrange;
 pub mod clipboard;
+pub mod hierarchy;
 pub mod labels;
 pub mod params;
 pub mod scene;
@@ -325,7 +326,7 @@ pub enum SchematicCommand {
         /// An existing sheet; a new sheet when omitted.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         child: Option<SheetId>,
-        /// The new sheet's name.
+        /// Name of the new sheet or of this channel when using an existing child.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         name: Option<String>,
         /// Top-left corner.
@@ -336,6 +337,9 @@ pub enum SchematicCommand {
         #[schemars(with = "[crate::units::Length; 2]")]
         size: PointNm,
     },
+    /// Give this use of a child definition its own display name.
+    #[serde(rename = "sheet_symbol.rename")]
+    RenameSheetSymbol { symbol: Id, name: String },
     /// Move a sheet symbol to `position`.
     #[serde(rename = "sheet_symbol.move")]
     MoveSheetSymbol {
@@ -355,7 +359,7 @@ pub enum SchematicCommand {
     /// Point a sheet symbol at another child sheet.
     #[serde(rename = "sheet_symbol.set_child")]
     SetSheetChild { symbol: Id, child: SheetId },
-    /// Remove a sheet symbol; its sheet stays as a top-level sheet.
+    /// Remove a sheet symbol, keeping its child definition available.
     #[serde(rename = "sheet_symbol.remove")]
     RemoveSheetSymbol { symbol: Id },
     /// Add a pin for every hierarchical label name of the child sheet the
@@ -516,6 +520,7 @@ declare_entries!(SchematicCommand in schematic {
     ReorderSheet "sheet.reorder" Edit "Reorder sheets",
     DeleteSheet "sheet.delete" Edit "Delete a sheet",
     PlaceSheetSymbol "sheet_symbol.place" Edit "Place a sheet symbol" [returns(sheet_symbol_placed)],
+    RenameSheetSymbol "sheet_symbol.rename" Edit "Rename a sheet symbol" [since(2, 0)],
     MoveSheetSymbol "sheet_symbol.move" Edit "Move a sheet symbol",
     ResizeSheetSymbol "sheet_symbol.resize" Edit "Resize a sheet symbol",
     SetSheetChild "sheet_symbol.set_child" Edit "Set a sheet symbol's sheet",
@@ -758,6 +763,7 @@ fn apply_command(
             },
         )
         .map(|(symbol, child)| Applied::SheetSymbol { symbol, child }),
+        C::RenameSheetSymbol { symbol, name } => none(sheets::name_symbol(project, symbol, name)),
         C::MoveSheetSymbol { symbol, position } => {
             none(sheets::move_symbol(project, symbol, position))
         }
@@ -847,7 +853,10 @@ pub fn place_units(
     units: &[(UnitId, PointNm)],
     sheet: Option<SheetId>,
 ) -> Result<Vec<Id>> {
-    if project.instance(instance).is_none() {
+    let instance = project
+        .sheet_binding(instance)
+        .map_or(instance, |(_, local)| local);
+    if project.drawing_instance(instance).is_none() {
         return Err(not_found("Unknown component instance."));
     }
     let sheet = sheet
@@ -911,7 +920,7 @@ pub fn mirrored_on_sheet(rotation: Rotation, mirror: bool) -> (Rotation, bool) {
 /// Wires on terminals the occurrence's unit draws.
 pub(crate) fn unit_wires(project: &Project, occurrence: &SymbolOccurrence) -> Result<Vec<Id>> {
     let instance = project
-        .instance(occurrence.instance)
+        .drawing_instance(occurrence.instance)
         .ok_or_else(|| not_found("Unknown component instance."))?;
     let symbol = &instances::resolve(&project.library, instance)?
         .symbol
@@ -1249,7 +1258,7 @@ pub fn placement_joins(before: &Project, after: &Project, instance: Id) -> Vec<S
 pub fn validate(project: &Project) -> Result<()> {
     sheets::validate(project)?;
     for occurrence in &project.occurrences {
-        if project.instance(occurrence.instance).is_none() {
+        if project.drawing_instance(occurrence.instance).is_none() {
             return Err(invalid(
                 "A symbol occurrence references a missing instance.",
             ));
@@ -1274,7 +1283,7 @@ pub fn occurrence_transform(occurrence: &SymbolOccurrence) -> Transform2 {
 /// the frame of the occurrence of its owning unit. `None` while that unit is
 /// not placed.
 pub fn pin_position(project: &Project, endpoint: Endpoint) -> Option<Point> {
-    let instance = project.instance(endpoint.instance)?;
+    let instance = project.drawing_instance(endpoint.instance)?;
     let symbol = &instances::resolve(&project.library, instance)
         .ok()?
         .symbol
@@ -1774,11 +1783,25 @@ fn draw(
 /// designator, name, unit label and field values substituted, pins with
 /// their names and binding numbers, and shown field values no text draws.
 pub fn placed_unit(project: &Project, occurrence: Id) -> Result<PlacedUnit> {
+    placed_unit_in(project, occurrence, None)
+}
+
+/// Draw a local unit with the designator and fields of its selected channel.
+pub fn placed_unit_in(
+    project: &Project,
+    occurrence: Id,
+    path: Option<&crate::model::sheet::SheetPath>,
+) -> Result<PlacedUnit> {
     let item = project
         .occurrence(occurrence)
         .ok_or_else(|| not_found("Unknown symbol occurrence."))?;
-    let instance = project
-        .instance(item.instance)
+    let physical = path
+        .and_then(|p| project.sheet_use(p))
+        .filter(|u| u.definition == item.sheet)
+        .and_then(|u| u.parts.get(&item.instance));
+    let instance = physical
+        .and_then(|id| project.instance(*id))
+        .or_else(|| project.drawing_instance(item.instance))
         .ok_or_else(|| not_found("Unknown component instance."))?;
     let resolved = instances::resolve(&project.library, instance)?;
     let symbol = &resolved.symbol.definition;
@@ -1890,6 +1913,11 @@ pub struct SheetRow {
     pub orientation: PaperOrientation,
     /// The sheet symbol that uses this sheet and the sheet it is drawn on.
     pub parent: Option<SheetParent>,
+    /// Every active occurrence of this child definition, including its board parts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub occurrences: Vec<crate::model::sheet::SheetUse>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unused_definition: bool,
     /// Depth below its top-level sheet (0 at the top).
     pub depth: usize,
     pub symbols: usize,
@@ -1925,6 +1953,15 @@ pub fn sheet_rows(project: &Project) -> Vec<SheetRow> {
                 symbol: s.id,
                 sheet: s.sheet,
             }),
+            occurrences: project
+                .sheets
+                .uses
+                .iter()
+                .filter(|u| u.definition == sheet.id)
+                .cloned()
+                .collect(),
+            unused_definition: project.sheets.definitions.contains(&sheet.id)
+                && !project.sheets.uses.iter().any(|u| u.definition == sheet.id),
             depth: depths.get(&sheet.id).copied().unwrap_or(0),
             symbols: project
                 .occurrences
@@ -1964,6 +2001,8 @@ pub enum NetPlaceKind {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct NetPlace {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<crate::model::sheet::SheetPath>,
     pub sheet: SheetId,
     pub position: Point,
     #[serde(flatten)]
@@ -2008,6 +2047,7 @@ pub fn net_places(project: &Project, net: Id) -> Result<NetPlaces> {
                 _ => continue,
             };
             places.push(NetPlace {
+                path: Some(source.path.clone()),
                 sheet: source.sheet,
                 position,
                 kind,
@@ -2015,12 +2055,28 @@ pub fn net_places(project: &Project, net: Id) -> Result<NetPlaces> {
         }
     }
     for endpoint in &item.terminals {
+        let binding = project.sheet_binding(endpoint.instance);
+        let local = Endpoint {
+            instance: binding.map_or(endpoint.instance, |(_, id)| id),
+            ..*endpoint
+        };
         let (Some(position), Some(sheet)) = (
-            pin_position(project, *endpoint),
-            end_sheet(project, WireEnd::Terminal(*endpoint)),
+            pin_position(project, local),
+            end_sheet(project, local.into()),
         ) else {
             continue;
         };
+        let path = project
+            .sheets
+            .uses
+            .iter()
+            .find(|u| {
+                u.definition == sheet && u.parts.get(&local.instance) == Some(&endpoint.instance)
+            })
+            .map_or_else(
+                || crate::model::sheet::SheetPath::root(sheet),
+                |u| u.path.clone(),
+            );
         let name = project
             .instance(endpoint.instance)
             .map_or_else(String::new, |i| {
@@ -2032,6 +2088,7 @@ pub fn net_places(project: &Project, net: Id) -> Result<NetPlaces> {
                 format!("{}.{terminal}", i.designator)
             });
         places.push(NetPlace {
+            path: Some(path),
             sheet,
             position,
             kind: NetPlaceKind::Terminal {

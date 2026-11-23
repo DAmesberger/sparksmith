@@ -110,12 +110,23 @@ enum PinMark {
 /// The pin mark of every terminal, from core's accounting (the same rule
 /// that raises the Issues to-do for an unconnected terminal).
 fn pin_marks(project: &Project) -> BTreeMap<Endpoint, PinMark> {
-    let wired: BTreeSet<Endpoint> = project
+    let local_wires: BTreeSet<Endpoint> = project
         .wires
         .iter()
         .flat_map(|w| [w.from, w.to])
         .filter_map(WireEnd::terminal)
         .collect();
+    let mut wired = local_wires.clone();
+    for u in &project.sheets.uses {
+        for e in &local_wires {
+            if let Some(physical) = u.parts.get(&e.instance) {
+                wired.insert(Endpoint {
+                    instance: *physical,
+                    ..*e
+                });
+            }
+        }
+    }
     sparksmith_core::nets::terminals(project)
         .into_iter()
         .map(|e| {
@@ -203,6 +214,7 @@ pub struct SchematicEditor {
     label_kind: LabelTool,
     /// The sheet the canvas shows.
     sheet: sparksmith_core::SheetId,
+    path: Option<sparksmith_core::model::sheet::SheetPath>,
     /// What the active sheet draws besides symbols and wires.
     scene: Option<sheet_ui::SceneCache>,
     /// The selected label, sheet symbol, sheet pin or drawing.
@@ -381,6 +393,7 @@ impl Default for SchematicEditor {
             tool: Tool::Select,
             label_kind: LabelTool::Local,
             sheet: sparksmith_core::SheetId::FIRST,
+            path: None,
             scene: None,
             item: None,
             item_drag: None,
@@ -922,11 +935,20 @@ impl SchematicEditor {
     /// The net a wire end would join, from this revision's connectivity.
     fn target_net(&self, project: &Project, target: WireTarget) -> Option<Id> {
         match target {
-            WireTarget::Terminal(e) => self
-                .nets
-                .iter()
-                .find(|n| n.terminals.contains(&e))
-                .map(|n| n.id),
+            WireTarget::Terminal(mut e) => {
+                if let Some(physical) = self
+                    .path
+                    .as_ref()
+                    .and_then(|p| project.sheet_use(p))
+                    .and_then(|u| u.parts.get(&e.instance))
+                {
+                    e.instance = *physical;
+                }
+                self.nets
+                    .iter()
+                    .find(|n| n.terminals.contains(&e))
+                    .map(|n| n.id)
+            }
             WireTarget::Junction(j) => project
                 .wires_at(WireEnd::Junction(j))
                 .find_map(|w| self.wire_nets.get(&w.id).copied()),
@@ -1027,7 +1049,10 @@ impl SchematicEditor {
                 command: command.clone(),
             };
             let plan = engine.preview_update(change.clone());
-            if plan.touches_routed() {
+            if plan.touches_routed()
+                || !plan.removed_placements.is_empty()
+                || matches!(item, Item::SheetSymbol(_))
+            {
                 return self.stage_update(engine, change);
             }
         }
@@ -1061,9 +1086,30 @@ impl SchematicEditor {
 
     fn refresh_connectivity(&mut self, engine: &Engine) {
         if self.nets_revision != Some(engine.revision()) {
+            let project = engine.project();
+            if project.sheet(self.sheet).is_none() {
+                self.sheet = project.sheets.first();
+            }
+            if self
+                .path
+                .as_ref()
+                .and_then(|p| project.sheet_use(p))
+                .is_none_or(|u| u.definition != self.sheet)
+            {
+                self.set_path(
+                    project
+                        .sheets
+                        .uses
+                        .iter()
+                        .find(|u| u.definition == self.sheet)
+                        .map(|u| u.path.clone()),
+                );
+            }
             self.nets = schematic::nets(engine.project()).to_vec();
-            self.wire_nets = sparksmith_core::nets::wire_nets(engine.project());
-            self.point_nets = sparksmith_core::nets::point_nets(engine.project());
+            self.wire_nets =
+                sparksmith_core::nets::wire_nets_in(engine.project(), self.path.as_ref());
+            self.point_nets =
+                sparksmith_core::nets::point_nets_in(engine.project(), self.path.as_ref());
             self.dots = schematic::junction_dots(engine.project());
             self.dot_sheets = self
                 .dots
@@ -1084,7 +1130,11 @@ impl SchematicEditor {
                     .occurrences
                     .iter()
                     .filter_map(|o| {
-                        Some((o.id, schematic::placed_unit(engine.project(), o.id).ok()?))
+                        Some((
+                            o.id,
+                            schematic::placed_unit_in(engine.project(), o.id, self.path.as_ref())
+                                .ok()?,
+                        ))
                     })
                     .collect(),
             );
@@ -1551,29 +1601,35 @@ impl SchematicEditor {
         if let Some(Item::Label(_) | Item::SheetPin(_)) = self.item {
             return self.highlighted_net();
         }
-        let wire = self.selected_wire.and_then(|id| project.wire(id))?;
-        schematic::wire_net(project, wire).map(|n| n.id)
+        let wire = self.selected_wire?;
+        if self.nets_revision == Some(engine.revision()) {
+            self.wire_nets.get(&wire).copied()
+        } else {
+            sparksmith_core::nets::wire_nets_in(project, self.path.as_ref())
+                .get(&wire)
+                .copied()
+        }
     }
 
     /// Select an instance from outside the canvas (the Browser), showing
     /// the sheet of its first unit.
     pub fn select_instance(&mut self, id: Option<Id>, project: &Project) {
-        let sheet = id.and_then(|id| project.occurrences_of(id).next().map(|o| o.sheet));
-        self.switch_sheet(sheet, project);
-        self.select(id, None, project);
+        let binding = id.and_then(|id| project.sheet_binding(id));
+        let local = binding.map(|(_, id)| id).or(id);
+        let unit = local.and_then(|id| project.occurrences_of(id).next());
+        self.switch_sheet(unit.map(|o| o.sheet), project);
+        self.set_path(binding.map(|(u, _)| u.path.clone()));
+        self.select(id, unit.map(|o| o.id), project);
         self.tool = Tool::Select;
     }
 
     /// Select a net through its first wire.
     pub fn select_net(&mut self, net: Id, project: &Project) {
-        let wire = project
-            .wires
-            .iter()
-            .find(|w| schematic::wire_net(project, w).is_some_and(|n| n.id == net));
-        let sheet = wire.map(|w| w.sheet);
-        self.switch_sheet(sheet, project);
+        let wire = sparksmith_core::nets::wire_of_net(project, net);
+        self.switch_sheet(wire.map(|(_, s, _)| s), project);
+        self.set_path(wire.and_then(|(_, _, p)| p.cloned()));
         self.select(None, None, project);
-        self.selected_wire = wire.map(|w| w.id);
+        self.selected_wire = wire.map(|(id, _, _)| id);
         self.tool = Tool::Select;
     }
 
@@ -2199,14 +2255,21 @@ impl SchematicEditor {
             };
             // Picking uses the cached resolved drawing, so what is drawn
             // is what is picked and nothing re-resolves per frame.
-            body_hits.push((occurrence.instance, occurrence.id, placed, delta));
+            let physical = self
+                .path
+                .as_ref()
+                .and_then(|p| project.sheet_use(p))
+                .and_then(|u| u.parts.get(&occurrence.instance))
+                .copied()
+                .unwrap_or(occurrence.instance);
+            body_hits.push((physical, occurrence.id, placed, delta));
             // A review that removes the instance previews the result: the
             // symbol is dimmed, not drawn as selected.
-            let removed = removing.contains(&occurrence.instance);
+            let removed = removing.contains(&physical);
             let selected = !removed
-                && (self.selected == Some(occurrence.instance)
+                && (self.selected == Some(physical)
                     || self.group.instances.contains(&occurrence.instance));
-            let off = not_fitted.contains(&occurrence.instance);
+            let off = not_fitted.contains(&physical);
             let dim = |c: egui::Color32| {
                 if removed {
                     c.gamma_multiply(0.3)
@@ -2242,7 +2305,10 @@ impl SchematicEditor {
                         view,
                         pin,
                         self.pin_marks
-                            .get(&endpoint)
+                            .get(&Endpoint {
+                                instance: physical,
+                                ..endpoint
+                            })
                             .copied()
                             .unwrap_or(PinMark::ToDo),
                         dim,
@@ -2786,9 +2852,8 @@ impl SchematicEditor {
             && let Some(pointer) = response.interact_pointer_pos()
             && let Some(Item::SheetSymbol(id)) =
                 self.item_at(project, view.world(pointer), tolerance)
-            && let Some(child) = project.sheet_symbol(id).map(|s| s.child)
         {
-            self.show_sheet(child, project);
+            self.open_symbol(id, project);
         }
         if let Some((id, offset)) = self.drag
             && let Some(pointer) = ui.input(|i| i.pointer.latest_pos())
@@ -3137,8 +3202,9 @@ impl crate::issues::Locate for SchematicEditor {
                 _ => (None, None),
             };
             if let Some(id) = instance.filter(|id| project.instance(*id).is_some()) {
+                let local = project.sheet_binding(id).map_or(id, |(_, local)| local);
                 let of: Vec<Id> = project
-                    .occurrences_of(id)
+                    .occurrences_of(local)
                     .filter(|o| unit.is_none_or(|u| o.unit == u))
                     .map(|o| o.id)
                     .collect();
@@ -3170,6 +3236,7 @@ impl crate::issues::Locate for SchematicEditor {
                     .and_then(|o| project.occurrence(o))
                     .map(|o| o.sheet);
                 self.switch_sheet(sheet, project);
+                self.set_path(project.sheet_binding(id).map(|(u, _)| u.path.clone()));
                 self.select(Some(id), occurrence, project);
                 self.tool = Tool::Select;
             }

@@ -173,18 +173,22 @@ fn draw(scene: &SheetScene) -> Page {
 
 /// The sheets to print, in page order without repeats; all for an empty
 /// selection. An unknown sheet is refused.
-fn selection(project: &Project, sheets: &[SheetId]) -> Result<Vec<SheetId>> {
+type PrintedSheet<'a> = (
+    SheetId,
+    Option<&'a sparksmith_core::model::sheet::SheetPath>,
+);
+
+fn selection<'a>(project: &'a Project, sheets: &[SheetId]) -> Result<Vec<PrintedSheet<'a>>> {
     if let Some(missing) = sheets.iter().find(|s| project.sheet(**s).is_none()) {
         return Err(Error::Invalid(format!(
             "sheet {missing} is not in the project"
         )));
     }
-    let pages: Vec<SheetId> = project
-        .sheets
-        .list
-        .iter()
-        .map(|s| s.id)
-        .filter(|id| sheets.is_empty() || sheets.contains(id))
+    let pages: Vec<_> = project
+        .printed_pages()
+        .into_iter()
+        .filter(|(s, _)| sheets.is_empty() || sheets.contains(&s.id))
+        .map(|(s, path)| (s.id, path))
         .collect();
     if pages.len() > MAX_PAGES {
         return Err(Error::TooLarge(format!(
@@ -204,13 +208,22 @@ pub fn schematic_pdf(project: &Project, sheets: &[SheetId]) -> Result<Vec<u8>> {
     } else {
         &project.properties.title
     });
-    for sheet in &pages {
-        let scene = scene::sheet_scene(project, *sheet);
+    for (sheet, path) in &pages {
+        let scene = scene::sheet_scene_in(project, *sheet, *path);
         let f = Frame::of(&scene);
         let mut page = draw(&scene);
         // A link over each sheet symbol whose child page is printed.
         for symbol in project.sheet_symbols.iter().filter(|s| s.sheet == *sheet) {
-            if let Some(target) = pages.iter().position(|s| *s == symbol.child) {
+            let child = path
+                .map_or_else(
+                    || sparksmith_core::model::sheet::SheetPath::root(*sheet),
+                    |p| p.clone(),
+                )
+                .child(symbol.id);
+            if let Some(target) = pages
+                .iter()
+                .position(|(s, p)| *s == symbol.child && *p == Some(&child))
+            {
                 let [x, y] = symbol.position_mm();
                 let [w, h] = symbol.size_mm();
                 page.link(f.map([x, y - h]), f.map([x + w, y]), target);

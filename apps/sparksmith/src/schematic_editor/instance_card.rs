@@ -119,6 +119,22 @@ impl SchematicEditor {
         // even in a small window), ahead of PART, PIN FUNCTIONS and Marking,
         // so a normal-height window shows it without scrolling.
         output = output.or(self.property_rows(ui, project, instance));
+        if let Some(Operation::Instance(InstanceCommand::SetProperties { instance, edits })) =
+            &output
+            && let Some((binding, local)) = project.sheet_binding(*instance)
+            && project.sheets.uses.iter().any(|u| {
+                u.definition == binding.definition
+                    && u.parts.get(&local).is_some_and(|id| id != instance)
+            })
+        {
+            let change = Change::Instance {
+                edit: sparksmith_core::updates::InstanceChange::SetProperties {
+                    instance: *instance,
+                    edits: edits.clone(),
+                },
+            };
+            return self.stage_update(engine, change);
+        }
         output = output.or(crate::variants::assembly_section(ui, project, instance));
         output = output.or(self.part_section(ui, engine, instance));
         output = output.or(self.function_section(ui, engine, instance));

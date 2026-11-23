@@ -7,7 +7,7 @@ use crate::issues::{Badge, Badges};
 use crate::kit::{self, Row};
 use sparksmith_core::catalog::{MAX_QUERY, MAX_RESULTS, UpdateAvailable};
 use sparksmith_core::library::Definition;
-use sparksmith_core::schematic::SheetRow;
+use sparksmith_core::model::sheet::SheetPath;
 use sparksmith_core::{DefinitionId, Engine, Id, Query, QueryResult, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -22,10 +22,11 @@ pub struct Lit {
     pub board: bool,
     /// The schematic's active sheet.
     pub sheet: Option<SheetId>,
+    pub sheet_use: Option<usize>,
 }
 
 /// A row the user picked.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pick {
     /// Select a component row; the workspace stays and nothing is drafted.
     Component(DefinitionId),
@@ -40,6 +41,7 @@ pub enum Pick {
     Board,
     /// A schematic sheet: show it.
     Sheet(SheetId),
+    SheetOccurrence(SheetId, SheetPath),
     /// Run a registry command, as the palette would (a folder's menu).
     Command(&'static str),
     /// Open the review that removes an instance, as its Delete… on the
@@ -793,7 +795,7 @@ fn tree(
         true,
     ) {
         if let Some(sheet) = sheets(ui, engine, lit, menu) {
-            pick = Some(Pick::Sheet(sheet));
+            pick = Some(sheet);
         }
         if folder(
             ui,
@@ -1089,10 +1091,9 @@ fn sheets(
     engine: &Engine,
     lit: Lit,
     menu: &mut crate::context_menu::State<MenuTarget>,
-) -> Option<SheetId> {
-    let Ok(QueryResult::Sheets(rows)) = engine.query(Query::Sheets {}) else {
-        return None;
-    };
+) -> Option<Pick> {
+    let project = engine.project();
+    let rows = project.sheet_pages();
     if !folder(
         ui,
         menu,
@@ -1106,44 +1107,44 @@ fn sheets(
         return None;
     }
     let mut pick = None;
-    for row in hierarchy(&rows) {
-        let secondary = format!("page {}", row.page);
+    let page_numbers: BTreeMap<_, _> = project
+        .printed_pages()
+        .into_iter()
+        .enumerate()
+        .map(|(i, (s, p))| ((s.id, p), i + 1))
+        .collect();
+    for (sheet, path) in rows {
+        let name = path.map_or_else(|| sheet.name.clone(), |p| p.display(project));
+        let page = page_numbers
+            .get(&(sheet.id, path))
+            .copied()
+            .unwrap_or_default();
+        let secondary = if path.is_none() && project.sheets.definitions.contains(&sheet.id) {
+            "Unused definition".into()
+        } else {
+            format!("page {page}")
+        };
+        let index = path.and_then(|p| project.sheets.uses.binary_search_by(|u| u.path.cmp(p)).ok());
         let response = kit::tree_row(
             ui,
-            egui::Id::unique(("browser-sheet", row.id.0)),
+            egui::Id::unique(("browser-sheet", sheet.id, path)),
             &Row {
-                depth: 3 + row.depth.min(8),
+                depth: 3 + path.map_or(0, |p| p.symbols.len().min(8)),
                 icon: "sketch",
-                label: &row.name,
+                label: &name,
                 secondary: &secondary,
-                selected: lit.sheet == Some(row.id),
+                selected: lit.sheet == Some(sheet.id) && lit.sheet_use == index,
                 tip: "Show this sheet",
                 ..Default::default()
             },
         );
         if response.clicked {
-            pick = Some(row.id);
+            pick = Some(path.map_or(Pick::Sheet(sheet.id), |p| {
+                Pick::SheetOccurrence(sheet.id, p.clone())
+            }));
         }
     }
     pick
-}
-
-/// Sheets depth-first under each top-level sheet, siblings in page order.
-fn hierarchy(rows: &[SheetRow]) -> Vec<&SheetRow> {
-    let mut out: Vec<&SheetRow> = Vec::with_capacity(rows.len());
-    let mut stack: Vec<&SheetRow> = rows.iter().filter(|r| r.parent.is_none()).rev().collect();
-    while let Some(row) = stack.pop() {
-        if out.iter().any(|r| r.id == row.id) {
-            continue;
-        }
-        out.push(row);
-        stack.extend(
-            rows.iter()
-                .filter(|r| r.parent.as_ref().map(|p| p.sheet) == Some(row.id))
-                .rev(),
-        );
-    }
-    out
 }
 
 #[cfg(test)]

@@ -19,17 +19,18 @@ use crate::{
 /// Two passive terminals, pins at x = ±5 mm of the unit origin, with a
 /// footprint so the board can place it; prefix U.
 fn two_pin(engine: &mut Engine) -> Result<Fixture> {
-    component(
-        engine,
-        &Spec {
-            name: "Two terminal",
-            terminals: vec![(1, "A", passive()), (2, "B", passive())],
-            units: vec![(1, "A", vec![(1, [-5.0, 0.0]), (2, [5.0, 0.0])])],
-            package: vec![(1, "1"), (2, "2")],
-            mapping: vec![(1, 1), (2, 2)],
-            physical: true,
-        },
-    )
+    component(engine, &two_pin_spec())
+}
+
+fn two_pin_spec() -> Spec<'static> {
+    Spec {
+        name: "Two terminal",
+        terminals: vec![(1, "A", passive()), (2, "B", passive())],
+        units: vec![(1, "A", vec![(1, [-5.0, 0.0]), (2, [5.0, 0.0])])],
+        package: vec![(1, "1"), (2, "2")],
+        mapping: vec![(1, 1), (2, 2)],
+        physical: true,
+    }
 }
 
 fn op(command: C) -> Operation {
@@ -548,7 +549,7 @@ fn sheet_pins_join_hierarchical_labels_on_the_child_sheet() -> Result<()> {
 }
 
 #[test]
-fn the_hierarchy_refuses_cycles_and_reuse() -> Result<()> {
+fn the_hierarchy_refuses_cycles() -> Result<()> {
     let Hier {
         mut engine, child, ..
     } = hierarchy()?;
@@ -565,17 +566,6 @@ fn the_hierarchy_refuses_cycles_and_reuse() -> Result<()> {
         },
     );
     assert!(matches!(cycle, Err(Error::Conflict(_))), "{cycle:?}");
-    let reuse = run(
-        &mut engine,
-        C::PlaceSheetSymbol {
-            sheet: Some(top),
-            child: Some(child),
-            name: None,
-            position: pt([0.0, -100.0]),
-            size: pt([20.0, 20.0]),
-        },
-    );
-    assert!(matches!(reuse, Err(Error::Conflict(_))), "{reuse:?}");
     kept.assert_kept(&engine, "refused sheet symbols");
     Ok(())
 }
@@ -595,8 +585,13 @@ fn removing_a_sheet_symbol_or_deleting_a_sheet_keeps_a_valid_document() -> Resul
     run(&mut engine, C::RemoveSheetSymbol { symbol })?;
     assert_eq!(engine.revision(), before + 1);
     assert!(engine.project().sheet_pin(pin).is_none());
-    assert!(engine.project().sheet(child).is_some(), "now top-level");
-    assert_ne!(net_of(&engine, ep(u1, 2))?, net_of(&engine, ep(u2, 1))?);
+    assert!(
+        engine.project().sheet(child).is_some(),
+        "definition retained"
+    );
+    assert!(engine.project().instance(u2).is_none());
+    assert!(engine.project().net_of(ep(u2, 1)).is_none());
+    assert!(engine.project().net_of(ep(u1, 2)).is_some());
     engine.undo()?;
     run(&mut engine, C::DeleteSheet { sheet: child })?;
     let project = engine.project();
@@ -1242,5 +1237,569 @@ fn hundreds_of_labels_across_sheets_stay_consistent() -> Result<()> {
         "{:?}",
         codes(&findings)
     );
+    Ok(())
+}
+
+/// A feedback resistor from OUT to FB, and a return resistor from FB to
+/// global GND. Only the top sheet names OUT_A and OUT_B.
+#[test]
+fn repeated_front_ends_have_independent_parts_and_copper() -> Result<()> {
+    let mut engine = Engine::default();
+    use crate::fields::{FieldDefinition, QuantityKind, ValueType};
+    use crate::instances::variants::VariantCommand as V;
+    use crate::quantity::{UnitOfMeasure, UnitSet};
+    let ohms = publish_kind(
+        &mut engine,
+        "Resistance",
+        QuantityKind {
+            units: UnitSet {
+                dimension: [2, 1, -3, -2, 0, 0, 0],
+                units: vec![UnitOfMeasure {
+                    symbol: "Ω".into(),
+                    aliases: vec![],
+                    scale: 1.,
+                    si_prefixes: true,
+                }],
+            },
+            default_unit: "Ω".into(),
+        },
+    )?;
+    let field = publish_field(
+        &mut engine,
+        "Feedback resistance",
+        FieldDefinition {
+            next_local: 1,
+            value_type: ValueType::Quantity {
+                kind: ohms,
+                min: None,
+                max: None,
+            },
+            default: None,
+            required_at: None,
+        },
+    )?;
+    let resistor = component_with_fields(&mut engine, &two_pin_spec(), vec![select(field)])?;
+    let parent = engine.project().sheets.first();
+    let front = add_sheet(&mut engine, "Front end")?;
+    let r1 = place_on(&mut engine, &resistor, "R1", front, [30., -20.])?;
+    let ret = place_on(&mut engine, &resistor, "R2", front, [30., -50.])?;
+    set_properties(&mut engine, r1, vec![text(field, "10 kΩ")])?;
+    set_properties(&mut engine, ret, vec![text(field, "1 kΩ")])?;
+    label(
+        &mut engine,
+        front,
+        "OUT",
+        hier(),
+        [10., -20.],
+        at(ep(r1, 1)),
+    )?;
+    label(
+        &mut engine,
+        front,
+        "FB",
+        LabelKind::Local,
+        [45., -20.],
+        at(ep(r1, 2)),
+    )?;
+    label(
+        &mut engine,
+        front,
+        "FB",
+        LabelKind::Local,
+        [10., -50.],
+        at(ep(ret, 1)),
+    )?;
+    label(
+        &mut engine,
+        front,
+        "GND",
+        power(PowerStyle::Ground),
+        [45., -50.],
+        at(ep(ret, 2)),
+    )?;
+    let feedback = net_of(&engine, ep(r1, 2))?;
+    let mut channels = Vec::new();
+    for (name, y) in [("A", -20.), ("B", -80.)] {
+        let Outcome::SheetSymbolPlaced { symbol, .. } = run(
+            &mut engine,
+            C::PlaceSheetSymbol {
+                sheet: Some(parent),
+                child: Some(front),
+                name: Some(name.into()),
+                position: pt([40., y]),
+                size: pt([30., 20.]),
+            },
+        )?
+        else {
+            return Err(Error::Invalid("sheet symbol".into()));
+        };
+        let Outcome::SheetPinsAdded { pins } = run(&mut engine, C::SyncSheetPins { symbol })?
+        else {
+            return Err(Error::Invalid("output pins".into()));
+        };
+        let [pin] = pins[..] else {
+            return Err(Error::Invalid("one OUT pin".into()));
+        };
+        label(
+            &mut engine,
+            parent,
+            &format!("OUT_{name}"),
+            LabelKind::Local,
+            [20., y - 5.],
+            Some(WireTarget::SheetPin(crate::model::SheetPinRef {
+                sheet_pin: pin,
+            })),
+        )?;
+        channels.push(symbol);
+    }
+    assert_eq!(engine.project().instances.len(), 4);
+    let b = engine
+        .project()
+        .sheets
+        .uses
+        .iter()
+        .find(|u| u.path.symbols == [channels[1]])
+        .ok_or_else(|| Error::Invalid("missing second channel".into()))?;
+    let r101 = b.parts[&r1];
+    let ret_b = b.parts[&ret];
+    apply(
+        &mut engine,
+        Operation::Instance(crate::InstanceCommand::SetDesignator {
+            instance: r101,
+            designator: "R101".into(),
+        }),
+    )?;
+    assert_eq!(net_name(&engine, ep(r1, 1))?, "OUT_A");
+    assert_eq!(net_name(&engine, ep(r101, 1))?, "OUT_B");
+    assert_eq!(net_of(&engine, ep(r1, 2))?, feedback);
+    assert_ne!(feedback, net_of(&engine, ep(r101, 2))?);
+    assert_eq!(net_name(&engine, ep(r1, 2))?, "A/FB");
+    assert_eq!(net_name(&engine, ep(r101, 2))?, "B/FB");
+    assert_eq!(net_of(&engine, ep(ret, 2))?, net_of(&engine, ep(ret_b, 2))?);
+    sync_onto_board(&mut engine)?;
+    assert_ne!(
+        engine.project().placement_of(r1).map(|p| p.position),
+        engine.project().placement_of(r101).map(|p| p.position)
+    );
+    let pad = |e: &Engine, id| {
+        layout::pads(e.project())
+            .into_iter()
+            .find(|p| p.terminal == ep(id, 2))
+            .ok_or_else(|| Error::Invalid("feedback pad".into()))
+    };
+    let mut tracks = Vec::new();
+    for id in [r1, r101] {
+        let p = pad(&engine, id)?;
+        tracks.push(engine.project().next_id);
+        apply(
+            &mut engine,
+            Operation::Layout(layout::LayoutCommand::Route {
+                request: layout::RouteRequest {
+                    net: p.net,
+                    start: p.position,
+                    end: [p.position[0], p.position[1] + 2.],
+                    width: 0.3,
+                    layer: crate::Layer::Top.into(),
+                },
+            }),
+        )?;
+    }
+    let bom = |e: &Engine| -> Result<_> {
+        let QueryResult::Bom(b) = e.query(Query::Bom {})? else {
+            return Err(Error::Invalid("BOM".into()));
+        };
+        Ok(b)
+    };
+    assert!(
+        bom(&engine)?
+            .lines
+            .iter()
+            .any(|l| l.fitted && l.quantity == 2 && l.designators == ["R1", "R101"])
+    );
+    let edit = Change::Instance {
+        edit: crate::updates::InstanceChange::SetProperties {
+            instance: r101,
+            edits: vec![text(field, "22 kΩ")],
+        },
+    };
+    let preview = engine.preview_update(edit.clone());
+    for name in ["R1:", "R101:"] {
+        assert!(
+            preview.changes.iter().any(|line| line.contains(name)),
+            "{:?}",
+            preview.changes
+        );
+    }
+    engine.apply_update(engine.revision(), edit, false)?;
+    for id in [r1, r101] {
+        let report = inspect(&engine, id)?;
+        assert!(report.properties.iter().any(|f| matches!(f.value,Some(crate::fields::FieldValue::Quantity {si,..}) if si == dec(22000.))));
+    }
+    run(
+        &mut engine,
+        C::RenameSheetSymbol {
+            symbol: channels[0],
+            name: "Left".into(),
+        },
+    )?;
+    run(
+        &mut engine,
+        C::ReorderSheet {
+            sheet: front,
+            index: 0,
+        },
+    )?;
+    let saved = format::encode(&engine.to_file())?;
+    let reopen = Engine::from_file(format::decode(&saved)?)?;
+    assert_eq!(reopen.project(), engine.project());
+    engine = reopen;
+    assert_eq!(net_name(&engine, ep(r1, 2))?, "Left/FB");
+    assert_eq!(net_of(&engine, ep(r1, 2))?, feedback);
+    let Outcome::VariantAdded { variant } = apply(
+        &mut engine,
+        Operation::Variant(V::Add {
+            name: "One channel".into(),
+            copy_of: None,
+        }),
+    )?
+    else {
+        return Err(Error::Invalid("variant".into()));
+    };
+    apply(
+        &mut engine,
+        Operation::Variant(V::SetPopulation {
+            instances: vec![r101],
+            variant: Some(variant),
+            population: Some(crate::model::Population::NotPopulated),
+        }),
+    )?;
+    apply(
+        &mut engine,
+        Operation::Variant(V::SetActive {
+            variant: Some(variant),
+        }),
+    )?;
+    assert!(
+        bom(&engine)?
+            .lines
+            .iter()
+            .any(|l| l.fitted && l.quantity == 1 && l.designators == ["R1"])
+    );
+    assert!(engine.project().placement_of(r101).is_some());
+    let before = engine.project().clone();
+    let remove = Change::Schematic {
+        command: C::RemoveSheetSymbol {
+            symbol: channels[1],
+        },
+    };
+    let plan = engine.preview_update(remove.clone());
+    assert_eq!(plan.conflicting_tracks, vec![tracks[1]]);
+    assert_eq!(
+        plan.removed_placements
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>(),
+        [r101, ret_b].into_iter().collect()
+    );
+    engine.apply_update(engine.revision(), remove, true)?;
+    assert!(engine.project().instance(r101).is_none());
+    assert!(engine.project().placement_of(r1).is_some());
+    engine.undo()?;
+    assert_eq!(engine.project(), &before);
+    Ok(())
+}
+
+fn put_sheet(engine: &mut Engine, sheet: SheetId, child: SheetId, name: &str) -> Result<Id> {
+    let outcome = run(
+        engine,
+        C::PlaceSheetSymbol {
+            sheet: Some(sheet),
+            child: Some(child),
+            name: Some(name.into()),
+            position: pt([0., 0.]),
+            size: pt([20., 20.]),
+        },
+    )?;
+    match outcome {
+        Outcome::SheetSymbolPlaced { symbol, .. } => Ok(symbol),
+        other => Err(Error::Invalid(format!("{other:?}"))),
+    }
+}
+
+#[test]
+fn nested_feedback_uses_the_whole_path_and_unused_parts_leave_the_board() -> Result<()> {
+    let mut e = Engine::default();
+    let top = e.project().sheets.first();
+    let front = add_sheet(&mut e, "Front")?;
+    let filter = add_sheet(&mut e, "Filter")?;
+    let f = two_pin(&mut e)?;
+    let local = place_on(&mut e, &f, "R1", filter, [15., -20.])?;
+    label(
+        &mut e,
+        filter,
+        "FB",
+        LabelKind::Local,
+        [5., -20.],
+        at(ep(local, 1)),
+    )?;
+    let sub = put_sheet(&mut e, front, filter, "Pole")?;
+    let a = put_sheet(&mut e, top, front, "A")?;
+    let b = put_sheet(&mut e, top, front, "B")?;
+    let lookup = |e: &Engine, path: &[Id]| -> Result<Id> {
+        e.project()
+            .sheets
+            .uses
+            .iter()
+            .find(|u| u.path.symbols == path)
+            .and_then(|u| u.parts.get(&local))
+            .copied()
+            .ok_or_else(|| Error::Invalid("nested binding".into()))
+    };
+    assert_eq!(lookup(&e, &[a, sub])?, local);
+    let second = lookup(&e, &[b, sub])?;
+    assert_ne!(second, local);
+    assert_eq!(net_name(&e, ep(local, 1))?, "A/Pole/FB");
+    assert_eq!(net_name(&e, ep(second, 1))?, "B/Pole/FB");
+    assert_ne!(net_of(&e, ep(local, 1))?, net_of(&e, ep(second, 1))?);
+    sync_onto_board(&mut e)?;
+    let remove = |symbol| Change::Schematic {
+        command: C::RemoveSheetSymbol { symbol },
+    };
+    e.apply_update(e.revision(), remove(a), true)?;
+    assert_eq!(lookup(&e, &[b, sub])?, second);
+    assert!(e.project().instance(local).is_none());
+    assert!(e.project().placement_of(second).is_some());
+    e.apply_update(e.revision(), remove(b), true)?;
+    assert!(
+        e.project().instances.is_empty()
+            && e.project().placements.is_empty()
+            && e.project().nets.is_empty()
+    );
+    assert!(e.project().sheet(filter).is_some() && e.project().sheet_symbol(sub).is_some());
+    let bytes = format::encode(&e.to_file())?;
+    e = Engine::from_file(format::decode(&bytes)?)?;
+    let c = put_sheet(&mut e, top, front, "C")?;
+    let third = lookup(&e, &[c, sub])?;
+    assert!(third != local && third != second);
+    assert_eq!(net_name(&e, ep(third, 1))?, "FB");
+    Ok(())
+}
+
+#[test]
+fn repeating_a_boundary_spanning_component_names_the_units_and_rolls_back() -> Result<()> {
+    let mut e = Engine::default();
+    let top = e.project().sheets.first();
+    let child = add_sheet(&mut e, "Amplifier")?;
+    let mut spec = two_pin_spec();
+    spec.units = vec![
+        (1, "A", vec![(1, [-5., 0.])]),
+        (2, "B", vec![(2, [5., 0.])]),
+    ];
+    let part = component(&mut e, &spec)?;
+    let id = place_on(&mut e, &part, "U7", child, [15., -20.])?;
+    run(
+        &mut e,
+        C::PlaceUnit {
+            instance: id,
+            unit: crate::UnitId(2),
+            sheet: Some(top),
+            position: pt([30., -20.]),
+        },
+    )?;
+    put_sheet(&mut e, top, child, "First")?;
+    let kept = Snapshot::of(&e);
+    let Err(rejected) = put_sheet(&mut e, top, child, "Second") else {
+        return Err(Error::Invalid("accepted a boundary-spanning repeat".into()));
+    };
+    let line = rejected.to_string();
+    assert!(
+        line.contains("U7") && line.contains("Amplifier") && line.contains("Sheet 1"),
+        "{line}"
+    );
+    kept.assert_kept(&e, "split units");
+    Ok(())
+}
+
+#[test]
+fn a_cancelled_or_stale_sheet_worker_cannot_place_any_parts() -> Result<()> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    let mut e = Engine::default();
+    let top = e.project().sheets.first();
+    let child = add_sheet(&mut e, "Filter")?;
+    let command = C::PlaceSheetSymbol {
+        sheet: Some(top),
+        child: Some(child),
+        name: Some("Channel".into()),
+        position: pt([10., 0.]),
+        size: pt([20., 20.]),
+    };
+    let token = Arc::new(AtomicBool::new(true));
+    let kept = Snapshot::of(&e);
+    let ev = crate::Evaluators {
+        footprint: None,
+        board: None,
+    };
+    assert!(
+        e.fork()
+            .prepare_sheet(command.clone(), token.clone(), ev)
+            .is_err()
+    );
+    kept.assert_kept(&e, "cancelled before expansion");
+    token.store(false, Ordering::Relaxed);
+    let prepared = e.fork().prepare_sheet(command.clone(), token.clone(), ev)?;
+    token.store(true, Ordering::Relaxed);
+    assert!(e.commit_sheet(prepared).is_err());
+    kept.assert_kept(&e, "cancelled before commit");
+    token.store(false, Ordering::Relaxed);
+    let prepared = e.fork().prepare_sheet(command, token, ev)?;
+    run(
+        &mut e,
+        C::RenameSheet {
+            sheet: top,
+            name: "Parent".into(),
+        },
+    )?;
+    let renamed = Snapshot::of(&e);
+    assert!(e.commit_sheet(prepared).is_err());
+    renamed.assert_kept(&e, "stale sheet expansion");
+    Ok(())
+}
+
+#[test]
+fn single_use_files_gain_bindings_without_reallocating_physical_parts_or_nets() -> Result<()> {
+    let Hier { mut engine, .. } = hierarchy()?;
+    sync_onto_board(&mut engine)?;
+    let mut old: serde_json::Value = serde_json::from_slice(&format::encode(&engine.to_file())?)?;
+    let sheets = old["project"]["sheets"]
+        .as_object_mut()
+        .ok_or_else(|| Error::Invalid("saved sheets".into()))?;
+    sheets.remove("uses");
+    sheets.remove("definitions");
+    let reopened = Engine::from_file(format::decode(&serde_json::to_vec(&old)?)?)?;
+    assert_eq!(reopened.project(), engine.project());
+    Ok(())
+}
+
+#[test]
+fn repeated_files_require_a_physical_part_record_for_each_binding() -> Result<()> {
+    let Hier {
+        mut engine, child, ..
+    } = hierarchy()?;
+    let root = engine.project().sheets.first();
+    put_sheet(&mut engine, root, child, "Second")?;
+    let mut stored: serde_json::Value =
+        serde_json::from_slice(&format::encode(&engine.to_file())?)?;
+    let parts = stored["occurrence_parts"]
+        .as_array_mut()
+        .ok_or_else(|| Error::Invalid("saved parts".into()))?;
+    assert_eq!(parts.len(), 1);
+    assert!(parts[0].get("properties").is_none());
+    parts.clear();
+    assert!(format::decode(&serde_json::to_vec(&stored)?).is_err());
+    Ok(())
+}
+
+#[test]
+fn compact_exponential_hierarchy_is_refused_before_enumeration() -> Result<()> {
+    let mut project = Engine::default().project().clone();
+    for n in 1..40 {
+        let child = SheetId(n + 1);
+        project.sheets.list.push(crate::model::sheet::Sheet {
+            id: child,
+            name: format!("Page {n}"),
+            ..crate::model::sheet::Sheet::first()
+        });
+        project.sheets.definitions.insert(child);
+        for _ in 0..2 {
+            let id = project.allocate()?;
+            project.sheet_symbols.push(crate::model::SheetSymbol {
+                id,
+                sheet: SheetId(n),
+                child,
+                name: None,
+                position: pt([0., 0.]),
+                size: pt([20., 20.]),
+                pins: vec![],
+            });
+        }
+    }
+    assert!(matches!(
+        crate::schematic::hierarchy::paths(&project, || false),
+        Err(Error::Limit(_))
+    ));
+    Ok(())
+}
+
+#[test]
+fn replacing_from_channel_b_maps_the_drawing_and_both_physical_parts() -> Result<()> {
+    use crate::updates::{Alignment, Replacement, TerminalPair};
+    let Hier {
+        mut engine,
+        child,
+        u2: local,
+        symbol: a,
+        ..
+    } = hierarchy()?;
+    let top = engine.project().sheets.first();
+    let b = put_sheet(&mut engine, top, child, "B")?;
+    let path = crate::model::sheet::SheetPath::root(top).child(b);
+    let second = engine
+        .project()
+        .sheet_use(&path)
+        .and_then(|u| u.parts.get(&local))
+        .copied()
+        .ok_or_else(|| Error::Invalid("missing B".into()))?;
+    let target = two_pin(&mut engine)?;
+    let change = Change::ReplaceComponent {
+        instances: vec![second],
+        replacement: Replacement {
+            target: target.r1(),
+            representation: Some(target.symbol),
+            physical: Some(target.physical()),
+            terminals: vec![
+                TerminalPair {
+                    from: crate::TerminalId(1),
+                    to: Some(crate::TerminalId(2)),
+                },
+                TerminalPair {
+                    from: crate::TerminalId(2),
+                    to: Some(crate::TerminalId(1)),
+                },
+            ],
+            units: vec![],
+            alignment: Alignment::FitPads,
+        },
+    };
+    for remove_first in [false, true] {
+        let mut e = engine.fork();
+        if remove_first {
+            e.apply_update(
+                e.revision(),
+                Change::Schematic {
+                    command: C::RemoveSheetSymbol { symbol: a },
+                },
+                true,
+            )?;
+        }
+        let physical: Vec<_> = [local, second]
+            .into_iter()
+            .filter(|id| e.project().instance(*id).is_some())
+            .collect();
+        let ids: Vec<_> = physical
+            .iter()
+            .map(|id| net_of(&e, ep(*id, 1)))
+            .collect::<Result<_>>()?;
+        e.apply_update(e.revision(), change.clone(), true)?;
+        for (id, net) in physical.into_iter().zip(ids) {
+            assert_eq!(
+                e.project().instance(id).map(|p| p.component),
+                Some(target.r1())
+            );
+            assert_eq!(net_of(&e, ep(id, 2))?, net);
+        }
+        assert!(e.project().wires_at(ep(local, 2).into()).next().is_some());
+    }
     Ok(())
 }

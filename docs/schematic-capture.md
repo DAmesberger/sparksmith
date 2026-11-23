@@ -6,7 +6,7 @@ As built on 2 November 2026. This extends the single-sheet capture described in 
 
 | Data | Where | Identity |
 | --- | --- | --- |
-| Sheets in page order, page size and orientation | `Project.sheets` (`Sheets { list, next }`) | `SheetId` (own allocation space; a new project has sheet 1, "Sheet 1", A4 landscape) |
+| Sheets in page order, page size and orientation | `Project.sheets` (ordered definitions and occurrence bindings) | `SheetId` (own allocation space; a new project has sheet 1, "Sheet 1", A4 landscape) |
 | Title-block properties: title, revision, date, author, company | `Project.properties` | — |
 | Labels and power ports | `Project.labels` (`Label { id, sheet, name, kind, position, rotation, manual }`) | object `Id` |
 | Sheet symbols and their pins | `Project.sheet_symbols` (`SheetSymbol { id, sheet, child, position, size, pins }`) | object `Id` (pins too) |
@@ -85,9 +85,13 @@ A power port is a label of kind `power`: global scope, drawn as the ground bars 
 
 `sheet.add`, `sheet.rename`, `sheet.set_page` (A4, A3, A2, A1, A0, Letter, Legal, Tabloid; landscape or portrait), `sheet.reorder` and `sheet.delete` (removes what is drawn on the sheet, returns its units to unplaced and removes the sheet symbol that used it; the last sheet stays). Sheet names are unique case-insensitively. `component.place` and `symbol.place_unit` take an optional `sheet`; `symbol.move_to_sheet` moves an unwired unit (a wire cannot cross sheets: join sheets with labels).
 
-A sheet symbol (`sheet_symbol.place`, with an existing `child` or a new sheet) stands on a parent sheet for a child sheet. Sheet pins (`sheet_pin.add`/`edit`/`remove`, on the left, right, top or bottom edge) connect to the child's hierarchical labels of the same name; `sheet_symbol.sync_pins` adds a pin for every hierarchical label name the symbol lacks. Sheets without a parent symbol are top-level sheets, so a flat multi-sheet design (sheets joined by global labels and power ports) and a hierarchical one use the same model. The hierarchy is acyclic and every sheet has at most one parent symbol.
+Choose a definition in the Sheet symbol tool to place another channel. The optional channel name belongs to the symbol. Double-click the symbol to open that occurrence. In automation, `sheet_symbol.place` takes the parent `sheet`, an existing `child`, and an optional display `name`. Omit `child` to create a new sheet. Use `sheet_symbol.rename` to rename one channel and `sheet.rename` to rename its definition.
 
-**Not supported yet: reusing one child sheet under several sheet symbols.** That needs per-path component instances (R1 on one copy, R101 on the other) and per-path net identity, which the one-instance-one-designator model does not have; `sheet_symbol.place` refuses a sheet another symbol already uses. Copy the sheet's contents instead.
+Sheet pins join hierarchical labels of the same name in the selected child occurrence. Use `sheet_symbol.sync_pins` to add pins for the child's ports. Local labels join within one occurrence. Global labels and power ports join across the project.
+
+Each traversal has a stable path made from its root sheet ID and the sheet-symbol IDs on the way down. The drawing is shared. Each channel has its own physical parts, designators, placements and assembly-variant choices. Cross-probing a footprint selects the unit in that channel. A field edit through either channel updates the shared value. The review lists each affected designator. Removing a channel reviews its board impact and leaves the other channels in place. Removing the final channel leaves the definition available to use again. A multi-unit component spanning the boundary must be brought onto one sheet before repeating it.
+
+`schematic.sheets` lists the occurrence paths and their physical component bindings. Pass a path to `schematic.scene` to render that channel.
 
 ## Annotation
 
@@ -130,12 +134,11 @@ The existing net rules (driver conflicts, input-only nets, undriven power inputs
 
 ## Printing
 
-`sparksmith-io::schematic_pdf` writes a vector PDF through the shared PDF canvas `sparksmith-io::pdf` (pdf-writer, MIT/Apache-2.0; also used by the fabrication drawings) with one page per sheet at its paper size, frame and title block included, from `schematic::scene`. A selection of sheets prints in page order. A sheet symbol is a link to its child sheet's page. Exposed as the CLI `export-schematic-pdf`, the automation request `schematic.export_pdf` (an external effect, not an undo step) and File › Export schematic PDF… in the desktop.
+`sparksmith-io::schematic_pdf` writes a vector PDF through the shared PDF canvas `sparksmith-io::pdf` (pdf-writer, MIT/Apache-2.0; also used by the fabrication drawings) with one page per sheet occurrence occurrence at its paper size, frame and title block included, from `schematic::scene`. A selection of sheets prints in page order. A sheet symbol links to the page for its own child occurrence. Exposed as the CLI `export-schematic-pdf`, the automation request `schematic.export_pdf` (an external effect, not an undo step) and File › Export schematic PDF… in the desktop.
 
 ## Follow-ups
 
 - Buses (bus wires, bus entries, vector names such as `D[0..7]`) are not implemented.
-- Reusable child sheets instanced more than once (see above).
 - Labels do not yet draw with per-label font size or justification overrides.
 - Sheet symbols and sheet pins cannot join a group selection yet, as they cannot be copied.
 - Arrow keys do not nudge sheet objects, one or several.

@@ -8,6 +8,27 @@ use crate::model::Project;
 use crate::{layout, nets, schematic};
 use std::collections::BTreeSet;
 
+/// Accept the implicit identity binding in an original single-use hierarchy.
+pub(crate) fn adopt_single_use_sheets(project: &mut Project) -> Result<()> {
+    // The original single-use hierarchy had no path table. Its one physical
+    // component per local is unambiguous. Repeated definitions require explicit bindings.
+    if !project.sheet_symbols.is_empty()
+        && project.sheets.definitions.is_empty()
+        && project.sheets.uses.is_empty()
+        && project.sheets.locals.is_empty()
+    {
+        let mut seen = std::collections::BTreeSet::new();
+        if !project.sheet_symbols.iter().all(|s| seen.insert(s.child)) {
+            return Err(Error::Invalid(
+                "Repeated sheets require physical occurrence bindings.".into(),
+            ));
+        }
+        let base = project.clone();
+        schematic::hierarchy::reconcile(&base, project, false, || false)?;
+    }
+    Ok(())
+}
+
 /// Every project invariant, as checked on decode.
 pub fn project(p: &Project) -> Result<()> {
     library::validate(&p.library)?;
@@ -47,6 +68,7 @@ fn project_checks(p: &Project, schematic: bool) -> Result<()> {
     for id in lineages
         .into_iter()
         .chain(p.instances.iter().map(|i| i.id))
+        .chain(p.sheets.locals.iter().map(|i| i.id))
         .chain(p.occurrences.iter().map(|o| o.id))
         .chain(p.wires.iter().map(|w| w.id))
         .chain(p.junctions.iter().map(|j| j.id))
@@ -112,6 +134,7 @@ pub fn drafts_only(p: &Project, drafts: &Drafts) -> Result<()> {
         .instances
         .iter()
         .map(|i| i.id)
+        .chain(p.sheets.locals.iter().map(|i| i.id))
         .chain(p.occurrences.iter().map(|o| o.id))
         .chain(p.wires.iter().map(|w| w.id))
         .chain(p.junctions.iter().map(|j| j.id))

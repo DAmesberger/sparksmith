@@ -347,3 +347,33 @@ fn a_rounded_wire_corner_prints_as_its_arc() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn printing_a_repeated_sheet_links_to_each_channel() -> TestResult {
+    let (mut engine, child) = two_sheets()?;
+    let top = engine.project().sheets.first();
+    let symbol = engine
+        .project()
+        .sheet_symbols
+        .first()
+        .ok_or("symbol")?
+        .clone();
+    engine.apply(
+        engine.revision(),
+        Operation::Schematic(
+            sparksmith_core::schematic::SchematicCommand::PlaceSheetSymbol {
+                sheet: Some(top),
+                child: Some(child),
+                name: Some("Second channel".into()),
+                position: symbol.position,
+                size: symbol.size,
+            },
+        ),
+    )?;
+    let pdf = schematic_pdf(engine.project(), &[])?;
+    assert_eq!(pages(&pdf), 3);
+    assert_eq!(find(&pdf, b"/Subtype /Link"), 2);
+    assert!(find(&pdf, b"(3 of 3)") > 0);
+    assert!(find(&pdf, b"(Second channel)") >= 2);
+    Ok(())
+}

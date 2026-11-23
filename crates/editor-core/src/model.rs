@@ -38,6 +38,9 @@ pub use stackup::{
 pub use variants::{AssemblyVariant, AssemblyVariants, Population, VariantOverride};
 pub use via::{Via, ViaSpan};
 
+/// Maximum JSON document size in a project container (see the file format).
+pub const DOCUMENT_BYTES: usize = 64 * 1024 * 1024;
+
 /// The physical implementation an instance uses, as lineages resolved
 /// through its pinned component revision.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

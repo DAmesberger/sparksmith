@@ -128,7 +128,7 @@ pub fn reorder(project: &mut Project, id: SheetId, index: usize) -> Result<()> {
 /// Delete a sheet and everything drawn on it: its units return to
 /// unplaced, its wires, junctions, labels, sheet symbols and furniture go,
 /// and the sheet symbol that used it goes with its pins. Sheets its own
-/// sheet symbols used become top-level sheets. The last sheet stays.
+/// sheet symbols used remain available as definitions. The last sheet stays.
 pub fn delete(project: &mut Project, id: SheetId) -> Result<()> {
     check_sheet(project, id)?;
     if project.sheets.list.len() <= 1 {
@@ -136,9 +136,11 @@ pub fn delete(project: &mut Project, id: SheetId) -> Result<()> {
     }
     // Wires on the sheet, and those on the pins of the symbol using it.
     let parent_pins: BTreeSet<WireEnd> = project
-        .parent_symbol(id)
-        .map(|s| s.pins.iter().map(|p| WireEnd::sheet_pin(p.id)).collect())
-        .unwrap_or_default();
+        .sheet_symbols
+        .iter()
+        .filter(|s| s.child == id)
+        .flat_map(|s| s.pins.iter().map(|p| WireEnd::sheet_pin(p.id)))
+        .collect();
     let doomed: BTreeSet<Id> = project
         .wires
         .iter()
@@ -154,22 +156,8 @@ pub fn delete(project: &mut Project, id: SheetId) -> Result<()> {
         .sheet_symbols
         .retain(|s| s.sheet != id && s.child != id);
     project.sheets.list.retain(|s| s.id != id);
+    project.sheets.definitions.remove(&id);
     Ok(())
-}
-
-/// The sheets above `sheet` through the sheet symbols that use them,
-/// nearest first.
-fn ancestors(project: &Project, sheet: SheetId) -> Vec<SheetId> {
-    let mut out = Vec::new();
-    let mut at = sheet;
-    while let Some(symbol) = project.parent_symbol(at) {
-        if out.contains(&symbol.sheet) || out.len() > project.sheets.list.len() {
-            break;
-        }
-        out.push(symbol.sheet);
-        at = symbol.sheet;
-    }
-    out
 }
 
 fn check_size(size: PointNm) -> Result<()> {
@@ -181,8 +169,6 @@ fn check_size(size: PointNm) -> Result<()> {
     }
 }
 
-/// Whether `child` may be used by a symbol drawn on `sheet`: not the sheet
-/// itself, not one of its ancestors, and used by no other symbol.
 fn check_child(
     project: &Project,
     sheet: SheetId,
@@ -190,20 +176,39 @@ fn check_child(
     except: Option<Id>,
 ) -> Result<()> {
     check_sheet(project, child)?;
-    if child == sheet || ancestors(project, sheet).contains(&child) {
-        return Err(conflict(
-            "A sheet cannot contain itself or a sheet above it.",
+    let mut seen = BTreeSet::new();
+    let mut pending = vec![child];
+    while let Some(id) = pending.pop() {
+        if id == sheet {
+            return Err(conflict(
+                "A sheet cannot contain itself or a sheet above it.",
+            ));
+        }
+        if seen.insert(id) {
+            pending.extend(
+                project
+                    .sheet_symbols
+                    .iter()
+                    .filter(|s| s.sheet == id && Some(s.id) != except)
+                    .map(|s| s.child),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn check_channel_name(name: &str) -> Result<()> {
+    if !printable(name) || name.len() > MAX_SHEET_NAME {
+        return Err(invalid(
+            "Channel names must be 1–64 bytes without control characters.",
         ));
     }
-    if project
-        .sheet_symbols
-        .iter()
-        .any(|s| s.child == child && Some(s.id) != except)
-    {
-        return Err(conflict(
-            "That sheet is already used by another sheet symbol; reusing a sheet twice is not supported yet.",
-        ));
-    }
+    Ok(())
+}
+
+pub fn name_symbol(project: &mut Project, id: Id, name: String) -> Result<()> {
+    check_channel_name(&name)?;
+    symbol_mut(project, id)?.name = Some(name);
     Ok(())
 }
 
@@ -212,7 +217,7 @@ pub struct NewSheetSymbol {
     pub sheet: SheetId,
     /// An existing sheet to use; a new sheet when omitted.
     pub child: Option<SheetId>,
-    /// The new child sheet's name.
+    /// Name of a new child definition, or the channel name of an existing one.
     pub name: Option<String>,
     pub position: PointNm,
     pub size: PointNm,
@@ -223,23 +228,23 @@ pub struct NewSheetSymbol {
 pub fn place_symbol(project: &mut Project, new: NewSheetSymbol) -> Result<(Id, SheetId)> {
     check_sheet(project, new.sheet)?;
     check_size(new.size)?;
-    let child = match new.child {
+    let (child, name) = match new.child {
         Some(child) => {
-            if new.name.is_some() {
-                return Err(invalid(
-                    "Name a new child sheet only; an existing sheet keeps its name.",
-                ));
+            if let Some(name) = &new.name {
+                check_channel_name(name)?;
             }
-            child
+            (child, new.name)
         }
-        None => add(project, new.name, None, None)?,
+        None => (add(project, new.name, None, None)?, None),
     };
     check_child(project, new.sheet, child, None)?;
+    project.sheets.definitions.insert(child);
     let id = project.allocate()?;
     project.sheet_symbols.push(SheetSymbol {
         id,
         sheet: new.sheet,
         child,
+        name,
         position: new.position,
         size: new.size,
         pins: Vec::new(),
@@ -294,11 +299,12 @@ pub fn set_child(project: &mut Project, id: Id, child: SheetId) -> Result<()> {
         .map(|s| s.sheet)
         .ok_or_else(|| not_found("Unknown sheet symbol."))?;
     check_child(project, sheet, child, Some(id))?;
+    project.sheets.definitions.insert(child);
     symbol_mut(project, id)?.child = child;
     Ok(())
 }
 
-/// Remove a sheet symbol. Its child sheet stays as a top-level sheet; wires
+/// Remove a sheet symbol. Its child definition stays in the project. Wires
 /// on its pins stay joined to each other at junctions.
 pub fn remove_symbol(project: &mut Project, id: Id) -> Result<()> {
     let symbol = project
@@ -602,8 +608,7 @@ pub fn move_unit_to_sheet(
 }
 
 /// Sheets, sheet symbols, pins, labels and drawings: references,
-/// unique names and an acyclic hierarchy in which each sheet has at most
-/// one parent symbol.
+/// unique names and an acyclic hierarchy with validated occurrence bindings.
 pub(super) fn validate(project: &Project) -> Result<()> {
     let sheets = &project.sheets;
     if sheets.list.is_empty() {
@@ -638,13 +643,16 @@ pub(super) fn validate(project: &Project) -> Result<()> {
     for drawing in &project.drawings {
         check_item(&drawing.item)?;
     }
-    let mut children = BTreeSet::new();
+
     for symbol in &project.sheet_symbols {
         if !known(symbol.sheet) || !known(symbol.child) {
             return Err(invalid("A sheet symbol references a missing sheet."));
         }
-        if !children.insert(symbol.child) {
-            return Err(invalid("A sheet is used by more than one sheet symbol."));
+        if !sheets.definitions.contains(&symbol.child) {
+            return Err(invalid("A sheet symbol must reference a child definition."));
+        }
+        if let Some(name) = &symbol.name {
+            check_channel_name(name)?;
         }
         check_size(symbol.size)?;
         check_pins_fit(symbol)?;
@@ -659,11 +667,5 @@ pub(super) fn validate(project: &Project) -> Result<()> {
             }
         }
     }
-    for symbol in &project.sheet_symbols {
-        if symbol.child == symbol.sheet || ancestors(project, symbol.sheet).contains(&symbol.child)
-        {
-            return Err(invalid("The sheet hierarchy has a cycle."));
-        }
-    }
-    Ok(())
+    super::hierarchy::validate(project)
 }
