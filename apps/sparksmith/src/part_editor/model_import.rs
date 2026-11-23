@@ -1137,7 +1137,7 @@ fn file_rows(ui: &mut Ui, wizard: &mut Wizard) {
         };
         if kit::list_frame(ui, warnings.len(), max, |ui, index| {
             if let Some(warning) = warnings.get(index) {
-                kit::status(ui, warning, kit::Tone::Warning);
+                kit::warning_row(ui, warning);
             }
         })
         .show_all

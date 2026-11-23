@@ -5,7 +5,7 @@
 //! left (Enter or a click elsewhere).
 use super::PartEditor;
 use super::model_place::{self, PointToPoint};
-use crate::kit::{self, Tone};
+use crate::kit;
 use egui::Ui;
 use sparksmith_core::library::package_fit;
 use sparksmith_core::library::{Axis, ModelPlacement, PackageEdit, QuickAction};
@@ -167,10 +167,9 @@ impl PartEditor {
                         );
                     }
                     if fit.mirrored_better {
-                        kit::status(
+                        kit::warning_row(
                             ui,
                             "A mirrored pin order fits better: check the footprint's numbering.",
-                            Tone::Warning,
                         );
                     }
                     // A residual no placement removes: the body and the
@@ -180,12 +179,11 @@ impl PartEditor {
                         && let Some((leads, pads)) =
                             package_fit::spacing_mismatch(pairs, FIT_TOLERANCE_MM)
                     {
-                        kit::status(
+                        kit::warning_row(
                             ui,
                             &format!(
                                 "Lead spacing {leads:.2} mm vs pad spacing {pads:.2} mm: placement cannot close this. Change the body, or use Lands from body."
                             ),
-                            Tone::Warning,
                         );
                     }
                     let unchanged = fit.placement == package.placement;

@@ -4,7 +4,7 @@
 //! step (docs/sidebar-ia.md, principle 13); there is no Apply. Remove… is
 //! the card's footer, and findings are counted in its issue slot.
 use super::{FieldBuffer, Live, SchematicEditor, focus_left, live};
-use crate::kit::{self, Tone};
+use crate::kit;
 use crate::refusal::{self, Origin};
 use crate::resolve_parts;
 use sparksmith_core::completeness::{PurchasingState, purchasing};
@@ -314,7 +314,7 @@ impl SchematicEditor {
                         if error.is_none()
                             && let Some(hint) = part_hint(project, instance, &buffer)
                         {
-                            kit::status(ui, &hint, Tone::Warning);
+                            kit::warning_row(ui, &hint);
                         }
                     }
                 }
