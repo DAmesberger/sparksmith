@@ -19,16 +19,22 @@ const MAX_PATH: usize = 4095;
 pub struct ModelFileParams {
     pub path: sparksmith_core::permission::FilePath,
     pub format: ModelFormat,
-    /// The frame to report bounds in; the format's default frame (glTF:
-    /// metres, Y up; STEP and `.solidcraft`: as stated, Z up) when absent.
+    /// Bounds frame, defaulting to the format's frame.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frame: Option<SourceFrameParams>,
-    /// First warning to return.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub warning_offset: Option<usize>,
-    /// Number of warnings to return. Omit to read them all.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub warning_limit: Option<usize>,
+    pub warning_page: Option<WarningPage>,
+}
+
+/// Omit the page to return all inspection warnings.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WarningPage {
+    /// Zero-based warning index.
+    #[serde(default)]
+    pub offset: usize,
+    /// Maximum warning count on this page.
+    pub limit: Option<usize>,
 }
 
 /// The inspected geometry and coverage of the requested warning page.
@@ -104,10 +110,11 @@ impl Session {
             Some(frame) => inspect::inspect_in(&bytes, params.format, &SourceFrame::from(*frame))?,
             None => inspect::inspect(&bytes, params.format)?,
         };
+        let page = params.warning_page.unwrap_or_default();
         Ok(serde_json::to_value(InspectedFile::page(
             inspection,
-            params.warning_offset.unwrap_or(0),
-            params.warning_limit,
+            page.offset,
+            page.limit,
         )?)?)
     }
 }
@@ -205,6 +212,11 @@ mod tests {
                 "frame": {"unit_mm": 1000.0, "up": "z", "origin_offset": [0.0, 0.0, 0.0]}}}));
         let hi = &reply["result"]["bounds_mm"][1];
         assert!(near(&hi[1], 1.0) && near(&hi[2], 1.5), "{reply}");
+        let page = session.dispatch(json!({"command": "library.inspect_model_file",
+            "params": {"path": path.to_string_lossy(), "format": "gltf",
+                "warning_page": {"offset": 0, "limit": 0}}}));
+        assert_eq!(page["ok"], true, "{page}");
+        assert_eq!(page["result"]["warning_total"], result["warning_total"]);
         let after = session.dispatch(json!({"command": "project.inspect"}));
         assert_eq!(before, after, "inspection is not a document change");
         Ok(())
