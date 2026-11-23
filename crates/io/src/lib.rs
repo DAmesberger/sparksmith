@@ -7,6 +7,7 @@ pub mod assembly_link;
 pub mod fab_drawings;
 pub mod fabrication;
 pub mod generated;
+pub mod help;
 pub mod generator_bundle;
 pub mod interface;
 pub mod kicad_files;
