@@ -1,6 +1,6 @@
 # Reusing a child sheet for several channels
 
-**Proposed for founder decision.** A designer should be able to draw an ADC front end once, use it twice, and place and route the two channels independently. Today a sheet symbol can reference a child once. Copying its contents creates separate components and drawings that the designer must maintain individually. [Current hierarchy and copy behavior](../schematic-capture.md#sheets-and-hierarchy)
+**Accepted design.** A designer should be able to draw an ADC front end once, use it twice, and place and route the two channels independently. Each sheet symbol can now refer to an existing child definition. Both channels follow edits to its drawing. [Current hierarchy and copy behavior](../schematic-capture.md#sheets-and-hierarchy)
 
 ## Definition and occurrence
 

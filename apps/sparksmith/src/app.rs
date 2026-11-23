@@ -62,6 +62,19 @@ struct Parts {
     native_menu: Option<crate::native_menu::NativeMenu>,
 }
 
+struct SheetWork {
+    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    result: std::sync::mpsc::Receiver<sparksmith_core::Result<sparksmith_core::PreparedSheet>>,
+    origin: Origin,
+}
+
+impl Drop for SheetWork {
+    fn drop(&mut self) {
+        self.cancel
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 pub struct App {
     engine: Engine,
     workspace: Workspace,
@@ -71,6 +84,7 @@ pub struct App {
     scene: SceneController,
     /// Stale copper fills refill off the UI thread.
     fills: crate::fill_worker::FillWorker,
+    sheet_work: Option<SheetWork>,
     files: FileUi,
     /// Library folders, favourites and recents (S3).
     sources: LibrarySources,
@@ -335,6 +349,7 @@ impl App {
         Self {
             scene: SceneController::new(ctx.clone(), viewport),
             fills: crate::fill_worker::FillWorker::start(ctx.clone()),
+            sheet_work: None,
             files,
             sources,
             engine,
@@ -400,6 +415,56 @@ impl App {
         let action = refusal::take_action(ctx).or_else(|| refusal::titled_action(&operation));
         if self.files.busy() {
             self.say(Level::Info, "Wait for the file operation to finish");
+            return;
+        }
+        if let Operation::Schematic(
+            command @ (sparksmith_core::schematic::SchematicCommand::PlaceSheetSymbol {
+                child: Some(_),
+                ..
+            }
+            | sparksmith_core::schematic::SchematicCommand::SetSheetChild { .. }),
+        ) = &operation
+        {
+            if self.sheet_work.is_some() {
+                self.say(
+                    Level::Info,
+                    "A sheet is being expanded. Press Esc to cancel.",
+                );
+                return;
+            }
+            let fork = self.engine.fork();
+            let command = command.clone();
+            let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let token = cancel.clone();
+            let (send, result) = std::sync::mpsc::channel();
+            let wake = ctx.clone();
+            match std::thread::Builder::new()
+                .name("sheet-expansion".into())
+                .spawn(move || {
+                    let prepared = fork.prepare_sheet(
+                        command,
+                        token,
+                        sparksmith_core::Evaluators {
+                            footprint: Some(&sparksmith_solidcraft::footprint::SketchEvaluator),
+                            board: crate::pcb_editor::board_shape::host_evaluator(),
+                        },
+                    );
+                    let _ = send.send(prepared);
+                    wake.request_repaint();
+                }) {
+                Ok(_) => {
+                    self.sheet_work = Some(SheetWork {
+                        cancel,
+                        result,
+                        origin,
+                    });
+                    self.say(Level::Info, "Expanding sheet. Press Esc to cancel.");
+                }
+                Err(error) => self.say(
+                    Level::Error,
+                    format!("Could not start sheet expansion: {error}"),
+                ),
+            }
             return;
         }
         // An explicit refill computes on the fill worker; its copper comes
@@ -483,6 +548,30 @@ impl App {
                     self.schematic.review_named_merge(&self.engine, command)
                 }) => {}
             Err(error) => self.refuse(ctx, origin, error, action.as_deref()),
+        }
+    }
+
+    fn poll_sheet(&mut self, ctx: &egui::Context) {
+        let Some(work) = &self.sheet_work else {
+            return;
+        };
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            self.sheet_work = None;
+            self.say(Level::Info, "Sheet placement cancelled");
+            return;
+        }
+        let result = match work.result.try_recv() {
+            Ok(result) => result.and_then(|p| self.engine.commit_sheet(p)),
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(
+                sparksmith_core::Error::Invalid("The sheet worker stopped.".into()),
+            ),
+        };
+        let origin = work.origin;
+        self.sheet_work = None;
+        match result {
+            Ok(()) => self.clear_error(),
+            Err(error) => self.refuse(ctx, origin, error, Some("place sheet")),
         }
     }
 
@@ -1788,6 +1877,7 @@ impl eframe::App for App {
         let pcb_3d = self.workspace == Workspace::Pcb && self.pcb.is_3d();
         open_timing::report(self.open_timing.frame(pcb_3d, std::time::Instant::now()));
         self.scene.receive();
+        self.poll_sheet(&ctx);
         self.refill_fills(&ctx);
         self.file_effects(&ctx);
         self.recent_projects(&ctx);

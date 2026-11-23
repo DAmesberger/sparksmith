@@ -9,7 +9,7 @@ What a person can do today, by workflow, with the evidence and the limits that m
 | Workflow | Status | Evidence | Main limits |
 | --- | --- | --- | --- |
 | Component authoring | Built: Symbol, Footprint, Mapping and 3D modes, immutable revisions, multi-unit symbols, pin functions, generator families in WASM, datasheet-to-component through MCP | [editor evidence](docs/editor-evidence.md), [generator plugins](docs/generator-plugins.md) | Acceptance scenarios CE-01 to CE-07 remain open; typed field definitions need lower-level authoring |
-| Schematic capture | Built: multi-sheet hierarchy, net labels, power ports, annotation, ERC, PDF printing | [schematic capture](docs/schematic-capture.md) | No buses; a child sheet is used once |
+| Schematic capture | Built: multi-sheet hierarchy, net labels, power ports, annotation, ERC, PDF printing | [schematic capture](docs/schematic-capture.md) | No buses |
 | Schematic-to-board update and placement | Built: reviewed impact previews, one undo step | [editor evidence](docs/editor-evidence.md) | — |
 | Routing | Built: manual, walkaround and push-and-shove, track drag with shove | [push-and-shove](docs/push-and-shove.md) | Through vias only; corner drags not built |
 | Differential pairs, length tuning, impedance | Built | [high-speed routing](docs/high-speed-routing.md) | No return-path verification; pad and package delay excluded |
@@ -45,7 +45,7 @@ The native fixture proof is complete; see [foundation evidence](docs/foundation-
 - [x] Shared Solidcraft UI dependency, source-referenced shell, fonts, controls and renderer.
 - [x] Initial component forms for symbol pins/body, rectangular footprint pads and mappings, with immutable local snapshots; complete authoring scenarios remain pending below.
 - [x] Single-sheet terminal wiring, schematic properties and basic electrical checks.
-- [x] Multi-sheet capture: net labels, power ports, sheets with a hierarchy (one use per child sheet), annotation across sheets, sheet furniture with a title block, label/hierarchy/power ERC and schematic PDF printing ([schematic capture](docs/schematic-capture.md)). Buses and reused child sheets remain.
+- [x] Multi-sheet capture: net labels, power ports, sheets with a hierarchy and repeated child definitions, annotation across sheets, sheet furniture with a title block, label/hierarchy/power ERC and schematic PDF printing ([schematic capture](docs/schematic-capture.md)). Buses remain.
 - [x] Explicit schematic-to-board sync, placement, manual routing and physical-island checks.
 - [x] Parametric PCB/pad/trace/envelope `.solidcraft` generation and independent engine regeneration tests.
 - [x] Atomic `.sparksmith` save, offline reopen, shared command engine and undo/redo.
@@ -67,7 +67,7 @@ The [accepted authoring contract and scenarios](docs/part-library-design.md#acce
 
 Open decision before the first release: a symbol at every graphics limit encodes to about 1.4–1.7 MB of pretty JSON (corner radii included), so only ten to twelve such revisions fit the 16 MiB project file. Choose a compact encoding, pruning of unreferenced revisions or lower vertex limits; see [encoded size](docs/component-model.md) in the component model.
 
-All scenarios require the common UI/automation, transactional, offline and native-model evidence in the spec. The [Rhai integration proof](docs/part-library-design.md#rhai-integration-proof) passes its bounded arithmetic/generation tests, but does not complete any full scenario. Buses, reusing one child sheet under several sheet symbols, automatic gate/pin swapping and firmware generation beyond pin configuration (clocks, registers, HAL) remain separate work; the firmware pin-configuration export is release 1 scope.
+All scenarios require the common UI/automation, transactional, offline and native-model evidence in the spec. The [Rhai integration proof](docs/part-library-design.md#rhai-integration-proof) passes its bounded arithmetic/generation tests, but does not complete any full scenario. Buses, automatic gate/pin swapping and firmware generation beyond pin configuration (clocks, registers, HAL) remain separate work; the firmware pin-configuration export is release 1 scope.
 
 ## Subsequent milestones
 

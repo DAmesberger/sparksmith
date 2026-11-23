@@ -785,3 +785,75 @@ fn a_gnd_port_clicked_onto_a_vbus_wire_opens_the_merge_review() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn cross_probing_a_repeated_footprint_draws_its_own_designator() -> TestResult {
+    let mut engine = Engine::demo()?;
+    let top = engine.project().sheets.first();
+    let mut editor = centred([20., -20.], 8.);
+    editor.on_tool("sheet-symbol", &engine);
+    editor.drafts.sheet_name = "Front end".into();
+    let first = editor.tool_click([60., -20.], None).ok_or("sheet tool")?;
+    let Outcome::SheetSymbolPlaced { child, symbol: a } = engine.apply(engine.revision(), first)?
+    else {
+        return Err("child".into());
+    };
+    let local = place(&mut engine, "R10", [20., -20.], child)?;
+    let choice = engine.project().instances[0]
+        .physical
+        .ok_or("demo footprint")?;
+    engine.apply(
+        engine.revision(),
+        Operation::Instance(InstanceCommand::SetPhysical {
+            instance: local,
+            choice: Some(choice),
+        }),
+    )?;
+    editor.drafts.child = Some(child);
+    editor.drafts.sheet_name = "B".into();
+    let second = editor.tool_click([100., -20.], None).ok_or("repeat tool")?;
+    let Outcome::SheetSymbolPlaced { symbol, .. } = engine.apply(engine.revision(), second)? else {
+        return Err("second child".into());
+    };
+    let path = sparksmith_core::model::sheet::SheetPath::root(top).child(symbol);
+    let physical = engine.project().sheet_use(&path).ok_or("channel B")?.parts[&local];
+    engine.apply(
+        engine.revision(),
+        Operation::Instance(InstanceCommand::SetDesignator {
+            instance: physical,
+            designator: "R101".into(),
+        }),
+    )?;
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(sparksmith_core::layout::LayoutCommand::Sync),
+    )?;
+    let folder = tempfile::tempdir()?;
+    let file = folder.path().join("Channels.sparksmith");
+    sparksmith_io::write_project(&file, &engine.to_file())?;
+    engine = Engine::from_file(sparksmith_io::read_project(&file)?)?;
+    for (instance, symbol) in [(local, a), (physical, symbol)] {
+        assert!(engine.project().placement_of(instance).is_some());
+        assert!(crate::issues::Locate::locate(
+            &mut editor,
+            &engine,
+            &[ObjectRef::Instance { id: instance }]
+        ));
+        assert_eq!(
+            editor.path,
+            Some(sparksmith_core::model::sheet::SheetPath::root(top).child(symbol))
+        );
+        assert_eq!(editor.selected, Some(instance));
+    }
+    let (shapes, _) = canvas_frame(&mut editor, &engine, &ctx(), vec![]);
+    assert_eq!(editor.path, Some(path));
+    assert_eq!(editor.active_sheet(), child);
+    assert_eq!(editor.selected, Some(physical));
+    assert!(
+        texts(&shapes).iter().any(|t| t == "R101"),
+        "{:?}",
+        texts(&shapes)
+    );
+    assert!(!texts(&shapes).iter().any(|t| t == "R10"));
+    Ok(())
+}

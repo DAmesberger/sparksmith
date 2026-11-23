@@ -21,7 +21,7 @@ pub mod table;
 use crate::diagnostics::{Error, Result};
 use crate::library::Drafts;
 use crate::library::bundle::AssetBytes;
-use crate::model::{Document, Project};
+use crate::model::{Document, Project, sheet::PhysicalPart};
 use crate::validate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -71,7 +71,7 @@ pub const CONTAINER_MAX_RECOVERY_BYTES: usize = 64 * 1024;
 /// and as it is written: one bound, so a document the container admits is
 /// one it can write again. It is larger than [`MAX_FILE_BYTES`] because the
 /// saved form is indented and a document read may be compact.
-pub const CONTAINER_MAX_DOCUMENT_BYTES: usize = 64 * 1024 * 1024;
+pub const CONTAINER_MAX_DOCUMENT_BYTES: usize = crate::model::DOCUMENT_BYTES;
 const _: () = assert!(CONTAINER_MAX_DOCUMENT_BYTES as u64 <= CONTAINER_MAX_BYTES);
 const _: () = assert!(crate::library::bundle::MAX_ASSETS + 2 <= CONTAINER_MAX_ENTRIES);
 
@@ -132,25 +132,101 @@ fn without_asset_bytes(file: &EditorFile) -> EditorFile {
     stripped
 }
 
-/// The saved form of an [`EditorFile`]: its fields, with its collections
-/// in key order ([`order::sort`]).
-#[derive(Serialize)]
+/// The saved form of an editor file, sorted by stable identity.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Stored<'a> {
     version: u32,
     project: Project,
-    drafts: &'a Drafts,
+    drafts: std::borrow::Cow<'a, Drafts>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    occurrence_parts: Vec<PhysicalPart>,
 }
 
 impl<'a> Stored<'a> {
     fn of(file: &'a EditorFile) -> Self {
-        // A clone shares every section; sorting copies only one out of order.
         let mut project = file.project.clone();
         order::sort(&mut project);
+        let mut occurrence_parts = Vec::new();
+        let derived: std::collections::BTreeSet<_> = project
+            .sheets
+            .uses
+            .iter()
+            .flat_map(|u| &u.parts)
+            .filter(|(local, id)| local != id)
+            .map(|(_, id)| *id)
+            .collect();
+        if !derived.is_empty() {
+            project.instances.retain(|i| {
+                if !derived.contains(&i.id) {
+                    return true;
+                }
+                occurrence_parts.push(PhysicalPart {
+                    id: i.id,
+                    designator: i.designator.clone(),
+                    marking: i.marking.clone(),
+                    text_placements: i.text_placements.clone(),
+                    population: i.population,
+                });
+                false
+            });
+        }
         Self {
             version: file.version,
             project,
-            drafts: &file.drafts,
+            drafts: std::borrow::Cow::Borrowed(&file.drafts),
+            occurrence_parts,
         }
+    }
+
+    fn unpack(mut self) -> Result<EditorFile> {
+        let project = &mut self.project;
+        let sources: std::collections::BTreeMap<_, _> = project
+            .sheets
+            .uses
+            .iter()
+            .flat_map(|u| &u.parts)
+            .filter(|(local, id)| local != id)
+            .map(|(local, id)| (*id, *local))
+            .collect();
+        if sources.len() != self.occurrence_parts.len() {
+            return Err(Error::Invalid(
+                "Missing or extra physical parts for the sheet occurrences.".into(),
+            ));
+        }
+        // Charge the shared data before duplicating it in the live board view.
+        let mut bytes = 0usize;
+        let mut sizes = std::collections::BTreeMap::new();
+        for part in self.occurrence_parts {
+            let local = sources
+                .get(&part.id)
+                .ok_or_else(|| Error::Invalid("Unknown occurrence part.".into()))?;
+            let source = project
+                .drawing_instance(*local)
+                .ok_or_else(|| Error::Invalid("Missing sheet definition component.".into()))?;
+            let size = match sizes.entry(*local) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    *entry.insert(serde_json::to_vec(source)?.len())
+                }
+                std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
+            };
+            bytes = bytes
+                .checked_add(size)
+                .filter(|n| *n <= CONTAINER_MAX_DOCUMENT_BYTES)
+                .ok_or_else(|| {
+                    Error::Limit("The expanded sheet components exceed the document size.".into())
+                })?;
+            let mut i = source.duplicate(part.id, part.designator);
+            i.marking = part.marking;
+            i.text_placements = part.text_placements;
+            i.population = part.population;
+            project.instances.push(i);
+        }
+        Ok(EditorFile {
+            version: self.version,
+            project: self.project,
+            drafts: self.drafts.into_owned(),
+        })
     }
 }
 
@@ -241,7 +317,8 @@ fn parse_versioned(bytes: &[u8], limit: usize) -> Result<EditorFile> {
         .and_then(serde_json::Value::as_u64)
         .ok_or_else(|| Error::Invalid("editor file version is missing or invalid".into()))?;
     check_version(version)?;
-    let mut file: EditorFile = serde_json::from_value(value)?;
+    let mut file = serde_json::from_value::<Stored>(value)?.unpack()?;
+    validate::adopt_single_use_sheets(&mut file.project)?;
     // A file this build wrote is in order already; one edited by hand is
     // read as if it were, since the order of its collections means nothing.
     order::sort(&mut file.project);

@@ -654,18 +654,29 @@ fn inward(side: SheetSide) -> f64 {
 /// What a sheet symbol draws: its box, the child sheet's name above it and
 /// page below it, and each pin's port shape and name inside the edge.
 pub fn sheet_symbol(project: &Project, symbol: &SheetSymbol) -> Drawing {
+    sheet_symbol_in(project, symbol, None)
+}
+
+/// The page under a nested sheet symbol depends on its parent's occurrence.
+pub fn sheet_symbol_in(
+    project: &Project,
+    symbol: &SheetSymbol,
+    path: Option<&crate::model::sheet::SheetPath>,
+) -> Drawing {
     let mut d = Drawing::default();
     let [x, y] = symbol.position_mm();
     let [w, h] = symbol.size_mm();
     d.rect([x, y], [x + w, y - h], FRAME_MM);
     let child = project.sheet(symbol.child);
     d.text(
-        child.map_or_else(|| "missing sheet".to_owned(), |s| s.name.clone()),
+        symbol.name.clone().unwrap_or_else(|| {
+            child.map_or_else(|| "missing sheet".to_owned(), |s| s.name.clone())
+        }),
         [x, y + 0.8],
         LABEL_TEXT_MM * 1.2,
         justify(HAlign::Left, VAlign::Bottom),
     );
-    if let Some(page) = project.sheets.number(symbol.child) {
+    if let Some(page) = project.child_page(symbol,path) {
         d.text(
             format!("Page {page}"),
             [x, y - h - 0.8],
@@ -742,6 +753,14 @@ fn zone_letter(i: usize) -> String {
 /// the sheet's page ("Sheet 2 of 5"). An empty title shows the project
 /// name.
 pub fn frame(project: &Project, sheet: SheetId) -> Drawing {
+    frame_in(project, sheet, None)
+}
+
+pub fn frame_in(
+    project: &Project,
+    sheet: SheetId,
+    path: Option<&crate::model::sheet::SheetPath>,
+) -> Drawing {
     let mut d = Drawing::default();
     let Some(page) = project.sheet(sheet) else {
         return d;
@@ -803,8 +822,13 @@ pub fn frame(project: &Project, sheet: SheetId) -> Drawing {
     d.text("Title", [x0 + 1.0, y1 - 0.8], caption, top_left);
     d.text(title, [x0 + 2.0, title_bottom + 2.0], 4.0, base_left);
     let mid = x0 + bw / 2.0;
-    let count = project.sheets.list.len();
-    let number = project.sheets.number(sheet).unwrap_or(0);
+    let pages = project.printed_pages();
+    let count = pages.len();
+    let occurrence = path.filter(|p| !p.symbols.is_empty());
+    let number = pages
+        .iter()
+        .position(|(s, p)| s.id == sheet && (occurrence.is_none() || *p == occurrence))
+        .map_or(0, |i| i + 1);
     let cells: [[(&str, String); 2]; 4] = [
         [
             ("Company", props.company.clone()),
@@ -819,7 +843,10 @@ pub fn frame(project: &Project, sheet: SheetId) -> Drawing {
             ("Size", page.paper.label().to_owned()),
         ],
         [
-            ("Sheet name", page.name.clone()),
+            (
+                "Sheet name",
+                path.map_or_else(|| page.name.clone(), |p| p.display(project)),
+            ),
             ("Project", project.name.clone()),
         ],
     ];
@@ -892,18 +919,26 @@ pub fn wire_shape(path: &[super::wire_edit::Bend]) -> Shape {
 
 /// Resolve one sheet's drawing.
 pub fn sheet_scene(project: &Project, sheet: SheetId) -> SheetScene {
+    sheet_scene_in(project, sheet, None)
+}
+
+pub fn sheet_scene_in(
+    project: &Project,
+    sheet: SheetId,
+    path: Option<&crate::model::sheet::SheetPath>,
+) -> SheetScene {
     let mut items = Drawing::default();
     for drawing in project.drawings.iter().filter(|d| d.sheet == sheet) {
         items.extend(item(&drawing.item));
     }
     for symbol in project.sheet_symbols.iter().filter(|s| s.sheet == sheet) {
-        items.extend(sheet_symbol(project, symbol));
+        items.extend(sheet_symbol_in(project, symbol, path));
     }
     let units: Vec<PlacedUnit> = project
         .occurrences
         .iter()
         .filter(|o| o.sheet == sheet)
-        .filter_map(|o| placed_unit(project, o.id).ok())
+        .filter_map(|o| super::placed_unit_in(project, o.id, path).ok())
         .collect();
     for (_, drawing) in labels_on(project, sheet, &units) {
         items.extend(drawing);
@@ -924,7 +959,7 @@ pub fn sheet_scene(project: &Project, sheet: SheetId) -> SheetScene {
         .collect();
     let mut no_connects = Vec::new();
     for o in project.occurrences.iter().filter(|o| o.sheet == sheet) {
-        let Some(instance) = project.instance(o.instance) else {
+        let Some(instance) = project.drawing_instance(o.instance) else {
             continue;
         };
         if let Some(unit) = units.iter().find(|u| u.occurrence == Some(o.id)) {
@@ -942,7 +977,7 @@ pub fn sheet_scene(project: &Project, sheet: SheetId) -> SheetScene {
         top_left: project
             .sheet(sheet)
             .map_or(crate::model::sheet::PAGE_TOP_LEFT, |s| s.top_left()),
-        frame: frame(project, sheet),
+        frame: frame_in(project, sheet, path),
         items,
         wires,
         dots,

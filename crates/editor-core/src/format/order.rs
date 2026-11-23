@@ -29,6 +29,10 @@ pub fn sort(project: &mut Project) {
     by_key(&mut project.keepouts, |k| k.id);
     by_key(&mut project.labels, |l| l.id);
     by_key(&mut project.sheet_symbols, |s| s.id);
+    by_key(&mut project.sheets.locals, |i| i.id);
+    if !project.sheets.uses.is_sorted_by(|a, b| a.path <= b.path) {
+        project.sheets.uses.sort_by(|a, b| a.path.cmp(&b.path));
+    }
     by_key(&mut project.drawings, |d| d.id);
     library(&mut project.library);
 }

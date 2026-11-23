@@ -630,6 +630,14 @@ impl App {
                 instance: self.schematic.selected_instance(),
                 net: self.schematic.selected_net(&self.engine),
                 sheet: Some(self.schematic.active_sheet()),
+                sheet_use: self.schematic.active_path().and_then(|p| {
+                    self.engine
+                        .project()
+                        .sheets
+                        .uses
+                        .binary_search_by(|u| u.path.cmp(p))
+                        .ok()
+                }),
                 ..Default::default()
             },
             Workspace::Pcb => browser::Lit {
@@ -686,6 +694,11 @@ impl App {
             Pick::Board => {
                 self.workspace = Workspace::Pcb;
                 self.pcb.set_selection(None, None, None);
+            }
+            Pick::SheetOccurrence(sheet, path) => {
+                self.workspace = Workspace::Schematic;
+                self.schematic.show_sheet(sheet, self.engine.project());
+                self.schematic.set_path(Some(path));
             }
             Pick::Sheet(sheet) => {
                 let (mut window, engine) = self.window_and_engine();

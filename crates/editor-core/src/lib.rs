@@ -441,7 +441,11 @@ pub enum Query {
     /// millimetres. Page frame and title block, labels, power ports, sheet
     /// symbols, furniture, wires, junction dots and units.
     #[serde(rename = "schematic.scene")]
-    SheetScene { sheet: SheetId },
+    SheetScene {
+        sheet: SheetId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<model::sheet::SheetPath>,
+    },
     /// Z0 (and, with a gap, the edge-coupled Zdiff) of a trace on a
     /// stackup layer or an explicit structure, with the model's accuracy.
     #[serde(rename = "impedance.calculate")]
@@ -804,6 +808,17 @@ pub struct Engine {
     /// The measure that keeps every committed document one that saves
     /// (review finding 15): a commit that would not fit is refused.
     room: format::room::Room,
+    sheet_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
+}
+
+/// A validated sheet placement from a worker. Only the engine can construct
+/// it, and the receiving engine checks the original document and revision.
+pub struct PreparedSheet {
+    base: Document,
+    revision: u64,
+    next: Document,
+    step: Step,
+    cancel: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Engine {
@@ -937,6 +952,7 @@ impl Engine {
             generators: None,
             context: Self::fixture_context(),
             room: format::room::Room::default(),
+            sheet_cancel: None,
         }
     }
 
@@ -1704,7 +1720,52 @@ impl Engine {
             generators: self.generators.clone(),
             context: self.context.clone(),
             room: self.room.clone(),
+            sheet_cancel: self.sheet_cancel.clone(),
         }
+    }
+
+    /// On a worker's fork, run the same typed command as any other caller.
+    pub fn prepare_sheet(
+        mut self,
+        command: schematic::SchematicCommand,
+        cancel: Arc<std::sync::atomic::AtomicBool>,
+        evaluators: Evaluators<'_>,
+    ) -> Result<PreparedSheet> {
+        if !matches!(
+            command,
+            schematic::SchematicCommand::PlaceSheetSymbol { .. }
+                | schematic::SchematicCommand::SetSheetChild { .. }
+        ) {
+            return Err(Error::Invalid("Select a child sheet to place.".into()));
+        }
+        let base = self.document.clone();
+        let revision = self.revision;
+        let operation = Operation::Schematic(command);
+        let step = Step::of(&operation, &base.project);
+        self.sheet_cancel = Some(cancel.clone());
+        self.apply_hosted(revision, operation, evaluators)?;
+        Ok(PreparedSheet {
+            base,
+            revision,
+            next: self.document,
+            step,
+            cancel,
+        })
+    }
+
+    pub fn commit_sheet(&mut self, prepared: PreparedSheet) -> Result<()> {
+        self.check_revision(prepared.revision)?;
+        if prepared.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(Error::Conflict("Sheet expansion was cancelled.".into()));
+        }
+        if !Arc::ptr_eq(&self.document.project, &prepared.base.project)
+            || !Arc::ptr_eq(&self.document.drafts, &prepared.base.drafts)
+        {
+            return Err(Error::Conflict(
+                "The design changed while expanding the sheet.".into(),
+            ));
+        }
+        self.commit(prepared.next, prepared.step)
     }
 
     fn apply_inner(
@@ -2019,6 +2080,7 @@ impl Engine {
                     &self.document.project,
                     project,
                     &updates::finalize::Finalize {
+                        cancel: self.sheet_cancel.as_deref(),
                         graph: &graph,
                         evaluator: evaluators.board,
                         moved_parts: &moved_parts,
@@ -2301,12 +2363,23 @@ impl Engine {
             Query::NetPlaces { net } => Ok(QueryResult::NetPlaces(Box::new(
                 schematic::net_places(&self.document.project, net)?,
             ))),
-            Query::SheetScene { sheet } => {
+            Query::SheetScene { sheet, path } => {
                 if self.document.project.sheet(sheet).is_none() {
                     return Err(Error::NotFound("Unknown sheet.".into()));
                 }
+                if let Some(path) = &path
+                    && !(path.symbols.is_empty()
+                        && path.root == sheet
+                        && self.project().is_root_sheet(sheet))
+                    && self
+                        .project()
+                        .sheet_use(path)
+                        .is_none_or(|u| u.definition != sheet)
+                {
+                    return Err(Error::NotFound("Unknown sheet occurrence.".into()));
+                }
                 Ok(QueryResult::SheetScene(Box::new(
-                    schematic::scene::sheet_scene(&self.document.project, sheet),
+                    schematic::scene::sheet_scene_in(&self.document.project, sheet, path.as_ref()),
                 )))
             }
             Query::ImpedanceCalculate { request } => Ok(QueryResult::Impedance(Box::new(

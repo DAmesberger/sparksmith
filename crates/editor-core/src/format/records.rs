@@ -154,7 +154,7 @@ pub const SHEET: Collection = Collection {
         },
         RecordOrder {
             kind: Some("sheet_symbol"),
-            fields: &["id", "type", "child", "position", "size", "pins"],
+            fields: &["id", "type", "child", "name", "position", "size", "pins"],
         },
         RecordOrder {
             kind: Some("wire"),

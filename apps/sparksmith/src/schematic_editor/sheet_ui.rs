@@ -68,6 +68,7 @@ pub(super) struct Drafts {
     pub power_style: PowerStyle,
     /// The name of the sheet a new sheet symbol creates; empty for "Sheet n".
     pub sheet_name: String,
+    pub child: Option<SheetId>,
     pub note: String,
     pub note_height: f64,
 }
@@ -83,6 +84,7 @@ impl Default for Drafts {
             power: "GND".into(),
             power_style: PowerStyle::Ground,
             sheet_name: String::new(),
+            child: None,
             note: "Note".into(),
             note_height: 2.5,
         }
@@ -233,7 +235,39 @@ pub(super) fn paint_drawing(painter: &Painter, view: View, drawing: &Drawing, in
     }
 }
 
+type LabelPlace = (
+    Item,
+    SheetId,
+    Point,
+    Option<sparksmith_core::model::sheet::SheetPath>,
+);
+
 impl SchematicEditor {
+    pub(crate) fn set_path(&mut self, path: Option<sparksmith_core::model::sheet::SheetPath>) {
+        if self.path != path {
+            self.path = path;
+            self.nets_revision = None;
+            self.scene = None;
+        }
+    }
+
+    pub(super) fn open_symbol(&mut self, symbol: Id, project: &Project) {
+        let Some(s) = project.sheet_symbol(symbol) else {
+            return;
+        };
+        let parent = self
+            .path
+            .clone()
+            .unwrap_or_else(|| sparksmith_core::model::sheet::SheetPath::root(s.sheet));
+        let path = parent.child(symbol);
+        self.show_sheet(s.child, project);
+        self.set_path(project.sheet_use(&path).map(|u| u.path.clone()));
+    }
+
+    pub(crate) fn active_path(&self) -> Option<&sparksmith_core::model::sheet::SheetPath> {
+        self.path.as_ref()
+    }
+
     /// The sheet the canvas shows.
     pub fn active_sheet(&self) -> SheetId {
         self.sheet
@@ -252,6 +286,14 @@ impl SchematicEditor {
             self.fit_requested = true;
         }
         self.sheet = sheet;
+        self.set_path(
+            project
+                .sheets
+                .uses
+                .iter()
+                .find(|u| u.definition == sheet)
+                .map(|u| u.path.clone()),
+        );
     }
 
     /// Another document replaced the last one (opened, recovered or new):
@@ -263,6 +305,7 @@ impl SchematicEditor {
         self.draw_from = None;
         self.frame_request = None;
         self.sheet = project.sheets.first();
+        self.set_path(None);
         self.fit_requested = true;
     }
 
@@ -270,6 +313,14 @@ impl SchematicEditor {
     pub(super) fn switch_sheet(&mut self, sheet: Option<SheetId>, project: &Project) {
         if let Some(sheet) = sheet.filter(|s| project.sheet(*s).is_some()) {
             if self.sheet != sheet {
+                self.set_path(
+                    project
+                        .sheets
+                        .uses
+                        .iter()
+                        .find(|u| u.definition == sheet)
+                        .map(|u| u.path.clone()),
+                );
                 self.wire = None;
                 self.draw_from = None;
             }
@@ -298,7 +349,10 @@ impl SchematicEditor {
             items.push((Item::Drawing(d.id), scene::item(&d.item)));
         }
         for s in project.sheet_symbols.iter().filter(|s| s.sheet == sheet) {
-            items.push((Item::SheetSymbol(s.id), scene::sheet_symbol(project, s)));
+            items.push((
+                Item::SheetSymbol(s.id),
+                scene::sheet_symbol_in(project, s, self.path.as_ref()),
+            ));
         }
         for (id, drawing) in scene::sheet_labels(project, sheet) {
             items.push((Item::Label(id), drawing));
@@ -311,7 +365,7 @@ impl SchematicEditor {
         self.scene = Some(SceneCache {
             revision: engine.revision(),
             sheet,
-            frame: scene::frame(project, sheet),
+            frame: scene::frame_in(project, sheet, self.path.as_ref()),
             page,
             items,
         });
@@ -511,7 +565,7 @@ impl SchematicEditor {
                 let name = self.drafts.sheet_name.trim();
                 Some(Operation::Schematic(SchematicCommand::PlaceSheetSymbol {
                     sheet,
-                    child: None,
+                    child: self.drafts.child,
                     name: (!name.is_empty()).then(|| name.to_owned()),
                     position: sheet_nm(at)?,
                     size: sheet_nm(SHEET_SYMBOL_MM)?,
@@ -565,7 +619,7 @@ impl SchematicEditor {
         let name = self.drafts.sheet_name.trim();
         Some(Operation::Schematic(SchematicCommand::PlaceSheetSymbol {
             sheet: Some(self.sheet),
-            child: None,
+            child: self.drafts.child,
             name: (!name.is_empty()).then(|| name.to_owned()),
             position: sheet_nm([a[0].min(b[0]), a[1].max(b[1])])?,
             size: sheet_nm(size)?,
@@ -618,13 +672,16 @@ impl SchematicEditor {
             return;
         }
         let here = self.item;
-        let index = places.iter().position(|(i, _, _)| Some(*i) == here);
+        let index = places
+            .iter()
+            .position(|(i, _, _, p)| Some(*i) == here && p.as_ref() == self.path.as_ref());
         let len = places.len() as isize;
         let next = index.map_or(0, |i| (i as isize + step).rem_euclid(len)) as usize;
-        let Some((item, sheet, at)) = places.get(next).copied() else {
+        let Some((item, sheet, at, path)) = places.get(next).cloned() else {
             return;
         };
         self.switch_sheet(Some(sheet), project);
+        self.set_path(path);
         self.select_item(Some(item), project);
         self.frame_request = Some(Bounds::point(at).inflated(15.0));
     }
@@ -632,7 +689,7 @@ impl SchematicEditor {
     /// Every label and sheet pin of the selected label's net across sheets
     /// in page order (`schematic.net_places`); for a label on no net, the
     /// labels that share its name and scope.
-    pub(super) fn label_places(&self, engine: &Engine) -> Vec<(Item, SheetId, Point)> {
+    pub(super) fn label_places(&self, engine: &Engine) -> Vec<LabelPlace> {
         let project = engine.project();
         let Some(Item::Label(id)) = self.item else {
             return Vec::new();
@@ -646,12 +703,18 @@ impl SchematicEditor {
                 .places
                 .iter()
                 .filter_map(|p| match p.kind {
-                    schematic::NetPlaceKind::Label { label, .. } => {
-                        Some((Item::Label(label), p.sheet, p.position))
-                    }
-                    schematic::NetPlaceKind::SheetPin { pin, .. } => {
-                        Some((Item::SheetPin(pin), p.sheet, p.position))
-                    }
+                    schematic::NetPlaceKind::Label { label, .. } => Some((
+                        Item::Label(label),
+                        p.sheet,
+                        p.position,
+                        p.path.clone().filter(|p| !p.symbols.is_empty()),
+                    )),
+                    schematic::NetPlaceKind::SheetPin { pin, .. } => Some((
+                        Item::SheetPin(pin),
+                        p.sheet,
+                        p.position,
+                        p.path.clone().filter(|p| !p.symbols.is_empty()),
+                    )),
                     schematic::NetPlaceKind::Terminal { .. } => None,
                 })
                 .collect();
@@ -659,7 +722,7 @@ impl SchematicEditor {
         let Some(label) = project.label(id) else {
             return Vec::new();
         };
-        let mut places: Vec<(Item, SheetId, Point)> = project
+        let mut places: Vec<LabelPlace> = project
             .labels
             .iter()
             .filter(|l| {
@@ -672,10 +735,15 @@ impl SchematicEditor {
                     Item::Label(l.id),
                     l.sheet,
                     schematic::labels::anchor(project, l),
+                    self.path.clone().filter(|p| {
+                        project
+                            .sheet_use(p)
+                            .is_some_and(|u| u.definition == l.sheet)
+                    }),
                 )
             })
             .collect();
-        places.sort_by_key(|(_, s, _)| project.sheets.number(*s).unwrap_or(usize::MAX));
+        places.sort_by_key(|(_, s, _, _)| project.sheets.number(*s).unwrap_or(usize::MAX));
         places
     }
 }

@@ -316,7 +316,7 @@ pub fn instance(project: &Project, id: Id) -> Result<InstanceReport> {
             footprint: FootprintRef::new(p.footprint.id, p.footprint.revision),
             package: PackageRef::new(p.package.id, p.package.revision),
         }),
-        occurrences: project.occurrences_of(id).count(),
+        occurrences: project.physical_units(id).count(),
         board_placements: usize::from(project.placement_of(id).is_some()),
         bom_quantity: 1,
         board_placeable: !blocked(Stage::BoardPlaceable),

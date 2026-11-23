@@ -76,6 +76,10 @@ pub enum Change {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", content = "params", deny_unknown_fields)]
 pub enum InstanceChange {
+    SetProperties {
+        instance: Id,
+        edits: Vec<PropertyEdit>,
+    },
     Remove {
         instance: Id,
     },
@@ -440,7 +444,10 @@ fn change_refs(change: &Change) -> Vec<ObjectRef> {
             .map(|id| ObjectRef::Instance { id: *id })
             .collect(),
         Change::Instance {
-            edit: InstanceChange::Remove { instance } | InstanceChange::SetPhysical { instance, .. },
+            edit:
+                InstanceChange::Remove { instance }
+                | InstanceChange::SetPhysical { instance, .. }
+                | InstanceChange::SetProperties { instance, .. },
         } => vec![ObjectRef::Instance { id: *instance }],
         Change::RemoveObjects { objects } => objects
             .iter()
@@ -898,13 +905,32 @@ fn designator_of(project: &Project, next: &Project, id: Id) -> String {
 /// `Consequential`.
 pub fn stage(project: &mut Project, change: &InstanceChange, policy: EditPolicy) -> Result<()> {
     match change {
+        InstanceChange::SetProperties { instance, edits } => {
+            instances::set_properties(project, *instance, edits).map(|_| ())
+        }
         InstanceChange::Remove { instance } => {
-            if project.instance(*instance).is_none() {
+            if project.drawing_instance(*instance).is_none() {
                 return Err(not_found("Unknown component instance."));
             }
-            schematic::detach_instance(project, *instance, policy)?;
-            layout::detach_instance(project, *instance, policy)?;
-            instances::remove(project, *instance)
+            let local = project
+                .sheet_binding(*instance)
+                .map_or(*instance, |(_, id)| id);
+            let mut physical: BTreeSet<_> = project
+                .sheets
+                .uses
+                .iter()
+                .filter_map(|u| u.parts.get(&local).copied())
+                .collect();
+            if project.instance(local).is_some() {
+                physical.insert(local);
+            }
+            schematic::detach_instance(project, local, policy)?;
+            for id in physical {
+                layout::detach_instance(project, id, policy)?;
+                instances::remove(project, id)?;
+            }
+            project.sheets.locals.retain(|i| i.id != local);
+            Ok(())
         }
         InstanceChange::SetPhysical { instance, choice } => {
             layout::set_physical(project, *instance, *choice, policy)
@@ -927,6 +953,7 @@ fn stage_change(
         project,
         &mut next,
         &finalize::Finalize {
+            cancel: None,
             graph: &layout::GraphSource::given(graph),
             evaluator,
             moved_parts: &[],

@@ -18,7 +18,7 @@ impl SchematicEditor {
         let project = engine.project();
         let mut output = None;
         let mut select: Option<Id> = None;
-        let net = schematic::wire_net(project, wire);
+        let net = self.wire_nets.get(&wire.id).and_then(|id| project.net(*id));
         kit::section(ui, "net", "Net", true, None, |ui| {
             let Some(net) = net else {
                 kit::value_row(ui, "Name", "—");

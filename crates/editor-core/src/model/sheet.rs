@@ -9,6 +9,7 @@
 //! A sheet's page has its top-left corner at [`PAGE_TOP_LEFT`], so content
 //! drawn near the origin (as single-sheet designs were) lies inside the
 //! frame: the page spans x ∈ [−30, width − 30], y ∈ [30 − height, 30].
+use super::Project;
 use crate::geometry::Point;
 use crate::ids::{Id, SheetId};
 use crate::library::Rotation;
@@ -125,6 +126,47 @@ impl Sheet {
     }
 }
 
+/// The root page and the sheet-symbol IDs followed from it.
+#[derive(
+    Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
+#[serde(deny_unknown_fields)]
+pub struct SheetPath {
+    pub root: SheetId,
+    pub symbols: Vec<Id>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SheetUse {
+    pub path: SheetPath,
+    pub definition: SheetId,
+    /// Drawing-local component to physical board component.
+    pub parts: std::collections::BTreeMap<Id, Id>,
+}
+
+/// Only the physical choices of a repeated part are stored per occurrence.
+/// The binding names its drawing-local component, which supplies every
+/// shared field when the file is read.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PhysicalPart {
+    pub id: Id,
+    pub designator: String,
+    #[serde(
+        default,
+        skip_serializing_if = "crate::library::marking::InstanceMarking::is_default"
+    )]
+    pub marking: crate::library::marking::InstanceMarking,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub text_placements: std::collections::BTreeMap<crate::GraphicId, crate::model::TextPlacement>,
+    #[serde(
+        default,
+        skip_serializing_if = "crate::model::Population::is_populated"
+    )]
+    pub population: crate::model::Population,
+}
+
 /// The project's sheets in page order and the next sheet identity.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -132,6 +174,14 @@ pub struct Sheets {
     /// Page order: annotation, printing and "sheet n of m" follow it.
     pub list: Vec<Sheet>,
     pub next: u32,
+    /// A child definition stays a definition after its last symbol goes.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    pub definitions: std::collections::BTreeSet<SheetId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uses: crate::shared::Shared<Vec<SheetUse>>,
+    /// Drawing-local parts whose original physical occurrence has gone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub locals: crate::shared::Shared<Vec<super::ComponentInstance>>,
 }
 
 impl Default for Sheets {
@@ -139,6 +189,9 @@ impl Default for Sheets {
         Self {
             list: vec![Sheet::first()],
             next: 2,
+            definitions: Default::default(),
+            uses: Default::default(),
+            locals: Default::default(),
         }
     }
 }
@@ -331,8 +384,7 @@ impl SheetPin {
 }
 
 /// A box on a parent sheet that stands for a child sheet: the hierarchy.
-/// A sheet is the child of at most one sheet symbol (reusing a sheet more
-/// than once is a follow-up), and never of its own descendants.
+/// Each traversal through this symbol is a use of its child definition.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SheetSymbol {
@@ -341,6 +393,8 @@ pub struct SheetSymbol {
     #[serde(default, skip_serializing_if = "SheetId::is_first")]
     pub sheet: SheetId,
     pub child: SheetId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// The top-left corner.
     pub position: PointNm,
     /// Width (x) and height (y).
@@ -406,4 +460,129 @@ pub struct SheetDrawing {
     #[serde(default, skip_serializing_if = "SheetId::is_first")]
     pub sheet: SheetId,
     pub item: SheetItem,
+}
+
+impl SheetPath {
+    pub fn root(root: SheetId) -> Self {
+        Self {
+            root,
+            symbols: vec![],
+        }
+    }
+    pub fn child(&self, symbol: Id) -> Self {
+        let mut next = self.clone();
+        next.symbols.push(symbol);
+        next
+    }
+
+    pub fn display(&self, project: &Project) -> String {
+        if self.symbols.is_empty() {
+            return project
+                .sheet(self.root)
+                .map_or_else(String::new, |s| s.name.clone());
+        }
+        self.symbols
+            .iter()
+            .filter_map(|id| {
+                let symbol = project.sheet_symbol(*id)?;
+                symbol
+                    .name
+                    .as_deref()
+                    .or_else(|| project.sheet(symbol.child).map(|s| s.name.as_str()))
+            })
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+}
+
+impl Project {
+    pub fn is_root_sheet(&self, sheet: SheetId) -> bool {
+        !self.sheets.definitions.contains(&sheet) && self.parent_symbol(sheet).is_none()
+    }
+}
+
+impl Project {
+    /// Visible pages, including an unused definition once so the drawing stays accessible.
+    /// Roots follow page order and each child follows its parent.
+    pub fn sheet_pages(&self) -> Vec<(&Sheet, Option<&SheetPath>)> {
+        let numbers: std::collections::BTreeMap<_, _> = self
+            .sheets
+            .list
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.id, i + 1))
+            .collect();
+        let mut pages = Vec::new();
+        for (sheet, path) in self.printed_pages() {
+            let root = path.map_or(sheet.id, |p| p.root);
+            let mut key = vec![(numbers.get(&root).copied().unwrap_or_default(), 0)];
+            if let Some(path) = path {
+                for id in &path.symbols {
+                    let page = self
+                        .sheet_symbol(*id)
+                        .and_then(|s| numbers.get(&s.child))
+                        .copied()
+                        .unwrap_or_default();
+                    key.push((page, *id));
+                }
+            }
+            pages.push((key, sheet, path));
+        }
+        pages.sort_by(|a, b| a.0.cmp(&b.0));
+        pages.into_iter().map(|(_, s, p)| (s, p)).collect()
+    }
+
+    /// Printable page order follows definition order, then the stable paths within each definition.
+    pub fn printed_pages(&self) -> Vec<(&Sheet, Option<&SheetPath>)> {
+        let mut uses = std::collections::BTreeMap::<_, Vec<_>>::new();
+        for u in &self.sheets.uses {
+            uses.entry(u.definition).or_default().push(&u.path);
+        }
+        let mut pages = Vec::new();
+        for sheet in &self.sheets.list {
+            if let Some(paths) = uses.get(&sheet.id) {
+                pages.extend(paths.iter().map(|p| (sheet, Some(*p))));
+            } else {
+                pages.push((sheet, None));
+            }
+        }
+        pages
+    }
+
+    /// Printed page reached by a box in a particular parent occurrence.
+    pub fn child_page(&self, symbol: &SheetSymbol, parent: Option<&SheetPath>) -> Option<usize> {
+        let path = parent.cloned().unwrap_or_else(|| SheetPath::root(symbol.sheet)).child(symbol.id);
+        self.printed_pages().iter().position(|(s,p)| s.id == symbol.child && *p == Some(&path)).map(|i| i+1)
+    }
+
+    /// Locate a physical part in the shared drawing and the channel that uses it.
+    pub fn sheet_binding(&self, physical: Id) -> Option<(&SheetUse, Id)> {
+        self.sheets.uses.iter().find_map(|u| {
+            u.parts
+                .iter()
+                .find(|(_, id)| **id == physical)
+                .map(|(local, _)| (u, *local))
+        })
+    }
+
+    pub fn sheet_use(&self, path: &SheetPath) -> Option<&SheetUse> {
+        self.sheets
+            .uses
+            .binary_search_by(|u| u.path.cmp(path))
+            .ok()
+            .and_then(|i| self.sheets.uses.get(i))
+    }
+
+    /// The units drawn for a physical component, through its binding.
+    pub fn physical_units(&self, physical: Id) -> impl Iterator<Item = &super::SymbolOccurrence> {
+        let local = self
+            .sheet_binding(physical)
+            .map_or(physical, |(_, local)| local);
+        self.occurrences_of(local)
+    }
+
+    pub fn drawing_instance(&self, local: Id) -> Option<&super::ComponentInstance> {
+        self.instance(local)
+            .or_else(|| self.sheets.locals.iter().find(|i| i.id == local))
+    }
 }

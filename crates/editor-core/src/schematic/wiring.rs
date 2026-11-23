@@ -100,7 +100,7 @@ pub fn end_position(project: &Project, end: WireEnd) -> Option<Point> {
 pub fn end_sheet(project: &Project, end: WireEnd) -> Option<SheetId> {
     match end {
         WireEnd::Terminal(endpoint) => {
-            let instance = project.instance(endpoint.instance)?;
+            let instance = project.drawing_instance(endpoint.instance)?;
             let symbol = &instances::resolve(&project.library, instance)
                 .ok()?
                 .symbol
@@ -374,8 +374,12 @@ pub(super) fn split(
 /// labels and sheet pins, with their sheet and position. Free wire ends are
 /// not connection points.
 fn connection_points(project: &Project) -> Vec<(SheetId, Point, WireEnd)> {
-    let instances: BTreeMap<Id, &crate::model::ComponentInstance> =
-        project.instances.iter().map(|i| (i.id, i)).collect();
+    let instances: BTreeMap<Id, &crate::model::ComponentInstance> = project
+        .instances
+        .iter()
+        .chain(&project.sheets.locals)
+        .map(|i| (i.id, i))
+        .collect();
     let mut points = Vec::new();
     for occurrence in &project.occurrences {
         let Some(instance) = instances.get(&occurrence.instance) else {
@@ -541,7 +545,7 @@ const DOGLEG_STEPS: i32 = 12;
 pub(super) fn describe(project: &Project, end: WireEnd) -> String {
     match end {
         WireEnd::Terminal(endpoint) => {
-            let Some(instance) = project.instance(endpoint.instance) else {
+            let Some(instance) = project.drawing_instance(endpoint.instance) else {
                 return "a pin".into();
             };
             let name = project
@@ -1261,7 +1265,9 @@ pub(super) fn validate(project: &Project) -> Result<()> {
         }
         for end in [wire.from, wire.to] {
             let known = match end {
-                WireEnd::Terminal(endpoint) => project.instance(endpoint.instance).is_some(),
+                WireEnd::Terminal(endpoint) => {
+                    project.drawing_instance(endpoint.instance).is_some()
+                }
                 WireEnd::Junction(j) => {
                     *ends.entry(j.junction).or_default() += 1;
                     project.junction(j.junction).is_some()

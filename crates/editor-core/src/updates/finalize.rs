@@ -15,6 +15,7 @@ pub(crate) struct Finalize<'a> {
     /// The copper graph of the base document, made only when parts move
     /// and carry their copper.
     pub graph: &'a layout::GraphSource<'a>,
+    pub cancel: Option<&'a std::sync::atomic::AtomicBool>,
     pub evaluator: Option<&'a dyn BoardShapeEvaluator>,
     /// Parts the operation moved by hand: their attached copper is carried.
     pub moved_parts: &'a [Id],
@@ -50,6 +51,10 @@ pub(crate) fn finalize(
     // stand, so they are not derived again.
     let schematic_edited = !project.same_schematic(base);
     let changes = if schematic_edited {
+        schematic::hierarchy::reconcile(base, project, f.reviewed, || {
+            f.cancel
+                .is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed))
+        })?;
         schematic::tidy(project)?;
         // A removed part takes its variant overrides with it.
         instances::variants::follow_instances(project);

@@ -474,6 +474,9 @@ fn title(change: &Change, project: &Project) -> String {
             edit: InstanceChange::Remove { instance },
         } => format!("Remove {}", name(instance)),
         Change::Instance {
+            edit: InstanceChange::SetProperties { instance, .. },
+        } => format!("Change fields of {}", name(instance)),
+        Change::Instance {
             edit: InstanceChange::SetPhysical { instance, .. },
         } => format!("Change footprint of {}", name(instance)),
         Change::Schematic {
