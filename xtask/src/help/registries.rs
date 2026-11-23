@@ -31,7 +31,7 @@ fn entry(id: &str, title: &str, summary: &str, facts: Facts) -> Result<HelpEntry
         id: id.parse()?,
         title: title.into(),
         summary: summary.into(),
-        since: "1.0".into(),
+        since: env!("CARGO_PKG_VERSION").into(),
         facts,
         keywords: Vec::new(),
         related: Vec::new(),

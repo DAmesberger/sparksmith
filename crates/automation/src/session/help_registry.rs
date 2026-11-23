@@ -66,7 +66,7 @@ fn entries_match_the_catalog() -> Fallible {
                 id,
                 title: meta.title.into(),
                 summary: meta.summary.clone(),
-                since: "1.0".into(),
+                since: env!("CARGO_PKG_VERSION").into(),
                 facts: Facts::Entry {
                     module: module.id.clone(),
                     class: meta.class,

@@ -231,9 +231,9 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Index> {
                 .find(|l| !l.trim().is_empty())
                 .unwrap_or(title)
                 .into(),
-            since: "1.0".into(),
+            since: env!("CARGO_PKG_VERSION").into(),
             facts: Facts::Guide,
-            body: blocks(body, "1.0")
+            body: blocks(body, env!("CARGO_PKG_VERSION"))
                 .map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))?,
             related: vec![],
             keywords: vec![],
