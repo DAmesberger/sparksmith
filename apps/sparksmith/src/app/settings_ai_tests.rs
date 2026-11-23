@@ -762,3 +762,46 @@ fn orphan_key_cleanup_failure_names_the_saved_change_and_address() -> Fallible {
     );
     Ok(())
 }
+
+#[test]
+fn after_a_keychain_refusal_save_retries_the_saved_connection() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let mut page = read_page(dir.path());
+    let ring = page.keyring;
+    let locked = Keyring {
+        store: |_, _| Err("locked".into()),
+        ..ring
+    };
+    let state = page.state();
+    let settings = state.settings.clone()?;
+    let mut draft = local_draft()?;
+    draft.base_url = "https://retry.example/v1".into();
+    let endpoint = draft.endpoint()?;
+    let mut edit = EndpointEdit {
+        at: None,
+        draft: draft.clone(),
+        stored: false,
+        key: "inert-retry".into(),
+    };
+    assert!(!save_endpoint(state, &settings, locked, &mut edit, true));
+    let saved = stored::read(&stored::user_file(dir.path()))?;
+    assert_eq!(saved.connection.as_deref(), Some(draft.name.as_str()));
+    assert_eq!(saved.endpoints, [draft.clone()]);
+    assert_eq!(state.settings.as_ref().ok(), Some(&saved));
+    assert_eq!(edit.at, Some(0));
+    assert_eq!(edit.key, "inert-retry");
+    assert!(!edit.stored && !ring.has(&endpoint));
+    assert!(
+        state
+            .refusal
+            .as_deref()
+            .is_some_and(|why| why.contains("saved") && why.contains("key"))
+    );
+    assert!(save_endpoint(state, &saved, ring, &mut edit, true));
+    assert!(edit.key.is_empty() && ring.has(&endpoint));
+    assert_eq!(
+        stored::read(&stored::user_file(dir.path()))?.endpoints,
+        [draft]
+    );
+    Ok(())
+}

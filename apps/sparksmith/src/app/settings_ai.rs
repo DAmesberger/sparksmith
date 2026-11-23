@@ -896,8 +896,10 @@ fn model_choice(
     };
     quick.show = false;
     let saved = save_endpoint(state, settings, keyring, &mut edit, true);
+    quick.at = edit.at;
+    quick.key = edit.key;
+    quick.stored = edit.stored;
     if saved {
-        quick.stored = edit.stored;
         quick.replacing = false;
     }
     saved
@@ -1307,8 +1309,8 @@ fn endpoint_form(
 }
 
 /// Save the endpoint and then its key, and with `use_it` make it what the
-/// chat uses; whether it was saved. The typed key leaves the form whatever
-/// happens.
+/// chat uses. If only the settings write succeeds, retain the masked draft
+/// and bind its retry to the record just saved.
 fn save_endpoint(
     state: &mut State,
     settings: &AssistSettings,
@@ -1316,7 +1318,8 @@ fn save_endpoint(
     edit: &mut EndpointEdit,
     use_it: bool,
 ) -> bool {
-    let key = Secret::new(&std::mem::take(&mut edit.key));
+    let typed = std::mem::take(&mut edit.key);
+    let key = Secret::new(&typed);
     let mut next = settings.clone();
     match edit.at.and_then(|at| next.endpoints.get_mut(at)) {
         Some(slot) => {
@@ -1354,9 +1357,24 @@ fn save_endpoint(
     if let Some(previous) = edit.at.and_then(|i| settings.endpoints.get(i)) {
         clean_unused_key(state, keyring, previous);
     }
+    edit.at = Some(
+        edit.at
+            .filter(|&i| i < settings.endpoints.len())
+            .unwrap_or(settings.endpoints.len()),
+    );
+    edit.stored = keyring.has(&endpoint);
     if let Some(key) = key {
         if let Err(why) = (keyring.store)(&endpoint, &key) {
-            state.refusal = Some(why);
+            let why = why.replace(typed.trim(), "[redacted]");
+            let mut message = format!(
+                "Connection settings saved. The keychain could not store the key. Retry Save after resolving the keychain error ({why})."
+            );
+            if let Some(cleanup) = state.refusal.take() {
+                message.push(' ');
+                message.push_str(&cleanup);
+            }
+            state.refusal = Some(message);
+            edit.key = typed;
             return false;
         }
         edit.stored = true;
