@@ -707,9 +707,9 @@ fn generators_are_found_and_called() -> Fallible<()> {
     let listed = tools.ok(QUERY, json!({"name": "library.generators"}))?;
     let shipped = listed["shipped"].as_array().ok_or("shipped")?;
     assert!(shipped.iter().any(|g| g["name"] == "chip"), "{listed}");
-    // The default listing names each generator, its families and preset
-    // keys, within a reply budget; preset names come with a filter, the
-    // parameters by name.
+    // The default listing names each generator, its families and how many
+    // presets it has, within what the chat keeps of one reply; the presets'
+    // keys and names come with a filter, the parameters by name.
     let compact = listed.to_string().len();
     assert!(compact <= GENERATORS_BUDGET, "{compact} bytes");
     assert!(
@@ -718,11 +718,10 @@ fn generators_are_found_and_called() -> Fallible<()> {
     );
     let chip = shipped.iter().find(|g| g["name"] == "chip").ok_or("chip")?;
     assert!(
-        chip["presets"]
-            .as_array()
-            .is_some_and(|p| p.iter().any(|p| p["key"] == "resistor-0603")),
+        chip["preset_count"].as_u64().is_some_and(|n| n > 0),
         "{chip}"
     );
+    assert!(chip.get("presets").is_none(), "{chip}");
     // Filtered, the presets come with their names.
     let found = tools.ok(
         QUERY,
@@ -989,6 +988,51 @@ fn assembly_variants_are_found_applied_and_listed() -> Fallible<()> {
         assert!(failed, "{refused}");
         let now = revision(&c.ok(QUERY, json!({"name": "project.inspect"})).await?)?;
         assert_eq!(now, start + 2);
+        c.close().await
+    })?
+}
+
+/// The MCP invocation is a batch even with one operation. Its transport
+/// adds the project handle to the successful result beside the core fields.
+#[test]
+fn describe_binds_one_mcp_operation_to_its_batch_reply() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    block_on(async move {
+        let c = Connection::open(Mode::AutoAllowEdits, dir.path()).await?;
+        let described = c.ok(DESCRIBE, json!({"name":"project.rename"})).await?;
+        assert_eq!(described["call_reply_entry"], "project.apply_all");
+        assert_eq!(
+            described["reply"]["properties"]["outcome"]["properties"]["outcome"]["const"],
+            "none"
+        );
+        let batch = c
+            .ok(DESCRIBE, json!({"name":described["call_reply_entry"]}))
+            .await?;
+        assert!(batch["reply"]["properties"]["outcomes"].is_object());
+        let inspect = c.ok(QUERY, json!({"name":"project.inspect"})).await?;
+        let handle = inspect["project"]
+            .as_str()
+            .ok_or("missing MCP project handle")?;
+        let mut reply = c
+            .ok(
+                APPLY,
+                json!({
+                    "project":handle,"expected_revision":revision(&inspect)?,
+                    "operations":[{"op":"project.rename","params":{"name":"MCP contract"}}]
+                }),
+            )
+            .await?;
+        assert_eq!(reply["project"], handle);
+        assert_eq!(reply["outcomes"], json!([{"outcome":"none"}]));
+        reply
+            .as_object_mut()
+            .ok_or("missing MCP result")?
+            .remove("project");
+        let name = described["call_reply_entry"]
+            .as_str()
+            .ok_or("missing submitted entry")?;
+        let full = crate::session::discovery::result_schema(name).ok_or("missing batch schema")?;
+        assert!(jsonschema::draft202012::new(full)?.is_valid(&reply));
         c.close().await
     })?
 }

@@ -1,0 +1,1 @@
+Note from {product}, not from the person: this turn has read the design for a while without changing anything. Make the change now with apply or act, from what you have already read. If something you need is unclear, ask the person with show assist.ask instead of reading more.

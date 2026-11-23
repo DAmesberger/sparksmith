@@ -22,13 +22,13 @@ pub use sparksmith_generator_abi::surface::{
 pub const MODULES: &[ModuleDecl] = &[
     module_at(
         "project",
-        (7, 21),
+        (7, 23),
         "Project",
         "The open design: inspect, properties, undo, redo, turns, bill of materials, assembly variants.",
     ),
     module_at(
         "files",
-        (1, 3),
+        (1, 4),
         "Files",
         "New, open and save a project file.",
     ),
@@ -40,13 +40,13 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "layout",
-        (2, 6),
+        (2, 8),
         "Layout",
         "Place parts, route copper, vias, fills, keepouts, pairs and the board shape.",
     ),
     module_at(
         "rules",
-        (2, 4),
+        (2, 5),
         "Rules",
         "Design rules, fab profiles, net classes and impedance.",
     ),
@@ -58,36 +58,37 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "generators",
-        (1, 9),
+        (1, 10),
         "Generators",
         "Generator modules and the parts they make.",
     ),
     module_at(
         "checks",
-        (1, 3),
+        (1, 5),
         "Checks",
         "Issues, the production check and its waivers.",
     ),
-    module(
+    module_at(
         "fab",
+        (1, 1),
         "Fabrication",
         "Fabrication output, the schematic PDF and firmware pin configuration.",
     ),
     module_at(
         "model3d",
-        (2, 0),
+        (2, 1),
         "3D model",
         "The exact 3D export, the board interface, the assembly link and part files.",
     ),
     module_at(
         "assist",
-        (1, 4),
+        (1, 5),
         "Assistant",
         "Documents attached to an assistant run, its working pinout documents, its workflows and their cards in the chat, and its questions to the person.",
     ),
     module_at(
         "view",
-        (1, 2),
+        (1, 4),
         "View",
         "What the window shows: workspace, sheet, 2D or 3D, and the selection.",
     ),
@@ -95,12 +96,6 @@ pub const MODULES: &[ModuleDecl] = &[
 
 /// The version every module started at with the MCP cut-over (decision 12).
 pub const CUT_OVER: Version = (1, 0);
-
-/// A module at [`CUT_OVER`]. A later change raises it with [`module_at`]:
-/// a break the major, an addition the minor.
-const fn module(id: &'static str, title: &'static str, summary: &'static str) -> ModuleDecl {
-    module_at(id, CUT_OVER, title, summary)
-}
 
 /// A module at `version`, raised from [`CUT_OVER`] by a change the lock
 /// records.
@@ -220,7 +215,7 @@ impl JsonSchema for FilePath {
 /// (a result that can pass 2 KiB), `review` (the person reviews its impact
 /// before it applies), `reach(Files | Settings | Window | Network |
 /// Runtime)`, `effect(Pure | Revision | World)`, `needs(Files | Window |
-/// Runtime | Solidcraft)` and `since(major, minor)`.
+/// Runtime | Solidcraft)`, `since(major, minor)` and `returns(tag, …)`.
 #[macro_export]
 macro_rules! declare_entries {
     ($family:ident in $module:ident {
@@ -281,6 +276,9 @@ macro_rules! __entry_decl {
     ($decl:expr; since($major:literal, $minor:literal) $($rest:tt)*) => {
         $crate::__entry_decl!($decl.since($major, $minor); $($rest)*)
     };
+    ($decl:expr; returns($($tag:ident),+) $($rest:tt)*) => {
+        $crate::__entry_decl!($decl.returns(&[$(stringify!($tag)),+]); $($rest)*)
+    };
     ($decl:expr; $flag:ident $($rest:tt)*) => {
         $crate::__entry_decl!($decl.$flag(); $($rest)*)
     };
@@ -339,6 +337,23 @@ mod tests {
             .map(|entry| entry.name.to_owned())
             .collect();
         assert_eq!(wire, listed);
+        Ok(())
+    }
+
+    #[test]
+    fn query_declarations_cover_the_serialized_report_tags() -> Result<(), serde_json::Error> {
+        let schema = serde_json::to_value(schemars::schema_for!(crate::QueryResult))?;
+        let mut wire = BTreeSet::new();
+        tags(&schema, "report", &mut wire);
+        let mut declared = BTreeSet::new();
+        for entry in Query::ENTRIES {
+            assert!(!entry.reply_tags.is_empty(), "{}", entry.name);
+            for tag in entry.reply_tags {
+                assert!(wire.contains(*tag), "{} declares {tag}", entry.name);
+                declared.insert((*tag).to_owned());
+            }
+        }
+        assert_eq!(declared, wire);
         Ok(())
     }
 

@@ -132,17 +132,11 @@ fn user_session(mut engine: Engine) -> Session {
         eprintln!("library sources unavailable: {error}");
         session::sources::Sources::unavailable(error.to_string())
     });
-    // The checks take the user's Settings (as the app does); without them
-    // they report each impedance target they cannot check.
-    match sparksmith_io::settings::check_settings_from_env()
-        .map_err(|e| e.to_string())
-        .and_then(|settings| {
-            engine
-                .set_check_settings(settings)
-                .map_err(|e| e.to_string())
-        }) {
-        Ok(()) => {}
-        Err(error) => eprintln!("check settings unavailable: {error}"),
+    // The engine takes the user's Settings as the app's does (a waiver's
+    // required reason, the checks' settings); without them the checks
+    // report each impedance target they cannot check.
+    if let Err(error) = sparksmith_io::settings::configure_from_env(&mut engine) {
+        eprintln!("settings unavailable: {error}");
     }
     Session::with_sources(engine, sources)
 }

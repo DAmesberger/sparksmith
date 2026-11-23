@@ -154,8 +154,8 @@ fn run() -> Result<()> {
 
 /// `cargo xtask surface --check | --update`: the catalog against the
 /// committed `crates/automation/surface.lock` (per module its version and
-/// digest, per entry its class and parameter digests) and
-/// `surface.schemas` (each entry's parameter schema and the types it
+/// digest, per entry its class and parameter and reply digests) and
+/// `surface.schemas` (each entry's parameter and reply schemas and the types it
 /// reaches, compared structurally). A change without the version it
 /// needs fails; `--update` records the lock once the versions are right. The catalog is built from the automation crate's types, so
 /// the check is that crate's test `session::surface::tests::the_lock_holds`.

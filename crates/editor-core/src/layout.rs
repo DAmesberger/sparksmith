@@ -39,6 +39,7 @@ pub mod legend;
 pub mod length;
 pub mod limits;
 pub mod mask_colour;
+pub mod mask_web;
 pub mod meander;
 pub mod obstacles;
 pub mod outline;
@@ -317,24 +318,24 @@ declare_entries!(LayoutCommand in layout {
     SetFabrication "layout.set_fabrication" Edit "Set fabrication settings",
     SetStackup "layout.set_stackup" Edit "Set the layer stackup",
     EditStackup "layout.edit_stackup" Edit "Edit the layer stackup",
-    AddVia "layout.add_via" Edit "Add a via",
+    AddVia "layout.add_via" Edit "Add a via" [returns(via_added)],
     MoveVia "layout.via_move" Edit "Move a via",
     DeleteVia "layout.via_delete" Edit "Delete a via",
     SetViaTented "layout.via_tent" Edit "Tent or untent a via",
     SetViaLock "layout.via_lock" Edit "Lock or unlock a via",
-    RouteLayerChange "layout.route_layer_change" Edit "Change layer while routing",
+    RouteLayerChange "layout.route_layer_change" Edit "Change layer while routing" [returns(via_added)],
     SetBoardSize "layout.set_board_size" Edit "Set the board size",
     RoutePair "layout.route_pair" Edit "Route a differential pair",
     TuneLength "layout.tune_length" Edit "Tune a track's length",
-    RouteStep "layout.route_step" Edit "Route one step",
-    TrackDrag "layout.track_drag" Edit "Drag a track with shove",
-    PlacePart "layout.place_part" Edit "Place a mechanical part",
-    SetPart "layout.set_part" Edit "Change a mechanical part",
+    RouteStep "layout.route_step" Edit "Route one step" [returns(route_stepped)],
+    TrackDrag "layout.track_drag" Edit "Drag a track with shove" [returns(track_dragged)],
+    PlacePart "layout.place_part" Edit "Place a mechanical part" [returns(part_placed)],
+    SetPart "layout.set_part" Edit "Change a mechanical part" [returns(part_placed)],
     RemovePart "layout.remove_part" Edit "Remove a mechanical part",
     MoveParts "layout.move_parts" Edit "Move several parts together",
     Align "layout.align" Edit "Align parts",
     Distribute "layout.distribute" Edit "Distribute parts evenly",
-    DeleteObjects "layout.delete_objects" Edit "Delete several board objects",
+    DeleteObjects "layout.delete_objects" Edit "Delete several board objects" [returns(none, parts_kept)],
     LockObjects "layout.lock_objects" Edit "Lock or unlock several board objects",
     SetRefusedImportTracks "layout.set_refused_import_tracks" Edit "Record tracks an import refused" [since(0, 3)],
 });
@@ -1719,10 +1720,12 @@ pub enum BoardCheck {
     MaskColour,
     ProfileFit,
     Fiducials,
+    /// Mask webs between the assembled board's openings ([`mask_web`]).
+    MaskWeb,
 }
 
 impl BoardCheck {
-    pub const ALL: [BoardCheck; 16] = [
+    pub const ALL: [BoardCheck; 17] = [
         Self::Unplaced,
         Self::Clearance,
         Self::Connectivity,
@@ -1739,6 +1742,7 @@ impl BoardCheck {
         Self::MaskColour,
         Self::ProfileFit,
         Self::Fiducials,
+        Self::MaskWeb,
     ];
 
     /// Whether the family reads the board's tracks or vias. A change to
@@ -1761,7 +1765,8 @@ impl BoardCheck {
             | Self::Dimensions
             | Self::Bodies
             | Self::MaskColour
-            | Self::ProfileFit => false,
+            | Self::ProfileFit
+            | Self::MaskWeb => false,
         }
     }
 
@@ -1818,6 +1823,7 @@ impl BoardCheck {
             Self::MaskColour => mask_colour::findings(project),
             Self::ProfileFit => profile_fit::findings(project),
             Self::Fiducials => fiducial::findings(project),
+            Self::MaskWeb => mask_web::findings(project),
         };
         (findings, false)
     }

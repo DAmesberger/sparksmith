@@ -225,11 +225,6 @@ impl<'a> Ctx<'a> {
         if copper { pair.max(own) } else { pair }
     }
 
-    /// The gap fill copper must keep to another net's `object` on `net`.
-    pub(crate) fn required(&self, fill: &Fill, object: CopperObject, net: Option<Id>) -> f64 {
-        self.clearance(fill, object, self.class(net))
-    }
-
     fn thermal(&self, fill: &Fill) -> ThermalRelief {
         fill.settings.thermal.unwrap_or(self.rules.fill.thermal)
     }

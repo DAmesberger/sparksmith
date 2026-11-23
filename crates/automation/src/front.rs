@@ -119,6 +119,13 @@ impl Surface for Session {
         let verbose = cx.verbose | take_verbose_params(&mut call.params);
         unsupported(&call)?;
         let target = read(&call)?;
+        // Validate both the transport wrapper and its selected entry on
+        // successful calls exercised by the automation test suite.
+        #[cfg(test)]
+        let subject = match &target.request {
+            Request::Query(_) | Request::Apply(_) => Some(target.request.subject()),
+            _ => None,
+        };
         // An agent's edit may go on top of what someone else changed since
         // it last looked: only when the document moved without this
         // session answering at the state it is in now.
@@ -191,13 +198,16 @@ impl Surface for Session {
                     "it changes only the window, so it has no dry run",
                 ));
             }
-            return crate::view::run(
+            let reply = crate::view::run(
                 cx.window,
                 self.engine(),
                 self.lent_workflows(),
                 &call.entry,
                 view,
-            );
+            )?;
+            #[cfg(test)]
+            reply_contract_tests::check(&call.entry, &reply);
+            return Ok(reply);
         }
         // An edit prepared before the person's latest changes goes on top
         // of them unless both change the same objects.
@@ -243,6 +253,13 @@ impl Surface for Session {
         let result = result.map(|mut reply| {
             if let Some(from) = rebased {
                 crate::session::rebase::note(&mut reply, from, onto);
+            }
+            #[cfg(test)]
+            {
+                if let Some(name) = subject.filter(|name| *name != call.entry) {
+                    reply_contract_tests::check(name, &reply);
+                }
+                reply_contract_tests::check(&call.entry, &reply);
             }
             reply
         });
@@ -530,3 +547,6 @@ fn revision_missing(name: &str) -> Box<Error> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod reply_contract_tests;

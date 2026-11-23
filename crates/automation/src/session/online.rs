@@ -74,7 +74,7 @@ pub struct OnlineReport {
 
 /// Who is signed in to the registry, as far as this computer knows:
 /// searching needs no account, downloading part data needs one.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 pub struct OnlineAccount {
     pub signed_in: bool,
     /// The account's email, once the registry said it.
@@ -85,7 +85,7 @@ pub struct OnlineAccount {
 }
 
 /// What signing out did.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 pub struct SignOut {
     /// There was a sign-in to remove.
     pub was_signed_in: bool,

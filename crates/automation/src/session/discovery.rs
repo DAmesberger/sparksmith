@@ -20,6 +20,8 @@ const MAX_SUMMARY: usize = super::metadata::MAX_SUMMARY;
 /// One addressable schema: a command of the request catalog, or a variant of
 /// `project.apply`'s operation or `project.query`'s query.
 pub(super) struct Entry {
+    reply: OnceLock<Value>,
+    request: Option<super::RequestId>,
     /// `command`, `operation` or `query`: where in the catalog it is.
     pub(super) kind: &'static str,
     pub(super) name: String,
@@ -42,6 +44,25 @@ pub(super) struct Entry {
     pub(super) takes_path: bool,
     /// Its declaration beside its enum.
     pub(super) decl: Option<&'static EntryDecl>,
+}
+
+impl Entry {
+    /// Stand-alone successful result schema, shared by discovery and the lock.
+    pub(super) fn reply_schema(&self) -> &Value {
+        if let Some(key) = self.request {
+            self.reply.get_or_init(|| {
+                super::reply_schema::command(key, self.decl.map_or(&[], |decl| decl.reply_tags))
+            })
+        } else if let Some(decl) = self.decl {
+            if self.kind == "operation" {
+                super::reply_schema::operation(decl)
+            } else {
+                self.reply.get_or_init(|| super::reply_schema::query(decl))
+            }
+        } else {
+            &Value::Bool(false)
+        }
+    }
 }
 
 /// The declaration of `name` in `entries`; none fails the metadata tests
@@ -67,6 +88,8 @@ fn build_entries() -> Vec<Entry> {
             object.remove("$defs");
         }
         entries.push(Entry {
+            reply: OnceLock::new(),
+            request: super::RequestId::named(info.id),
             kind: "command",
             name: info.id.to_owned(),
             title: info.title,
@@ -100,6 +123,8 @@ fn operation_entries(root: &'static Value, entries: &mut Vec<Entry>) {
                 for (command, schema) in commands {
                     let decl = declared(Operation::entries(), command);
                     entries.push(Entry {
+            reply: OnceLock::new(),
+            request: None,
                         kind: "operation",
                         send: Some(json!({
                             "expected_revision": "<revision>",
@@ -122,6 +147,8 @@ fn operation_entries(root: &'static Value, entries: &mut Vec<Entry>) {
             None => {
                 let decl = declared(Operation::entries(), &editor.to_lowercase());
                 entries.push(Entry {
+                    reply: OnceLock::new(),
+                    request: None,
                     kind: "operation",
                     send: Some(json!({
                         "expected_revision": "<revision>",
@@ -149,6 +176,8 @@ fn query_entries(root: &'static Value, entries: &mut Vec<Entry>) {
     for (query, schema) in queries {
         let decl = declared(Query::ENTRIES, query);
         entries.push(Entry {
+            reply: OnceLock::new(),
+            request: None,
             kind: "query",
             name: query.to_owned(),
             title: decl.map_or("", |d| d.title),
@@ -255,14 +284,21 @@ pub(super) fn schema_reply(params: SchemaParams) -> Result<Value> {
         )));
     }
     if let Some(def) = params.def {
-        let schema = found
-            .iter()
-            .find_map(|entry| entry.root["$defs"].get(&def).map(|s| (s, entry.root)));
+        let schema = found.iter().find_map(|entry| {
+            let (root, key) = match def.strip_prefix("reply:") {
+                Some(key) => (entry.reply_schema(), key),
+                None => (entry.root, def.as_str()),
+            };
+            root["$defs"].get(key).map(|schema| (schema, root))
+        });
         let Some((schema, root)) = schema else {
             return Err(not_found(format!("{name} has no definition {def}")));
         };
         let mut reply = json!({"name": name, "def": def, "schema": schema});
         add_defs(&mut reply, schema, root);
+        if def.starts_with("reply:") {
+            prefix_reply_defs(&mut reply);
+        }
         return Ok(reply);
     }
     let matches: Vec<Value> = found.iter().map(|entry| describe(entry)).collect();
@@ -277,6 +313,26 @@ fn describe(entry: &Entry) -> Value {
         "class": entry.class,
         "schema": schema,
     });
+    let root = entry.reply_schema();
+    let mut reply = root.as_object().map_or_else(
+        || root.clone(),
+        |fields| {
+            Value::Object(
+                fields
+                    .iter()
+                    .filter(|(key, _)| *key != "$defs")
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect(),
+            )
+        },
+    );
+    let mut reply_defs = json!({});
+    add_defs(&mut reply_defs, &reply, root);
+    prefix_reply_defs(&mut reply_defs);
+    if let (Some(obj), Some(defs)) = (reply.as_object_mut(), reply_defs.as_object()) {
+        obj.extend(defs.clone());
+    }
+    out["reply"] = reply;
     let examples = examples(&entry.name);
     if !examples.is_empty() {
         out["examples"] = json!(examples);
@@ -353,28 +409,47 @@ fn add_defs(out: &mut Value, schema: &Value, root: &Value) {
     }
 }
 
-fn collect_refs(value: &Value, seen: &mut BTreeSet<String>, queue: &mut VecDeque<String>) {
-    match value {
-        Value::Object(object) => {
-            for (key, inner) in object {
-                if key == "$ref" {
-                    if let Some(name) = inner.as_str().and_then(def_name)
-                        && seen.insert(name.to_owned())
-                    {
-                        queue.push_back(name.to_owned());
-                    }
-                } else {
-                    collect_refs(inner, seen, queue);
-                }
+/// An omitted output definition is fetched by passing this exact key to
+/// describe. Input and output types may legitimately share a schema name.
+fn prefix_reply_defs(page: &mut Value) {
+    if let Some(more) = page.get_mut("more_defs").and_then(Value::as_array_mut) {
+        for item in more {
+            if let Some(name) = item.as_str() {
+                *item = Value::String(format!("reply:{name}"));
             }
         }
-        Value::Array(items) => items.iter().for_each(|i| collect_refs(i, seen, queue)),
-        _ => {}
     }
 }
 
+/// Keep only dependencies of the selected output variant. QueryResult
+/// and Outcome describe the whole engine; an entry locks its own report.
+pub(super) fn reachable_defs(
+    schema: &Value,
+    definitions: &Map<String, Value>,
+) -> Map<String, Value> {
+    let mut seen = BTreeSet::new();
+    let mut queue = VecDeque::new();
+    collect_refs(schema, &mut seen, &mut queue);
+    let mut result = Map::new();
+    while let Some(name) = queue.pop_front() {
+        if let Some(def) = definitions.get(&name) {
+            collect_refs(def, &mut seen, &mut queue);
+            result.insert(name, def.clone());
+        }
+    }
+    result
+}
+
+fn collect_refs(schema: &Value, seen: &mut BTreeSet<String>, queue: &mut VecDeque<String>) {
+    super::schema_walk::visit_refs(schema, |name| {
+        if seen.insert(name.to_owned()) {
+            queue.push_back(name.to_owned());
+        }
+    });
+}
+
 fn def_name(reference: &str) -> Option<&str> {
-    reference.strip_prefix("#/$defs/")
+    reference.strip_prefix(super::schema_walk::DEFS)
 }
 
 /// Every operation, query and command with one line about it. To stay small
@@ -499,4 +574,12 @@ fn not_found(text: String) -> Error {
 pub fn params_schema(name: &str) -> Option<(&'static Value, &'static Value)> {
     let entry = entries().iter().find(|e| e.name == name)?;
     Some((&entry.params, entry.root))
+}
+
+/// Stand-alone schema of a successful result for an addressable entry.
+pub fn result_schema(name: &str) -> Option<&'static Value> {
+    entries()
+        .iter()
+        .find(|entry| entry.name == name)
+        .map(Entry::reply_schema)
 }

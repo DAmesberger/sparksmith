@@ -36,17 +36,19 @@ pub struct TurnEndParams {
 }
 
 /// One open turn.
-#[derive(Clone, Debug)]
-struct Turn {
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub(super) struct Turn {
+    #[serde(rename = "turn")]
     id: String,
     label: String,
     /// Where its undo step stands in the engine's history.
+    #[serde(skip)]
     mark: Option<GroupMark>,
 }
 
 impl Turn {
     fn reply(&self) -> Value {
-        json!({"turn": self.id, "label": self.label})
+        json!(self)
     }
 }
 

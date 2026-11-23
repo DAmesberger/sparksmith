@@ -8,6 +8,10 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Resolve test resources against the source checkout, including from a shared Cargo target.
+test-fixtures = []
+
 [dependencies]
 sparksmith-core.workspace = true
 # Runs a project's embedded generator modules on load, to check its

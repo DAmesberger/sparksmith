@@ -31,7 +31,7 @@ Every command enum lists its variants once, beside the enum, with `declare_entri
 
 ```rust
 declare_entries!(FillCommand in layout {
-    Add "fill.add" Edit "Add a copper fill",
+    Add "fill.add" Edit "Add a copper fill" [returns(fill_added)],
     Refill "fill.refill" Edit "Refill copper" [long],
 });
 declare_entries!(Request in project {
@@ -51,6 +51,7 @@ A line is `Variant "wire.name" Class "Title" [attributes]`. A variant without it
 | `effect(Pure \| Revision \| World)` | what its answer depends on | `world` with a reach, else `revision` |
 | `needs(Files \| Window \| Runtime \| Solidcraft)` | host features it needs | none; a reach of files adds `files` |
 | `since(major, minor)` | the module version it arrived in | `0.1` |
+| `returns(tag, …)` | serialized report or outcome variants for this entry | queries declare their tags, operations default to the `none` outcome |
 
 The title is at most 40 bytes; the summary is the first sentence of the doc comment (for requests, the catalog's summary), at most 140 bytes. The kind is derived: Never reaches no model; Ask or a path makes an action; else a read is a query and an edit an operation.
 
@@ -77,25 +78,25 @@ The types are in the ABI crate, `sparksmith_generator_abi::surface` (`no_std` + 
 `crates/automation/surface.lock` is JSON, one line per entry:
 
 ```json
-{"format": 1, "modules": [
+{"format": 2, "modules": [
  {"id": "checks", "version": "0.1", "digest": "sha256:…", "entries": [
-  {"name":"fabrication.preflight","class":"read","schema":"3f…","fields":[["profile","9a…"]],"required":[]},
+  {"name":"fabrication.preflight","class":"read","schema":"3f…","reply":"89…","fields":[["profile","9a…"]],"required":[]},
   …
  ]},
  …
 ]}
 ```
 
-- **Module digest:** SHA-256 of the module's canonical description: its entries sorted by name, each with its kind, class, effect, reach, needs, person step, time, result size, `since` and the digest of its canonical input schema.
-- **Canonical schema:** the entry's parameter schema with the definitions it reaches renumbered in the order they are first referenced, without `description`, `title`, `$comment`, `examples` and `$schema`. A renamed Rust type or an edited doc comment changes nothing; a changed field does. Titles and summaries are not contract.
-- **Per entry:** the class, the first 16 hex digits of the schema digest, the same per top-level parameter, and the required parameters.
-- **Beside it, `crates/automation/surface.schemas`:** each entry's parameter schema itself and every type it reaches, one line per entry and one per type (a type shared by several entries, such as an operation inside `project.apply` and `project.apply_all`, is recorded once and referenced by name), so the next change can be compared structurally and a changed type reads as one changed line ([what a change needs](#what-a-change-needs)). `--update` writes both files; `--check` fails when either is out of date.
+- **Module digest:** SHA-256 of the module's canonical description: its entries sorted by name, each with its kind, class, effect, reach, needs, person step, time, result size, `since` and the digests of its canonical input and reply schemas.
+- **Canonical schema:** each input or reply schema with the definitions it reaches renumbered in the order they are first referenced, without `description`, `title`, `$comment`, `examples` and `$schema`. A renamed Rust type or an edited doc comment changes nothing; a changed field does. Schema annotations do not affect the contract. A serialized property named `title` or `description` remains part of it.
+- **Per entry:** the class, the first 16 hex digits of each schema digest, the digest per top-level parameter, and the required parameters.
+- **Beside it, `crates/automation/surface.schemas`:** each entry’s input and reply schemas and every type they reach, one line per schema or type (a type shared by several entries, such as an operation inside `project.apply` and `project.apply_all`, is recorded once and referenced by name), so the next change can be compared structurally and a changed type reads as one changed line ([what a change needs](#what-a-change-needs)). `--update` writes both files; `--check` fails when either is out of date.
 
 `cargo xtask surface --check` (in `cargo xtask ci`) compares the catalog with the lock. It runs the automation test `session::surface::tests::the_lock_holds`, since the catalog is built from that crate's types. It fails when:
 
 - a module's digest changed and its version did not;
 - a version went back, or a module was removed;
-- from 1.0, an entry was removed, its parameters changed incompatibly ([what a change needs](#what-a-change-needs)), or a class became stricter, without a major raise;
+- from 1.0, an entry was removed, its parameters or reply changed incompatibly ([what a change needs](#what-a-change-needs)), or a class became stricter, without a major raise;
 - an entry is new and its `since` is not the module's new version;
 - the lock is otherwise out of date.
 
@@ -129,7 +130,7 @@ Before 1.0 any change raises the minor. Without a recorded schema for an entry (
 
 **Wrappers.** `project.apply`, `project.apply_all` and `project.query` carry the union of every operation or query, so a change inside one is also a change to the `project` module. Under these rules a new operation, or a new optional field in one, is a minor raise of `project` as well as of the operation's own module; a break in an operation is a major raise of both. The wrappers' schemas stay in the digest, so a caller of `project.apply` is told the truth about what the wrapper accepts.
 
-**Enum values: widened inputs are minor, widened replies would be major.** A caller sends parameters, so a new enum value or variant takes nothing away from what it could send: minor. In a reply the direction turns: a new value can reach a client that matches every value it knows, so a reply's new enum value would be a break, while a reply's new optional field stays minor (clients ignore fields they do not know). Today the lock records parameter schemas only; replies have no schema in the catalog, so no reply change is gated yet. When reply schemas are recorded they compare with the direction turned for enums and variants.
+**Reply compatibility.** Each entry’s successful wire result has a schema. The entry description exposes it as `reply`. Large definitions are paged. Pass a handle from `reply.more_defs` (for example `reply:Project`) back to `project.schema` as `def` with the same entry name. The lock includes its canonical digest, and the `replies` table in `surface.schemas` records its structure alongside the input schemas. A reader of an open object can ignore a new field. A closed object permits only the fields it declares. Removing a documented field, making a guaranteed field optional, widening a value’s type or adding an enum value or tagged alternative can break an existing reader and needs a major bump. A tighter reply value range or a new field on an open object needs a minor bump. The same comparison follows references inside records, arrays and alternatives. The first format-2 lock establishes the baseline for replies. The entry’s `since` continues to identify the version that introduced it.
 
 ## What S1 deleted
 

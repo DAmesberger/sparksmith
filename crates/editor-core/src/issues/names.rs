@@ -122,10 +122,11 @@ impl<'a> Names<'a> {
             ObjectRef::Instance { id } => self.designator(id),
             ObjectRef::Terminal { endpoint } => self.terminal(endpoint.instance, endpoint.terminal),
             ObjectRef::Net { id } => self.net(id),
-            ObjectRef::Track { id } => self.project.tracks.iter().find(|t| t.id == id).map_or_else(
-                || "a track".into(),
-                |t| format!("track on {}", self.net(t.net)),
-            ),
+            ObjectRef::Track { id } => crate::model::by_id(&self.project.tracks, id, |t| t.id)
+                .map_or_else(
+                    || "a track".into(),
+                    |t| format!("track on {}", self.net(t.net)),
+                ),
             ObjectRef::Pad { instance, pad } => match self.pads.get(&(instance, pad)) {
                 Some(label) => format!("{} pad {label}", self.designator(instance)),
                 None => format!("a pad of {}", self.designator(instance)),
@@ -161,7 +162,24 @@ impl<'a> Names<'a> {
                 },
             ),
             ObjectRef::Board => "the board".into(),
-            ObjectRef::BoardSide { side } => format!("the board's {} side", side.name()),
+            ObjectRef::BoardFeature { feature } => crate::layout::physical::feature_name(
+                self.project,
+                crate::model::board::BoardFeatureId(feature),
+            ),
+            ObjectRef::PadVia {
+                instance,
+                pad,
+                index,
+            } => {
+                let pad = self.object(&ObjectRef::Pad { instance, pad });
+                format!("{pad} via {}", u64::from(index) + 1)
+            }
+            ObjectRef::BoardSide { top } => if top {
+                "the top side"
+            } else {
+                "the bottom side"
+            }
+            .into(),
             ObjectRef::Label { id } => self.project.label(id).map_or_else(
                 || "a label".into(),
                 |l| format!("{} {}", l.kind.noun(), l.name),

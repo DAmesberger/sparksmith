@@ -413,6 +413,15 @@ impl PlacedPad {
     }
 
     /// The pad's drilled holes on the board: its own hole, then its vias.
+    /// The bounds of everything the pad puts on the board: its outline
+    /// and its holes.
+    pub fn extent(&self) -> crate::geometry::Bounds {
+        self.holes()
+            .iter()
+            .map(|h| h.shape.bounds(0.0))
+            .fold(self.outline().bounds(0.0), crate::geometry::Bounds::union)
+    }
+
     pub fn holes(&self) -> Vec<PlacedHole> {
         let t = self.pad_transform();
         self.pad

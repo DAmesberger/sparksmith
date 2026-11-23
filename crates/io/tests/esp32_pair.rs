@@ -16,6 +16,10 @@
 //!   B7, is 1.355 + 1.0 + 1.355 = 3.71 mm of track and two 1.565 mm barrels
 //!   (the 1.6 mm board's outer-foil mid-planes: 1.46 mm of dielectric,
 //!   two inner foils and half of each outer 35 µm one), 6.84 mm.
+#[path = "support/esp32_preflight.rs"]
+mod esp32_preflight;
+
+use esp32_preflight::{USB_UNCOUPLED_MM, assert_usb_preflight};
 use sparksmith_core::diagnostics::Finding;
 use sparksmith_core::ids::{Endpoint, Id};
 use sparksmith_core::layout::length::{self, LengthReport, PairMeasured, PairRow};
@@ -323,7 +327,8 @@ fn a_track_across_the_pair_never_tears_it() -> Fallible {
 /// the findings only production makes: the two switches' envelope models.
 /// The switches now use the example's B3U-1000P part file, and the board's
 /// PCBWay 4-layer profile (at its minimum values) admits the GCT USB4105
-/// land pattern as drawn, so both counts are 0, with no waiver.
+/// land pattern as drawn. Both reports now show one unwaived USB coverage
+/// warning for the uncoupled lengths on the connector-to-module paths.
 /// Information is not counted: the production check leaves it out, and the
 /// only information on this board is the fills' removed thermal spokes
 /// (`fill.spokes_removed`, never blocking).
@@ -344,34 +349,34 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
         sparksmith_core::QueryResult::Preflight(report) => report,
         _ => return Err("preflight".into()),
     };
-    let count = |code: &str| preflight.items.iter().filter(|i| i.code == code).count();
-    assert_eq!(count("pair.skew"), 0);
-    assert_eq!(count("fabrication.envelope_model"), 0);
-    let only_production: Vec<&str> = preflight
-        .items
-        .iter()
-        .map(|i| i.code.as_str())
-        .filter(|c| c.starts_with("fabrication."))
-        .collect();
-    println!(
-        "issues {:?} preflight {} {only_production:?}",
-        issues.counts,
-        preflight.items.len()
-    );
+    assert_usb_preflight(&preflight, USB_UNCOUPLED_MM);
+    let usb = &preflight.items[0];
     let (info, counted): (Vec<_>, Vec<_>) = issues
         .rows
         .iter()
         .partition(|r| r.severity == sparksmith_core::issues::Severity::Info);
-    assert_eq!(counted.len(), 0, "{:?}", issues.counts);
+    assert_eq!(
+        (
+            issues.counts.error,
+            issues.counts.warning,
+            issues.counts.to_do
+        ),
+        (0, 1, 0),
+        "{:?}",
+        issues.counts
+    );
+    assert_eq!(counted.len(), 1, "{counted:?}");
+    let issue = counted[0];
+    assert_eq!(issue.severity, usb.severity);
+    assert_eq!(issue.finding.code, usb.code);
+    assert_eq!(issue.finding.objects, usb.objects);
+    assert_eq!(issue.title, usb.title);
+    assert!(issue.also.is_empty(), "{issue:?}");
     assert!(
         info.iter().all(|r| r.finding.code == "fill.spokes_removed"),
         "{:?}",
         info.iter().map(|r| &r.finding.code).collect::<Vec<_>>()
     );
-    assert_eq!(preflight.blocking, 0);
-    assert_eq!(preflight.waived, 0);
-    assert!(preflight.items.is_empty(), "{:?}", preflight.items);
     assert!(engine.project().production.waivers.is_empty());
-    assert_eq!(only_production.len(), 0);
     Ok(())
 }

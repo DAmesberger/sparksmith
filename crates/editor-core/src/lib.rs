@@ -515,51 +515,51 @@ pub enum Query {
 
 // A new command chooses its permission class here.
 declare_entries!(Query in project {
-    InspectInstance "component.inspect" Read "Inspect an instance" [in schematic, link],
-    CheckDefinition "component.check" Read "Check a definition" [in library, link],
-    CheckDrafts "component.check_drafts" Read "Check all drafts" [in library, link],
-    Search "library.search" Read "List or search library components" [in library, link],
-    Facets "library.facets" Read "List search filters" [in library, link],
-    InspectLineage "library.inspect" Read "Inspect a lineage" [in library, link],
-    Bom "project.bom" Read "Bill of materials" [link],
-    ResolveGroups "library.resolve_groups" Read "Group instances for purchasing" [in library, link],
-    Variants "variant.list" Read "List assembly variants" [link, since(7, 13)],
-    Substitutes "variant.substitutes" Read "Parts that fit a footprint" [link, since(7, 13)],
-    FootprintPreview "library.footprint_preview" Read "Preview a footprint" [in library, long, link],
-    UpdatesAvailable "library.updates_available" Read "List library updates" [in library, link],
-    PromotePreview "library.promote_preview" Read "Preview a promotion" [in library, link],
-    Issues "project.issues" Read "List issues" [in checks, long, link],
-    StandardFields "library.standard_fields" Read "List standard fields" [in library, link],
-    Models "library.models" Read "Find 3D models" [in library, link],
-    PinoutPreview "library.pinout_preview" Read "Preview a pinout import" [in library, long, link],
-    SuggestPins "functions.suggest" Read "Suggest pin assignments" [in schematic, link],
-    PinReport "project.pin_report" Read "Pin report" [in schematic, link],
-    PartPins "schematic.pins" Read "List parts' pins" [in schematic, link, since(1, 7)],
-    PinConfig "project.pin_config" Read "Firmware pin configuration" [in fab, link],
-    Marking "instance.marking" Read "Resolve an instance's marking" [in schematic],
-    RulesEffective "rules.effective" Read "Effective rules" [in rules, link],
-    RuleProfiles "rules.fab_profiles" Read "List fab profiles" [in rules, link],
-    PreviewProfile "rules.preview_fab_profile" Read "Preview a fab profile" [in rules, link],
-    PreviewOptions "rules.preview_fab_options" Read "Preview fab profile options" [in rules, link],
-    NetClasses "net_class.list" Read "List net classes" [in rules, link],
-    PreviewNetClassPatterns "net_class.preview_patterns" Read "Preview net class patterns" [in rules, link],
-    BoardShape "board.shape" Read "Board shape" [in layout, link],
-    FillStatus "fill.status" Read "Fill status" [in layout, link],
-    Sheets "schematic.sheets" Read "List sheets" [in schematic, link],
-    NetPlaces "schematic.net_places" Read "Find a net on the sheets" [in schematic, link],
-    SheetCopy "schematic.copy" Read "Copy schematic objects" [in schematic, link],
-    SheetScene "schematic.scene" Read "Sheet scene" [in schematic, link],
-    ImpedanceCalculate "impedance.calculate" Read "Calculate impedance" [in rules],
-    ImpedanceTable "impedance.table" Read "Impedance table" [in rules, link],
-    SuggestPairs "diff_pair.suggest" Read "Suggest differential pairs" [in layout, link],
-    LengthReport "layout.length_report" Read "Length report" [in layout, link],
-    Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1)],
-    RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link],
-    TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link],
-    TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link],
-    Preflight "fabrication.preflight" Read "Production check" [in checks, long, link],
-    InterfaceList "interface.list" Read "List the board interface" [in model3d],
-    AssemblyStatus "assembly.status" Read "Check the assembly link" [in model3d],
+    InspectInstance "component.inspect" Read "Inspect an instance" [in schematic, link, returns(instance)],
+    CheckDefinition "component.check" Read "Check a definition" [in library, link, returns(definition)],
+    CheckDrafts "component.check_drafts" Read "Check all drafts" [in library, link, returns(drafts)],
+    Search "library.search" Read "List or search library components" [in library, link, returns(search)],
+    Facets "library.facets" Read "List search filters" [in library, link, returns(facets)],
+    InspectLineage "library.inspect" Read "Inspect a lineage" [in library, link, returns(lineage)],
+    Bom "project.bom" Read "Bill of materials" [link, returns(bom)],
+    ResolveGroups "library.resolve_groups" Read "Group instances for purchasing" [in library, link, returns(resolve_groups)],
+    Variants "variant.list" Read "List assembly variants" [link, since(7, 13), returns(variants)],
+    Substitutes "variant.substitutes" Read "Parts that fit a footprint" [link, since(7, 13), returns(substitutes)],
+    FootprintPreview "library.footprint_preview" Read "Preview a footprint" [in library, long, link, returns(footprint_preview)],
+    UpdatesAvailable "library.updates_available" Read "List library updates" [in library, link, returns(updates_available)],
+    PromotePreview "library.promote_preview" Read "Preview a promotion" [in library, link, returns(promote)],
+    Issues "project.issues" Read "List issues" [in checks, long, link, returns(issues)],
+    StandardFields "library.standard_fields" Read "List standard fields" [in library, link, returns(standard_fields)],
+    Models "library.models" Read "Find 3D models" [in library, link, returns(models)],
+    PinoutPreview "library.pinout_preview" Read "Preview a pinout import" [in library, long, link, returns(pinout_plan)],
+    SuggestPins "functions.suggest" Read "Suggest pin assignments" [in schematic, link, returns(suggest_pins)],
+    PinReport "project.pin_report" Read "Pin report" [in schematic, link, returns(pin_report)],
+    PartPins "schematic.pins" Read "List parts' pins" [in schematic, link, since(1, 7), returns(part_pins)],
+    PinConfig "project.pin_config" Read "Firmware pin configuration" [in fab, link, returns(pin_config)],
+    Marking "instance.marking" Read "Resolve an instance's marking" [in schematic, returns(marking)],
+    RulesEffective "rules.effective" Read "Effective rules" [in rules, link, returns(rules)],
+    RuleProfiles "rules.fab_profiles" Read "List fab profiles" [in rules, link, returns(rule_profiles, rule_profile)],
+    PreviewProfile "rules.preview_fab_profile" Read "Preview a fab profile" [in rules, link, returns(profile_impact)],
+    PreviewOptions "rules.preview_fab_options" Read "Preview fab profile options" [in rules, link, returns(profile_impact)],
+    NetClasses "net_class.list" Read "List net classes" [in rules, link, returns(net_classes)],
+    PreviewNetClassPatterns "net_class.preview_patterns" Read "Preview net class patterns" [in rules, link, returns(net_class_changes)],
+    BoardShape "board.shape" Read "Board shape" [in layout, link, returns(board_shape)],
+    FillStatus "fill.status" Read "Fill status" [in layout, link, returns(fill_status)],
+    Sheets "schematic.sheets" Read "List sheets" [in schematic, link, returns(sheets)],
+    NetPlaces "schematic.net_places" Read "Find a net on the sheets" [in schematic, link, returns(net_places)],
+    SheetCopy "schematic.copy" Read "Copy schematic objects" [in schematic, link, returns(sheet_clip)],
+    SheetScene "schematic.scene" Read "Sheet scene" [in schematic, link, returns(sheet_scene)],
+    ImpedanceCalculate "impedance.calculate" Read "Calculate impedance" [in rules, returns(impedance)],
+    ImpedanceTable "impedance.table" Read "Impedance table" [in rules, link, returns(impedance_table)],
+    SuggestPairs "diff_pair.suggest" Read "Suggest differential pairs" [in layout, link, returns(pair_suggestions)],
+    LengthReport "layout.length_report" Read "Length report" [in layout, link, returns(length_report)],
+    Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1), returns(pads)],
+    RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link, returns(route_preview)],
+    TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link, returns(route_preview)],
+    TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link, returns(tune_preview)],
+    Preflight "fabrication.preflight" Read "Production check" [in checks, long, link, returns(preflight)],
+    InterfaceList "interface.list" Read "List the board interface" [in model3d, returns(interface_list)],
+    AssemblyStatus "assembly.status" Read "Check the assembly link" [in model3d, returns(assembly_status)],
 });
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -643,7 +643,7 @@ pub enum Area {
 /// designator as it was. A batch of one kind of operation takes that
 /// operation's title; a mixed batch is [`Step::MIXED`], in its first
 /// operation's area.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, schemars::JsonSchema)]
 pub struct Step {
     pub title: &'static str,
     pub area: Area,
@@ -699,30 +699,6 @@ impl Step {
                 |verb| format!("{verb}{name}"),
             )
     }
-}
-
-/// The stackup's outer foils follow the fab profile's copper weight
-/// (`FabChoice::outer_copper_um`) after a rules change; the before and
-/// after top foil in µm when they changed. A stackup edit cannot depart
-/// from the choice (`stackup.outer_copper`).
-pub fn follow_outer_copper(project: &mut Project) -> Result<Option<(f64, f64)>> {
-    let Some(um) = project
-        .rules
-        .profile
-        .as_ref()
-        .and_then(|p| p.outer_copper_um())
-    else {
-        return Ok(None);
-    };
-    if project.stackup.outer_copper_is(um) {
-        return Ok(None);
-    }
-    let from = project
-        .stackup
-        .outer_copper_um()
-        .map_or(0.0, |(top, _)| top);
-    project.stackup = project.stackup.with_outer_copper(um)?;
-    Ok(Some((from, um)))
 }
 
 /// The name a project's first save gives it: a project still called
@@ -1927,7 +1903,7 @@ impl Engine {
                 if next != candidate.project.rules {
                     let project = Arc::make_mut(&mut candidate.project);
                     project.rules = next;
-                    follow_outer_copper(project)?;
+                    layout::restack::reconcile_rules(project, layout::restack::Foils::Follow)?;
                     // A sketch board follows `board.outline_fit`.
                     layout::outline::refit(project, evaluators.board)?;
                 }
@@ -2092,7 +2068,7 @@ impl Engine {
         }
         let mut candidate = current.as_ref().clone();
         candidate.rules = next;
-        match follow_outer_copper(&mut candidate) {
+        match layout::restack::reconcile_rules(&mut candidate, layout::restack::Foils::Follow) {
             Ok(change) => impact.outer_copper_um = change,
             Err(error) => {
                 impact.refusal = Some(error.to_string());

@@ -154,6 +154,7 @@ pub type Point = [i64; 2];
 pub type Point3 = [i64; 3];
 
 /// What a request asks a generator to produce.
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Scope {
@@ -295,6 +296,7 @@ fn is_zero(v: &u32) -> bool {
 }
 
 /// One parameter.
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Param {
@@ -315,6 +317,7 @@ pub struct Param {
 }
 
 /// A parameter's type and range.
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ParamType {
@@ -361,6 +364,7 @@ pub enum ParamType {
 }
 
 /// One choice of an [`ParamType::Enum`].
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Choice {
@@ -372,6 +376,7 @@ pub struct Choice {
 /// (enum keys, free text, decimal quantities) or a list. Written as the
 /// bare JSON value; read by its JSON kind (by hand rather than serde's
 /// `untagged`, whose buffer has float paths a module must not contain).
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum ParamValue {
@@ -433,6 +438,7 @@ pub struct Rule {
 }
 
 /// A named parameter set (a starter row), with its source.
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Preset {
@@ -449,6 +455,7 @@ pub struct Preset {
 }
 
 /// Where a value comes from.
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Citation {
@@ -460,6 +467,7 @@ pub struct Citation {
 }
 
 /// How far a value is backed by its source.
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Basis {

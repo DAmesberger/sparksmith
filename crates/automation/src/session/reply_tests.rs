@@ -622,3 +622,78 @@ fn trimmed_copper_reports_what_whole_documents_report() -> TestResult {
     }
     Ok(())
 }
+
+/// A reply's findings are those its edit changed: a check settings change
+/// at the same revision (an impedance tolerance set in Settings) changes
+/// findings no edit made, so the next edit does not report them. The
+/// showcase's first routed net takes a 50 Ω target: with no tolerance it
+/// is `impedance.no_tolerance`, with one it is checked.
+#[test]
+fn a_check_settings_change_is_not_reported_as_the_next_edits_findings() -> TestResult {
+    use sparksmith_core::layout::CheckSettings;
+    use sparksmith_core::rules::{RulesCommand, netclass::NetClassSpec, signal::SignalRules};
+    let mut session = Session::fixture(sparksmith_core::Engine::showcase()?);
+    let net = session
+        .engine()
+        .project()
+        .tracks
+        .first()
+        .ok_or("a track")?
+        .net;
+    let engine = session.engine_mut();
+    engine.set_check_settings(CheckSettings::default())?;
+    let spec: NetClassSpec = serde_json::from_value(json!({"name": "Z50"}))?;
+    let spec = NetClassSpec {
+        signal: SignalRules {
+            impedance: Some(50.0),
+            ..Default::default()
+        },
+        ..spec
+    };
+    let class = match engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::AddNetClass { class: spec }),
+    )? {
+        sparksmith_core::Outcome::NetClassAdded { class } => class,
+        other => return Err(format!("{other:?}").into()),
+    };
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::AssignNets {
+            nets: vec![net],
+            class: Some(class),
+        }),
+    )?;
+    let codes = |findings: &Value| -> Vec<String> {
+        let new = findings["new"].as_array().into_iter().flatten();
+        let resolved = findings["resolved"].as_object().into_iter().flatten();
+        new.filter_map(|f| f["code"].as_str().map(str::to_owned))
+            .chain(resolved.map(|(code, _)| code.clone()))
+            .filter(|code| code.starts_with("impedance."))
+            .collect()
+    };
+    let unchecked = |session: &Session| -> std::result::Result<usize, Box<dyn std::error::Error>> {
+        let report = session
+            .engine()
+            .issue_report_of(session.engine().document())?;
+        Ok(report
+            .rows
+            .iter()
+            .filter(|r| r.finding.code == "impedance.no_tolerance")
+            .count())
+    };
+    assert!(unchecked(&session)? > 0, "the target is not checked");
+    // An edit sets the reply's baseline under no tolerance.
+    let first = ok(session.respond(Caller::Operator, add_via(&session, [1.0, 1.0])))?;
+    assert_eq!(codes(&first["findings"]), Vec::<String>::new(), "{first}");
+    // Settings change, at the same revision.
+    let revision = session.engine().revision();
+    session.engine_mut().set_check_settings(CheckSettings {
+        impedance_tolerance: Some(50.0),
+    })?;
+    assert_eq!(session.engine().revision(), revision);
+    assert_eq!(unchecked(&session)?, 0, "the target is checked now");
+    let second = ok(session.respond(Caller::Operator, add_via(&session, [2.0, 1.0])))?;
+    assert_eq!(codes(&second["findings"]), Vec::<String>::new(), "{second}");
+    Ok(())
+}

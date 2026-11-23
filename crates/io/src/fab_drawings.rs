@@ -20,8 +20,6 @@ type P = [f64; 2];
 type SymbolFn = dyn Fn(&mut Page, P, usize);
 
 const MARGIN: f64 = 10.0;
-/// Rows of one drawn table before the rest is summarised.
-const MAX_TABLE_ROWS: usize = 40;
 
 const INK: Colour = Colour::BLACK;
 const FAINT: Colour = Colour::Grey(0.55);
@@ -221,18 +219,29 @@ fn wrap(text: &str, size: f64, width: f64) -> Vec<String> {
     lines
 }
 
-/// A table with a heading: columns (title, width, align), rows of cells.
-/// Returns the y below it.
+/// Height of a table row, mm.
+const ROW: f64 = 5.0;
+/// Height of a table's heading above its frame, mm.
+const HEADING: f64 = 6.5;
+/// Height of one line of a note, mm.
+const NOTE_LINE: f64 = 4.0;
+/// Width of a flowed column (tables, notes), mm.
+const COLUMN: f64 = 150.0;
+
+/// A table with a heading: columns (title, width, align), every row of
+/// `rows` (cells). `first` is the index of the first row in the whole
+/// table, for `symbols`. Returns the y below it.
 fn table(
     page: &mut Page,
     at: P,
     heading: &str,
     columns: &[(&str, f64, Align)],
     rows: &[Vec<String>],
+    first: usize,
     symbols: Option<&SymbolFn>,
 ) -> f64 {
     let size = 2.8;
-    let row = 5.0;
+    let row = ROW;
     let width: f64 = columns.iter().map(|c| c.1).sum();
     let [x0, mut y] = at;
     page.text(
@@ -244,10 +253,9 @@ fn table(
         0.0,
         INK,
     );
-    y -= 6.5;
-    let shown = rows.len().min(MAX_TABLE_ROWS);
-    let lines = shown + 1 + usize::from(rows.len() > shown);
-    let height = row * lines as f64;
+    y -= HEADING;
+    let shown = rows.len();
+    let height = row * (shown + 1) as f64;
     page.rect([x0, y - height], [width, height], &thin());
     let cell = |page: &mut Page, x: f64, w: f64, y: f64, text: &str, align: Align, font: Font| {
         let tx = match align {
@@ -271,7 +279,7 @@ fn table(
         x += w;
     }
     page.line([x0, y - row], [x0 + width, y - row], &thin());
-    for (k, cells) in rows.iter().take(shown).enumerate() {
+    for (k, cells) in rows.iter().enumerate() {
         let ry = y - row * (k as f64 + 1.0);
         let mut x = x0;
         for (i, (_, w, align)) in columns.iter().enumerate() {
@@ -281,24 +289,11 @@ fn table(
             x += w;
         }
         if let Some(draw) = symbols {
-            draw(page, [x0 + columns[0].1 / 2.0, ry - row / 2.0], k);
+            draw(page, [x0 + columns[0].1 / 2.0, ry - row / 2.0], first + k);
         }
         if k + 1 < shown {
             page.line([x0, ry - row], [x0 + width, ry - row], &hair());
         }
-    }
-    if rows.len() > shown {
-        let ry = y - row * (shown as f64 + 1.0);
-        page.line([x0, ry], [x0 + width, ry], &hair());
-        cell(
-            page,
-            x0,
-            width,
-            ry,
-            &format!("… {} more rows", rows.len() - shown),
-            Align::Left,
-            Font::Regular,
-        );
     }
     let mut x = x0;
     for (_, w, _) in &columns[..columns.len().saturating_sub(1)] {
@@ -307,6 +302,207 @@ fn table(
     }
     y - height
 }
+
+/// The fabrication drawing's sheets and where the tables and notes flow
+/// on them: the first sheet's column beside the board, then on each
+/// further sheet a column at the left and one at the right (above the
+/// title block). Nothing is cut: a table or the notes that reach a
+/// column's floor go on in the next column, under a "(continued)"
+/// heading.
+struct Flow<'a> {
+    data: &'a DrawingData,
+    pages: Vec<Page>,
+    /// The columns of the current sheet still to use after this one:
+    /// (x, floor), top to bottom each from the sheet's top.
+    next: Vec<(f64, f64)>,
+    x: f64,
+    y: f64,
+    floor: f64,
+}
+
+/// Most sheets of one fabrication drawing.
+const MAX_SHEETS: usize = 64;
+
+impl<'a> Flow<'a> {
+    fn top(page: &Page) -> f64 {
+        page.size()[1] - MARGIN - 4.0
+    }
+
+    /// The floor of a column standing over the title block.
+    fn over_title() -> f64 {
+        MARGIN + TITLE_HEIGHT + 4.0
+    }
+
+    fn new(data: &'a DrawingData, first: Page, x: f64) -> Self {
+        let y = Self::top(&first);
+        Self {
+            data,
+            pages: vec![first],
+            next: Vec::new(),
+            x,
+            y,
+            floor: Self::over_title(),
+        }
+    }
+
+    fn page(&mut self) -> Result<&mut Page> {
+        self.pages
+            .last_mut()
+            .ok_or_else(|| crate::Error::Invalid("a drawing without a sheet".into()))
+    }
+
+    /// Move to the next column, on a new sheet when this one is full.
+    fn advance(&mut self) -> Result<()> {
+        if self.next.is_empty() {
+            if self.pages.len() >= MAX_SHEETS {
+                return Err(crate::Error::TooLarge(format!(
+                    "a fabrication drawing holds at most {MAX_SHEETS} sheets"
+                )));
+            }
+            let mut page = Page::new(A3_LANDSCAPE);
+            frame(&mut page);
+            let [w, h] = page.size();
+            page.text(
+                [MARGIN + 6.0, h - MARGIN - 9.0],
+                5.0,
+                &format!("{} — fabrication drawing (continued)", self.data.title),
+                Font::Bold,
+                Align::Left,
+                0.0,
+                INK,
+            );
+            let top = Self::top(&page) - 14.0;
+            self.pages.push(page);
+            self.next = vec![(w - MARGIN - COLUMN - 4.0, Self::over_title())];
+            self.x = MARGIN + 6.0;
+            self.y = top;
+            self.floor = MARGIN + 4.0;
+            return Ok(());
+        }
+        let (x, floor) = self.next.remove(0);
+        let top = self.pages.last().map_or(0.0, Self::top) - 14.0;
+        self.x = x;
+        self.y = top;
+        self.floor = floor;
+        Ok(())
+    }
+
+    /// A whole table, its rows flowing over as many columns as they need.
+    fn table(
+        &mut self,
+        heading: &str,
+        columns: &[(&str, f64, Align)],
+        rows: &[Vec<String>],
+        symbols: Option<&SymbolFn>,
+    ) -> Result<()> {
+        let mut from = 0usize;
+        let mut continued = false;
+        loop {
+            let room = ((self.y - self.floor - HEADING - ROW) / ROW).floor();
+            let fit = if room >= 1.0 { room as usize } else { 0 };
+            let left = rows.len() - from;
+            if fit == 0 && (left > 0 || self.y - self.floor < HEADING + ROW) {
+                self.advance()?;
+                continue;
+            }
+            let n = fit.min(left);
+            let title = if continued {
+                format!("{heading} (continued)")
+            } else {
+                heading.to_owned()
+            };
+            let (x, y) = (self.x, self.y);
+            let below = table(
+                self.page()?,
+                [x, y],
+                &title,
+                columns,
+                &rows[from..from + n],
+                from,
+                symbols,
+            );
+            self.y = below - 4.0;
+            from += n;
+            continued = true;
+            if from >= rows.len() {
+                return Ok(());
+            }
+            self.advance()?;
+        }
+    }
+
+    /// The numbered notes under a heading, each note's lines kept
+    /// together where a column has room for them.
+    fn notes(&mut self, notes: &[String]) -> Result<()> {
+        let size = 2.8;
+        let heading = |flow: &mut Self, continued: bool| -> Result<()> {
+            let (x, y) = (flow.x, flow.y);
+            flow.page()?.text(
+                [x, y - 4.0],
+                3.8,
+                if continued {
+                    "Notes (continued)"
+                } else {
+                    "Notes"
+                },
+                Font::Bold,
+                Align::Left,
+                0.0,
+                INK,
+            );
+            flow.y -= 9.5;
+            Ok(())
+        };
+        if self.y - self.floor < 9.5 + NOTE_LINE {
+            self.advance()?;
+        }
+        heading(self, false)?;
+        for (k, note) in notes.iter().enumerate() {
+            let lines = wrap(note, size, COLUMN - 8.0);
+            let tall = NOTE_LINE * lines.len() as f64;
+            // A note that fits the shortest fresh column moves there whole.
+            let shortest = Self::top(self.page()?) - 14.0 - Self::over_title() - 9.5;
+            if self.y - tall < self.floor && tall <= shortest {
+                self.advance()?;
+                heading(self, true)?;
+            }
+            for (i, line) in lines.iter().enumerate() {
+                if self.y - NOTE_LINE < self.floor {
+                    self.advance()?;
+                    heading(self, true)?;
+                }
+                let (x, y) = (self.x, self.y);
+                let page = self.page()?;
+                if i == 0 {
+                    page.text(
+                        [x, y],
+                        size,
+                        &format!("{}.", k + 1),
+                        Font::Regular,
+                        Align::Left,
+                        0.0,
+                        INK,
+                    );
+                }
+                page.text(
+                    [x + 6.0, y],
+                    size,
+                    line,
+                    Font::Regular,
+                    Align::Left,
+                    0.0,
+                    INK,
+                );
+                self.y -= NOTE_LINE;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Height of the fabrication drawing's title block, mm: its eight rows
+/// ([`title_block`]).
+const TITLE_HEIGHT: f64 = 6.0 * (8.0 + 1.5);
 
 /// The symbol of tool `index` (in drill-table order) at `c`, `r` mm.
 fn symbol(page: &mut Page, c: P, r: f64, index: usize) {
@@ -414,14 +610,23 @@ fn tool_label(tool: &DrillTool) -> String {
 }
 
 /// The fabrication drawing: outline with dimensions, drill table, stackup
-/// table and notes.
+/// table and notes, on as many sheets as they need.
 pub fn fabrication_pdf(data: &DrawingData) -> Result<Vec<u8>> {
+    let mut doc = Document::new();
+    doc.title(&format!("{} fabrication drawing", data.title));
+    for page in fabrication_sheets(data)? {
+        doc.push(page)?;
+    }
+    doc.finish()
+}
+
+/// The sheets of the fabrication drawing, each with its title block.
+fn fabrication_sheets(data: &DrawingData) -> Result<Vec<Page>> {
     let mut page = Page::new(A3_LANDSCAPE);
     frame(&mut page);
     let [w, h] = page.size();
     // Right column for the tables; the board view takes the rest.
-    let column = 150.0;
-    let col_x = w - MARGIN - column - 4.0;
+    let col_x = w - MARGIN - COLUMN - 4.0;
     let view = View::fit(
         data.bounds.min,
         data.bounds.max,
@@ -492,6 +697,9 @@ pub fn fabrication_pdf(data: &DrawingData) -> Result<Vec<u8>> {
     ];
     dimension(&mut page, lo, [hi[0], lo[1]], [0.0, -1.0], 10.0, size[0]);
     dimension(&mut page, lo, [lo[0], hi[1]], [-1.0, 0.0], 10.0, size[1]);
+    // The tables and notes flow from the column beside the board onto
+    // further sheets: nothing is cut.
+    let mut flow = Flow::new(data, page, col_x);
     // Drill table.
     let rows: Vec<Vec<String>> = data
         .drills
@@ -511,9 +719,7 @@ pub fn fabrication_pdf(data: &DrawingData) -> Result<Vec<u8>> {
         .collect();
     let draw_symbol = |page: &mut Page, c: P, k: usize| symbol(page, c, 1.4, k);
     let total: usize = data.drills.tools.iter().map(|t| t.count).sum();
-    let mut y = table(
-        &mut page,
-        [col_x, h - MARGIN - 4.0],
+    flow.table(
         &format!("Drill table ({total} holes, finished sizes)"),
         &[
             ("Sym", 12.0, Align::Centre),
@@ -526,7 +732,7 @@ pub fn fabrication_pdf(data: &DrawingData) -> Result<Vec<u8>> {
         ],
         &rows,
         Some(&draw_symbol),
-    );
+    )?;
     // Stackup table.
     let stack: Vec<Vec<String>> = data
         .stackup
@@ -543,9 +749,7 @@ pub fn fabrication_pdf(data: &DrawingData) -> Result<Vec<u8>> {
             ]
         })
         .collect();
-    y = table(
-        &mut page,
-        [col_x, y - 4.0],
+    flow.table(
         &format!(
             "Stackup ({} copper layers, {} mm over copper)",
             data.copper_layers,
@@ -558,75 +762,39 @@ pub fn fabrication_pdf(data: &DrawingData) -> Result<Vec<u8>> {
         ],
         &stack,
         None,
-    );
-    // Notes, above the title block.
-    page.text(
-        [col_x, y - 8.0],
-        3.8,
-        "Notes",
-        Font::Bold,
-        Align::Left,
-        0.0,
-        INK,
-    );
-    let mut ny = y - 13.5;
-    let floor = MARGIN + 6.0 * 7.5 + 4.0;
-    'notes: for (k, note) in data.notes.iter().enumerate() {
-        let prefix = format!("{}.", k + 1);
-        for (i, line) in wrap(note, 2.8, column - 8.0).iter().enumerate() {
-            if ny < floor {
-                break 'notes;
-            }
-            if i == 0 {
-                page.text(
-                    [col_x, ny],
-                    2.8,
-                    &prefix,
-                    Font::Regular,
-                    Align::Left,
-                    0.0,
-                    INK,
-                );
-            }
-            page.text(
-                [col_x + 6.0, ny],
-                2.8,
-                line,
-                Font::Regular,
-                Align::Left,
-                0.0,
-                INK,
-            );
-            ny -= 4.0;
-        }
-    }
-    title_block(
-        &mut page,
-        &data.title,
-        &[
-            ("Drawing", "Fabrication drawing, sheet 1 of 1".into()),
-            ("Rules", data.profile.clone()),
-            (
-                "Board",
-                format!(
-                    "{} × {} mm, {} layers, {} mm",
-                    mm2(size[0]),
-                    mm2(size[1]),
-                    data.copper_layers,
-                    mm2(data.thickness_mm)
+    )?;
+    flow.notes(&data.notes)?;
+    let sheets = flow.pages.len();
+    let mut pages = flow.pages;
+    for (k, page) in pages.iter_mut().enumerate() {
+        title_block(
+            page,
+            &data.title,
+            &[
+                (
+                    "Drawing",
+                    format!("Fabrication drawing, sheet {} of {sheets}", k + 1),
                 ),
-            ),
-            ("Finish", data.finish.clone()),
-            ("Mask / legend", format!("{} / {}", data.mask, data.legend)),
-            ("Release", data.release.clone()),
-            ("Project id", data.project_id.clone()),
-            ("Generator", sparksmith_core::product::NAME.into()),
-        ],
-    );
-    let mut doc = Document::new();
-    doc.title(&format!("{} fabrication drawing", data.title));
-    doc.push(page)?;
-    doc.finish()
+                ("Rules", data.profile.clone()),
+                (
+                    "Board",
+                    format!(
+                        "{} × {} mm, {} layers, {} mm",
+                        mm2(size[0]),
+                        mm2(size[1]),
+                        data.copper_layers,
+                        mm2(data.thickness_mm)
+                    ),
+                ),
+                ("Finish", data.finish.clone()),
+                ("Mask / legend", format!("{} / {}", data.mask, data.legend)),
+                ("Release", data.release.clone()),
+                ("Project id", data.project_id.clone()),
+                ("Generator", sparksmith_core::product::NAME.into()),
+            ],
+        );
+    }
+    Ok(pages)
 }
 
 fn bounds_of(loops: &[Vec<P>]) -> Option<(P, P)> {
@@ -802,7 +970,7 @@ mod tests {
     fn showcase() -> Result<DrawingData> {
         let engine = Engine::showcase()?;
         Ok(drawing::data(
-            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None),
+            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None)?,
             &Default::default(),
             engine.check_settings(),
         )?)
@@ -866,11 +1034,88 @@ mod tests {
         Ok(())
     }
 
+    /// Nothing of the fabrication drawing is cut (re-review §6: a
+    /// 24-layer board's 51 stackup rows and 11 notes did not fit one
+    /// sheet): 60 drill tools, 51 stackup rows and 30 long notes flow over
+    /// further sheets, every row and every note printed once, whole, and
+    /// each sheet numbered "sheet k of n".
+    #[test]
+    fn every_row_and_note_is_printed_on_as_many_sheets_as_it_needs() -> Result<()> {
+        let mut data = showcase()?;
+        let tool = data
+            .drills
+            .tools
+            .first()
+            .cloned()
+            .ok_or_else(|| crate::Error::Invalid("a showcase drill tool".into()))?;
+        data.drills.tools = (1..=60)
+            .map(|n| {
+                let mut t = tool.clone();
+                t.number = n;
+                t.count = 1000 + n as usize;
+                t
+            })
+            .collect();
+        data.stackup = (1..=51)
+            .map(|n| drawing::StackupRow {
+                name: format!("Layer row {n}"),
+                kind: "core".into(),
+                material: "FR-4".into(),
+                thickness_mm: 0.1,
+            })
+            .collect();
+        data.notes = (1..=30)
+            .map(|n| {
+                format!(
+                    "Note {n}: waived by the designer, please confirm in DFM review: the \
+                     clearance between the two named objects is under the rule and the \
+                     fabricator agreed to build it as drawn. End of note {n}."
+                )
+            })
+            .collect();
+        let sheets = fabrication_sheets(&data)?;
+        let n = sheets.len();
+        assert!(n >= 2, "{n} sheets");
+        for (k, sheet) in sheets.iter().enumerate() {
+            let mark = format!("Fabrication drawing, sheet {} of {n}", k + 1);
+            assert!(sheet.texts().contains(&mark), "{mark}");
+        }
+        let texts: Vec<&String> = sheets.iter().flat_map(|s| s.texts()).collect();
+        for t in 1..=60usize {
+            let count = (1000 + t).to_string();
+            assert_eq!(
+                texts.iter().filter(|x| ***x == count).count(),
+                1,
+                "tool T{t}"
+            );
+        }
+        for r in 1..=51 {
+            let name = format!("Layer row {r}");
+            assert_eq!(texts.iter().filter(|x| ***x == name).count(), 1, "{name}");
+        }
+        let joined = texts
+            .iter()
+            .map(|t| t.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        for (k, note) in data.notes.iter().enumerate() {
+            assert!(
+                joined.contains(&format!("{}. {note}", k + 1)),
+                "note {} is printed whole",
+                k + 1
+            );
+        }
+        // The PDF holds the sheets.
+        let pdf = fabrication_pdf(&data)?;
+        assert_eq!(String::from_utf8_lossy(&pdf).matches("/Parent").count(), n);
+        Ok(())
+    }
+
     #[test]
     fn an_empty_board_still_draws() -> Result<()> {
         let engine = Engine::default();
         let data = drawing::data(
-            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None),
+            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None)?,
             &Default::default(),
             engine.check_settings(),
         )?;

@@ -701,13 +701,8 @@ impl super::App {
             // The checks of every path (Issues, production, the assistant)
             // run against the new value at once.
             self.sources.set_impedance_tolerance(pct);
-            let applied = self
-                .sources
-                .check_settings()
-                .map_err(|e| e.to_string())
-                .and_then(|s| self.engine.set_check_settings(s).map_err(|e| e.to_string()));
-            if let Err(reason) = applied {
-                self.say(crate::kit::severity::Level::Warning, reason);
+            if let Err(reason) = self.sources.configure(&mut self.engine) {
+                self.say(crate::kit::severity::Level::Warning, reason.to_string());
             }
         }
         if reveal_changed && let Err(reason) = self.sources.set_keyboard(keyboard) {
@@ -717,7 +712,9 @@ impl super::App {
             // The engine refuses a waiver without a reason in every path of
             // this app (panels, assistant), not only at the Waive button.
             self.sources.set_require_waiver_reason(require_reason);
-            self.engine.require_waiver_reason(require_reason);
+            if let Err(reason) = self.sources.configure(&mut self.engine) {
+                self.say(crate::kit::severity::Level::Warning, reason.to_string());
+            }
         }
         if let Some(action) = action {
             self.key_action(ctx, action);

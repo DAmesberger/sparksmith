@@ -82,7 +82,7 @@ pub enum DimensionCommand {
 
 // A new command chooses its permission class here.
 declare_entries!(DimensionCommand in layout {
-    Add "layout.dimension_add" Edit "Dimension a part",
+    Add "layout.dimension_add" Edit "Dimension a part" [returns(dimension_added)],
     Edit "layout.dimension_edit" Edit "Edit a part dimension",
     Delete "layout.dimension_delete" Edit "Delete a part dimension",
     Order "layout.dimension_order" Edit "Reorder part dimensions",

@@ -203,6 +203,25 @@ pub enum ObjectRef {
     /// one object on it (a check that stopped at its limit). Locating it
     /// frames the board.
     Board,
+    /// One feature of the board's shape, by its board feature id
+    /// (`model::board::BoardFeatureId`): a mounting hole, a cutout or a
+    /// slot. Two holes are two objects, so a finding (and a waiver) about
+    /// one never names the other.
+    BoardFeature {
+        feature: u32,
+    },
+    /// One via-in-pad hole of a placed pad: the pad's via `index`, in the
+    /// footprint's order. The pad's own hole is the pad itself.
+    PadVia {
+        instance: Id,
+        pad: PadId,
+        index: u32,
+    },
+    /// One side of the board, for a finding about that side as a whole (a
+    /// side's fiducial count), so the two sides' findings are two.
+    BoardSide {
+        top: bool,
+    },
     /// A net label or power port on a schematic sheet.
     Label {
         id: Id,
@@ -223,36 +242,6 @@ pub enum ObjectRef {
     Wire {
         id: Id,
     },
-    /// One side of the board, for a finding about everything assembled on
-    /// that side (its fiducials). Its own identity, so a waiver of one
-    /// side's finding never covers the other's. Locating it frames the
-    /// board.
-    BoardSide {
-        side: BoardSide,
-    },
-}
-
-/// A side of the board an assembly finding is about.
-#[derive(
-    Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum BoardSide {
-    Top,
-    Bottom,
-}
-
-impl BoardSide {
-    pub fn of(top: bool) -> Self {
-        if top { Self::Top } else { Self::Bottom }
-    }
-
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Top => "top",
-            Self::Bottom => "bottom",
-        }
-    }
 }
 
 /// A derived completeness state a finding can block. Nothing stores these

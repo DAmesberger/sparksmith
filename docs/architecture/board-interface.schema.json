@@ -1791,6 +1791,71 @@
             "type": "object"
           },
           {
+            "description": "One feature of the board's shape, by its board feature id\n(`model::board::BoardFeatureId`): a mounting hole, a cutout or a\nslot. Two holes are two objects, so a finding (and a waiver) about\none never names the other.",
+            "properties": {
+              "feature": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "board_feature",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "feature"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "One via-in-pad hole of a placed pad: the pad's via `index`, in the\nfootprint's order. The pad's own hole is the pad itself.",
+            "properties": {
+              "index": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "instance": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "pad_via",
+                "type": "string"
+              },
+              "pad": {
+                "$ref": "#/$defs/PadId"
+              }
+            },
+            "required": [
+              "kind",
+              "instance",
+              "pad",
+              "index"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "One side of the board, for a finding about that side as a whole (a\nside's fiducial count), so the two sides' findings are two.",
+            "properties": {
+              "kind": {
+                "const": "board_side",
+                "type": "string"
+              },
+              "top": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "top"
+            ],
+            "type": "object"
+          },
+          {
             "description": "A net label or power port on a schematic sheet.",
             "properties": {
               "id": {
@@ -2481,6 +2546,71 @@
             },
             "required": [
               "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "One feature of the board's shape, by its board feature id\n(`model::board::BoardFeatureId`): a mounting hole, a cutout or a\nslot. Two holes are two objects, so a finding (and a waiver) about\none never names the other.",
+            "properties": {
+              "feature": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "board_feature",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "feature"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "One via-in-pad hole of a placed pad: the pad's via `index`, in the\nfootprint's order. The pad's own hole is the pad itself.",
+            "properties": {
+              "index": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "instance": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "pad_via",
+                "type": "string"
+              },
+              "pad": {
+                "$ref": "#/$defs/PadId"
+              }
+            },
+            "required": [
+              "kind",
+              "instance",
+              "pad",
+              "index"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "One side of the board, for a finding about that side as a whole (a\nside's fiducial count), so the two sides' findings are two.",
+            "properties": {
+              "kind": {
+                "const": "board_side",
+                "type": "string"
+              },
+              "top": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "top"
             ],
             "type": "object"
           },

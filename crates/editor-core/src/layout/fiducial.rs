@@ -24,7 +24,7 @@ use super::limits::cite;
 use super::placed::{
     BoardDrawing, PlacedItem, opposite, placed_graphics, placed_keepouts, placed_pads,
 };
-use crate::diagnostics::{BoardSide, Finding, ObjectRef};
+use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{
     Point, distance, polygon_contains, polygons_overlap, polyline_polygon_distance,
 };
@@ -171,9 +171,9 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                         if n == 1 { "" } else { "s" },
                         cite(rules, RuleKey::FiducialCountMin)
                     ),
-                    vec![ObjectRef::BoardSide {
-                        side: BoardSide::of(top),
-                    }],
+                    // Each side is its own finding: a waiver of one side's
+                    // count never accepts the other's.
+                    vec![ObjectRef::BoardSide { top }],
                 ));
             }
         }

@@ -3336,6 +3336,7 @@ fn located_parts(refs: &[ObjectRef]) -> impl Iterator<Item = Id> + '_ {
     refs.iter().filter_map(|o| match o {
         ObjectRef::Instance { id }
         | ObjectRef::Pad { instance: id, .. }
+        | ObjectRef::PadVia { instance: id, .. }
         | ObjectRef::Unit { instance: id, .. }
         | ObjectRef::Property { instance: id, .. } => Some(*id),
         ObjectRef::Terminal { endpoint } => Some(endpoint.instance),
@@ -3605,10 +3606,32 @@ impl crate::issues::Locate for PcbEditor {
             return true;
         }
         let Some((instance, track, net)) = locate(refs) else {
-            if refs
-                .iter()
-                .any(|r| matches!(r, ObjectRef::Board | ObjectRef::BoardSide { .. }))
-            {
+            if refs.contains(&ObjectRef::Board) {
+                self.set_selection(None, None, None);
+                self.frame_request = Some([[0.0, 0.0], project.board_size]);
+                return true;
+            }
+            // A mounting hole or board slot frames that hole; a side's
+            // finding frames the board.
+            let feature = layout::physical::board_holes(project)
+                .into_iter()
+                .find(|h| refs.contains(&h.object()))
+                .and_then(|h| h.feature.ring().bounds);
+            if let Some(b) = feature {
+                self.set_selection(None, None, None);
+                let margin = 2.0;
+                self.frame_request = Some([
+                    [b.min[0] - margin, b.min[1] - margin],
+                    [b.max[0] + margin, b.max[1] + margin],
+                ]);
+                return true;
+            }
+            if refs.iter().any(|o| {
+                matches!(
+                    o,
+                    ObjectRef::BoardFeature { .. } | ObjectRef::BoardSide { .. }
+                )
+            }) {
                 self.set_selection(None, None, None);
                 self.frame_request = Some([[0.0, 0.0], project.board_size]);
                 return true;

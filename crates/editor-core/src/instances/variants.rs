@@ -123,14 +123,14 @@ pub enum VariantCommand {
 
 // A new command chooses its permission class here.
 declare_entries!(VariantCommand in project {
-    Add "variant.add" Edit "Add an assembly variant" [since(7, 13)],
+    Add "variant.add" Edit "Add an assembly variant" [since(7, 13), returns(variant_added)],
     Rename "variant.rename" Edit "Rename an assembly variant" [since(7, 13)],
     Remove "variant.remove" Edit "Delete an assembly variant" [since(7, 13)],
     SetActive "variant.set_active" Edit "Choose the active assembly variant" [since(7, 13)],
     SetPopulation "variant.set_population" Edit "Set whether parts are fitted" [since(7, 13)],
     SetPart "variant.set_part" Edit "Fit another part in a variant" [since(7, 13)],
     ReviewSubstitute "variant.review_substitute" Ask "Review a variant's substitute part" [since(7, 18)],
-    SetExclusions "variant.set_exclusions" Edit "Keep parts off the BOM or pick-and-place" [since(7, 21)],
+    SetExclusions "variant.set_exclusions" Edit "Keep parts off the BOM or pick-and-place" [since(7, 23)],
 });
 
 /// What one variant fits for one part.

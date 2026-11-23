@@ -73,6 +73,35 @@ pub struct PageImage {
     pub data: String,
 }
 
+/// The requested pages as full text or as an outline.
+#[derive(Serialize, JsonSchema)]
+#[serde(untagged)]
+pub(super) enum DocumentTextReply {
+    Full { document: String, text: String },
+    Outline { document: String, outline: String },
+}
+
+#[derive(Serialize, JsonSchema)]
+pub(super) struct DocumentPageReply {
+    document: String,
+    page: u32,
+    text: String,
+    image: EncodedImage,
+}
+
+#[derive(Serialize, JsonSchema)]
+struct EncodedImage {
+    media_type: String,
+    data: String,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub(super) struct PinoutEditReply {
+    handle: String,
+    changed: BTreeMap<&'static str, usize>,
+    document: DocumentSummary,
+}
+
 /// The session's `assist` state: attached documents, working pinouts, the
 /// workflows lent and the open model step.
 #[derive(Default)]
@@ -343,10 +372,18 @@ impl Session {
         let text = documents
             .text(&title, &pages)
             .map_err(|why| refused("assist.document", why))?;
-        if params.outline {
-            return Ok(json!({"document": title, "outline": outline(&text)}));
-        }
-        Ok(json!({"document": title, "text": text}))
+        let reply = if params.outline {
+            DocumentTextReply::Outline {
+                document: title,
+                outline: outline(&text),
+            }
+        } else {
+            DocumentTextReply::Full {
+                document: title,
+                text,
+            }
+        };
+        Ok(serde_json::to_value(reply)?)
     }
 
     pub(super) fn document_page(&mut self, params: DocumentPageParams) -> Result<Value> {
@@ -358,12 +395,15 @@ impl Session {
         let page = documents
             .page(&title, params.page)
             .map_err(|why| refused("assist.document", why))?;
-        Ok(json!({
-            "document": title,
-            "page": params.page,
-            "text": page.text,
-            "image": {"media_type": page.media_type, "data": page.data},
-        }))
+        Ok(serde_json::to_value(DocumentPageReply {
+            document: title,
+            page: params.page,
+            text: page.text,
+            image: EncodedImage {
+                media_type: page.media_type,
+                data: page.data,
+            },
+        })?)
     }
 
     /// Resolve a handle without allocating a slot. A new handle becomes
@@ -465,7 +505,11 @@ impl Session {
         let summary = document_summary(&doc);
         working.pinout = doc;
         self.assist.working.insert(handle.clone(), working);
-        Ok(json!({"handle": handle, "changed": changes, "document": summary}))
+        Ok(serde_json::to_value(PinoutEditReply {
+            handle,
+            changed: changes,
+            document: summary,
+        })?)
     }
 
     /// `assist.pinout_preview`: the working document (or the given one,
@@ -761,14 +805,31 @@ fn remove(doc: &mut Map<String, Value>, key: &str, field: &str, ids: &[Value]) -
 
 /// Counts of the working document and, per variant, the pin numbers it
 /// does not yet list (when the variant numbers its terminals 1…N).
-fn document_summary(doc: &Map<String, Value>) -> Value {
+#[derive(Serialize, JsonSchema)]
+struct DocumentSummary {
+    has_header: bool,
+    pins: usize,
+    peripherals: usize,
+    rules: usize,
+    variants: BTreeMap<String, VariantSummary>,
+}
+
+#[derive(Serialize, JsonSchema)]
+struct VariantSummary {
+    terminal_count: u64,
+    numbered: usize,
+    missing: String,
+    repeated: Vec<String>,
+}
+
+fn document_summary(doc: &Map<String, Value>) -> DocumentSummary {
     let count = |key: &str| doc.get(key).and_then(Value::as_array).map_or(0, Vec::len);
     let pins = doc
         .get("pins")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let mut variants = Map::new();
+    let mut variants = BTreeMap::new();
     for v in doc
         .get("variants")
         .and_then(Value::as_array)
@@ -794,23 +855,30 @@ fn document_summary(doc: &Map<String, Value>) -> Value {
         let missing: Vec<u64> = (1..=total.min(MAX_PINOUT_PINS as u64))
             .filter(|n| !listed.contains_key(&n.to_string()))
             .collect();
-        let repeated: Vec<&String> = listed
+        let repeated = listed
             .iter()
             .filter(|(_, c)| **c > 1)
-            .map(|(n, _)| n)
+            .map(|(n, _)| n.clone())
             .collect();
         variants.insert(
             name.to_owned(),
-            json!({"terminal_count": total, "numbered": listed.len(), "missing": ranges(&missing), "repeated": repeated}),
+            VariantSummary {
+                terminal_count: total,
+                numbered: listed.len(),
+                missing: ranges(&missing),
+                repeated,
+            },
         );
     }
-    json!({
-        "has_header": doc.contains_key("format") && doc.contains_key("device") && doc.contains_key("variants"),
-        "pins": pins.len(),
-        "peripherals": count("peripherals"),
-        "rules": count("rules"),
-        "variants": variants,
-    })
+    DocumentSummary {
+        has_header: doc.contains_key("format")
+            && doc.contains_key("device")
+            && doc.contains_key("variants"),
+        pins: pins.len(),
+        peripherals: count("peripherals"),
+        rules: count("rules"),
+        variants,
+    }
 }
 
 /// "1-5, 9, 12-14".

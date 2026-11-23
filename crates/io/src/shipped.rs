@@ -97,20 +97,34 @@ impl ShippedLibrary {
         Self::locate_from(|name| std::env::var_os(name), std::env::current_exe().ok())
     }
 
+    /// The library under test, even when the test binary is built elsewhere.
+    /// The ordinary explicit override also applies here.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn for_checkout() -> Result<Self> {
+        Self::from_override(std::env::var_os(ENV)).unwrap_or_else(|| {
+            let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+            Self::at(&checkout.join(FOLDER))
+        })
+    }
+
+    fn from_override(value: Option<OsString>) -> Option<Result<Self>> {
+        let dir = PathBuf::from(value.filter(|value| !value.is_empty())?);
+        Some(Self::at(&dir).map_err(|_| {
+            Error::Invalid(format!(
+                "{ENV} names {}, which is not Sparksmith's shipped library: it holds no {MARKER}.",
+                dir.display()
+            ))
+        }))
+    }
+
     /// [`locate`](Self::locate) with the environment and executable path
     /// given, for tests.
     pub fn locate_from(
         var: impl Fn(&str) -> Option<OsString>,
         exe: Option<PathBuf>,
     ) -> Result<Self> {
-        if let Some(dir) = var(ENV).filter(|value| !value.is_empty()) {
-            let dir = PathBuf::from(dir);
-            return Self::at(&dir).map_err(|_| {
-                Error::Invalid(format!(
-                    "{ENV} names {}, which is not Sparksmith's shipped library: it holds no {MARKER}.",
-                    dir.display()
-                ))
-            });
+        if let Some(library) = Self::from_override(var(ENV)) {
+            return library;
         }
         let candidates = exe.as_deref().map(candidates).unwrap_or_default();
         for dir in &candidates {
@@ -310,9 +324,11 @@ mod tests {
     }
 
     #[test]
-    fn the_repository_library_is_found_from_this_test() -> Result<()> {
-        let found = ShippedLibrary::locate_from(|_| None, std::env::current_exe().ok())?;
-        assert!(found.root().ends_with(FOLDER));
+    fn an_executable_in_the_checkout_finds_its_repository_library() -> Result<()> {
+        let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let found =
+            ShippedLibrary::locate_from(|_| None, Some(checkout.join("target/debug/sparksmith")))?;
+        assert_eq!(found.root(), checkout.join(FOLDER));
         Ok(())
     }
 }

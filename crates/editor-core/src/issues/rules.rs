@@ -47,7 +47,11 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         | "erc.driver_conflict"
         | "erc.open_drain_contention"
         | "erc.open_source_contention"
+        | "board.hole_spacing"
         | "fill.clearance"
+        | "fill.board_edge"
+        | "fill.clearance_unlisted"
+        | "keepout.fill"
         | "keepout.track"
         | "keepout.via"
         | "keepout.pad"
@@ -118,6 +122,10 @@ pub fn group_title(code: &str) -> String {
         "board.npth_annular_ring" => "Thin copper round unplated holes",
         "board.courtyard_clearance" => "Courtyards too close",
         "fill.clearance" => "Fill clearance",
+        "fill.board_edge" => "Fill copper off or near the board edge",
+        "fill.clearance_unlisted" => "Fill violations not listed",
+        "keepout.fill" => "Fills in keepouts",
+        "board.hole_spacing" => "Board holes too close together",
         "fill.empty" => "Empty fills",
         "fill.island_unconnected" => "Unconnected fill islands",
         "fill.net_missing" => "Fills on missing nets",
@@ -131,9 +139,11 @@ pub fn group_title(code: &str) -> String {
         "pair.gap" => "Pair gap",
         "length.mismatch" => "Length mismatch",
         "impedance.mismatch" => "Impedance off target",
+        "impedance.uncoupled" => "Pair lengths excluded from the impedance check",
         "impedance.no_tolerance" => "Impedance targets without a tolerance",
         "board.shape_unsolved" => "Board shape does not solve",
         "board.mask_colour_not_offered" => "Solder mask colour not offered",
+        "board.mask_web" => "Solder mask webs too narrow",
         "board.profile_layers" => "Fab profile for another layer count",
         "board.fab_choice_thickness" => "Fab option needs a thinner board",
         "board.fab_choice_finish" => "Fab option needs another finish",
@@ -284,7 +294,13 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
             "Enlarge the pad or shrink its hole"
         }
         "board.courtyard_clearance" => "Move the parts apart",
-        "fill.clearance" | "fill.stale" => "Refill the fill",
+        "board.mask_web" => "Move the parts apart or shrink the mask expansion",
+        "fill.clearance"
+        | "fill.stale"
+        | "fill.board_edge"
+        | "fill.clearance_unlisted"
+        | "keepout.fill" => "Refill the fill",
+        "board.hole_spacing" => "Move one of the holes",
         "fill.empty" => "Enlarge the fill outline or lower its priority",
         "fill.island_unconnected" => "Remove unconnected islands or connect them",
         "fill.net_missing" => "Choose the fill's net",
@@ -294,6 +310,7 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "pair.gap" => "Reroute the pair at its gap",
         "impedance.mismatch" => "Route at the width the Route card shows for the layer",
         "impedance.no_tolerance" => "Set Impedance tolerance in Settings or on the net class",
+        "impedance.uncoupled" => "Review the uncoupled length or route the halves at the pair gap",
         "board.shape_unsolved" => "Fix the board sketch's dimensions",
         "board.mask_colour_not_offered" => {
             "Choose a colour the fab profile offers in Board › Fabrication, or another fab profile"
@@ -516,7 +533,9 @@ pub(super) fn title(names: &Names<'_>, findings: &[&Finding]) -> String {
         ),
         // Short enough for the Issues row: the hole and what it is near.
         "board.hole_clearance" => {
-            let near = names_of(names, findings, |o| !matches!(o, ObjectRef::Board));
+            let near = names_of(names, findings, |o| {
+                !matches!(o, ObjectRef::Board | ObjectRef::BoardFeature { .. })
+            });
             let what = if message.contains(" overlaps ") {
                 "overlaps"
             } else {
@@ -620,7 +639,9 @@ pub const KNOWN_CODES: &[&str] = &[
     "board.fiducials_symmetric",
     "board.fiducials_too_few",
     "board.hole_clearance",
+    "board.hole_spacing",
     "board.mask_colour_not_offered",
+    "board.mask_web",
     "board.npth_annular_ring",
     "board.outside_outline",
     "board.pad_hole_clearance",
@@ -684,7 +705,9 @@ pub const KNOWN_CODES: &[&str] = &[
     "erc.unchecked_terminal",
     "erc.undriven_power_input",
     "erc.wire_end_free",
+    "fill.board_edge",
     "fill.clearance",
+    "fill.clearance_unlisted",
     "fill.empty",
     "fill.island_unconnected",
     "fill.net_missing",
@@ -753,6 +776,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "assembly.unexported_face",
     "impedance.mismatch",
     "impedance.no_tolerance",
+    "impedance.uncoupled",
     "import.board_joins_nets",
     "import.board_splits_net",
     "instance.field_required",
@@ -764,6 +788,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "instance.unmapped_pad",
     "interface.datum_inexact",
     "interface.datum_lost",
+    "keepout.fill",
     "keepout.pad",
     "keepout.track",
     "keepout.via",

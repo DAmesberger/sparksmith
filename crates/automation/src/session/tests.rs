@@ -1064,3 +1064,81 @@ fn sessions_answer_with_their_own_context() -> TestResult {
     assert!(ask(&mut none).is_err(), "no context, no standards");
     Ok(())
 }
+
+#[test]
+fn describe_exposes_the_wire_reply_for_a_query() -> TestResult {
+    let mut session = Session::new(Engine::demo()?);
+    let description = session.dispatch(json!({
+        "command": "project.schema", "params": {"name": "project.issues"}
+    }));
+    let reply = session.dispatch(json!({
+        "command": "project.query", "params": {"query": "project.issues", "params": {"scope": {"kind": "all"}}}
+    }));
+    assert_eq!(reply["ok"], true, "{reply}");
+    let contract = &description["result"]["matches"][0]["reply"];
+    assert_eq!(
+        contract["properties"]["report"]["const"],
+        reply["result"]["report"]
+    );
+    assert!(contract["properties"]["result"].is_object(), "{contract}");
+    Ok(())
+}
+
+#[test]
+fn every_registered_entry_has_a_concrete_reply_contract() -> TestResult {
+    for entry in discovery::entries() {
+        let schema = entry.reply_schema();
+        assert_ne!(
+            schema["properties"]["outcome"],
+            Value::Bool(false),
+            "{} declares an unknown outcome tag",
+            entry.name
+        );
+        assert!(
+            schema["properties"].is_object()
+                || schema["oneOf"].is_array()
+                || schema["anyOf"].is_array(),
+            "{} {} has no result shape",
+            entry.kind,
+            entry.name
+        );
+    }
+    let via = discovery::result_schema("layout.add_via").ok_or("missing add-via contract")?;
+    let layer_change = discovery::result_schema("layout.route_layer_change")
+        .ok_or("missing layer-change contract")?;
+    assert!(std::ptr::eq(via, layer_change));
+    assert_eq!(
+        via["properties"]["outcome"]["properties"]["outcome"]["const"],
+        "via_added"
+    );
+    let rename = discovery::result_schema("project.rename").ok_or("missing rename contract")?;
+    assert_eq!(
+        rename["properties"]["outcome"]["properties"]["outcome"]["const"],
+        "none"
+    );
+    Ok(())
+}
+
+#[test]
+fn describes_a_paged_reply_definition_from_its_own_schema() -> TestResult {
+    let describe = |def| {
+        discovery::schema_reply(SchemaParams {
+            name: Some("project.apply".into()),
+            def,
+        })
+    };
+    let response = describe(None)?;
+    let visible = &response["matches"][0]["reply"];
+    let deferred = visible["more_defs"]
+        .as_array()
+        .and_then(|defs| defs.first())
+        .and_then(Value::as_str)
+        .ok_or("the full mutation contract needs more than one page")?;
+    let page = describe(Some(deferred.to_owned()))?;
+    let key = deferred
+        .strip_prefix("reply:")
+        .ok_or("missing reply definition prefix")?;
+    let full = discovery::result_schema("project.apply").ok_or("missing apply contract")?;
+    assert_eq!(page["schema"], full["$defs"][key]);
+    Ok(())
+}

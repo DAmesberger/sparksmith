@@ -313,6 +313,7 @@ pub(super) fn print_event(event: Event) {
         Event::TextDelta(_)
         | Event::ReasoningDelta(_)
         | Event::Condensed(_)
+        | Event::Nudged { .. }
         | Event::Usage(_)
         | Event::Call {
             state: CallState::Writing | CallState::Running { .. },

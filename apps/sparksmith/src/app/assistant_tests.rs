@@ -550,3 +550,108 @@ fn an_edit_made_during_a_turn_is_not_counted_as_the_assistants() -> Fallible {
     assert_eq!(summary.show.len(), 2);
     Ok(())
 }
+
+/// A turn stops at a limit the person set with a card that names the
+/// limit, says what was done so far and the tokens used, and offers
+/// Continue, which runs one more turn on the person's click.
+#[test]
+fn a_turn_at_the_persons_limit_says_which_and_continues_on_their_click() -> Fallible {
+    let mut ax = chat(LARGE, vec![])?;
+    let start = ax.app.engine.revision();
+    let vias = ax.app.engine.project().vias.len();
+    let first = add_via(&ax, 1.0);
+    let mut second = add_via(&ax, 2.0);
+    second["expected_revision"] = json!(start + 1);
+    let script = Arc::new(Mutex::new(VecDeque::from(vec![
+        tool("apply", first),
+        tool("apply", second),
+        text("Both vias are in."),
+    ])));
+    if let Some(model) = &ax.app.assistant.model {
+        ax.app.assistant.model = Some(ChatModel {
+            profile: model.profile.clone(),
+            connect: Arc::new(move || {
+                Ok(Box::new(Script(Arc::clone(&script))) as Box<dyn ModelBackend>)
+            }),
+        });
+    }
+    ax.app.assistant.model_limits = Some(sparksmith_assist::settings::Limits {
+        requests: 2,
+        output_tokens: 200_000,
+        total_tokens: 4_000_000,
+        minutes: 45,
+    });
+    send(&mut ax, "Add two vias")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    assert_eq!(ax.app.engine.project().vias.len(), vias + 2);
+    for line in [
+        "Stopped at a limit · 1 undo step",
+        "Your limit of 2 model requests was reached.",
+        "Done so far:",
+        "Vias: 2 added",
+        // Two requests of 1 000 tokens in and 50 out; no price anywhere.
+        "This turn: 2000 in, 100 out",
+        "This conversation: 2000 in, 100 out",
+    ] {
+        assert!(ax.texts.iter().any(|t| t == line), "{line}: {:?}", ax.texts);
+    }
+    assert!(
+        !ax.texts.iter().any(|t| t.contains("USD")),
+        "{:?}",
+        ax.texts
+    );
+    let go = ax.find(Role::Button, crate::assistant::CONTINUE)?;
+    assert!(!go.disabled);
+    // Nothing runs until the person clicks.
+    let messages = |ax: &Ax| {
+        ax.app
+            .assistant
+            .conversation
+            .items
+            .iter()
+            .filter(|i| matches!(i, Item::You { .. }))
+            .count()
+    };
+    ax.settle();
+    assert_eq!(messages(&ax), 1);
+    ax.button(crate::assistant::CONTINUE)?;
+    ax.until("the continued turn's end", idle)?;
+    ax.settle();
+    let conversation = &ax.app.assistant.conversation;
+    assert_eq!(conversation.state, State::Idle, "{:?}", conversation.items);
+    assert!(matches!(
+        conversation.items.iter().rev().find(|i| matches!(i, Item::You { .. })),
+        Some(Item::You { text, .. }) if text == crate::assistant::CONTINUE_MESSAGE
+    ));
+    assert!(
+        ax.texts
+            .iter()
+            .any(|t| t == "This conversation: 3000 in, 150 out"),
+        "{:?}",
+        ax.texts
+    );
+    // The first card's Continue is used up.
+    let buttons = ax.all(Role::Button, crate::assistant::CONTINUE);
+    assert!(buttons.iter().all(|b| b.disabled), "{buttons:?}");
+    Ok(())
+}
+
+/// With no limits of the person's (the default) a turn runs to its answer
+/// and its card offers no Continue.
+#[test]
+fn without_the_persons_limits_a_turn_is_not_stopped_and_offers_no_continue() -> Fallible {
+    let replies: Vec<ModelReply> = (0..45)
+        .map(|_| tool("query", json!({"name": "view.context"})))
+        .chain([text("Read it all.")])
+        .collect();
+    let mut ax = chat(LARGE, replies)?;
+    send(&mut ax, "Read the board forty-five times")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    let conversation = &ax.app.assistant.conversation;
+    assert_eq!(conversation.state, State::Idle, "{:?}", conversation.items);
+    assert!(ax.texts.iter().any(|t| t == "Done · nothing changed"));
+    assert!(!ax.has(Role::Button, crate::assistant::CONTINUE));
+    Ok(())
+}

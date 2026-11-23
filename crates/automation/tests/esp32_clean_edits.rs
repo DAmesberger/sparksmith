@@ -1,4 +1,4 @@
-//! The ESP32-S31 dev board stays clean through the parametric edits that
+//! The ESP32-S31 dev board keeps its sole USB coverage warning through edits that
 //! move J1, the USB-C receptacle: its 3D dimension from the bottom edge
 //! 0 → 1 mm and back, the board's width 40 → 50 mm and back, and its height
 //! 64 → 70 mm. J1's ESD array and CC pull-downs are held at fixed offsets
@@ -8,9 +8,12 @@
 //!
 //! After each edit the stale fills are refilled as the desktop's fill
 //! worker does (`compute_stale`, stored without an undo step); then the
-//! production check (`fabrication.preflight`) has no error, no warning and
-//! no waiver (the board holds none), and one undo restores the board
-//! exactly.
+//! production check (`fabrication.preflight`) names the measured uncoupled
+//! USB tracks and finds no other issue. One undo restores the board exactly.
+#[path = "../../io/tests/support/esp32_preflight.rs"]
+mod esp32_preflight;
+
+use esp32_preflight::{USB_UNCOUPLED_MM, assert_usb_preflight};
 use sparksmith_automation::session::hosted;
 use sparksmith_core::format::EditorFile;
 use sparksmith_core::layout::dimensions::DimensionCommand;
@@ -35,24 +38,12 @@ fn example() -> Fallible<Engine> {
     Ok(engine)
 }
 
-/// No unwaived error, no warning and nothing waived.
-const CLEAN: (usize, usize, usize) = (0, 0, 0);
-
-/// The production check's unwaived errors, warnings and waived findings,
-/// listed.
-fn issues(engine: &Engine) -> Fallible<((usize, usize, usize), Vec<String>)> {
+fn check_preflight(engine: &Engine, uncoupled_mm: f64) -> Fallible {
     let QueryResult::Preflight(report) = engine.query(Query::Preflight { profile: None })? else {
         return Err("not a preflight report".into());
     };
-    let items = report
-        .items
-        .iter()
-        .map(|i| {
-            let waived = if i.waiver.is_some() { " (waived)" } else { "" };
-            format!("{:?} {}: {}{waived}", i.severity, i.code, i.title)
-        })
-        .collect();
-    Ok(((report.blocking, report.warnings, report.waived), items))
+    assert_usb_preflight(&report, uncoupled_mm);
+    Ok(())
 }
 
 /// The USB pair's skew and its class limit.
@@ -63,16 +54,19 @@ fn skew(project: &Project) -> Fallible<(f64, f64)> {
 }
 
 /// Apply `operation`, refill the stale fills without an undo step, and
-/// require a clean board. Returns the file before the edit.
-fn clean_edit(engine: &mut Engine, what: &str, operation: Operation) -> Fallible<EditorFile> {
+/// check the remaining USB coverage. Returns the file before the edit.
+fn clean_edit(
+    engine: &mut Engine,
+    what: &str,
+    operation: Operation,
+    uncoupled_mm: f64,
+) -> Fallible<EditorFile> {
     let before = engine.to_file();
     engine.apply_hosted(engine.revision(), operation, hosted())?;
     let fresh = compute_stale(engine.project(), &mut FillCache::default())?;
     engine.store_fills(engine.revision(), fresh)?;
-    let (counts, items) = issues(engine)?;
+    check_preflight(engine, uncoupled_mm)?;
     let (skew, limit) = skew(engine.project())?;
-    println!("{what}: {counts:?} (blocking, warnings, waived), skew {skew:.4} mm");
-    assert_eq!(counts, CLEAN, "{what}: {items:#?}");
     assert!(skew <= limit, "{what}: skew {skew} > {limit}");
     Ok(before)
 }
@@ -124,11 +118,9 @@ fn set_j1(held: &PartDimension, mm: f64) -> Operation {
 }
 
 #[test]
-fn the_board_starts_clean() -> Fallible {
+fn the_board_starts_with_the_usb_coverage_warning() -> Fallible {
     let engine = example()?;
-    let (counts, items) = issues(&engine)?;
-    assert_eq!(counts, CLEAN, "{items:#?}");
-    Ok(())
+    check_preflight(&engine, USB_UNCOUPLED_MM)
 }
 
 #[test]
@@ -136,8 +128,18 @@ fn j1_moved_up_by_its_dimension_and_back_stays_clean() -> Fallible {
     let mut engine = example()?;
     let held = j1_face(&engine)?;
     assert_eq!(held.value, Some(DimValue::Fixed(0.0)));
-    let start = clean_edit(&mut engine, "J1 1 mm from the edge", set_j1(&held, 1.0))?;
-    let moved = clean_edit(&mut engine, "J1 back on the edge", set_j1(&held, 0.0))?;
+    let start = clean_edit(
+        &mut engine,
+        "J1 1 mm from the edge",
+        set_j1(&held, 1.0),
+        USB_UNCOUPLED_MM,
+    )?;
+    let moved = clean_edit(
+        &mut engine,
+        "J1 back on the edge",
+        set_j1(&held, 0.0),
+        USB_UNCOUPLED_MM,
+    )?;
     undo_to(&mut engine, "J1 back on the edge", &moved)?;
     undo_to(&mut engine, "J1 1 mm from the edge", &start)?;
     Ok(())
@@ -151,11 +153,14 @@ fn the_board_widened_and_back_stays_clean() -> Fallible {
         &mut engine,
         "the board 50 mm wide",
         set_board("width", 50.0),
+        // Each carried path is 27.814494 mm, with 19.893243 mm coupled.
+        7.921_252,
     )?;
     let wide = clean_edit(
         &mut engine,
         "the board 40 mm wide again",
         set_board("width", 40.0),
+        USB_UNCOUPLED_MM,
     )?;
     undo_to(&mut engine, "the board 40 mm wide again", &wide)?;
     undo_to(&mut engine, "the board 50 mm wide", &start)?;
@@ -169,6 +174,7 @@ fn the_board_made_taller_stays_clean() -> Fallible {
         &mut engine,
         "the board 70 mm tall",
         set_board("height", 70.0),
+        USB_UNCOUPLED_MM,
     )?;
     undo_to(&mut engine, "the board 70 mm tall", &start)?;
     Ok(())

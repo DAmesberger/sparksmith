@@ -57,6 +57,11 @@ struct Scripted {
     n: u32,
     /// Characters of each request: system, tools and messages.
     sent: Vec<usize>,
+    /// Of those, the characters equal to the start of the request before
+    /// it: what a prompt cache can serve (a prefix match, as a provider's
+    /// cache is).
+    cached: Vec<usize>,
+    last: String,
 }
 
 impl ModelBackend for Scripted {
@@ -64,10 +69,21 @@ impl ModelBackend for Scripted {
         "scripted board".into()
     }
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply> {
-        let chars = request.system.len()
-            + serde_json::to_string(request.tools).map_or(0, |t| t.len())
-            + serde_json::to_string(request.messages).map_or(0, |t| t.len());
+        let whole = format!(
+            "{}{}{}",
+            serde_json::to_string(request.tools).unwrap_or_default(),
+            request.system,
+            serde_json::to_string(request.messages).unwrap_or_default()
+        );
+        let chars = whole.len();
         self.sent.push(chars);
+        let same = whole
+            .bytes()
+            .zip(self.last.bytes())
+            .take_while(|(a, b)| a == b)
+            .count();
+        self.cached.push(same);
+        self.last = whole;
         self.n += 1;
         let usage = Usage {
             input_tokens: (chars / 3) as u64,
@@ -215,7 +231,8 @@ fn steps() -> Vec<Step> {
             .collect();
         vec![apply(m, ops)]
     }));
-    // 7. Read the instances' terminals.
+    // 7. The placed parts' pins, in one scoped read (the playbook's
+    // schematic.pins).
     let l = learnt.clone();
     out.push(Box::new(move |m| {
         let placed = reply_to(m, "c6_0");
@@ -226,37 +243,22 @@ fn steps() -> Vec<Step> {
             .map(|o| o["instance"].clone())
             .collect();
         l.borrow_mut()["instances"] = json!(instances);
-        instances
-            .iter()
-            .map(|i| {
-                (
-                    "query",
-                    json!({"name": "component.inspect", "params": {"instance": i}}),
-                )
-            })
-            .collect()
+        let designators: Vec<&str> = PARTS.iter().map(|(_, d)| *d).collect();
+        vec![(
+            "query",
+            json!({"name": "schematic.pins", "params": {"designators": designators}}),
+        )]
     }));
     // 8. Wire: J1.1 to R1.1 (VIN), R1.2 to D1 anode, D1 cathode to J1.2.
-    let l = learnt.clone();
     out.push(Box::new(move |m| {
-        let ids = l.borrow()["instances"].clone();
-        let terminal = |k: usize, label: &str| -> Value {
-            let report = reply_to(m, &format!("c7_{k}"));
-            let functions = report["result"]["functions"]["active"]
-                .as_array()
-                .cloned()
-                .unwrap_or_default();
-            functions
-                .iter()
-                .find(|f| f["label"] == label || f["name"] == label)
-                .map(|f| f["terminal"].clone())
-                .unwrap_or_else(|| json!(if label == "A" || label == "2" { 2 } else { 1 }))
+        let parts = reply_to(m, "c7_0")["result"].clone();
+        let end = |k: usize, name: &str| {
+            json!({"instance": parts[k]["instance"], "terminal": pin(&parts[k], name)})
         };
-        let end = |k: usize, t: Value| json!({"instance": ids[k], "terminal": t});
         let wires = [
-            (end(0, json!(1)), end(1, json!(1))),
-            (end(1, json!(2)), end(2, terminal(2, "A"))),
-            (end(2, terminal(2, "K")), end(0, json!(2))),
+            (end(0, "1"), end(1, "1")),
+            (end(1, "2"), end(2, "A")),
+            (end(2, "K"), end(0, "2")),
         ];
         let ops = wires
             .into_iter()
@@ -372,7 +374,16 @@ fn steps() -> Vec<Step> {
 }
 
 /// A build: estimated prompts, characters sent, the session, refused calls.
-type Built = (Vec<u64>, Vec<usize>, Session, Vec<String>);
+/// A scripted build: each request's estimated prompt tokens, its
+/// characters and those of them a prompt cache could serve, the session
+/// and the refused calls.
+struct Built {
+    prompts: Vec<u64>,
+    sent: Vec<usize>,
+    cached: Vec<usize>,
+    session: Session,
+    refused: Vec<String>,
+}
 
 /// One run of the script on a fresh project under `policy`.
 fn build(policy: Policy) -> Fallible<Built> {
@@ -394,6 +405,8 @@ fn build(policy: Policy) -> Fallible<Built> {
         steps: steps().into(),
         n: 0,
         sent: Vec::new(),
+        cached: Vec::new(),
+        last: String::new(),
     };
     let mut prompts = Vec::new();
     let outcome = turn(
@@ -413,12 +426,24 @@ fn build(policy: Policy) -> Fallible<Built> {
     );
     assert_eq!(outcome.end, End::Answered);
     let refused = tools.refused;
-    Ok((prompts, model.sent, session, refused))
+    Ok(Built {
+        prompts,
+        sent: model.sent,
+        cached: model.cached,
+        session,
+        refused,
+    })
 }
 
 #[test]
 fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Fallible {
-    let (prompts, sent, session, refused) = build(Policy::CHAT)?;
+    let Built {
+        prompts,
+        sent,
+        cached,
+        session,
+        refused,
+    } = build(Policy::CHAT)?;
     assert!(refused.is_empty(), "{refused:#?}");
     let project = session.engine().project();
     assert_eq!(project.instances.len(), 3);
@@ -470,26 +495,53 @@ fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Falli
             .any(|l| l.contains("R1") && l.contains("4.7 kΩ")),
         "{csv}"
     );
-    let (before, sent_before, _, _) = build(Policy::KEEP_ALL)?;
-    println!("request  estimated prompt tokens: K1 policy | kept whole (before)");
-    for (n, (now, then)) in prompts.iter().zip(&before).enumerate() {
-        println!("{:>7}  {now:>8} | {then:>8}", n + 1);
+    let whole = build(Policy::KEEP_ALL)?;
+    // Tokens a prompt cache cannot serve: what differs from the request
+    // before, at 3 characters a token.
+    let uncached = |sent: &[usize], cached: &[usize]| -> Vec<usize> {
+        sent.iter()
+            .zip(cached)
+            .map(|(s, c)| s.saturating_sub(*c).div_ceil(3))
+            .collect()
+    };
+    let fresh = uncached(&sent, &cached);
+    let fresh_whole = uncached(&whole.sent, &whole.cached);
+    println!(
+        "request  estimated prompt tokens, K1 policy | kept whole; not served by a prompt cache, K1 | kept whole"
+    );
+    for n in 0..prompts.len() {
+        println!(
+            "{:>7}  {:>8} | {:>8}   {:>8} | {:>8}",
+            n + 1,
+            prompts[n],
+            whole.prompts.get(n).unwrap_or(&0),
+            fresh[n],
+            fresh_whole.get(n).unwrap_or(&0)
+        );
     }
     let total = |v: &[u64]| v.iter().sum::<u64>();
+    let total_fresh = |v: &[usize]| v.iter().sum::<usize>();
     println!(
-        "  total  {:>8} | {:>8}   (largest {} | {})",
+        "  total  {:>8} | {:>8}   {:>8} | {:>8}   (largest {} | {})",
         total(&prompts),
-        total(&before),
+        total(&whole.prompts),
+        total_fresh(&fresh),
+        total_fresh(&fresh_whole),
         prompts.iter().max().unwrap_or(&0),
-        before.iter().max().unwrap_or(&0)
+        whole.prompts.iter().max().unwrap_or(&0)
     );
     println!(
         "characters sent: {} | {}",
         sent.iter().sum::<usize>(),
-        sent_before.iter().sum::<usize>()
+        whole.sent.iter().sum::<usize>()
     );
     // The target: a request of a board build stays under about 25 k tokens.
     assert!(prompts.iter().all(|p| *p < 25_000), "{prompts:?}");
+    // Measured 22 November 2026: 166 198 prompt tokens, 25 852 of them past
+    // the cacheable prefix, before the generators' compact listing, the
+    // scoped pins read and the earlier clearing; 138 942 and 19 817 after.
+    assert!(total(&prompts) < 145_000, "{}", total(&prompts));
+    assert!(total_fresh(&fresh) < 21_000, "{}", total_fresh(&fresh));
     Ok(())
 }
 
@@ -509,6 +561,8 @@ fn placed() -> Fallible<(ChatConfig, Session, Vec<Message>)> {
         steps: steps().into_iter().take(6).collect(),
         n: 0,
         sent: Vec::new(),
+        cached: Vec::new(),
+        last: String::new(),
     };
     let mut tools = Verbs {
         session: &mut session,
@@ -622,6 +676,8 @@ fn wiring_placed_parts_takes_one_read_and_one_apply_on_a_long_conversation() -> 
         steps: steps.into(),
         n: 0,
         sent: Vec::new(),
+        cached: Vec::new(),
+        last: String::new(),
     };
     let mut tools = Verbs {
         session: &mut session,
@@ -646,6 +702,10 @@ fn wiring_placed_parts_takes_one_read_and_one_apply_on_a_long_conversation() -> 
     );
     assert_eq!(outcome.end, End::Answered, "{:#?}", tools.refused);
     assert!(tools.refused.is_empty(), "{:#?}", tools.refused);
+    println!(
+        "wiring turn: {} requests, {} tokens",
+        outcome.usage.requests, outcome.usage.tokens
+    );
     // The earlier turns were condensed before the first request.
     let condensed = condensed.ok_or("the long past was not condensed")?;
     assert!(condensed.cleared >= 20, "{condensed:?}");
@@ -670,17 +730,33 @@ fn wiring_placed_parts_takes_one_read_and_one_apply_on_a_long_conversation() -> 
     Ok(())
 }
 
+/// A turn that reads without changing anything is nudged, not stopped:
+/// past the policy's allowance the harness tells the model, with the next
+/// tool results, to act or ask the person, and the turn goes on to the
+/// model's answer.
 #[test]
-fn reading_without_a_change_stops_the_turn_saying_what_to_give() -> Fallible {
+fn reading_without_a_change_nudges_the_model_and_the_turn_goes_on() -> Fallible {
     let (config, mut session, mut history) = placed()?;
     let grant = ChatLibrary::locate()?.reach.grant();
+    let nudge = config.nudge.clone();
+    // The model reads until it is nudged, then answers.
     let steps: Vec<Step> = (0..200)
         .map(|_| -> Step {
-            Box::new(|_| {
-                vec![(
-                    "query",
-                    json!({"name": "project.inspect", "params": {"at": "/project"}}),
-                )]
+            let nudge = nudge.clone();
+            Box::new(move |m: &[Message]| {
+                let nudged = m.last().is_some_and(|last| {
+                    last.content
+                        .iter()
+                        .any(|p| matches!(p, Part::Text { text, .. } if *text == nudge))
+                });
+                if nudged {
+                    Vec::new()
+                } else {
+                    vec![(
+                        "query",
+                        json!({"name": "project.inspect", "params": {"at": "/project"}}),
+                    )]
+                }
             })
         })
         .collect();
@@ -688,32 +764,62 @@ fn reading_without_a_change_stops_the_turn_saying_what_to_give() -> Fallible {
         steps: steps.into(),
         n: 0,
         sent: Vec::new(),
+        cached: Vec::new(),
+        last: String::new(),
     };
     let mut tools = Verbs {
         session: &mut session,
         grant: &grant,
         refused: Vec::new(),
     };
+    let mut nudges = Vec::new();
     let outcome = turn(
         &config,
         &mut model,
         &mut history,
         vec![Part::text("Wire the reset, boot, LED and I2C circuits.")],
         &mut tools,
-        &mut |_| {},
+        &mut |e| {
+            if let Event::Nudged { tokens, .. } = e {
+                nudges.push(tokens);
+            }
+        },
         &AtomicBool::new(false),
     );
-    let End::Limit(why) = &outcome.end else {
-        return Err(format!("{:?}", outcome.end).into());
-    };
-    assert!(why.contains("without a change"), "{why}");
-    assert!(why.contains("Say exactly what to change"), "{why}");
-    let idle = Policy::CHAT.idle_tokens;
-    assert!(outcome.usage.tokens > idle, "{}", outcome.usage.tokens);
+    assert_eq!(
+        outcome.end,
+        End::Answered,
+        "the turn is not ended by reading"
+    );
+    assert!(nudge.contains("assist.ask"), "{nudge}");
+    let allowance = Policy::CHAT.nudge_tokens;
+    assert_eq!(nudges.len(), 1, "{nudges:?}");
+    assert!(nudges[0] > allowance, "{nudges:?}");
+    // The model answered on the request after the nudge.
     assert!(
-        outcome.usage.tokens < idle + 60_000,
+        outcome.usage.tokens < allowance + 60_000,
         "{} tokens",
         outcome.usage.tokens
     );
+    Ok(())
+}
+
+/// The generators' listing fits in one reply the chat keeps whole: it was
+/// about 14 000 characters with every preset key and was cut at 12 000.
+#[test]
+fn the_generators_listing_is_not_cut_in_the_chat() -> Fallible {
+    let mut session = fresh()?;
+    let grant = ChatLibrary::locate()?.reach.grant();
+    let answer = Agent {
+        session: &mut session,
+        grant: &grant,
+        window: None,
+        turn: None,
+        asker: &mut NoOne,
+    }
+    .verb("query", json!({"name": "library.generators", "params": {}}));
+    assert_eq!(answer["ok"], true, "{answer}");
+    let size = answer["result"].to_string().len();
+    assert!(size < Policy::CHAT.reply_chars, "{size} characters");
     Ok(())
 }

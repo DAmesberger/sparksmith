@@ -49,9 +49,10 @@ pub struct Policy {
     /// conversation, so on a model with a very large context the trigger
     /// is of this working size, not of the whole context.
     pub window_tokens: u64,
-    /// Tokens a turn may spend after its last change (or its start) with
-    /// no edit or action succeeding before it stops, saying so.
-    pub idle_tokens: u64,
+    /// Tokens a turn may spend after its last change (or its start, or the
+    /// last nudge) with no edit or action succeeding before the harness
+    /// nudges the model to act or ask the person. The turn goes on.
+    pub nudge_tokens: u64,
 }
 
 impl Policy {
@@ -60,7 +61,11 @@ impl Policy {
         reply_chars: 12_000,
         keep_rounds: 2,
         bulky_chars: 1_500,
-        batch_chars: 18_000,
+        // Measured on the scripted board build (board_chat): clearing at
+        // 12 000 rather than 18 000 sends 11 % fewer prompt tokens and 17 %
+        // fewer that a prompt cache cannot serve, since each clear comes
+        // while less sits after it.
+        batch_chars: 12_000,
         trigger: 0.70,
         target: 0.35,
         // E2E run 13: on a 1 000 000-token model the 70 % trigger never
@@ -69,7 +74,7 @@ impl Policy {
         window_tokens: 80_000,
         // The same run read the project 8 times for 791 000 tokens and
         // changed nothing.
-        idle_tokens: 250_000,
+        nudge_tokens: 250_000,
     };
 
     /// Nothing shortened or cleared: the conversation as it grew (what the
@@ -82,7 +87,7 @@ impl Policy {
         trigger: f64::INFINITY,
         target: f64::INFINITY,
         window_tokens: u64::MAX,
-        idle_tokens: u64::MAX,
+        nudge_tokens: u64::MAX,
     };
 
     /// The context the trigger and the target are shares of.
