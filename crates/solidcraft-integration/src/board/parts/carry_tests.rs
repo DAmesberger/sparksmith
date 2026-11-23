@@ -137,6 +137,90 @@ fn a_part_held_at_half_the_width_keeps_its_tracks_when_the_width_changes() -> Fa
     Ok(())
 }
 
+/// Two parts that slide two ways in one edit, one with the board's width
+/// and one with its height: the route between them goes with the shorter
+/// slide and then keeps every segment's direction as the other part slides
+/// the rest of the way, as it does between a moved and an unmoved part.
+#[test]
+fn a_route_between_parts_that_slide_two_ways_keeps_its_directions() -> Fallible<()> {
+    let (mut engine, r2) = held_and_routed()?;
+    let r1 = engine
+        .project()
+        .placements
+        .first()
+        .ok_or("no part")?
+        .instance;
+    let BoardShape::Sketch(sketch) = &engine.project().board_shape else {
+        return Err("not a sketch".into());
+    };
+    let top = sketch
+        .edges
+        .iter()
+        .find(|e| e.name.0 == "top")
+        .map(|e| e.curve.clone())
+        .ok_or("no top edge")?;
+    let [w, h] = engine.project().board_size;
+    let below = h - engine
+        .project()
+        .placement_of(r1)
+        .ok_or("placement")?
+        .position[1];
+    apply(
+        &mut engine,
+        Operation::Dimension(DimensionCommand::Add {
+            dimension: PartDimensionSpec {
+                kind: PartRelation::Dim(DimKind::Distance),
+                refs: vec![
+                    BoardRef::Part(FeatureRef::Origin {
+                        target: ConstraintTarget::Placement(r1),
+                    }),
+                    BoardRef::Board(SketchRef::Curve(top)),
+                ],
+                value: Some(DimValue::Fixed(below)),
+                reference: false,
+            },
+        }),
+    )?;
+    let codes = board_codes(engine.project());
+    let before = engine.project().clone();
+    edit(
+        &mut engine,
+        vec![
+            set("width", &format!("{} mm", w + 10.0)),
+            set("height", &format!("{} mm", h + 4.0)),
+        ],
+    )?;
+    let project = engine.project();
+    let slid = |part: Id| -> Fallible<Point> {
+        let (was, now) = (
+            before.placement_of(part).ok_or("placement")?.position,
+            project.placement_of(part).ok_or("placement")?.position,
+        );
+        Ok([now[0] - was[0], now[1] - was[1]])
+    };
+    assert!(close(slid(r1)?, [0.0, 4.0]), "{:?}", slid(r1)?);
+    assert!(close(slid(r2)?, [5.0, 0.0]), "{:?}", slid(r2)?);
+    let way = |t: &sparksmith_core::Track| {
+        let (dx, dy) = (t.end[0] - t.start[0], t.end[1] - t.start[1]);
+        let length = dx.hypot(dy);
+        [dx / length, dy / length]
+    };
+    assert_eq!(project.tracks.len(), before.tracks.len());
+    for (now, was) in project.tracks.iter().zip(before.tracks.iter()) {
+        assert!(close(way(now), way(was)), "{now:?} was {was:?}");
+    }
+    let (first, second) = (
+        project.tracks.first().ok_or("track")?,
+        project.tracks.get(1).ok_or("track")?,
+    );
+    assert!(close(first.start, pad(project, r1, 1)?.position), "{first:?}");
+    assert!(close(second.start, first.end), "{second:?}");
+    assert!(close(second.end, pad(project, r2, 0)?.position), "{second:?}");
+    assert_eq!(unrouted(project), 0);
+    assert_eq!(board_codes(project), codes);
+    Ok(())
+}
+
 /// A board made narrower than its copper stands is no refusal when the
 /// copper follows: the part held at half the width carries its tracks back
 /// onto the narrower board, and the copper is checked against the new size

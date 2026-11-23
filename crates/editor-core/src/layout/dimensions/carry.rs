@@ -11,17 +11,21 @@
 //!
 //! - An island whose pads all move with one motion moves rigidly with
 //!   them: the route between two parts that move together keeps its shape.
-//! - An island between moved and unmoved pads, when the parts slid without
-//!   turning, keeps the direction of every segment, as a dragged track
-//!   does ([`super::super::router::drag`]): from each moved pad, a segment
-//!   running along the move stretches; else, at a corner where it meets
-//!   one other segment end to end, it slides with the pad and its
+//! - An island between pads that slide two ways, no part turning (pads
+//!   that stay slide by nothing: an island between moved and unmoved
+//!   pads), goes with the shorter slide and keeps the direction of every
+//!   segment as the other pads slide the rest of the way, as a dragged
+//!   track does ([`super::super::router::drag`]): from each such pad, a
+//!   segment running along the move stretches; else, at a corner where it
+//!   meets one other segment end to end, it slides with the pad and its
 //!   neighbour stretches along its own line to meet it; else it moves with
 //!   the pad, and so does the copper at its far end. A differential pair's
 //!   halves, parallel where they leave the part, change alike, so their
-//!   coupling and skew are kept.
-//! - Otherwise (a turn, two different motions, locked or edited copper,
-//!   a move that would reach an unmoved pad or flip a segment) a **carried
+//!   coupling and skew are kept. So a board made wider and taller in one
+//!   edit carries the routes between the parts on its centre line and
+//!   those that also follow its top edge.
+//! - Otherwise (a turn, three different slides, locked or edited copper,
+//!   a move that would reach a pad that stays or flip a segment) a **carried
 //!   point** moves rigidly with its part: a via joined to the part's pads
 //!   and no other pad, and a track end on a carried pad or via. The
 //!   track's other end stays unless it is attached too, so the segment
@@ -161,19 +165,42 @@ pub fn carry(
         };
         carried.tracks.extend(&island.tracks);
         carried.vias.extend(&island.vias);
-        let alike = pads.iter().flatten().all(|n| n.same(&m))
-            && island.tracks.iter().all(|&k| free_track(k))
+        let free = island.tracks.iter().all(|&k| free_track(k))
             && island.vias.iter().all(|&v| free_via(v));
-        let done = alike
-            && if pads.iter().all(Option::is_some) {
+        let done = free
+            && if pads.iter().all(|p| p.is_some_and(|n| n.same(&m))) {
                 rigid(before, &island, &m, &mut tracks, &mut vias);
                 true
             } else {
-                m.slide().is_some_and(|d| {
-                    follow(before, graph, &island, &|p| pad_motion(p).is_some(), d)
+                two_slides(&pads).is_some_and(|(base, further)| {
+                    // The island goes with the shorter slide, and the pads
+                    // that slide further take their copper the rest of the
+                    // way.
+                    let goes_further = |p: usize| {
+                        pad_motion(p)
+                            .and_then(|m| m.slide())
+                            .is_some_and(|s| distance(s, further) <= SAME_MOTION)
+                    };
+                    follow(before, graph, &island, &goes_further, sub(further, base))
                         .map(|(t, v)| {
-                            tracks.extend(t);
-                            vias.extend(v);
+                            if base == [0.0, 0.0] {
+                                tracks.extend(t);
+                                vias.extend(v);
+                                return;
+                            }
+                            for &k in &island.tracks {
+                                if let Some(old) = before.tracks.get(k) {
+                                    let (start, end) =
+                                        t.get(&k).copied().unwrap_or((old.start, old.end));
+                                    tracks.insert(k, (add(start, base), add(end, base)));
+                                }
+                            }
+                            for &i in &island.vias {
+                                if let Some(old) = before.vias.get(i) {
+                                    let at = v.get(&i).copied().unwrap_or(old.position);
+                                    vias.insert(i, add(at, base));
+                                }
+                            }
                         })
                         .is_some()
                 })
@@ -286,6 +313,30 @@ fn islands(before: &Project, graph: &CopperGraph) -> Vec<Islands> {
         }
     }
     out.into_values().filter(|i| !i.pads.is_empty()).collect()
+}
+
+/// The two slides an island's pads make, the shorter first, when no pad
+/// turns and they make exactly two; a pad that stays slides by nothing.
+fn two_slides(pads: &[Option<Motion>]) -> Option<(Point, Point)> {
+    let mut slides: Vec<Point> = Vec::new();
+    for pad in pads {
+        let slide = match pad {
+            Some(m) => m.slide()?,
+            None => [0.0, 0.0],
+        };
+        if !slides.iter().any(|s| distance(*s, slide) <= SAME_MOTION) {
+            slides.push(slide);
+        }
+    }
+    let [a, b] = slides.as_slice() else {
+        return None;
+    };
+    let length = |s: &Point| distance([0.0, 0.0], *s);
+    Some(if length(a) <= length(b) {
+        (*a, *b)
+    } else {
+        (*b, *a)
+    })
 }
 
 /// An island between pads that all move with `m` moves with them.
