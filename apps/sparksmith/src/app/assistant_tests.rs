@@ -694,13 +694,8 @@ fn undo_turn_is_off_when_the_persons_edit_came_between() -> Fallible {
     ax.settle();
     assert_eq!(ax.app.engine.project().vias.len(), vias + 3);
     // A turn without the person's edit between still undoes as one step.
-    script(
-        &mut ax,
-        vec![
-            tool("apply", add_via(&ax, 4.0)),
-            text("Added one."),
-        ],
-    );
+    let one = add_via(&ax, 4.0);
+    script(&mut ax, vec![tool("apply", one), text("Added one.")]);
     send(&mut ax, "Add one more")?;
     ax.until("the turn's end", idle)?;
     ax.settle();

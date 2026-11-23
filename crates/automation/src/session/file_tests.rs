@@ -272,6 +272,7 @@ fn two_spellings_of_one_file_keep_both_editors_work() -> Fallible {
         let mut c = Session::new(Engine::default());
         assert_eq!(open(&mut c, &other)["ok"], true);
         rename(&mut c, "Third editor")?;
+        rename(&mut a, &format!("First editor {n}, again"))?;
         assert_eq!(save(&mut a, None)["ok"], true, "the first editor saves again");
         let again = std::fs::read(&path)?;
         let refused = save(&mut c, None);

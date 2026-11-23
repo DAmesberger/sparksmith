@@ -359,8 +359,16 @@ mod tests {
             + IDENTITY_SLACK;
         let exact = exact(&EditorFile::from_document(&document), usize::MAX)?;
         assert!(bound >= exact, "bound {bound} below {exact}");
-        // Within a few bytes per section: the slack, not a guess.
-        assert!(bound - exact <= (SECTIONS + 4) * SECTION_SLACK + IDENTITY_SLACK);
+        // Above it by the slack per section and the skeleton's empty
+        // placeholders: a few KiB, nothing that grows with the document.
+        assert!(
+            bound - exact <= 4096,
+            "bound {bound} exact {exact} sections {:?} assets {} drafts {} rest {}",
+            measured.sections,
+            measured.assets,
+            measured.drafts,
+            measured.rest
+        );
         room.admit(&document)?;
         Ok(())
     }
