@@ -654,12 +654,42 @@ impl Command {
                     "panel/model-3d"
                 }
                 A::ToggleParts => "panel/layout",
-                A::Cut | A::Copy | A::Paste => "panel/schematic",
+                A::Cut => "panel/schematic",
+                A::Copy => "entry/schematic.copy",
+                A::Paste => "entry/schematic.paste",
                 A::SelectAll | A::FitView => "panel/properties",
                 A::ClearRecent | A::ImportKicad | A::ImportReport | A::Quit | A::CloseWindow => {
                     "panel/files"
                 }
             },
+            Action::Ribbon(Workspace::Pcb, RibbonEvent::Tool(id)) => match id {
+                "route" => "entry/layout.route_apply",
+                "via" => "entry/layout.add_via",
+                "tune" => "entry/layout.tune_length",
+                "dimension" => "entry/layout.dimension_add",
+                "place" => "entry/component.place_board_only",
+                "place-part" => "entry/layout.place_part_file",
+                "board-shape" => "entry/board.start_sketch",
+                "fill" => "entry/fill.add",
+                "refill" => "entry/fill.refill",
+                "production" => "entry/project.export_fabrication",
+                "update" => "entry/layout.sync",
+                _ => "panel/layout",
+            },
+            Action::Ribbon(Workspace::Schematic, RibbonEvent::Tool(id)) => match id {
+                "place" => "entry/component.place",
+                "wire" => "entry/wire.draw",
+                "junction" => "entry/junction.place",
+                "no-connect" => "entry/instance.set_no_connect",
+                "label" | "global-label" | "hierarchical-label" | "power" => "entry/label.place",
+                "sheet-symbol" => "entry/sheet_symbol.place",
+                "add-sheet" => "entry/sheet.add",
+                "annotate" => "entry/schematic.annotate",
+                "note" | "draw-line" | "draw-rect" => "entry/drawing.add",
+                "rotate" | "mirror" => "entry/schematic.arrange",
+                _ => "panel/schematic",
+            },
+            Action::Ribbon(Workspace::Pcb, RibbonEvent::Tab("3d")) => "panel/model-3d",
             Action::Ribbon(workspace, _) => workspace_page(workspace),
             Action::Pcb(_) | Action::PcbLayer(_) | Action::PcbDialog(_) => "panel/layout",
             Action::PcbArrange(PcbArrange::Align(_)) => "entry/layout.align",

@@ -748,6 +748,17 @@ fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Er
         .find(|entry| entry.id.name() == "route.width-next")
         .ok_or("missing in-place route width key")?;
     assert!(matches!(&route.facts, Facts::Command { default_key: Some(key), .. } if key == "W"));
+    let via = entries
+        .iter()
+        .find(|entry| entry.id.name() == "pcb.via")
+        .ok_or("missing Via tool")?;
+    assert!(
+        matches!(&via.facts, Facts::Command { reaches: Some(id), .. } if id.as_str() == "entry/layout.add_via")
+    );
+    assert!(
+        via.summary.contains("through via"),
+        "the ribbon and help describe the same tool"
+    );
     let save = entries
         .iter()
         .find(|entry| entry.id.name() == "file.save")
@@ -768,12 +779,45 @@ fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
+/// Read toolbar explanations from the same tools the editors draw,
+/// including the alternatives inside split buttons. No window is opened.
+fn ribbon_descriptions(registry: &Registry) -> BTreeMap<String, String> {
+    let engine = sparksmith_core::Engine::default();
+    let mut descriptions = BTreeMap::new();
+    let mut add = |workspace, ribbon: crate::shell::Ribbon| {
+        for tool in ribbon.groups.into_iter().flat_map(|group| group.tools) {
+            for button in std::iter::once(&tool).chain(&tool.menu) {
+                if !button.tip.is_empty()
+                    && let Some(command) = registry.for_tool(workspace, button.id)
+                {
+                    descriptions.insert(command.id.clone(), button.tip.to_owned());
+                }
+            }
+        }
+    };
+    let mut part = crate::part_editor::PartEditor::default();
+    for tab in ["details", "symbol", "pins", "footprint", "mapping", "model"] {
+        part.on_tab(tab);
+        add(Workspace::Part, part.ribbon(&engine));
+    }
+    add(
+        Workspace::Schematic,
+        crate::schematic_editor::SchematicEditor::default().ribbon(&engine),
+    );
+    let mut pcb = crate::pcb_editor::PcbEditor::default();
+    add(Workspace::Pcb, pcb.ribbon(&engine));
+    let _ = pcb.on_tool("board-shape", &engine);
+    add(Workspace::Pcb, pcb.ribbon(&engine));
+    descriptions
+}
+
 impl Registry {
     /// Export canonical chords rather than platform key-cap labels. Rebinding
     /// affects the desktop reader only, so every platform ships the same index.
     pub(crate) fn help_entries(&self) -> Result<Vec<sparksmith_core::help::HelpEntry>, String> {
         use sparksmith_core::help::{Facts, HelpEntry};
         let mut entries = Vec::new();
+        let mut tips = ribbon_descriptions(self);
         for command in self.commands() {
             let keys: Vec<_> = command
                 .chord
@@ -789,7 +833,13 @@ impl Registry {
             entries.push(HelpEntry {
                 id: format!("command/{}", command.id).parse()?,
                 title: command.title.clone(),
-                summary: command.help_summary(),
+                summary: tips.remove(&command.id).unwrap_or_else(|| {
+                    command
+                        .destination()
+                        .strip_prefix("entry/")
+                        .and_then(sparksmith_automation::session::metadata::find)
+                        .map_or_else(|| command.help_summary(), |e| e.summary.clone())
+                }),
                 since: env!("CARGO_PKG_VERSION").into(),
                 facts: Facts::Command {
                     context: command.context.label().into(),
