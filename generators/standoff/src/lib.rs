@@ -369,6 +369,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
+            assembly: Default::default(),
             terminals: vec![Terminal {
                 key: "1".into(),
                 name: "1".into(),

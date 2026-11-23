@@ -734,6 +734,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         orderable: Vec::new(),
         marking,
         component: component_part.then(|| Component {
+            assembly: Default::default(),
             terminals: terminals(d.part),
             prefix: d.part.prefix().into(),
             name,

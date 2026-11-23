@@ -49,6 +49,8 @@ pub struct FootprintDefinition {
     /// sketch-role graphics are derived and stored together with it.
     pub source: Option<Box<FootprintSource>>,
     pub pads: Vec<Pad>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bridges: Vec<super::tie::Bridge>,
     /// Silkscreen, courtyard and assembly drawings, in draw order.
     pub graphics: Vec<FootprintGraphic>,
     /// The authored pin-1 pad and the graphics that illustrate it.
@@ -826,7 +828,11 @@ impl FootprintDefinition {
     }
 
     pub(super) fn within_bounds(&self) -> bool {
-        self.pads.len() <= MAX_PADS
+        self.bridges.len() <= MAX_PADS
+            && self.bridges.iter().all(|b| {
+                b.pads.len() <= MAX_PADS && b.outline.segments.len() <= MAX_OUTLINE_SEGMENTS
+            })
+            && self.pads.len() <= MAX_PADS
             && self.pads.iter().all(Pad::within_bounds)
             && self.graphics.len() <= super::graphics::MAX_GRAPHICS
             && self.graphics.iter().all(|g| g.item.within_bounds())
@@ -849,13 +855,15 @@ impl FootprintDefinition {
     }
 
     pub(super) fn geometry_finite(&self) -> bool {
-        self.pads.iter().all(Pad::finite)
+        self.bridges.iter().all(|b| b.outline.finite())
+            && self.pads.iter().all(Pad::finite)
             && self.graphics.iter().all(|g| g.item.finite())
             && self.keepouts.iter().all(|k| k.outline.finite())
     }
 
     pub(super) fn local_ids(&self) -> Vec<u32> {
         let mut ids: Vec<u32> = self.pads.iter().map(|p| p.id.0).collect();
+        ids.extend(self.bridges.iter().map(|b| b.id.0));
         ids.extend(self.graphics.iter().map(|g| g.id.0));
         if let Some(source) = &self.source {
             ids.extend(source.arrays.iter().map(|a| a.id.0));
@@ -880,6 +888,15 @@ impl FootprintDefinition {
             ));
         }
         self.local_findings(id, out);
+        for bridge in &self.bridges {
+            if !bridge.valid(self) {
+                out.push(issue(
+                    "tie.bridge_lands",
+                    "A bridge needs a closed copper outline touching its declared lands.".into(),
+                    vec![object(id, bridge.id.0)],
+                ));
+            }
+        }
         for (k, keepout) in self.keepouts.iter().enumerate() {
             if !keepout.outline.closed() || keepout.outline.segments.len() < 2 {
                 out.push(issue(

@@ -764,6 +764,23 @@ fn check_exceptions(exceptions: &[RequirementException]) -> Result<()> {
     Ok(())
 }
 
+fn check_population(project: &Project, id: Id, population: Option<Population>) -> Result<()> {
+    if population == Some(Population::NotPopulated)
+        && let Some(i) = project.instance(id)
+        && project
+            .library
+            .component(i.component)
+            .and_then(|c| c.definition.tie.as_ref())
+            .is_some_and(|s| s.form == crate::library::tie::TieForm::Copper)
+    {
+        return Err(invalid(format!(
+            "{} is fabricated copper and is always closed.",
+            i.designator
+        )));
+    }
+    Ok(())
+}
+
 fn set_population(
     project: &mut Project,
     instances: &[Id],
@@ -778,6 +795,9 @@ fn set_population(
     }
     if ids.iter().any(|id| project.instance(*id).is_none()) {
         return Err(Error::NotFound("Unknown component instance.".into()));
+    }
+    for id in &ids {
+        check_population(project, *id, population)?;
     }
     match variant {
         None => {
@@ -863,6 +883,7 @@ pub fn check(project: &Project) -> Result<()> {
             ));
         }
         for (id, o) in &v.overrides {
+            check_population(project, *id, o.population)?;
             if project.instance(*id).is_none() || o.is_empty() {
                 return Err(invalid(format!(
                     "variant “{name}” overrides a part that is not in the design"

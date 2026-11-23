@@ -282,6 +282,31 @@ fn check_with<'a>(
     let component = &resolved.component.definition;
     let symbol = &resolved.symbol.definition;
     let name = &instance.designator;
+    match (&component.tie, &instance.tie) {
+        (Some(spec), Some(usage)) => {
+            if spec.form == crate::library::tie::TieForm::Copper
+                && !instance.population.is_populated()
+            {
+                return Err(invalid(format!(
+                    "{name} is fabricated copper and is always closed."
+                )));
+            }
+            if usage.anchors.keys().any(|end| !spec.ends.contains(end))
+                || (!usage.anchors.is_empty()
+                    && usage.purpose != crate::library::tie::TiePurpose::KelvinSense)
+            {
+                return Err(invalid(format!(
+                    "Choose a Kelvin sense end of {name} to anchor."
+                )));
+            }
+        }
+        (None, None) => {}
+        _ => {
+            return Err(invalid(format!(
+                "The tie settings on {name} must agree with its component."
+            )));
+        }
+    }
     check_properties(&project.library, component, instance)?;
     part::check_part(&project.library, instance)?;
     let mut placed = BTreeSet::new();
@@ -723,8 +748,14 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
         Some(designator) => designator,
         None => next_designator(project, &component.definition.designator_prefix)?,
     };
+    let tie = component.definition.tie.as_ref();
+    let population = tie
+        .map(|s| crate::model::Population::from(s.form))
+        .unwrap_or_default();
+    let tie = tie.map(|_| Default::default());
     let id = project.allocate()?;
     project.instances.push(ComponentInstance {
+        tie,
         id,
         component: request.component,
         designator,
@@ -739,7 +770,7 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
         marking: Default::default(),
         text_placements: Default::default(),
         board_only: false,
-        population: Default::default(),
+        population,
     });
     let sheet = request.sheet.unwrap_or_else(|| project.sheets.first());
     let position = request.position.unwrap_or(PointNm::ORIGIN);
@@ -796,8 +827,14 @@ pub fn place_off_sheet(
         Some(designator) => designator,
         None => next_designator(project, &prefix)?,
     };
+    let tie = published.definition.tie.as_ref();
+    let population = tie
+        .map(|s| crate::model::Population::from(s.form))
+        .unwrap_or_default();
+    let tie = tie.map(|_| Default::default());
     let id = project.allocate()?;
     project.instances.push(ComponentInstance {
+        tie,
         id,
         component,
         designator,
@@ -812,7 +849,7 @@ pub fn place_off_sheet(
         marking: Default::default(),
         text_placements: Default::default(),
         board_only: false,
-        population: Default::default(),
+        population,
     });
     check_instance(project, id)?;
     check_designators(project)?;

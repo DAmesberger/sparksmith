@@ -727,10 +727,29 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
+/// How the part is assembled.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum Assembly {
+    #[default]
+    Bought,
+    CopperOnly,
+    SolderOnly,
+}
+
+impl Assembly {
+    pub fn is_bought(&self) -> bool {
+        *self == Self::Bought
+    }
+}
+
 /// The electrical component.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Component {
+    #[serde(default, skip_serializing_if = "Assembly::is_bought")]
+    pub assembly: Assembly,
     pub terminals: Vec<Terminal>,
     /// Designator prefix, e.g. `R`.
     pub prefix: String,

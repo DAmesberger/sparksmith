@@ -841,6 +841,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         orderable: Vec::new(),
         marking,
         component: component_part.then(|| Component {
+            assembly: Default::default(),
             terminals: ["1", "2"]
                 .iter()
                 .zip(names)

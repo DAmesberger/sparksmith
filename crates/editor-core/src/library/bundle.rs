@@ -343,6 +343,8 @@ pub fn rewrite_refs(definition: &mut Definition, map: &mut dyn RefMap) -> Result
     match definition {
         Definition::Component(component) => {
             let ComponentDefinition {
+                tie: _,
+                assembly: _,
                 next_local: _,
                 designator_prefix: _,
                 terminals: _,
@@ -464,6 +466,7 @@ pub fn rewrite_refs(definition: &mut Definition, map: &mut dyn RefMap) -> Result
         }
         Definition::Footprint(footprint) => {
             let FootprintDefinition {
+                bridges: _,
                 package,
                 next_local: _,
                 source: _,

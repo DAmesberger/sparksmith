@@ -52,6 +52,8 @@ pub struct PhysicalChoice {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentInstance {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tie: Option<crate::library::tie::TieUse>,
     pub id: Id,
     pub component: ComponentRef,
     pub designator: String,
@@ -110,6 +112,7 @@ impl ComponentInstance {
     /// until its copy is decided here.
     pub fn duplicate(&self, id: Id, designator: String) -> ComponentInstance {
         let ComponentInstance {
+            tie,
             id: _,
             component,
             designator: _,
@@ -127,6 +130,7 @@ impl ComponentInstance {
             population,
         } = self;
         ComponentInstance {
+            tie: tie.clone(),
             id,
             component: *component,
             designator,

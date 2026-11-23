@@ -24,6 +24,19 @@ pub enum Population {
     NotPopulated,
 }
 
+impl From<crate::library::tie::TieForm> for Population {
+    fn from(form: crate::library::tie::TieForm) -> Self {
+        use crate::library::tie::{JumperState, TieForm};
+        match form {
+            TieForm::SolderJumper {
+                default: JumperState::Open,
+                ..
+            } => Self::NotPopulated,
+            _ => Self::Populated,
+        }
+    }
+}
+
 impl Population {
     pub fn is_populated(&self) -> bool {
         *self == Self::Populated

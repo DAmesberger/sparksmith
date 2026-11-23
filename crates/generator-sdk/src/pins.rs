@@ -268,6 +268,7 @@ mod tests {
         Generation {
             orderable: Vec::new(),
             component: Some(Component {
+                assembly: Default::default(),
                 terminals: vec![terminal("a"), terminal("b")],
                 prefix: "U".into(),
                 name: "Three".into(),

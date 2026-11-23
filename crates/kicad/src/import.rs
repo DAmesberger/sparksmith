@@ -1789,6 +1789,8 @@ fn component_body(
 ) -> ComponentDefinition {
     let count = u32::try_from(named.len()).unwrap_or(u32::MAX);
     ComponentDefinition {
+        assembly: Default::default(),
+        tie: None,
         pin_rules: Vec::new(),
         marking: None,
         review: None,

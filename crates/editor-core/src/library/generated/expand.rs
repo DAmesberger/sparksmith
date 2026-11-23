@@ -346,6 +346,8 @@ fn component_definition(
         })
         .collect();
     Ok(ComponentDefinition {
+        assembly: component.assembly,
+        tie: None,
         next_local: ids.next_local(),
         designator_prefix: component.prefix.clone(),
         terminals,
@@ -887,6 +889,7 @@ fn footprint(
     }
     let polarity = polarity(generation, terminals, &pads, markers);
     Ok(FootprintDefinition {
+        bridges: Vec::new(),
         package,
         next_local: ids.next_local(),
         source: None,

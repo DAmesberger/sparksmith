@@ -485,6 +485,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             sparksmith_generator_sdk::marking::height(&args).map_err(|p| vec![p])?,
         )),
         component: component_part.then(|| Component {
+            assembly: Default::default(),
             terminals: [("1", "+"), ("2", "−")]
                 .iter()
                 .map(|(key, name)| Terminal {

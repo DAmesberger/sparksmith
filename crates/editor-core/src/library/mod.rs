@@ -38,6 +38,7 @@ pub mod standards;
 mod symbol;
 pub mod symbol_blocks;
 pub mod symbol_style;
+pub mod tie;
 
 pub use binding::{BindingDefinition, TerminalMap};
 pub use bundle::{Bundle, OriginRecord, PackedAsset, RevisionRecord, SourceRevision};

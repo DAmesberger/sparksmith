@@ -399,36 +399,24 @@ pub fn implemented_mechanically(library: &Library, component: &ComponentDefiniti
         })
 }
 
-/// Whether `component` is copper only, with nothing to order or place: no
-/// terminals, and every implementation's package has no body (a fiducial,
-/// a logo: the board's own copper is all of it).
-pub fn copper_only(library: &Library, component: ComponentRef) -> bool {
-    let Some(published) = library.component(component) else {
-        return false;
-    };
-    let definition = &published.definition;
-    definition.terminals.is_empty()
-        && !definition.implementations.is_empty()
-        && definition.implementations.iter().all(|b| {
-            library
-                .binding(*b)
-                .and_then(|b| library.package(b.definition.package))
-                .is_some_and(|p| matches!(p.definition.model, PackageModel::NoBody))
-        })
+/// The assembly contract of the selected revision.
+fn bought(library: &Library, component: ComponentRef) -> bool {
+    library
+        .component(component)
+        .is_some_and(|p| p.definition.assembly.is_bought())
 }
 
 /// Whether instances of `component` belong in the BOM (true for every
-/// component that is not copper only ([`copper_only`]) or a mechanical
+/// bought component except a mechanical
 /// part excluded from it).
 pub fn in_bom(library: &Library, component: ComponentRef) -> bool {
-    !copper_only(library, component) && mechanical_of(library, component).is_none_or(|m| m.bom)
+    bought(library, component) && mechanical_of(library, component).is_none_or(|m| m.bom)
 }
 
 /// Whether instances of `component` belong in pick-and-place (not copper
 /// only, and not a mechanical part excluded from it).
 pub fn in_pick_and_place(library: &Library, component: ComponentRef) -> bool {
-    !copper_only(library, component)
-        && mechanical_of(library, component).is_none_or(|m| m.pick_and_place)
+    bought(library, component) && mechanical_of(library, component).is_none_or(|m| m.pick_and_place)
 }
 
 /// The Model `spec` uses: an existing revision, or a new one to publish
@@ -863,6 +851,8 @@ fn component_definition(
 ) -> Result<ComponentDefinition> {
     let count = u32::try_from(lands.len()).map_err(|_| invalid("too many terminals".into()))?;
     Ok(ComponentDefinition {
+        assembly: Default::default(),
+        tie: None,
         // Terminals 1…N, then their fixed passive functions N+1…2N.
         next_local: 2 * count + 1,
         designator_prefix: spec.designator_prefix.clone(),
