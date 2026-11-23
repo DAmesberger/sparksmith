@@ -78,6 +78,7 @@ const UPPER: &[&str] = &[
 const HANDLED: &[&str] = &[
     "type",
     "properties",
+    "patternProperties",
     "required",
     "additionalProperties",
     "items",
@@ -103,8 +104,22 @@ pub fn classify(old: &Value, old_defs: &Defs, new: &Value, new_defs: &Defs) -> O
 /// A reply is what a client receives. Every value the new writer can
 /// emit must be readable by an existing consumer. Object readers ignore
 /// additional, unknown fields, and rely on the documented ones.
+///
+/// Every reply object is open (`reply_schema::open`): consumers ignore
+/// unknown reply fields, so both sides are compared open, and a schema
+/// recorded before that rule (closed by its stored type's
+/// `deny_unknown_fields`) reads as the open one it now is.
 pub fn classify_reply(old: &Value, old_defs: &Defs, new: &Value, new_defs: &Defs) -> Outcome {
-    inclusion(new, new_defs, old, old_defs, true)
+    let opened = |schema: &Value| {
+        let mut schema = schema.clone();
+        crate::session::reply_schema::open(&mut schema);
+        schema
+    };
+    let opened_defs =
+        |defs: &Defs| -> Defs { defs.iter().map(|(k, v)| (k.clone(), opened(v))).collect() };
+    let (old, new) = (opened(old), opened(new));
+    let (old_defs, new_defs) = (opened_defs(old_defs), opened_defs(new_defs));
+    inclusion(&new, &new_defs, &old, &old_defs, true)
 }
 
 fn inclusion(old: &Value, old_defs: &Defs, new: &Value, new_defs: &Defs, reply: bool) -> Outcome {
@@ -353,6 +368,7 @@ impl Walk<'_> {
         outcome.join(type_change(old, new, at));
         outcome.join(self.properties(old, new, path));
         outcome.join(self.additional(old, new, path));
+        outcome.join(self.patterns(old, new, path));
         outcome.join(self.items(old, new, path));
         outcome.join(enum_change(old, new, at, self.reply));
         outcome.join(const_change(old, new, at));
@@ -431,6 +447,36 @@ impl Walk<'_> {
         }
         if old_required.difference(&new_required).next().is_some() {
             outcome.join(Outcome::minor());
+        }
+        outcome
+    }
+
+    /// `patternProperties` (a map keyed by ids): the same patterns, each
+    /// value compared structurally, since the references inside are
+    /// renumbered whenever a definition is added before them. A pattern
+    /// added or removed changes which keys are read: major.
+    fn patterns(
+        &mut self,
+        old: &Map<String, Value>,
+        new: &Map<String, Value>,
+        path: &str,
+    ) -> Outcome {
+        let empty = Map::new();
+        let of = |m: &Map<String, Value>| {
+            m.get("patternProperties")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_else(|| empty.clone())
+        };
+        let (was, now) = (of(old), of(new));
+        if was.keys().ne(now.keys()) {
+            return Outcome::major(format!("{path}: patternProperties added or changed"));
+        }
+        let mut outcome = Outcome::same();
+        for (key, a) in &was {
+            if let Some(b) = now.get(key) {
+                outcome.join(self.compare(a, b, &format!("{path}{{{key}}}")));
+            }
         }
         outcome
     }

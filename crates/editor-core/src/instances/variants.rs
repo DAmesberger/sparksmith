@@ -90,9 +90,9 @@ pub enum VariantCommand {
         #[serde(default)]
         part: Option<PartRef>,
     },
-    /// Keep parts off the bill of materials (`bom`) or out of the
-    /// pick-and-place files (`placement`), in every variant; each given
-    /// flag is set, an omitted one left as it is. Independent of whether
+    /// Keep parts off the BOM or out of the pick-and-place files, in
+    /// every variant. Each given flag (`bom`, `placement`) is set, an
+    /// omitted one left as it is. Independent of whether
     /// a part is fitted: a test point kept off the BOM is still placed, and
     /// a part kept out of the position files is still bought. Refused whole
     /// when an instance is unknown.

@@ -574,11 +574,14 @@ fn a_reply_change_is_weighed_from_the_readers_side() {
     let defs = BTreeMap::from([("Row".to_owned(), json!({"type":"string"}))]);
     let weigh = |new: Value| compat::classify_reply(&old, &defs, &new, &defs).change;
     assert_eq!(weigh(with_extra(old.clone())), compat::Change::Minor);
+    // Every reply object is open, whatever the stored type says: a stored
+    // type closed by `deny_unknown_fields` gaining an optional field is
+    // still a minor reply change.
     let mut closed = old.clone();
     closed["additionalProperties"] = json!(false);
     assert_eq!(
         compat::classify_reply(&closed, &defs, &with_extra(closed.clone()), &defs).change,
-        compat::Change::Major
+        compat::Change::Minor
     );
     assert_eq!(
         weigh(reply(&["ready"], &["rows", "status"])),

@@ -1227,6 +1227,25 @@ fn a_generated_nc_pin_is_device_nc_and_refuses_wires() -> TestResult {
             json!({"operation": serde_json::to_value(operation).unwrap_or_default()}),
         )
     };
+    // U2 well away from U1, so a wire between them runs over nothing.
+    let occurrence = session
+        .engine()
+        .project()
+        .occurrences
+        .iter()
+        .find(|o| o.instance == u2)
+        .map(|o| o.id)
+        .ok_or("U2's symbol")?;
+    let away = sparksmith_core::Operation::Schematic(SchematicCommand::MoveUnit {
+        occurrence,
+        position: sparksmith_core::units::PointNm::from_mm_f64_rounded([150.0, 150.0])?,
+    });
+    let moved = call(
+        &mut session,
+        "project.apply",
+        json!({"operation": serde_json::to_value(away)?}),
+    );
+    assert_eq!(moved["ok"], true, "{moved}");
     let revision = session.engine().revision();
     let refused = connect(&mut session, endpoint(u1, nc), endpoint(u2, on));
     assert_eq!(refused["ok"], false, "{refused}");

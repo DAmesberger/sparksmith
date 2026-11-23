@@ -579,7 +579,7 @@ Selections are keyed by IDs, so reordering or relabeling functions in a new revi
 | Code | Condition |
 | --- | --- |
 | `erc.driver_conflict` | Two push-pull drivers (`Output`/`Bidirectional` with that drive), or a push-pull driver on a rail a `PowerOutput` drives. |
-| `erc.power_output_conflict` | Two `PowerOutput` terminals on one net, each regulating it. A parallel supply meant to share the net is a deliberate decision: waive the finding with its reason. |
+| `erc.power_output_conflict` | Power outputs of two parts on one net, each regulating it (one part's several power outputs, such as a receptacle's paired VBUS contacts, are one supply). A parallel supply meant to share the net is a deliberate decision: waive the finding with its reason. |
 | `erc.open_drain_contention` | A push-pull driver or a `PowerOutput` together with an open-drain driver. |
 | `erc.open_source_contention` | An open-source driver together with a push-pull, `PowerOutput` or open-drain driver: it sources high while the other pulls low. |
 | `erc.input_only_net` | ≥ 2 terminals, at least one `Input`, and no `Output`, `Bidirectional`, `PowerOutput` or `Passive` terminal (an enable strapped to a rail is driven). |

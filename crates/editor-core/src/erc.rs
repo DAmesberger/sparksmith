@@ -92,17 +92,25 @@ fn net_checks(
         // Every pair of drivers, logic outputs and power outputs alike,
         // judged by the one matrix; each kind of fight is reported once per
         // net.
-        let drivers: Vec<Driver> = active
+        let drivers: Vec<(Id, Driver)> = active
             .iter()
-            .filter_map(|(_, f)| match f.direction {
-                Direction::Output | Direction::Bidirectional => Some(Driver::Logic(f.drive)),
-                Direction::PowerOutput => Some(Driver::Supply),
+            .filter_map(|(e, f)| match f.direction {
+                Direction::Output | Direction::Bidirectional => {
+                    Some((e.instance, Driver::Logic(f.drive)))
+                }
+                Direction::PowerOutput => Some((e.instance, Driver::Supply)),
                 _ => None,
             })
             .collect();
         let mut fights = BTreeSet::new();
-        for (i, a) in drivers.iter().enumerate() {
-            for b in drivers.get(i + 1..).unwrap_or_default() {
+        for (i, (part_a, a)) in drivers.iter().enumerate() {
+            for (part_b, b) in drivers.get(i + 1..).unwrap_or_default() {
+                // Several power outputs of one part on one net (a
+                // connector's paired VBUS contacts, a switch's VOUT pins)
+                // are one supply.
+                if part_a == part_b && *a == Driver::Supply && *b == Driver::Supply {
+                    continue;
+                }
                 if let Some(fight) = driver_contention(*a, *b) {
                     fights.insert(fight);
                 }

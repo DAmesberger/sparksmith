@@ -1302,14 +1302,6 @@
   },
   "assembly_preview": {
     "$defs": {
-      "BoardSide": {
-        "description": "A side of the board an assembly finding is about.",
-        "enum": [
-          "top",
-          "bottom"
-        ],
-        "type": "string"
-      },
       "Conflict": {
         "description": "One item both sides changed, in the user's words.",
         "properties": {
@@ -1947,23 +1939,6 @@
               "id"
             ],
             "type": "object"
-          },
-          {
-            "description": "One side of the board, for a finding about everything assembled on\nthat side (its fiducials). Its own identity, so a waiver of one\nside's finding never covers the other's. Locating it frames the\nboard.",
-            "properties": {
-              "kind": {
-                "const": "board_side",
-                "type": "string"
-              },
-              "side": {
-                "$ref": "#/$defs/BoardSide"
-              }
-            },
-            "required": [
-              "kind",
-              "side"
-            ],
-            "type": "object"
           }
         ]
       },
@@ -2156,14 +2131,6 @@
   },
   "assembly_status": {
     "$defs": {
-      "BoardSide": {
-        "description": "A side of the board an assembly finding is about.",
-        "enum": [
-          "top",
-          "bottom"
-        ],
-        "type": "string"
-      },
       "ContentHash": {
         "description": "A SHA-256 digest, written as 64 lower-case hex digits. Names a revision\nrecord's canonical content (`library::bundle::content_hash`) or an\nasset's bytes (`library::bundle::asset_hash`).",
         "type": "string"
@@ -2704,23 +2671,6 @@
             "required": [
               "kind",
               "id"
-            ],
-            "type": "object"
-          },
-          {
-            "description": "One side of the board, for a finding about everything assembled on\nthat side (its fiducials). Its own identity, so a waiver of one\nside's finding never covers the other's. Locating it frames the\nboard.",
-            "properties": {
-              "kind": {
-                "const": "board_side",
-                "type": "string"
-              },
-              "side": {
-                "$ref": "#/$defs/BoardSide"
-              }
-            },
-            "required": [
-              "kind",
-              "side"
             ],
             "type": "object"
           }

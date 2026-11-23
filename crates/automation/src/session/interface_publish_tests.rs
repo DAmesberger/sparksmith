@@ -892,8 +892,9 @@ fn a_preview_token_binds_its_destination_and_its_candidate() -> TestResult {
     // Two copies of one board at the same revision, edited differently.
     let mut narrow = Session::new(session.engine().fork());
     let mut wide = Session::new(session.engine().fork());
-    move_j1(&mut narrow, 1.0)?;
-    move_j1(&mut wide, 6.0)?;
+    // J1 back by 1 mm in one and by 2 mm (where it was) in the other.
+    move_j1(&mut narrow, -1.0)?;
+    move_j1(&mut wide, -2.0)?;
     assert_eq!(narrow.engine().revision(), wide.engine().revision());
     let narrow_token = preview_token(&mut narrow, &design)?;
     let wide_token = preview_token(&mut wide, &design)?;

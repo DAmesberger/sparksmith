@@ -167,3 +167,30 @@ fn power_outputs_are_drivers_in_the_one_matrix() -> Result<()> {
     assert_eq!(on_net(&engine, net), ["erc.input_only_net"]);
     Ok(())
 }
+
+/// One part's power outputs on one net (a USB receptacle's paired VBUS
+/// contacts, a load switch's VOUT pins) are one supply, not a fight.
+#[test]
+fn one_parts_power_outputs_are_one_supply() -> Result<()> {
+    let mut engine = Engine::default();
+    let f = component(
+        &mut engine,
+        &Spec {
+            name: "Receptacle",
+            terminals: vec![(1, "VBUS", power_out()), (2, "VBUS", power_out())],
+            units: vec![(1, "A", vec![(1, [-5.0, 0.0]), (2, [5.0, 0.0])])],
+            package: vec![(1, "1"), (2, "2")],
+            mapping: vec![(1, 1), (2, 2)],
+            physical: false,
+        },
+    )?;
+    let (j1, _) = place(&mut engine, &f, "J1", 1, [0.0, 0.0])?;
+    let (j2, _) = place(&mut engine, &f, "J2", 1, [0.0, 30.0])?;
+    connect(&mut engine, ep(j1, 1), ep(j1, 2))?;
+    let net = net_of(&engine, ep(j1, 1))?;
+    assert!(on_net(&engine, net).is_empty(), "{:?}", all_codes(&engine));
+    // A second part's supply on it is two.
+    connect(&mut engine, ep(j2, 1), ep(j1, 1))?;
+    assert_eq!(on_net(&engine, net), ["erc.power_output_conflict"]);
+    Ok(())
+}
