@@ -9,37 +9,14 @@
 //! shortened or cleared (the chat before K1), and the test prints each
 //! request's estimated prompt (`--nocapture`), so the two can be compared.
 use super::*;
-use crate::board_script::{Scripted, Step, fresh, pin, reply_to, revision, steps};
+use crate::board_script::wiring::{Verbs, placed};
+use crate::board_script::{Scripted, Step, fresh, pin, reply_to, revision};
 use crate::verbs::Agent;
 use serde_json::json;
+use sparksmith_automation::Session;
 use sparksmith_automation::front::NoOne;
-use sparksmith_automation::{Grant, Session};
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-struct Verbs<'a> {
-    session: &'a mut Session,
-    grant: &'a Grant,
-    refused: Vec<String>,
-}
-
-impl Tools for Verbs<'_> {
-    fn call(&mut self, verb: &str, input: &Value) -> Value {
-        let answer = Agent {
-            session: self.session,
-            grant: self.grant,
-            window: None,
-            turn: None,
-            asker: &mut NoOne,
-        }
-        .verb(verb, input.clone());
-        if answer["ok"] != true {
-            self.refused
-                .push(format!("{verb} {input}: {}", answer["error"]));
-        }
-        answer
-    }
-}
 
 /// A build: estimated prompts, characters sent, the session, refused calls.
 /// A scripted build: each request's estimated prompt tokens, its
@@ -214,40 +191,6 @@ fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Falli
     assert!(total(&prompts) < 145_000, "{}", total(&prompts));
     assert!(total_fresh(&fresh) < 21_000, "{}", total_fresh(&fresh));
     Ok(())
-}
-
-/// A fresh project with J1, R1 and D1 placed by the script's first six
-/// steps, and the conversation that placed them.
-fn placed() -> Fallible<(ChatConfig, Session, Vec<Message>)> {
-    let library = ChatLibrary::locate()?;
-    let config = ChatConfig::new(
-        &library,
-        crate::model::ModelProfile::anthropic("claude-opus-5-5"),
-        unbounded(),
-    )?;
-    let mut session = fresh()?;
-    let grant = library.reach.grant();
-    let mut history = Vec::new();
-    let mut model = Scripted::from_steps(steps().into_iter().take(6));
-    let mut tools = Verbs {
-        session: &mut session,
-        grant: &grant,
-        refused: Vec::new(),
-    };
-    let outcome = turn(
-        &config,
-        &mut model,
-        &mut history,
-        vec![Part::text(
-            "Place a 2-pin header, a 4.7k 0603 resistor and a red 0603 LED.",
-        )],
-        &mut tools,
-        &mut |_| {},
-        &AtomicBool::new(false),
-    );
-    assert_eq!(outcome.end, End::Answered);
-    assert!(tools.refused.is_empty(), "{:#?}", tools.refused);
-    Ok((config, session, history))
 }
 
 /// Earlier turns of a long conversation: `n` messages that each read a

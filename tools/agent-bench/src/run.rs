@@ -155,12 +155,13 @@ pub fn run_with_prompt(
     );
     io_result?;
     if start.is_none() {
-        // The board-build goal ends at checking the in-memory board.
+        // Build and wiring goals end with the in-memory design.
         sparksmith_io::write_project(&path, &session.engine().to_file())?;
     }
     let metrics = std::mem::take(&mut *trace.metrics.borrow_mut());
 
-    let verification = task.expected.verify(start, &path);
+    let initial = task.start.as_deref().unwrap_or(&generated_start);
+    let verification = task.expected.verify(Some(initial), &path);
     let artifact_verified = verification.is_ok();
     let verification_reason = verification.as_ref().err().map(ToString::to_string);
     let status = (|| -> Result<()> {

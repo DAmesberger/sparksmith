@@ -31,7 +31,11 @@ pub struct Repair {
     pub finding: sparksmith_core::diagnostics::FindingCode,
 }
 
+mod wiring;
+pub use wiring::Wiring;
+
 pub enum Expected {
+    Wiring(Wiring),
     Repair(Repair),
     Change(Change),
     Build(Build),
@@ -83,6 +87,17 @@ impl Expected {
         match self {
             Self::Repair(spec) => {
                 spec.verify(start.ok_or("missing seeded repair board")?, saved, &engine)?
+            }
+            Self::Wiring(spec) => {
+                let before =
+                    sparksmith_io::read_project(start.ok_or("missing placed subcircuit")?)?;
+                require(
+                    project.instances == before.project.instances
+                        && project.occurrences == before.project.occurrences
+                        && project.placements == before.project.placements,
+                    "wiring changed the components or their placements",
+                )?;
+                spec.verify(project)?;
             }
             Self::Change(spec) => {
                 let before = sparksmith_io::read_project(start.ok_or("missing starting board")?)?;

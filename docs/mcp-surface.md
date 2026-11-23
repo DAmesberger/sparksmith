@@ -531,3 +531,5 @@ Slice S3 of the [extension ABI design](design/extension-abi-design.md#51-slices)
 **SDK:**
 - `rmcp` 3.9.0 README (MRTR, `RequestStateCodec`, subscriptions, tasks): https://github.com/modelcontextprotocol/rust-sdk/blob/rmcp-v3.9.0/README.md
 - crates.io: https://crates.io/crates/rmcp
+
+The read-only `schematic.check_intent` query compares each named net with its complete intended list of `{instance, terminal}` pairs from `schematic.pins`. Its result lists missing, extra and wrongly assigned pins. When a complete correction is available, pass its `operations` to one `apply` at the returned `revision`. An already matching intent needs no edit. A blocked correction identifies the conflict and returns an empty operation list.

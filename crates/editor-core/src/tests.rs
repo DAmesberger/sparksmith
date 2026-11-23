@@ -23,6 +23,7 @@ mod mask_colour_rules;
 mod mechanical;
 mod named_merges;
 mod net_classes;
+mod net_intent;
 mod orientation;
 mod part_authoring;
 mod parts;

@@ -1,4 +1,6 @@
 //! Shared offline model scripts for the developer bench and chat regression tests.
+pub mod wiring;
+
 use crate::Result;
 use crate::model::{Message, ModelBackend, ModelReply, ModelRequest, Part, StopReason};
 use crate::usage::Usage;

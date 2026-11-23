@@ -113,7 +113,7 @@ impl Ceilings {
     }
 }
 
-const SCENARIOS: &[&str] = &["board-build", "two-header", "drc-fix"];
+const SCENARIOS: &[&str] = &["board-build", "two-header", "drc-fix", "subcircuit-wiring"];
 
 struct Task {
     mark: WorkflowMark,
@@ -142,9 +142,17 @@ impl Task {
             Ok(bytes)
         };
         let spec: Spec = serde_json::from_slice(&read("task.json")?)?;
-        let goal = String::from_utf8(read("goal.txt")?)?;
+        let mut goal = String::from_utf8(read("goal.txt")?)?;
         let expected = read("expected.json")?;
         let (expected, start, initial) = match name {
+            "subcircuit-wiring" => {
+                let (_, session, _) = board_script::wiring::placed()?;
+                (
+                    verify::Expected::Wiring(serde_json::from_slice(&expected)?),
+                    None,
+                    session.engine().to_file(),
+                )
+            }
             "board-build" => {
                 #[derive(Deserialize)]
                 #[serde(deny_unknown_fields)]
@@ -199,6 +207,10 @@ impl Task {
                 )
             }
         };
+        if let verify::Expected::Wiring(wiring) = &expected {
+            goal.push('\n');
+            goal.push_str(&serde_json::to_string(&wiring.nets)?);
+        }
         // A change to the shipped blank board or selected profile invalidates older recordings.
         hash.update(b"starting-document\0");
         hash.update(Sha256::digest(serde_json::to_vec(&initial)?));
@@ -239,10 +251,11 @@ impl Task {
         Ok(Session::fixture(engine))
     }
     fn scripted(&self) -> Scripted {
-        match self.expected {
+        match &self.expected {
+            verify::Expected::Wiring(spec) => board_script::wiring::wire(spec.nets.clone()),
             verify::Expected::Build(_) => Scripted::board_build(),
             verify::Expected::Change(_) => Scripted::two_header(),
-            verify::Expected::Repair(ref spec) => Scripted::drc_fix(spec.finding, false),
+            verify::Expected::Repair(spec) => Scripted::drc_fix(spec.finding, false),
         }
     }
 }
@@ -342,7 +355,10 @@ fn measure(dir: &Path) -> Result<()> {
         else {
             return Err(format!("{name}: incomplete or unsuccessful scripted run").into());
         };
-        let path_size = if !matches!(task.expected, verify::Expected::Build(_)) {
+        let path_size = if matches!(
+            task.expected,
+            verify::Expected::Change(_) | verify::Expected::Repair(_)
+        ) {
             Some(PathSize::of(
                 &arm.canonicalize()?.join("revised.sparksmith"),
             )?)
@@ -524,3 +540,6 @@ mod tests {
         assert!(limits.check(&m, Path::new("unneeded")).is_err());
     }
 }
+
+#[cfg(test)]
+mod wiring_tests;

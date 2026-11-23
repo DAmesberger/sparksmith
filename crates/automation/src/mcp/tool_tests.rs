@@ -1209,3 +1209,82 @@ fn describe_refuses_unknown_detail() -> Fallible<()> {
     assert!(failed && error.to_string().contains("typo"), "{error}");
     Ok(())
 }
+
+#[test]
+fn wiring_intent_returns_a_revision_bound_apply_through_the_six_verbs() -> Fallible<()> {
+    let tools = super::testing::Tools::new(
+        Session::new(sparksmith_core::Engine::demo()?),
+        Grant::new(Mode::AutoAllowEdits, []),
+    )?;
+    let read = tools.ok(
+        QUERY,
+        json!({"name":"schematic.pins","params":{"designators":["R1","R2"]}}),
+    )?;
+    let parts = read["result"].as_array().ok_or("missing parts")?;
+    // The demo already joins R1.2 to R2.1. Connect its two outer ends and
+    // retain the original inner net. All IDs come from the one pin read.
+    let before = tools
+        .with_session(|s| {
+            s.engine()
+                .project()
+                .nets
+                .iter()
+                .find(|net| net.terminals.len() == 2)
+                .cloned()
+        })
+        .flatten()
+        .ok_or("no joined inner net")?;
+    let mut outer = Vec::new();
+    for (part, terminal) in parts.iter().zip([1, 2]) {
+        let row = part["pins"]
+            .as_array()
+            .and_then(|rows| rows.iter().find(|row| row[0] == terminal))
+            .ok_or("demo pin")?;
+        outer.push(json!({"instance":part["instance"],"terminal":row[0]}));
+    }
+    assert_eq!(outer.len(), 2);
+    let plan = tools.ok(
+        QUERY,
+        json!({"name":"schematic.check_intent","params":{"nets":{"RETURN": outer}}}),
+    )?;
+    assert_eq!(plan["report"], "net_intent");
+    assert_eq!(plan["revision"], read["revision"]);
+    assert!(plan["result"].get("blocked").is_none(), "{plan}");
+    assert_eq!(
+        plan["result"]["operations"].as_array().map(Vec::len),
+        Some(2)
+    );
+    tools.ok(
+        APPLY,
+        json!({"expected_revision":plan["revision"],"operations":plan["result"]["operations"]}),
+    )?;
+    let expected: std::collections::BTreeSet<sparksmith_core::Endpoint> =
+        serde_json::from_value(json!(outer))?;
+    let members = tools
+        .with_session(|s| {
+            s.engine()
+                .project()
+                .nets
+                .iter()
+                .find(|net| net.name == "RETURN")
+                .map(|n| n.terminals.clone())
+        })
+        .flatten()
+        .ok_or("no RETURN")?;
+    assert_eq!(
+        members
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>(),
+        expected
+    );
+    let inner_id = before.id;
+    let inner_after = tools
+        .with_session(move |s| s.engine().project().net(inner_id).cloned())
+        .flatten();
+    assert_eq!(inner_after, Some(before));
+    assert_eq!(
+        tools.revision(),
+        read["revision"].as_u64().ok_or("read revision")? + 1
+    );
+    Ok(())
+}
