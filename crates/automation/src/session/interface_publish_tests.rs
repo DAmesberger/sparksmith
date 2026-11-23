@@ -823,3 +823,92 @@ fn first_and_repeat_publications_keep_the_final_name_without_scratch_files() -> 
     }
     Ok(())
 }
+
+/// The token of `session`'s preview of publishing at `path`.
+fn preview_token(session: &mut Session, path: &Path) -> TestResult<Value> {
+    Ok(ok(
+        session,
+        json!({"command": "interface.publish_preview", "params": {
+            "path": path.display().to_string(), "tier": "interface"}}),
+    )?["token"]
+        .clone())
+}
+
+/// Publish at `path` with `token`: the raw reply.
+fn publish_with(session: &mut Session, path: &Path, token: &Value) -> Value {
+    let revision = session.engine().revision();
+    session.dispatch(json!({"command": "interface.publish", "params": {
+        "path": path.display().to_string(), "tier": "interface",
+        "expected_revision": revision, "token": token}}))
+}
+
+/// A preview's token approves publishing exactly what it previewed, where
+/// it previewed it (review §18): not the same files copied to another
+/// folder, and not another board at the same revision of the same lineage.
+#[test]
+fn a_preview_token_binds_its_destination_and_its_candidate() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let reviewed = dir.path().join("reviewed");
+    let backup = dir.path().join("backup");
+    std::fs::create_dir_all(&reviewed)?;
+    std::fs::create_dir_all(&backup)?;
+    let design = reviewed.join("board.solidcraft");
+    let copy = backup.join("board.solidcraft");
+    let mut session = open(dir.path())?;
+    publish(&mut session, &design, "interface")?;
+    for path in [
+        design.clone(),
+        sparksmith_io::interface::sidecar_path(&design),
+    ] {
+        let name = path.file_name().ok_or("file name")?;
+        std::fs::copy(&path, backup.join(name))?;
+    }
+    move_j1(&mut session, 2.0)?;
+    let token = preview_token(&mut session, &design)?;
+    assert_eq!(
+        token,
+        preview_token(&mut session, &design)?,
+        "the same preview twice gives the same token"
+    );
+    let before = (
+        std::fs::read(&copy)?,
+        std::fs::read(sparksmith_io::interface::sidecar_path(&copy))?,
+    );
+    let reply = publish_with(&mut session, &copy, &token);
+    assert_eq!(reply["ok"], false, "another destination: {reply}");
+    assert!(
+        reply.to_string().contains("interface.preview_changed"),
+        "{reply}"
+    );
+    assert_eq!(
+        (
+            std::fs::read(&copy)?,
+            std::fs::read(sparksmith_io::interface::sidecar_path(&copy))?
+        ),
+        before,
+        "nothing was written at the other destination"
+    );
+
+    // Two copies of one board at the same revision, edited differently.
+    let mut narrow = Session::new(session.engine().fork());
+    let mut wide = Session::new(session.engine().fork());
+    // J1 back by 1 mm in one and by 2 mm (where it was) in the other.
+    move_j1(&mut narrow, -1.0)?;
+    move_j1(&mut wide, -2.0)?;
+    assert_eq!(narrow.engine().revision(), wide.engine().revision());
+    let narrow_token = preview_token(&mut narrow, &design)?;
+    let wide_token = preview_token(&mut wide, &design)?;
+    assert_ne!(narrow_token, wide_token, "different candidates");
+    let published = std::fs::read(&design)?;
+    let reply = publish_with(&mut wide, &design, &narrow_token);
+    assert_eq!(reply["ok"], false, "another candidate: {reply}");
+    assert!(
+        reply.to_string().contains("interface.preview_changed"),
+        "{reply}"
+    );
+    assert_eq!(std::fs::read(&design)?, published);
+    // Each publishes with its own preview's token.
+    let reply = publish_with(&mut wide, &design, &wide_token);
+    assert_eq!(reply["ok"], true, "{reply}");
+    Ok(())
+}

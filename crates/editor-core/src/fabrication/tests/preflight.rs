@@ -350,3 +350,64 @@ fn an_unplaced_part_cannot_be_waived() -> Fallible<()> {
     );
     Ok(())
 }
+
+/// Each assembled side needs its own fiducials, so each side's shortfall is
+/// its own finding with its own waiver: waiving the top side's leaves the
+/// bottom side's in production and in Issues.
+#[test]
+fn each_sides_fiducial_shortfall_has_its_own_waiver() -> Fallible<()> {
+    let mut engine = Engine::showcase()?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(crate::rules::RulesCommand::SetOverride {
+            key: crate::rules::RuleKey::FiducialCountMin,
+            value: crate::rules::RuleValue::Count(64),
+        }),
+    )?;
+    let short = |engine: &Engine| -> Fallible<Vec<_>> {
+        Ok(report(engine)?
+            .items
+            .into_iter()
+            .filter(|i| i.code == crate::layout::fiducial::TOO_FEW)
+            .collect())
+    };
+    let sides = short(&engine)?;
+    assert_eq!(
+        sides.len(),
+        2,
+        "the showcase assembles both sides: {sides:?}"
+    );
+    assert_ne!(sides[0].key, sides[1].key, "each side is its own finding");
+    let top = sides
+        .iter()
+        .find(|i| i.title.contains("top"))
+        .ok_or("the top side's finding")?;
+    let bottom_key = sides
+        .iter()
+        .find(|i| i.title.contains("bottom"))
+        .ok_or("the bottom side's finding")?
+        .key
+        .clone();
+    waive(&mut engine, top.key.clone())?;
+    let after = short(&engine)?;
+    assert!(
+        after
+            .iter()
+            .any(|i| i.key == bottom_key && i.waiver.is_none()),
+        "the bottom side is still unwaived: {after:?}"
+    );
+    let issues = issues::report(
+        engine.project(),
+        engine.drafts(),
+        &IssueScope::All,
+        engine.check_settings(),
+    )?;
+    let remaining: Vec<_> = issues
+        .rows
+        .iter()
+        .filter(|r| r.finding.code == crate::layout::fiducial::TOO_FEW)
+        .collect();
+    assert_eq!(remaining.len(), 1, "Issues keeps the bottom side's");
+    assert!(remaining[0].finding.message.contains("bottom"));
+    Ok(())
+}

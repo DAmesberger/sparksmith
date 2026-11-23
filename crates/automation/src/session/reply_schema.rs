@@ -234,5 +234,27 @@ fn build(construct: impl FnOnce(&mut Builder) -> Value) -> Value {
             root["$defs"] = Value::Object(defs);
         }
     }
+    open(&mut root);
     root
+}
+
+/// A reply's objects are open (docs/extension-surface.md, "Replies"): a
+/// consumer ignores fields it does not know, so a new optional reply field
+/// is additive. The stored types refuse unknown fields when a file is read
+/// (`deny_unknown_fields`); that is the file format's rule, not the reply
+/// contract's, so it is dropped from every reply schema here. Parameter
+/// schemas stay strict.
+pub(super) fn open(schema: &mut Value) {
+    match schema {
+        Value::Object(object) => {
+            if object.get("additionalProperties") == Some(&Value::Bool(false)) {
+                object.remove("additionalProperties");
+            }
+            for value in object.values_mut() {
+                open(value);
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(open),
+        _ => {}
+    }
 }

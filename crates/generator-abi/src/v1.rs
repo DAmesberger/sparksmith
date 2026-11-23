@@ -760,6 +760,22 @@ pub struct Terminal {
     /// a driving direction may give one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drive: Option<Drive>,
+    /// A pin the device says is not connected or reserved: it has no
+    /// function, is never wired and needs no project decision (the host's
+    /// device NC and reserved terminals); its `direction` is ignored. Left
+    /// out for an electrical terminal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unconnected: Option<Unconnected>,
+}
+
+/// A pin the device declares without a function.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Unconnected {
+    /// Not connected inside the device (a datasheet's NC).
+    NotConnected,
+    /// Reserved by the device: left unconnected as the datasheet says.
+    Reserved,
 }
 
 /// A driving terminal's drive other than push-pull.

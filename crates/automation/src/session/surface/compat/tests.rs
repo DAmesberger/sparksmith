@@ -272,3 +272,75 @@ fn a_break_names_its_place() {
         outcome.reasons
     );
 }
+
+/// A reply as published: its objects opened (`reply_schema::open`), as a
+/// stored type with `deny_unknown_fields` is.
+fn reply(schema: Value) -> Value {
+    let mut schema = schema;
+    crate::session::reply_schema::open(&mut schema);
+    form(schema)
+}
+
+fn classify_reply(old: &Value, new: &Value) -> Outcome {
+    super::classify_reply(&old["schema"], &Defs::new(), &new["schema"], &Defs::new())
+}
+
+/// A stored instance as a reply embeds it: closed by the file format,
+/// published open.
+fn instance(extra: &[(&str, Value)], required: &[&str]) -> Value {
+    let mut properties = serde_json::Map::new();
+    properties.insert("id".into(), json!({"type": "integer"}));
+    properties.insert("designator".into(), json!({"type": "string"}));
+    for (k, v) in extra {
+        properties.insert((*k).to_owned(), v.clone());
+    }
+    let mut required_all = vec!["id", "designator"];
+    required_all.extend(required);
+    json!({"type": "object", "properties": properties, "required": required_all,
+        "additionalProperties": false})
+}
+
+/// Reply schemas are open objects: a new optional reply field (a stored
+/// type's new skipped-when-default field) is a minor change, though the
+/// stored type itself refuses unknown fields. A new required field, a
+/// removed field and a changed type stay major. Parameters stay strict.
+#[test]
+fn a_new_optional_reply_field_is_minor_and_parameters_stay_strict() {
+    let old = reply(instance(&[], &[]));
+    assert_eq!(
+        reply(instance(&[], &[]))["schema"].get("additionalProperties"),
+        None,
+        "published open"
+    );
+    let flag = json!({"type": "boolean", "default": false});
+    let optional = reply(instance(&[("bom_excluded", flag.clone())], &[]));
+    assert_eq!(classify_reply(&old, &optional).change, Change::Minor);
+    let required = reply(instance(
+        &[("bom_excluded", flag.clone())],
+        &["bom_excluded"],
+    ));
+    assert_eq!(classify_reply(&old, &required).change, Change::Minor);
+    let mut without = instance(&[], &[]);
+    without["properties"]
+        .as_object_mut()
+        .map(|p| p.remove("designator"));
+    without["required"] = json!(["id"]);
+    let removed = reply(without);
+    assert_eq!(classify_reply(&old, &removed).change, Change::Major);
+    let mut retyped = instance(&[], &[]);
+    retyped["properties"]["designator"] = json!({"type": "integer"});
+    assert_eq!(classify_reply(&old, &reply(retyped)).change, Change::Major);
+    // A new required field a reader may now see where a field it relied on
+    // was optional before.
+    let was_optional = reply(instance(&[("bom_excluded", flag.clone())], &[]));
+    let now_dropped = reply(instance(&[], &[]));
+    assert_eq!(
+        classify_reply(&was_optional, &now_dropped).change,
+        Change::Major,
+        "a documented field no longer returned"
+    );
+    // Parameters keep the stored type's closed form.
+    let params_old = form(instance(&[], &[]));
+    let params_new = form(instance(&[("bom_excluded", flag)], &["bom_excluded"]));
+    assert_eq!(classify(&params_old, &params_new).change, Change::Major);
+}

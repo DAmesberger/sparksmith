@@ -139,3 +139,58 @@ fn only_a_power_output_supplies_a_power_net() -> Result<()> {
     assert!(on_net(&engine, net).is_empty());
     Ok(())
 }
+
+/// Review §12: power sourcing is judged by the same matrix as logic drive.
+/// Two power outputs on one net fight (a parallel supply is a deliberate
+/// waiver, so the finding may be waived), a logic output against a rail
+/// fights as against a push-pull driver, and an input strapped to a rail
+/// (an enable) is driven.
+#[test]
+fn power_outputs_are_drivers_in_the_one_matrix() -> Result<()> {
+    use Drive::{OpenDrain as Od, OpenSource as Os, PushPull as Pp};
+    let (engine, net) = pair(power_out(), power_out())?;
+    assert_eq!(on_net(&engine, net), ["erc.power_output_conflict"]);
+    assert!(crate::issues::can_waive("erc.power_output_conflict"));
+    let expected: [(Drive, &str); 3] = [
+        (Pp, "erc.driver_conflict"),
+        (Od, "erc.open_drain_contention"),
+        (Os, "erc.open_source_contention"),
+    ];
+    for (drive, code) in expected {
+        let (engine, net) = pair(power_out(), driver(drive))?;
+        assert_eq!(on_net(&engine, net), [code], "a rail against {drive:?}");
+    }
+    let (engine, net) = pair(input(), power_out())?;
+    assert!(on_net(&engine, net).is_empty(), "{:?}", all_codes(&engine));
+    // Inputs alone are still undriven.
+    let (engine, net) = pair(input(), input())?;
+    assert_eq!(on_net(&engine, net), ["erc.input_only_net"]);
+    Ok(())
+}
+
+/// One part's power outputs on one net (a USB receptacle's paired VBUS
+/// contacts, a load switch's VOUT pins) are one supply, not a fight.
+#[test]
+fn one_parts_power_outputs_are_one_supply() -> Result<()> {
+    let mut engine = Engine::default();
+    let f = component(
+        &mut engine,
+        &Spec {
+            name: "Receptacle",
+            terminals: vec![(1, "VBUS", power_out()), (2, "VBUS", power_out())],
+            units: vec![(1, "A", vec![(1, [-5.0, 0.0]), (2, [5.0, 0.0])])],
+            package: vec![(1, "1"), (2, "2")],
+            mapping: vec![(1, 1), (2, 2)],
+            physical: false,
+        },
+    )?;
+    let (j1, _) = place(&mut engine, &f, "J1", 1, [0.0, 0.0])?;
+    let (j2, _) = place(&mut engine, &f, "J2", 1, [0.0, 30.0])?;
+    connect(&mut engine, ep(j1, 1), ep(j1, 2))?;
+    let net = net_of(&engine, ep(j1, 1))?;
+    assert!(on_net(&engine, net).is_empty(), "{:?}", all_codes(&engine));
+    // A second part's supply on it is two.
+    connect(&mut engine, ep(j2, 1), ep(j1, 1))?;
+    assert_eq!(on_net(&engine, net), ["erc.power_output_conflict"]);
+    Ok(())
+}

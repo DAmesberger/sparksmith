@@ -225,9 +225,7 @@ pub fn rows(project: &Project, convention: &PlacementConvention) -> Result<Vec<P
         let Some(instance) = project.instance(placement.instance) else {
             continue;
         };
-        if !crate::library::mechanical::in_pick_and_place(&project.library, instance.component)
-            || !instances::variants::fitted(project, instance).populated()
-        {
+        if !completeness::assembly(project, instance).placement {
             continue;
         }
         let Some(package) = package_name(project, instance) else {
@@ -408,7 +406,7 @@ pub fn bom_parts_csv(project: &Project) -> Result<String> {
     let mut instances: Vec<&crate::model::ComponentInstance> = project
         .instances
         .iter()
-        .filter(|i| crate::library::mechanical::in_bom(&project.library, i.component))
+        .filter(|i| crate::instances::on_bom(&project.library, i))
         .collect();
     instances.sort_by(|a, b| {
         crate::instances::designator_key(&a.designator)

@@ -1061,3 +1061,271 @@ fn a_part_made_for_one_part_number_is_fitted_with_it_when_placed() -> TestResult
     assert_eq!(parts, 1 + 4);
     Ok(())
 }
+
+/// Review §10: a chip resistor made for part number A, placed, then made
+/// again with B as its only part number. A was the generator's and is
+/// withdrawn: the new revision has only B, the moved placement buys B, a
+/// placement of the old revision still buys A (its exact revision's Part)
+/// and a placement of the new one buys B. A Part a person added is
+/// carried whatever the generator declares.
+#[test]
+fn a_withdrawn_part_number_does_not_follow_a_regenerated_part() -> TestResult {
+    use sparksmith_core::completeness::{PurchasingState, purchasing};
+    let temp = tempfile::tempdir()?;
+    let root = library(temp.path())?;
+    let mut session = session(&root)?;
+    let numbers = |mpn: &str| json!([format!("ExampleCo={mpn}")]);
+    let first = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "chip", "scope": "component", "preset": "resistor-0603",
+            "params": {"part_numbers": numbers("EX-A")}}),
+    );
+    assert_eq!(first["ok"], true, "{first}");
+    let component = first["result"]["outcome"]["report"]["root"].clone();
+    place_made(&mut session, &first)?;
+    let moved = session.engine().project().instances[0].id;
+    // A Part a person added for the same component.
+    let own = call(
+        &mut session,
+        "project.apply",
+        json!({"operation": {"editor": "Library", "operation": {"command": "library.draft_part",
+            "params": {"component": component["id"], "manufacturer": "OtherCo", "mpn": "EX-OWN"}}}}),
+    );
+    assert_eq!(own["ok"], true, "{own}");
+    let draft = session
+        .engine()
+        .drafts()
+        .items
+        .last()
+        .map(|d| d.id)
+        .ok_or("the Part draft")?;
+    let published = call(
+        &mut session,
+        "project.apply",
+        json!({"operation": {"editor": "Library", "operation": {"command": "library.publish",
+            "params": {"drafts": [draft], "close": true}}}}),
+    );
+    assert_eq!(published["ok"], true, "{published}");
+    let again = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "chip", "scope": "component", "preset": "resistor-0603",
+            "params": {"part_numbers": numbers("EX-B"), "length": 1_700_000},
+            "replaces": component}),
+    );
+    assert_eq!(again["ok"], true, "{again}");
+    let update = &again["result"]["update"];
+    let applied = call(
+        &mut session,
+        "project.apply_update",
+        json!({"change": update["change"], "remove_conflicting_tracks": false}),
+    );
+    assert_eq!(applied["ok"], true, "{applied}");
+    let new_root = &again["result"]["outcome"]["report"]["root"];
+    // The new revision's Parts: B and the person's, never A.
+    let project = session.engine().project();
+    let on_new: Vec<&str> = project
+        .library
+        .parts
+        .iter()
+        .filter(|p| {
+            json!(p.definition.component.id) == new_root["id"]
+                && json!(p.definition.component.revision) == new_root["revision"]
+        })
+        .map(|p| p.definition.mpn.as_str())
+        .collect();
+    assert!(
+        on_new.contains(&"EX-B") && on_new.contains(&"EX-OWN"),
+        "{on_new:?}"
+    );
+    assert!(!on_new.contains(&"EX-A"), "A is withdrawn: {on_new:?}");
+    let bought = |session: &Session, id: u64| -> TestResult<(Option<String>, PurchasingState)> {
+        let project = session.engine().project();
+        let instance = project.instance(id).ok_or("instance")?;
+        let q = purchasing(project, instance);
+        Ok((q.mpn.clone(), q.state))
+    };
+    assert_eq!(
+        bought(&session, moved)?,
+        (Some("EX-B".into()), PurchasingState::Resolved),
+        "the moved placement buys B"
+    );
+    // A fresh placement of each revision buys that revision's own Part.
+    place_made(&mut session, &first)?;
+    let old = session.engine().project().instances.last().ok_or("old")?.id;
+    assert_eq!(
+        bought(&session, old)?,
+        (Some("EX-A".into()), PurchasingState::Resolved),
+        "revision 1 still buys A"
+    );
+    place_made(&mut session, &again)?;
+    let fresh = session
+        .engine()
+        .project()
+        .instances
+        .last()
+        .ok_or("fresh")?
+        .id;
+    assert_eq!(
+        bought(&session, fresh)?,
+        (Some("EX-B".into()), PurchasingState::Resolved)
+    );
+    Ok(())
+}
+
+/// Review §9: a pin the datasheet's table calls NC is device NC, not a
+/// passive terminal: the shipped TI DML0010A preset's NC pin cannot be
+/// wired and needs no decision, while its ON input, unconnected but a real
+/// pin, can be wired.
+#[test]
+fn a_generated_nc_pin_is_device_nc_and_refuses_wires() -> TestResult {
+    use sparksmith_core::library::TerminalClass;
+    use sparksmith_core::schematic::{SchematicCommand, WireTarget};
+    let temp = tempfile::tempdir()?;
+    let root = no_lead_library(temp.path())?;
+    let mut session = session(&root)?;
+    let made = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "no-lead", "scope": "component", "preset": "no-lead-ti-dml0010a"}),
+    );
+    assert_eq!(made["ok"], true, "{made}");
+    place_made(&mut session, &made)?;
+    place_made(&mut session, &made)?;
+    let project = session.engine().project();
+    let [u1, u2] = [&project.instances[0], &project.instances[1]];
+    let component = project
+        .library
+        .component(u1.component)
+        .ok_or("the part's component")?;
+    let terminal = |name: &str| {
+        component
+            .definition
+            .terminals
+            .iter()
+            .find(|t| t.name == name)
+            .ok_or(name.to_owned())
+    };
+    let nc = terminal("NC")?;
+    assert_eq!(nc.class, TerminalClass::DeviceNc);
+    let on = terminal("ON")?;
+    assert!(on.is_electrical());
+    let endpoint = |instance: u64, terminal: u32| sparksmith_core::Endpoint {
+        instance,
+        terminal: sparksmith_core::ids::TerminalId(terminal),
+    };
+    let (u1, u2, nc, on) = (u1.id, u2.id, nc.id.0, on.id.0);
+    let connect = |session: &mut Session, a, b| {
+        let operation = sparksmith_core::Operation::Schematic(SchematicCommand::Connect {
+            from: WireTarget::from(a),
+            to: WireTarget::from(b),
+        });
+        call(
+            session,
+            "project.apply",
+            json!({"operation": serde_json::to_value(operation).unwrap_or_default()}),
+        )
+    };
+    // U2 well away from U1, so a wire between them runs over nothing.
+    let occurrence = session
+        .engine()
+        .project()
+        .occurrences
+        .iter()
+        .find(|o| o.instance == u2)
+        .map(|o| o.id)
+        .ok_or("U2's symbol")?;
+    let away = sparksmith_core::Operation::Schematic(SchematicCommand::MoveUnit {
+        occurrence,
+        position: sparksmith_core::units::PointNm::from_mm_f64_rounded([150.0, 150.0])?,
+    });
+    let moved = call(
+        &mut session,
+        "project.apply",
+        json!({"operation": serde_json::to_value(away)?}),
+    );
+    assert_eq!(moved["ok"], true, "{moved}");
+    let revision = session.engine().revision();
+    let refused = connect(&mut session, endpoint(u1, nc), endpoint(u2, on));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert_eq!(session.engine().revision(), revision, "nothing changed");
+    let wired = connect(&mut session, endpoint(u1, on), endpoint(u2, on));
+    assert_eq!(wired["ok"], true, "{wired}");
+    Ok(())
+}
+
+/// Review §9 (8dea4ac3 recheck): all fourteen pins the shipped presets'
+/// datasheet tables call NC (eight of the ESP32-S31-WROOM-3, one of the TI
+/// DML0010A, five of the TI RXB0014A) are device NC, and a wire to each is
+/// refused.
+#[test]
+fn every_nc_pin_of_the_shipped_presets_refuses_a_wire() -> TestResult {
+    use sparksmith_core::library::TerminalClass;
+    use sparksmith_core::schematic::{SchematicCommand, WireTarget};
+    let temp = tempfile::tempdir()?;
+    let root = temp.path().join("library");
+    std::fs::create_dir_all(root.join("generators"))?;
+    std::fs::write(root.join(MARKER), "{\"format\":1}\n")?;
+    for name in ["module", "no-lead"] {
+        copy_dir(
+            &Path::new(BUNDLE).join(format!("../{name}")),
+            &root.join(format!("generators/{name}")),
+        )?;
+    }
+    let mut session = session(&root)?;
+    let mut refused = 0;
+    for (generator, preset, count) in [
+        ("module", "module-esp32-s31-wroom-3", 8),
+        ("no-lead", "no-lead-ti-dml0010a", 1),
+        ("no-lead", "no-lead-ti-rxb0014a", 5),
+    ] {
+        let made = call(
+            &mut session,
+            "library.generate_part",
+            json!({"generator": generator, "scope": "component", "preset": preset}),
+        );
+        assert_eq!(made["ok"], true, "{made}");
+        place_made(&mut session, &made)?;
+        let project = session.engine().project();
+        let placed = project.instances.last().ok_or("placed")?;
+        let component = project
+            .library
+            .component(placed.component)
+            .ok_or("component")?;
+        let nc: Vec<u32> = component
+            .definition
+            .terminals
+            .iter()
+            .filter(|t| t.class == TerminalClass::DeviceNc)
+            .map(|t| t.id.0)
+            .collect();
+        assert_eq!(nc.len(), count, "{preset}");
+        let instance = placed.id;
+        for terminal in nc {
+            let at = sparksmith_core::Endpoint {
+                instance,
+                terminal: sparksmith_core::ids::TerminalId(terminal),
+            };
+            let draw = sparksmith_core::Operation::Schematic(SchematicCommand::DrawWire {
+                sheet: None,
+                from: WireTarget::from(at),
+                corners: vec![],
+                to: WireTarget::Free(sparksmith_core::model::FreeEnd {
+                    free: sparksmith_core::units::PointNm::from_mm_f64_rounded([200.0, 200.0])?,
+                }),
+            });
+            let revision = session.engine().revision();
+            let reply = call(
+                &mut session,
+                "project.apply",
+                json!({"operation": serde_json::to_value(draw)?}),
+            );
+            assert_eq!(reply["ok"], false, "{preset} terminal {terminal}: {reply}");
+            assert_eq!(session.engine().revision(), revision);
+            refused += 1;
+        }
+    }
+    assert_eq!(refused, 14);
+    Ok(())
+}

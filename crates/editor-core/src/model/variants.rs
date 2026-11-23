@@ -1,7 +1,7 @@
 //! Assembly variants saved with the design (docs/assembly-variants.md):
 //! data only. The rules (which part a variant fits, whether a substitute
 //! fits the land pattern) live in `instances::variants`.
-use crate::ids::{DefinitionId, Id, PartRef};
+use crate::ids::{ContentHash, DefinitionId, Id, PartRef};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -76,6 +76,29 @@ pub struct SubstituteReview {
     /// resistance was required).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exceptions: Vec<RequirementException>,
+    /// What the person saw when they reviewed: the review stands only while
+    /// these inputs are unchanged (`instances::variants::review_basis`).
+    pub basis: ReviewBasis,
+}
+
+/// Digests of exactly the inputs a substitute review decided on, one per
+/// kind so a review that no longer applies can say what changed. A
+/// changed input voids the decision (Issues reports the substitute as
+/// unreviewed again, naming the change); the stored review stays as it was
+/// until the person reviews again, and undo restores the state it was
+/// made in.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewBasis {
+    /// The component revisions: the instance's and the substitute's.
+    pub component: ContentHash,
+    /// The pad-to-terminal maps: the instance's own binding and footprint
+    /// and the substitute's.
+    pub pins: ContentHash,
+    /// The instance's requirements (each field and its effective value).
+    pub requirements: ContentHash,
+    /// The rated specs: the substitute's and the instance's own Part's.
+    pub ratings: ContentHash,
 }
 
 /// One requirement a substitute is deliberately accepted not to meet.

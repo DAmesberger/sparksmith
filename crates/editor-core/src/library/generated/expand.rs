@@ -294,6 +294,16 @@ fn component_definition(
     binding: BindingRef,
     ids: &mut Ids,
 ) -> Result<ComponentDefinition> {
+    if let Some(t) = component
+        .terminals
+        .iter()
+        .find(|t| t.unconnected.is_some() && (!t.alternates.is_empty() || t.drive.is_some()))
+    {
+        return Err(refused(format!(
+            "generated.terminal: terminal {} is not connected or reserved, so it has no functions to select or drive",
+            t.key
+        )));
+    }
     // Every terminal first, then every function, so a fresh map numbers
     // terminals 1…n and functions n+1…2n.
     let terminal_ids = component
@@ -329,20 +339,24 @@ fn component_definition(
         .map(|((t, (id, function)), alternates)| Terminal {
             id: TerminalId(id),
             name: t.name.clone(),
-            class: TerminalClass::Electrical({
-                let mut functions = TerminalFunctions::with_alternates(
-                    FunctionId(function),
-                    direction(t.direction),
-                    &alternates,
-                );
-                if let (Some(drive), Some(first)) = (t.drive, functions.functions.first_mut()) {
-                    first.drive = match drive {
-                        v1::Drive::OpenDrain => Drive::OpenDrain,
-                        v1::Drive::OpenSource => Drive::OpenSource,
-                    };
-                }
-                functions
-            }),
+            class: match t.unconnected {
+                Some(v1::Unconnected::NotConnected) => TerminalClass::DeviceNc,
+                Some(v1::Unconnected::Reserved) => TerminalClass::Reserved,
+                None => TerminalClass::Electrical({
+                    let mut functions = TerminalFunctions::with_alternates(
+                        FunctionId(function),
+                        direction(t.direction),
+                        &alternates,
+                    );
+                    if let (Some(drive), Some(first)) = (t.drive, functions.functions.first_mut()) {
+                        first.drive = match drive {
+                            v1::Drive::OpenDrain => Drive::OpenDrain,
+                            v1::Drive::OpenSource => Drive::OpenSource,
+                        };
+                    }
+                    functions
+                }),
+            },
         })
         .collect();
     Ok(ComponentDefinition {

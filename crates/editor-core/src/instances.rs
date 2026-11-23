@@ -154,6 +154,22 @@ pub fn resolve_physical<'a>(
     })
 }
 
+/// Whether `instance` is listed on the bill of materials: its component
+/// belongs there (`library::mechanical::in_bom`) and the instance is not
+/// excluded from it. Population is a separate answer.
+pub fn on_bom(library: &Library, instance: &ComponentInstance) -> bool {
+    !instance.bom_excluded && crate::library::mechanical::in_bom(library, instance.component)
+}
+
+/// Whether `instance` belongs in the pick-and-place files when it is
+/// fitted: its component is placed by machine
+/// (`library::mechanical::in_pick_and_place`) and the instance is not
+/// excluded from the position files.
+pub fn in_placement(library: &Library, instance: &ComponentInstance) -> bool {
+    !instance.placement_excluded
+        && crate::library::mechanical::in_pick_and_place(library, instance.component)
+}
+
 /// Whether a terminal of `component` may carry wires or a project no-connect:
 /// it exists and is electrical (not device NC or reserved).
 pub fn wirable(component: &ComponentDefinition, terminal: TerminalId) -> bool {
@@ -740,6 +756,8 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
         text_placements: Default::default(),
         board_only: false,
         population: Default::default(),
+        bom_excluded: false,
+        placement_excluded: false,
     });
     let sheet = request.sheet.unwrap_or_else(|| project.sheets.first());
     let position = request.position.unwrap_or(PointNm::ORIGIN);
@@ -813,6 +831,8 @@ pub fn place_off_sheet(
         text_placements: Default::default(),
         board_only: false,
         population: Default::default(),
+        bom_excluded: false,
+        placement_excluded: false,
     });
     check_instance(project, id)?;
     check_designators(project)?;

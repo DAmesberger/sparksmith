@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "tabbed.wasm",
-    "sha256": "b2bcdb2afa42e7874358588f6162e095507c7b319e0e4bab2b1ccdbbd5667c0f"
+    "sha256": "b5501acbfa28ff64e6638dd0eb7c42a1a7d8f0fb222cfabab24dfe87ec0fc277"
   },
   "name": "tabbed",
   "parts": [

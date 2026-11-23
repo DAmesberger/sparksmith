@@ -21,13 +21,17 @@ use std::path::{Path, PathBuf};
 /// its bytes hash to.
 type Linked = (PathBuf, ContentHash);
 
-/// The token binding a publish to its preview (review finding 12): the
-/// board revision, the tier, the destination's design and sidecar bytes,
-/// and the linked design file's identity and bytes. Anything else about
-/// the request may differ; any of these differing refuses the publish.
+/// The token binding a publish to its preview (review findings 12 and
+/// 18): the board revision, the tier, the candidate the preview showed
+/// (its datum table's hash), where it is published (the destination,
+/// resolved) and that destination's design and sidecar bytes, and the
+/// linked design file's identity and bytes. Anything else about the
+/// request may differ; any of these differing refuses the publish.
 fn publish_token(
     revision: u64,
     tier: Tier,
+    candidate: ContentHash,
+    path: &Path,
     destination: (Option<ContentHash>, Option<ContentHash>),
     linked: Option<&Linked>,
 ) -> Result<String> {
@@ -35,6 +39,8 @@ fn publish_token(
     let bound = json!({
         "revision": revision,
         "tier": tier,
+        "candidate": candidate,
+        "path": resolved(path).to_string_lossy(),
         "design": destination.0,
         "sidecar": destination.1,
         "linked": linked.map(|(path, hash)| json!({
@@ -44,6 +50,21 @@ fn publish_token(
     });
     let digest = Sha256::digest(serde_json::to_vec(&bound)?);
     Ok(format!("publish-{}", ContentHash(digest.into())))
+}
+
+/// `path` with its folder resolved (links and `..` followed), so two
+/// spellings of one destination are one destination; the file itself
+/// need not exist yet.
+fn resolved(path: &Path) -> PathBuf {
+    let folder = match path.parent() {
+        Some(p) if p.as_os_str().is_empty() => Path::new("."),
+        Some(p) => p,
+        None => return path.to_path_buf(),
+    };
+    match (folder.canonicalize(), path.file_name()) {
+        (Ok(folder), Some(name)) => folder.join(name),
+        _ => path.to_path_buf(),
+    }
 }
 
 /// A relative path as the project file keeps it: its parts joined with `/`
@@ -126,9 +147,16 @@ impl Session {
             Some(path) => Some(self.linked_file(path, dry_run_read)?),
             None => None,
         };
+        let destination = params
+            .path
+            .as_deref()
+            .map(Path::new)
+            .unwrap_or(Path::new(""));
         preview.token = Some(publish_token(
             self.engine.revision(),
             preview.tier,
+            preview.hash,
+            destination,
             baseline
                 .as_ref()
                 .map_or((None, None), files::Baseline::identity),
@@ -187,16 +215,23 @@ impl Session {
             Some(path) => Some(self.linked_file(path, None)?),
             None => None,
         };
+        // The candidate's hash is its datum table's, whatever source the
+        // sidecar is stamped with.
+        let project = self.engine.project();
+        let source = project.interface.source_id.unwrap_or_default();
+        let candidate = publish::candidate(project, params.tier, source)?;
         let now = publish_token(
             self.engine.revision(),
             params.tier,
+            candidate.hash,
+            Path::new(&params.path),
             baseline.identity(),
             linked.as_ref(),
         )?;
         if now != token {
             return Err(refuse(
-                "interface.preview_changed: the board, the published files or the linked design \
-                 changed since the preview; preview again",
+                "interface.preview_changed: the board, the destination, the published files or \
+                 the linked design differ from the preview; preview again",
             ));
         }
         Ok(())
@@ -317,6 +352,19 @@ impl Session {
             let checked = super::export_reply(&project, &report, json!({}));
             published["check"] = checked["check"].clone();
         }
+        #[cfg(test)]
+        if let Some(staged) = self
+            .after_interface_stage
+            .lock()
+            .ok()
+            .and_then(|mut hook| hook.take())
+        {
+            staged()?;
+        }
+        // What the preview approved is checked again at installation: the
+        // linked design or the destination may have changed while the
+        // native design was built.
+        self.check_publish_token(params, &files::Publication::open(design)?.baseline()?)?;
         files::put_in_place(design, temporary.path(), &text, &baseline)?;
         Ok((
             Operation::Interface(InterfaceCommand::RecordPublish { source_id, record }),

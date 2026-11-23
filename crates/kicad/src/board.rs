@@ -178,6 +178,13 @@ pub struct Footprint {
     /// names no model). It marks test points, mechanical items and logos,
     /// so it never makes a part not populated.
     pub not_assembled: bool,
+    /// KiCad's "exclude from bill of materials" attribute alone: the part
+    /// is kept off the BOM (`ComponentInstance::bom_excluded`).
+    pub exclude_from_bom: bool,
+    /// KiCad's "exclude from position files" attribute alone: the part is
+    /// kept out of the pick-and-place files
+    /// (`ComponentInstance::placement_excluded`).
+    pub exclude_from_pos: bool,
     /// KiCad's "do not populate" attribute (`dnp`): imported as not
     /// populated, with its body (a variant may fit it).
     pub dnp: bool,
@@ -670,7 +677,9 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                 if has("board_only") {
                     fp.board_only = true;
                 }
-                if has("exclude_from_pos_files") || has("exclude_from_bom") {
+                fp.exclude_from_pos |= has("exclude_from_pos_files");
+                fp.exclude_from_bom |= has("exclude_from_bom");
+                if fp.exclude_from_pos || fp.exclude_from_bom {
                     fp.not_assembled = true;
                 }
                 fp.dnp |= has("dnp");

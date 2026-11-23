@@ -993,8 +993,10 @@ impl PcbEditor {
         *preview = None;
         let params = PublishPreviewParams {
             tier: Some(*tier),
+            // The destination, even before its first publish: the
+            // preview's token binds where it publishes (review §18).
             path: design
-                .filter(|d| d.exists())
+                .filter(|d| d.exists() || d.parent().is_some_and(|f| f.is_dir()))
                 .map(|d| d.to_string_lossy().into_owned().into()),
             assembly_path: linked_design.map(|e| e.to_string_lossy().into_owned().into()),
         };

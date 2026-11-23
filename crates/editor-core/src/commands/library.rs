@@ -677,11 +677,28 @@ fn republished_parts(
 /// `library.publish_with_parts` moves them (nothing matched by name). A
 /// Part this cannot carry is left as it is, and its findings say so.
 /// Publishes nothing when no Part qualifies.
-pub(crate) fn carry_parts(document: &mut Document, component: ComponentRef) -> Result<()> {
+///
+/// `declared` is, for a generated component, the orderable parts its
+/// current generation declares: a Part an earlier generation of the
+/// lineage declared and this one no longer does is withdrawn, so it stays
+/// on the older revision (review §10). Parts a person added are carried
+/// whatever the generator declares.
+pub(crate) fn carry_parts(
+    document: &mut Document,
+    component: ComponentRef,
+    declared: Option<&[(String, String)]>,
+) -> Result<()> {
     let library = &document.project.library;
     let target = library.component(component).ok_or_else(|| {
         Error::NotFound("The component revision to carry Parts to is not published.".into())
     })?;
+    let owned = declared
+        .map(|_| library::generated::owned_orderables(library, component.id))
+        .unwrap_or_default();
+    let withdrawn = |part: &library::PartDefinition| {
+        let key = (part.manufacturer.clone(), part.mpn.clone());
+        declared.is_some_and(|now| owned.contains(&key) && !now.contains(&key))
+    };
     let mut staged = (*document.drafts).clone();
     let mut ids = Vec::new();
     for part in library.latest_parts() {
@@ -689,6 +706,7 @@ pub(crate) fn carry_parts(document: &mut Document, component: ComponentRef) -> R
         if pinned.id != component.id
             || pinned.revision >= component.revision
             || staged.get(part.id).is_some()
+            || withdrawn(&part.definition)
         {
             continue;
         }

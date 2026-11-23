@@ -13,7 +13,7 @@ use crate::board::{self, Board, Footprint};
 use crate::population::Why;
 use crate::report::{Case, Report};
 use crate::translate::{self, DefPad, Mapped};
-use sparksmith_core::functions::{Direction, TerminalFunctions};
+use sparksmith_core::functions::{Direction, Drive, TerminalFunctions};
 use sparksmith_core::geometry::Bounds;
 use sparksmith_core::instances::variants::VariantCommand;
 use sparksmith_core::layout::LayoutCommand;
@@ -283,6 +283,11 @@ pub fn import_with_models(
     // equal pads and symbol share a definition. Distinct KiCad footprints
     // never do, however alike their pads: identity is never inferred from
     // geometry.
+    // A board without nets says nothing by a footprint's pads having none.
+    let board_nets = board
+        .footprints
+        .iter()
+        .any(|fp| fp.pads.iter().any(|p| p.net.is_some()));
     let mut definitions: Vec<SourceDefinition> = Vec::new();
     let mut by_key: BTreeMap<String, usize> = BTreeMap::new();
     let mut uses: Vec<usize> = Vec::with_capacity(board.footprints.len());
@@ -326,6 +331,10 @@ pub fn import_with_models(
         let value = values.get(n).cloned().flatten();
         let part = part_numbers.get(n).cloned().unwrap_or_default();
         key.push_str(&format!("\0{:?}\0{:?}", part.mpn, value));
+        // Whether it needs a body is the copy's own (an excluded copy
+        // without a model has none, an ordinary one does), so copies that
+        // differ there never share a definition, in any source order.
+        key.push_str(&format!("\0{:?}", crate::models::no_body(fp, board_nets)));
         let next = definitions.len();
         let index = *by_key.entry(key).or_insert(next);
         if index == next {
@@ -361,11 +370,6 @@ pub fn import_with_models(
     report.add_n(Case::ProjectOnly, definitions.len());
     let mut sets: Vec<Set> = Vec::with_capacity(definitions.len());
     let mut names_taken: BTreeMap<String, usize> = BTreeMap::new();
-    // A board without nets says nothing by a footprint's pads having none.
-    let board_nets = board
-        .footprints
-        .iter()
-        .any(|fp| fp.pads.iter().any(|p| p.net.is_some()));
     for (k, definition) in definitions.into_iter().enumerate() {
         let SourceDefinition {
             pads,
@@ -398,6 +402,11 @@ pub fn import_with_models(
             .filter(|(_, u)| **u == k)
             .map(|(n, _)| n.clone())
             .collect();
+        if let (Some(lib), Some(fp)) = (&symbol, first) {
+            for (number, kind) in kept_pin_types(lib) {
+                report.add_detail(Case::PinTypeKept, &fp.reference, &number, &kind);
+            }
+        }
         let no_body = first.and_then(|fp| crate::models::no_body(fp, board_nets));
         let outcome = match (models.as_deref_mut(), first) {
             (Some(provider), Some(fp)) if no_body.is_none() => Some(
@@ -657,6 +666,25 @@ pub fn import_with_models(
             })],
         )?;
     }
+    // BOM and position-file exclusions, each the copy's own.
+    for (bom, placement) in [(true, false), (false, true)] {
+        let excluded: Vec<_> = placed
+            .iter()
+            .zip(&instances)
+            .filter(|(fp, _)| (bom && fp.exclude_from_bom) || (placement && fp.exclude_from_pos))
+            .map(|(_, instance)| *instance)
+            .collect();
+        if !excluded.is_empty() {
+            session.batches(
+                "variant.set_exclusions",
+                vec![Operation::Variant(VariantCommand::SetExclusions {
+                    instances: excluded,
+                    bom: bom.then_some(true),
+                    placement: placement.then_some(true),
+                })],
+            )?;
+        }
+    }
     // Every unit turned as KiCad turns it; the other units placed.
     if plan.is_some() {
         crate::sheets::units(
@@ -677,6 +705,7 @@ pub fn import_with_models(
             plan,
             &by_reference,
             &schematic_values,
+            &schematic_not_fitted,
             &mut names_taken,
             &mut report,
         )?;
@@ -829,6 +858,7 @@ fn schematic_only(
     plan: &crate::sheets::Plan,
     symbols: &BTreeMap<String, crate::schematic::LibSymbol>,
     values: &BTreeMap<String, String>,
+    not_fitted: &BTreeMap<String, Why>,
     names_taken: &mut BTreeMap<String, usize>,
     report: &mut Report,
 ) -> Result<(), ImportError> {
@@ -856,6 +886,9 @@ fn schematic_only(
                 let naming = definition_name(lib_id, names_taken.len(), names_taken);
                 let made =
                     session.symbol_only_set(&naming.name, lib_id, &prefix_of(reference), lib)?;
+                for (number, kind) in kept_pin_types(lib) {
+                    report.add_detail(Case::PinTypeKept, reference, &number, &kind);
+                }
                 parts.insert(lib_id.clone(), made);
                 made
             }
@@ -889,6 +922,7 @@ fn schematic_only(
         let first = crate::sheets::UnitPlace { unit, ..*first };
         pending.push((reference.clone(), component, key, first, later));
     }
+    let mut unfitted = Vec::new();
     let mut instances = Vec::with_capacity(place.len());
     let mut occurrences = Vec::with_capacity(place.len());
     let mut firsts = Vec::with_capacity(place.len());
@@ -910,13 +944,43 @@ fn schematic_only(
             });
         };
         report.add_detail(Case::SymbolWithoutFootprint, &reference, "", "");
-        if let Some(value) = values.get(key).and_then(|v| value_text(v)) {
+        // Population is the part's own, with or without a footprint: the
+        // do-not-populate attribute, or a not-fitted marker taken out of
+        // the value, as for a part the board has.
+        let value = values.get(key).and_then(|v| value_text(v));
+        let (value, marker) = match value.as_deref().map(crate::population::split_marker) {
+            Some(Some(rest)) => ((!rest.is_empty()).then_some(rest), Some(Why::MarkerValue)),
+            _ => (value, None),
+        };
+        if let Some(value) = value {
             crate::values::set(session, instance, component, &value, report)?;
+        }
+        if let Some(why) = not_fitted
+            .get(&reference.to_ascii_uppercase())
+            .copied()
+            .or(marker)
+        {
+            let case = match why {
+                Why::MarkerValue => Case::NotPopulatedMarker,
+                Why::DoNotPopulate => Case::NotPopulatedAttribute,
+            };
+            report.add_detail(case, &reference, "", why.text());
+            unfitted.push(instance);
         }
         instances.push(instance);
         occurrences.push(Some(occurrence));
         firsts.push(Some(first));
         laters.push(later);
+    }
+    if !unfitted.is_empty() {
+        session.batches(
+            "variant.set_population",
+            vec![Operation::Variant(VariantCommand::SetPopulation {
+                instances: unfitted,
+                variant: None,
+                population: Some(Population::NotPopulated),
+            })],
+        )?;
     }
     crate::sheets::units(session, &instances, &occurrences, &firsts, &laters, report);
     Ok(())
@@ -1562,7 +1626,7 @@ impl Session<'_> {
         let symbol_body = crate::sheets::kicad_symbol(component, lib, &named, &mut unpinned)
             .map_err(|e| refused(e.to_string()))?;
         let units = u32::try_from(symbol_body.units.len()).unwrap_or(1);
-        let mut body = component_body(prefix, &named, symbol, None);
+        let mut body = component_body(prefix, &named, symbol, None, Some(lib));
         if let Some(value) = self.part_value_selection()? {
             body.fields = vec![value];
         }
@@ -1779,13 +1843,62 @@ fn definition_name(lib_id: &str, k: usize, taken: &mut BTreeMap<String, usize>) 
     }
 }
 
-/// An imported component: passive terminals `named`, drawn by `symbol`,
-/// implemented by `binding` (none for a part the board does not have).
+/// The core functions of a KiCad pin's electrical type (KiCad's public
+/// file-format documentation names them), when it has an equivalent: the
+/// direction and, for an open collector or emitter, the drive. `None` for
+/// a type the core has no equivalent of (`tri_state`), and for a pin with
+/// no type to keep (`passive`, `unspecified`, `free`, `no_connect`, whose
+/// joining the netlist reads), which stay passive.
+pub(crate) fn pin_direction(kind: &str) -> Option<(Direction, Option<Drive>)> {
+    Some(match kind {
+        "input" => (Direction::Input, None),
+        "output" => (Direction::Output, None),
+        "bidirectional" => (Direction::Bidirectional, None),
+        "power_in" => (Direction::PowerInput, None),
+        "power_out" => (Direction::PowerOutput, None),
+        "open_collector" => (Direction::Output, Some(Drive::OpenDrain)),
+        "open_emitter" => (Direction::Output, Some(Drive::OpenSource)),
+        _ => return None,
+    })
+}
+
+/// KiCad pin types with no core equivalent: imported passive and named in
+/// the report ([`Case::PinTypeKept`]).
+pub(crate) const UNSUPPORTED_PIN_TYPES: &[&str] = &["tri_state"];
+
+/// The electrical type `lib` declares for the pin numbered `number`: its
+/// first pin of that number.
+fn pin_kind<'a>(lib: Option<&'a crate::schematic::LibSymbol>, number: &str) -> Option<&'a str> {
+    lib?.pins
+        .iter()
+        .find(|p| p.number == number)
+        .map(|p| p.electrical.as_str())
+}
+
+/// Each pin of `lib` whose type is kept as passive for want of an
+/// equivalent: its number and type.
+pub(crate) fn kept_pin_types(lib: &crate::schematic::LibSymbol) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for pin in &lib.pins {
+        if UNSUPPORTED_PIN_TYPES.contains(&pin.electrical.as_str())
+            && !out.iter().any(|(n, _)| *n == pin.number)
+        {
+            out.push((pin.number.clone(), pin.electrical.clone()));
+        }
+    }
+    out
+}
+
+/// An imported component: terminals `named` (each by its pin or pad
+/// number), each with the functions its KiCad pin's type has in `lib`
+/// (passive without one), drawn by `symbol`, implemented by `binding`
+/// (none for a part the board does not have).
 fn component_body(
     prefix: &str,
     named: &[(TerminalId, &str)],
     symbol: DefinitionId,
     binding: Option<DefinitionId>,
+    lib: Option<&crate::schematic::LibSymbol>,
 ) -> ComponentDefinition {
     let count = u32::try_from(named.len()).unwrap_or(u32::MAX);
     ComponentDefinition {
@@ -1798,13 +1911,20 @@ fn component_body(
         designator_prefix: prefix.into(),
         terminals: named
             .iter()
-            .map(|(id, name)| Terminal {
-                id: *id,
-                name: (*name).to_owned(),
-                class: TerminalClass::Electrical(TerminalFunctions::fixed(
-                    FunctionId(id.0.saturating_add(count)),
-                    Direction::Passive,
-                )),
+            .map(|(id, name)| {
+                let (direction, drive) = pin_kind(lib, name)
+                    .and_then(pin_direction)
+                    .unwrap_or((Direction::Passive, None));
+                let mut functions =
+                    TerminalFunctions::fixed(FunctionId(id.0.saturating_add(count)), direction);
+                if let (Some(drive), Some(first)) = (drive, functions.functions.first_mut()) {
+                    first.drive = drive;
+                }
+                Terminal {
+                    id: *id,
+                    name: (*name).to_owned(),
+                    class: TerminalClass::Electrical(functions),
+                }
             })
             .collect(),
         resources: vec![],
@@ -1887,6 +2007,7 @@ fn drafts(
                 &named,
                 symbol,
                 Some(binding),
+                kicad_symbol,
             )),
         },
         DraftEdit {

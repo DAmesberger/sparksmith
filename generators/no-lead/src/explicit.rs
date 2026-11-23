@@ -525,6 +525,7 @@ pub fn generate(request: &Request, args: &Args<'_>) -> Result<Generation, Vec<Pr
                     direction: Direction::Passive,
                     alternates: Vec::new(),
                     drive: None,
+                    unconnected: None,
                 })
                 .collect(),
             prefix: "U".into(),
