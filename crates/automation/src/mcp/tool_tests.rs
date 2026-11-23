@@ -741,10 +741,10 @@ fn interleaved_reads_cannot_redirect_an_edit_or_save() -> Fallible<()> {
     let other = dir.path().join("other.sparksmith");
     block_on(async move {
         let c = Connection::open(Mode::AllowAll, dir.path()).await?;
-        let first = c.ok(QUERY, json!({"name": "project.inspect"})).await?;
+        let seed = c.ok(QUERY, json!({"name": "project.inspect"})).await?;
         c.ok(
             APPLY,
-            json!({"expected_revision": revision(&first)?, "operations": [board_size([49.0, 27.0])]}),
+            json!({"expected_revision": revision(&seed)?, "operations": [board_size([49.0, 27.0])]}),
         )
         .await?;
         c.ok(
@@ -752,19 +752,16 @@ fn interleaved_reads_cannot_redirect_an_edit_or_save() -> Fallible<()> {
             json!({"name": "project.save", "params": {"path": path}}),
         )
         .await?;
-        let b = c
-            .ok(
-                ACT,
-                json!({"name": "project.open", "params": {"path": path}}),
-            )
-            .await?;
+        let open = json!({"name": "project.open", "params": {"path": path}});
+        let first = c.ok(ACT, open.clone()).await?;
+        let second = c.ok(ACT, open).await?;
         let inspect = |project: &Value| {
             json!({
                 "project": project, "name": "project.inspect", "params": {"at": "/project/board_size"}
             })
         };
         let a = c.ok(QUERY, inspect(&first["project"])).await?;
-        let b = c.ok(QUERY, inspect(&b["project"])).await?;
+        let b = c.ok(QUERY, inspect(&second["project"])).await?;
         assert_ne!(a["project"], b["project"]);
         assert_eq!(revision(&a)?, revision(&b)?);
         let mut edit = json!({
