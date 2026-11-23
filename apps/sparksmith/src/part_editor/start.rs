@@ -179,7 +179,12 @@ impl PartEditor {
     /// A generic part made off the UI thread: send its command, or say why
     /// it was not made.
     fn settle_making(&mut self, ctx: &egui::Context, engine: &Engine) {
-        let Some(done) = self.start.making.as_mut().and_then(Making::poll) else {
+        let Some(done) = self
+            .start
+            .making
+            .as_mut()
+            .and_then(|making| making.poll(engine))
+        else {
             return;
         };
         self.start.making = None;
@@ -559,7 +564,7 @@ mod generic_tests {
         let candidate = editor.start.generic[0].clone();
         editor.choose_generic(&screen.ctx, &engine, &candidate);
         let making = editor.start.making.as_mut().ok_or("being made")?;
-        let operation = generators::wait(making)?;
+        let operation = generators::wait(making, &engine)?;
         editor.start.making = None;
         assert!(matches!(
             operation,

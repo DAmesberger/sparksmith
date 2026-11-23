@@ -1324,6 +1324,7 @@ impl App {
     /// itself opened or started the project, so its turn carries on.
     fn editors_replaced(&mut self) {
         self.sources.forget_project();
+        self.part.discard_generator_requests();
         self.pending_import = None;
         // Opened, recovered, new or imported: the launch's project is gone.
         self.launch_profile = false;

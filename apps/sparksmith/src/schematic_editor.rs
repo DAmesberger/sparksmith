@@ -729,11 +729,7 @@ impl SchematicEditor {
     /// part is made; a refusal reopens the palette with it, success arms
     /// placement.
     fn settle_template(&mut self, ctx: &egui::Context, engine: &Engine) -> Option<Operation> {
-        if let Some(done) = self
-            .making
-            .as_mut()
-            .and_then(crate::generators::Making::poll)
-        {
+        if let Some(done) = self.making.as_mut().and_then(|making| making.poll(engine)) {
             self.making = None;
             match done {
                 Ok(operation) => {

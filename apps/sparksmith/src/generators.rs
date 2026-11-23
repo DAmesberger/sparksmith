@@ -11,6 +11,7 @@
 //! or `library.package_from_generator` for a working set's package), which
 //! the window applies on its own engine as one undo step, as it applies
 //! every other command.
+use crate::document_version::DocumentVersion;
 use sparksmith_automation::Session;
 use sparksmith_automation::session::generators::v1;
 use sparksmith_automation::session::generators::{GeneratePartParams, GeneratorSummary};
@@ -339,6 +340,7 @@ pub enum Into {
 
 /// A part being made off the UI thread.
 pub struct Making {
+    version: DocumentVersion,
     receiver: Receiver<Result<Operation, String>>,
 }
 
@@ -350,7 +352,12 @@ impl std::fmt::Debug for Making {
 
 impl Making {
     /// The command to apply once the part is made, or why it was not.
-    pub fn poll(&mut self) -> Option<Result<Operation, String>> {
+    pub fn poll(&mut self, engine: &Engine) -> Option<Result<Operation, String>> {
+        if !self.version.is_current(engine) {
+            return Some(Err(
+                "The project changed. Review the part and try again.".into()
+            ));
+        }
         match self.receiver.try_recv() {
             Ok(done) => Some(done),
             Err(TryRecvError::Empty) => None,
@@ -413,7 +420,10 @@ pub fn make(
             repaint.request_repaint();
         }))
         .ok()?;
-    Some(Making { receiver })
+    Some(Making {
+        receiver,
+        version: DocumentVersion::of(engine),
+    })
 }
 
 /// The module's refusal of `request`'s values, by field (empty when the
@@ -572,9 +582,9 @@ fn test_offers(
 
 /// Wait for a part being made (tests): the command or why not.
 #[cfg(test)]
-pub fn wait(making: &mut Making) -> Result<Operation, String> {
+pub fn wait(making: &mut Making, engine: &Engine) -> Result<Operation, String> {
     for _ in 0..600 {
-        if let Some(done) = making.poll() {
+        if let Some(done) = making.poll(engine) {
             return done;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));

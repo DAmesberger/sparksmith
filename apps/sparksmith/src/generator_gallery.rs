@@ -22,6 +22,7 @@
 //! version made is made again as its next revision, one a newer version
 //! made is refused. Each submit waits for the engine's answer: a refusal
 //! comes back to the sheet's refusal line, success closes the sheet.
+use crate::document_version::DocumentVersion;
 use crate::generator_form::{self, Values};
 use crate::generators::{self, Checking, Into, MakeRequest, Making, Offer, Shelf};
 use crate::kit::severity::Level;
@@ -31,8 +32,8 @@ use crate::refusal::{self, Origin};
 use egui::{Align, Layout, Ui, pos2, vec2};
 use sparksmith_core::catalog::MAX_QUERY;
 use sparksmith_core::catalog::generic::generators::{GeneratorCandidate, PresetHit};
-use sparksmith_core::library::MAX_LABEL;
 use sparksmith_core::library::generated::{GeneratorScope, ParamProblem, Standing};
+use sparksmith_core::library::{Definition, MAX_LABEL};
 use sparksmith_core::{ComponentRef, DefinitionId, Engine, Operation};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button};
@@ -71,6 +72,21 @@ impl Scope {
             Self::NewComponent => GeneratorScope::Component,
             Self::Package { .. } => GeneratorScope::Package,
         }
+    }
+}
+
+/// Pads the reviewed footprint currently contributes to its package.
+fn package_pads(engine: &Engine, package: DefinitionId, footprint: DefinitionId) -> Option<usize> {
+    if !matches!(
+        engine.drafts().get(package)?.definition,
+        Definition::Package(_)
+    ) {
+        return None;
+    }
+    let draft = engine.drafts().get(footprint)?;
+    match &draft.definition {
+        Definition::Footprint(body) if body.package.id == package => Some(body.pads.len()),
+        _ => None,
     }
 }
 
@@ -167,6 +183,8 @@ struct Submitted {
 #[derive(Debug)]
 struct Open {
     scope: Scope,
+    /// The footprint and document version shown by the replacement preview.
+    package_preview: Option<(DefinitionId, DocumentVersion)>,
     /// The Place palette opened it: the primary continues to placement.
     to_place: bool,
     query: String,
@@ -195,6 +213,7 @@ impl Open {
     fn new(scope: Scope, query: String) -> Self {
         Self {
             scope,
+            package_preview: None,
             to_place: false,
             query,
             chip: None,
@@ -263,10 +282,52 @@ impl GeneratorGallery {
         self.open = Some(Open::new(Scope::NewComponent, String::new()));
     }
 
-    /// Open on the package draft `draft` of the open working set, whose
-    /// footprint holds `pads` pads; `query` prefills the search.
-    pub fn open_package(&mut self, draft: DefinitionId, pads: usize, query: String) {
-        self.open = Some(Open::new(Scope::Package { draft, pads }, query));
+    /// Open on the package and footprint drafts of the current working set.
+    pub fn open_package(
+        &mut self,
+        engine: &Engine,
+        draft: DefinitionId,
+        footprint: DefinitionId,
+        query: String,
+    ) {
+        self.open = package_pads(engine, draft, footprint).map(|pads| {
+            let mut open = Open::new(Scope::Package { draft, pads }, query);
+            open.package_preview = Some((footprint, DocumentVersion::of(engine)));
+            open
+        });
+    }
+
+    /// An edit after the preview was shown withdraws the old replacement.
+    /// Draw the current pad count before taking another confirmation.
+    fn refresh_package(&mut self, ctx: &egui::Context, engine: &Engine) -> bool {
+        let Some(open) = self.open.as_mut() else {
+            return false;
+        };
+        let (Scope::Package { draft, pads }, Some((footprint, version))) =
+            (&mut open.scope, &mut open.package_preview)
+        else {
+            return false;
+        };
+        if version.is_current(engine) || open.submitted.is_some() {
+            return false;
+        }
+        let Some(current) = package_pads(engine, *draft, *footprint) else {
+            self.open = None;
+            post(
+                ctx,
+                Level::Info,
+                "The package or footprint is no longer in this working set.",
+                Vec::new(),
+            );
+            return true;
+        };
+        *pads = current;
+        *version = DocumentVersion::of(engine);
+        open.making = None;
+        open.checking = None;
+        open.checked = None;
+        open.refusal = Some("The project changed. Review the package replacement again.".into());
+        true
     }
 
     /// Open for a new component on `request`, a part a search listed. With
@@ -359,7 +420,7 @@ impl GeneratorGallery {
         let id = egui::Id::unique(GALLERY);
         let open = self.open.as_mut()?;
         if let Some((making, _, _, _)) = &mut open.making
-            && let Some(done) = making.poll()
+            && let Some(done) = making.poll(engine)
         {
             let (_, sent, request, update) = open.making.take()?;
             match done {
@@ -421,6 +482,7 @@ impl GeneratorGallery {
     /// made.
     pub fn show(&mut self, ctx: &egui::Context, engine: &Engine) -> Option<Operation> {
         self.open.as_ref()?;
+        let changed = self.refresh_package(ctx, engine);
         if let Some(operation) = self.settle(ctx, engine) {
             return Some(operation);
         }
@@ -467,7 +529,7 @@ impl GeneratorGallery {
             open.highlighted = i;
             open.moved(&offers);
         }
-        if primary {
+        if primary && !changed {
             self.submit(ctx, engine);
         }
         None
