@@ -269,7 +269,13 @@ fn an_offline_finding_links_to_the_rule_in_each_applicable_profile() -> crate::R
         .find(|e| e.id.name() == "board.via_annular_ring")
         .ok_or("missing finding")?;
     let facts = &mut finding.facts;
-    if let Facts::Finding { cause, fix, rule_key, .. } = facts {
+    if let Facts::Finding {
+        cause,
+        fix,
+        rule_key,
+        ..
+    } = facts
+    {
         *cause = "The copper ring is narrow.".into();
         *fix = "Enlarge the pad".into();
         *rule_key = Some("via_annular_ring_min".into());
@@ -298,7 +304,9 @@ fn an_offline_finding_links_to_the_rule_in_each_applicable_profile() -> crate::R
     site::render(&out, &index, &library)?;
     let html = fs::read_to_string(out.join("docs/latest/finding/board.via_annular_ring.html"))?;
     for profile in ["alpha", "beta"] {
-        assert!(html.contains(&format!("href=\"../rule/{profile}/via_annular_ring_min.html\"")));
+        assert!(html.contains(&format!(
+            "href=\"../rule/{profile}/via_annular_ring_min.html\""
+        )));
     }
     assert_eq!(html.matches("The copper ring is narrow.").count(), 1);
     Ok(())

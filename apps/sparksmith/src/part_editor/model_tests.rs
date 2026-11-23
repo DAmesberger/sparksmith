@@ -129,9 +129,11 @@ impl Harness {
         match self.engine.query(sparksmith_core::Query::Issues {
             scope: IssueScope::All,
         })? {
-            sparksmith_core::QueryResult::Issues(report) => {
-                Ok(report.rows.into_iter().map(|r| r.finding.code.to_string()).collect())
-            }
+            sparksmith_core::QueryResult::Issues(report) => Ok(report
+                .rows
+                .into_iter()
+                .map(|r| r.finding.code.to_string())
+                .collect()),
             other => Err(format!("{other:?}").into()),
         }
     }

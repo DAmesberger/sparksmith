@@ -40,7 +40,11 @@ pub fn sync_registry(path: &Path, mut entries: Vec<HelpEntry>, update: bool) -> 
         if let [a, b] = pair
             && a.id == b.id
         {
-            return Err(Error::Invalid(format!("{}: duplicate {}", path.display(), a.id)));
+            return Err(Error::Invalid(format!(
+                "{}: duplicate {}",
+                path.display(),
+                a.id
+            )));
         }
     }
     let expected = serde_json::to_string_pretty(&entries)? + "\n";

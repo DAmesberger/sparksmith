@@ -721,8 +721,12 @@ impl<'a> ViaCx<'a> {
             && let Some((text, needs)) = edge_text(&self.edges, ring, limits, kind)
         {
             issues.push(
-                Finding::new(FindingCode::BoardEdgeClearance, format!("{name} {text}"), vec![me])
-                    .requiring(needs),
+                Finding::new(
+                    FindingCode::BoardEdgeClearance,
+                    format!("{name} {text}"),
+                    vec![me],
+                )
+                .requiring(needs),
             );
         }
         if ring.bounds.is_none() {

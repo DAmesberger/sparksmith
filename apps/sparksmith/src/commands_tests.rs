@@ -791,8 +791,8 @@ fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Er
     );
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../library/help/generated/commands.json");
-    let update = std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref()
-        == Some(std::ffi::OsStr::new("1"));
+    let update =
+        std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref() == Some(std::ffi::OsStr::new("1"));
     sparksmith_io::help::sync_registry(&path, entries, update)?;
     Ok(())
 }

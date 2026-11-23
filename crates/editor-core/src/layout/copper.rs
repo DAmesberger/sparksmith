@@ -759,18 +759,20 @@ pub(super) fn edge_finding(
         )),
         EdgeVerdict::TooClose { gap, near } => {
             let need = limits.clearance_need(kind, net, CopperObject::BoardEdge, None);
-            Some(Finding::new(
-                FindingCode::BoardEdgeClearance,
-                format!(
-                    "{} is {} mm from {}; {}",
-                    crate::library::names::capitalised(&label()),
-                    mm_against(gap, need.mm),
-                    near.describe(),
-                    need.text()
-                ),
-                vec![object],
+            Some(
+                Finding::new(
+                    FindingCode::BoardEdgeClearance,
+                    format!(
+                        "{} is {} mm from {}; {}",
+                        crate::library::names::capitalised(&label()),
+                        mm_against(gap, need.mm),
+                        near.describe(),
+                        need.text()
+                    ),
+                    vec![object],
+                )
+                .requiring(need.at_most(gap)),
             )
-            .requiring(need.at_most(gap)))
         }
     }
 }

@@ -93,7 +93,9 @@ fn finding_summaries_can_be_authored_independently_of_the_cause() -> Result<()> 
             "cause": cause, "fix": "Enlarge the pad", "summary": summary
         }))?;
         apply_topic(&mut index, header, vec![]).map_err(Error::Invalid)?;
-        let entry = index.get(&id).ok_or_else(|| Error::Invalid(id.to_string()))?;
+        let entry = index
+            .get(&id)
+            .ok_or_else(|| Error::Invalid(id.to_string()))?;
         assert_eq!(entry.summary, summary.unwrap_or(cause));
         assert!(matches!(&entry.facts, Facts::Finding { cause: text, .. } if text == cause));
     }
@@ -130,6 +132,9 @@ fn publishing_a_new_release_preserves_the_first_release_of_existing_ids() -> Res
     assert_eq!(rows, vec![revised, introduced]);
     let duplicated = vec![make("guide/first", "0.3.0")?, make("guide/first", "0.3.0")?];
     assert!(sync_registry(&path, duplicated, true).is_err());
-    assert_eq!(serde_json::from_str::<Vec<HelpEntry>>(&source(&path)?)?, rows);
+    assert_eq!(
+        serde_json::from_str::<Vec<HelpEntry>>(&source(&path)?)?,
+        rows
+    );
     Ok(())
 }

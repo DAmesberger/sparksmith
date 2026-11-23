@@ -346,7 +346,10 @@ impl Page<'_> {
                 if let Some(key) = rule_key {
                     for id in self.index.keys().filter(|id| {
                         id.kind() == HelpKind::Rule
-                            && id.name().split_once('/').is_some_and(|(_, name)| name == key)
+                            && id
+                                .name()
+                                .split_once('/')
+                                .is_some_and(|(_, name)| name == key)
                     }) {
                         write!(fields, "<dt>Profile rule</dt><dd>{}</dd>", self.link(id)?)?;
                     }

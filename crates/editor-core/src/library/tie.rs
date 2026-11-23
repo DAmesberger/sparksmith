@@ -187,11 +187,17 @@ pub(super) fn findings(
             for spec in &component.ties {
                 let no_body = matches!(package.definition.model, PackageModel::NoBody);
                 if spec.form == TieForm::Copper && !no_body {
-                    report(FindingCode::TieBody, "A copper tie needs a package without a body.");
+                    report(
+                        FindingCode::TieBody,
+                        "A copper tie needs a package without a body.",
+                    );
                 }
                 if spec.form == TieForm::ZeroOhm {
                     if no_body {
-                        report(FindingCode::TieBody, "A zero-ohm link needs a package with a body.");
+                        report(
+                            FindingCode::TieBody,
+                            "A zero-ohm link needs a package with a body.",
+                        );
                     }
                     if !spec.ends.iter().all(|end| pads.counts.get(end) == Some(&1)) {
                         report(

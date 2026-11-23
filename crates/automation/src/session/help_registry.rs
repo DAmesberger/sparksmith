@@ -92,8 +92,8 @@ fn entries_match_the_catalog() -> Fallible {
             });
         }
     }
-    let update = std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref()
-        == Some(std::ffi::OsStr::new("1"));
+    let update =
+        std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref() == Some(std::ffi::OsStr::new("1"));
     help::sync_registry(&path, rows, update)?;
     for entry in help::load(&library)?.into_values() {
         for block in entry.body {

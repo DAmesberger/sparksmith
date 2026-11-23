@@ -577,7 +577,8 @@ impl<'a> PadHoleCx<'a> {
                 )
             };
             issues.push(
-                Finding::new(FindingCode::BoardPadHoleSpacing, text, objects).requiring(need.at_most(gap)),
+                Finding::new(FindingCode::BoardPadHoleSpacing, text, objects)
+                    .requiring(need.at_most(gap)),
             );
         }
         Ok(pairs)
