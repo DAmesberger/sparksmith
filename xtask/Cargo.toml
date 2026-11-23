@@ -16,6 +16,9 @@ sparksmith-io.workspace = true
 sparksmith-kicad.workspace = true
 sparksmith-fabcheck.workspace = true
 serde_json.workspace = true
+serde.workspace = true
+schemars.workspace = true
+sparksmith-generators.workspace = true
 # Hashes generator modules and their bundles (MIT OR Apache-2.0).
 sha2.workspace = true
 # Parses Rust for the UI container gate (MIT OR Apache-2.0; already in the tree).

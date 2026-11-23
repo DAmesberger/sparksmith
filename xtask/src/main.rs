@@ -6,6 +6,7 @@ mod core_modules;
 mod f64_lengths;
 mod generators;
 mod generic_terms;
+mod help;
 mod kicad_compare;
 mod layers;
 mod licences;
@@ -72,6 +73,11 @@ fn run() -> Result<()> {
     {
         return kicad_compare::run(rest);
     }
+    if let Some((command, rest)) = args.split_first()
+        && command == "help"
+    {
+        return help::run(rest);
+    }
     let command = match args.as_slice() {
         [command] => command.as_str(),
         [command, flag] if command == "licences" && flag == "--check" => "licences --check",
@@ -86,6 +92,7 @@ fn run() -> Result<()> {
             copper_source::check()?;
             f64_lengths::check()?;
             surface(&["--check".into()])?;
+            help::run(&["--check".into()])?;
             licences::check()?;
             brand_crates::check()?;
             clean_room::check()?;
@@ -146,7 +153,7 @@ fn run() -> Result<()> {
         _ => Err(
             "usage: cargo xtask ci | ci-native | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
              | licences --check | brand-crates | clean-room | no-builtin-data | generic-terms | ui-containers | ui-forms | raw-keys | generators build [--ship] | check | reproduce | measure \
-             | surface --check | --update | kicad-compare [--design PATH]"
+             | surface --check | --update | help --check | --update | --stamp <topic-id> | kicad-compare [--design PATH]"
                 .into(),
         ),
     }

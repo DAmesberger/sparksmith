@@ -1,5 +1,7 @@
 # Sparksmith
 
+<!-- Generated from library/help/glossary.json by cargo xtask help --update. -->
+
 Proposed vocabulary for the first-edition design. These terms distinguish reusable library definitions from their use in a circuit.
 
 ## Language
@@ -54,8 +56,11 @@ The datasheet's selector for one pin function, such as an alternate-function num
 **GPIO identity**:
 The port and index a datasheet gives a terminal (`A`, 9). One identity belongs to one terminal of a component.
 
-**Pin option** / **Pin configuration**:
-A pin option is a setting a terminal declares with its allowed values: pull, speed, initial level or Schmitt input. A pin configuration is an instance's chosen values for one terminal, plus an optional firmware name; it is checked against the declared options and never changes electrical checks.
+**Pin option**:
+A pin option is a setting a terminal declares with its allowed values: pull, speed, initial level or Schmitt input.
+
+**Pin configuration**:
+A pin configuration is an instance's chosen values for one terminal, plus an optional firmware name; it is checked against the declared options and never changes electrical checks.
 
 **Pin rule**:
 A datasheet restriction on pin-function combinations, stored in the component revision as a short sandboxed Rhai script that reads a read-only view of one assignment and returns ok, forbid, require or warn. Forbid rejects the assignment, require leaves it incomplete and warn is a note; a script that fails to compile, raises an error or exceeds its budget is a finding.
