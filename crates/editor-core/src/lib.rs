@@ -557,7 +557,7 @@ declare_entries!(Query in project {
     InspectLineage "library.inspect" Read "Inspect a lineage" [in library, link, returns(lineage)],
     Bom "project.bom" Read "Bill of materials" [link, returns(bom)],
     ResolveGroups "library.resolve_groups" Read "Group instances for purchasing" [in library, link, returns(resolve_groups)],
-    Ties "tie.list" Read "List deliberate net ties" [long,link,since(7,24),returns(ties)],
+    Ties "tie.list" Read "List deliberate net ties" [long,link,since(8, 0),returns(ties)],
     Variants "variant.list" Read "List assembly variants" [link, since(7, 13), returns(variants)],
     Substitutes "variant.substitutes" Read "Parts that fit a footprint" [link, since(7, 13), returns(substitutes)],
     FootprintPreview "library.footprint_preview" Read "Preview a footprint" [in library, long, link, returns(footprint_preview)],
@@ -593,7 +593,7 @@ declare_entries!(Query in project {
     TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link, returns(route_preview)],
     TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link, returns(tune_preview)],
     Preflight "fabrication.preflight" Read "Production check" [in checks, long, link, returns(preflight)],
-    ProfileSuggestions "fabrication.profile_suggestions" Read "Suggest fab profiles" [in checks, long, link, since(1, 5), returns(profile_suggestions)],
+    ProfileSuggestions "fabrication.profile_suggestions" Read "Suggest fab profiles" [in checks, long, link, since(1, 6), returns(profile_suggestions)],
     InterfaceList "interface.list" Read "List the board interface" [in model3d, returns(interface_list)],
     AssemblyStatus "assembly.status" Read "Check the assembly link" [in model3d, returns(assembly_status)],
 });

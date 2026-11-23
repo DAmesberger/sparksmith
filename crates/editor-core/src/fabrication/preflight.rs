@@ -224,7 +224,7 @@ pub(crate) fn refuse_needed(
                 crate::rules::requirement::describe(requirement, project.rules.profile.as_ref())
                     .map_or_else(String::new, |n| format!("{}; ", n.text));
             return Err(Error::Conflict(format!(
-                "fabrication.not_waivable: `{k}` cannot be waived. {need}switch to a fab profile                  that allows it (fabrication.profile_suggestions) or change the design"
+                "fabrication.not_waivable: `{k}` cannot be waived. {need}switch to a fab profile that allows it (fabrication.profile_suggestions) or change the design"
             )));
         }
     }
