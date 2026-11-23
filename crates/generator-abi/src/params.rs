@@ -121,6 +121,74 @@ pub fn fits(ty: &ParamType, value: &ParamValue) -> bool {
     check_value(&param, ty, value).is_ok()
 }
 
+/// Borrowed normalized digits of a signed, plain decimal. Comparing magnitudes by
+/// integer length then digits keeps arbitrarily close ABI values distinct.
+struct Decimal<'a> {
+    negative: bool,
+    whole: &'a str,
+    fraction: &'a str,
+}
+
+impl<'a> Decimal<'a> {
+    fn parse(text: &'a str) -> Option<Self> {
+        if text.len() > crate::v1::limits::TEXT_CHARS {
+            return None;
+        }
+        let digits = text.strip_prefix(['-', '+']).unwrap_or(text);
+        let (whole, fraction) = digits.split_once('.').unwrap_or((digits, ""));
+        if (whole.is_empty() && fraction.is_empty())
+            || !whole
+                .bytes()
+                .chain(fraction.bytes())
+                .all(|b| b.is_ascii_digit())
+        {
+            return None;
+        }
+        let whole = whole.trim_start_matches('0');
+        let fraction = fraction.trim_end_matches('0');
+        Some(Self {
+            negative: text.starts_with('-') && !(whole.is_empty() && fraction.is_empty()),
+            whole,
+            fraction,
+        })
+    }
+
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if self.negative != other.negative {
+            return other.negative.cmp(&self.negative);
+        }
+        let magnitude = (self.whole.len(), self.whole, self.fraction).cmp(&(
+            other.whole.len(),
+            other.whole,
+            other.fraction,
+        ));
+        if self.negative {
+            magnitude.reverse()
+        } else {
+            magnitude
+        }
+    }
+}
+
+fn decimal_bound(text: &Option<String>) -> Result<Option<Decimal<'_>>, ()> {
+    text.as_deref()
+        .map(|s| Decimal::parse(s).ok_or(()))
+        .transpose()
+}
+
+/// Validate the quantity bounds even inside a list with an empty default.
+pub fn valid_quantity_bounds(ty: &ParamType) -> bool {
+    match ty {
+        ParamType::Quantity { min, max, .. } => match (decimal_bound(min), decimal_bound(max)) {
+            (Ok(Some(low)), Ok(Some(high))) => !low.cmp(&high).is_gt(),
+            (Ok(_), Ok(_)) => true,
+            _ => false,
+        },
+        ParamType::List { of, .. } => valid_quantity_bounds(of),
+        _ => true,
+    }
+}
+
 fn check_value(param: &Param, ty: &ParamType, value: &ParamValue) -> Result<(), Problem> {
     let label = &param.label;
     let key = &param.key;
@@ -200,7 +268,24 @@ fn check_value(param: &Param, ty: &ParamType, value: &ParamValue) -> Result<(), 
                 Ok(())
             }
         }
-        (ParamType::Quantity { .. }, ParamValue::Text(_)) => Ok(()),
+        (ParamType::Quantity { min, max, .. }, ParamValue::Text(value)) => {
+            let number =
+                Decimal::parse(value).ok_or_else(|| wrong("a signed decimal in plain notation"))?;
+            let bounds = || wrong("within a valid decimal range");
+            let low = decimal_bound(min).map_err(|()| bounds())?;
+            let high = decimal_bound(max).map_err(|()| bounds())?;
+            if low.is_some_and(|low| number.cmp(&low).is_lt())
+                || high.is_some_and(|high| number.cmp(&high).is_gt())
+            {
+                Err(problem(
+                    "param.out_of_range",
+                    key,
+                    format!("{label} is outside this generator's decimal range."),
+                ))
+            } else {
+                Ok(())
+            }
+        }
         (ParamType::List { of, max_len }, ParamValue::List(items)) => {
             if items.len() > *max_len as usize {
                 return Err(problem(
@@ -335,6 +420,31 @@ mod tests {
             let mut wide = Params::new();
             wide.insert("length".into(), ParamValue::Int(1));
             assert!(complete(&d, Scope::Package, &wide).is_err());
+        }
+    }
+
+    #[test]
+    fn quantity_bounds_are_inclusive_exact_decimals() {
+        let range = |min: &str, max: &str| ParamType::Quantity {
+            kind: "voltage".into(),
+            unit: "V".into(),
+            min: Some(min.into()),
+            max: Some(max.into()),
+        };
+        let fits_text = |ty: &ParamType, s: &str| fits(ty, &ParamValue::Text(s.into()));
+        let volts = range("1", "5");
+        for good in ["1.000", "3", "+05"] {
+            assert!(fits_text(&volts, good), "{good}");
+        }
+        for bad in ["", "abc", "-1", "200", "5.000000000000000001"] {
+            assert!(!fits_text(&volts, bad), "{bad}");
+        }
+        let negative = range("-5.20", "-0");
+        assert!(fits_text(&negative, "-5.2"));
+        assert!(fits_text(&negative, "0.00"));
+        assert!(!fits_text(&negative, "-5.20000000000001"));
+        for ty in [range("bad", "5"), range("5", "1")] {
+            assert!(!fits_text(&ty, "3"));
         }
     }
 
