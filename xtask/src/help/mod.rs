@@ -66,6 +66,27 @@ pub fn run(args: &[String]) -> Result<()> {
             .map_err(|e| format!("{}: {e}", path.display()))?;
         check_covers(&header.id, &header.covers, &index)?;
     }
+    for folder in fs::read_dir(&shelf)? {
+        let folder = folder?;
+        if !folder.file_type()?.is_dir() {
+            continue;
+        }
+        let name = folder.file_name();
+        let name = name.to_str().ok_or("non-UTF-8 help folder")?;
+        if matches!(name, "generated" | "topics" | "media" | "en") {
+            continue;
+        }
+        let localized = help::locale::load(&library, name)?;
+        for (id, state) in &localized.status {
+            if *state == help::locale::Status::Stale {
+                eprintln!(
+                    "{}: {id} fell back to English; the {name} translation is stale",
+                    folder.path().display()
+                );
+            }
+        }
+        validate_entries(&localized.index, &shelf.join("media"))?;
+    }
     println!("help: {} offline topics checked", index.len());
     Ok(())
 }
