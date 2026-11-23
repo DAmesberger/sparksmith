@@ -1254,3 +1254,78 @@ fn a_generated_nc_pin_is_device_nc_and_refuses_wires() -> TestResult {
     assert_eq!(wired["ok"], true, "{wired}");
     Ok(())
 }
+
+/// Review §9 (8dea4ac3 recheck): all fourteen pins the shipped presets'
+/// datasheet tables call NC (eight of the ESP32-S31-WROOM-3, one of the TI
+/// DML0010A, five of the TI RXB0014A) are device NC, and a wire to each is
+/// refused.
+#[test]
+fn every_nc_pin_of_the_shipped_presets_refuses_a_wire() -> TestResult {
+    use sparksmith_core::library::TerminalClass;
+    use sparksmith_core::schematic::{SchematicCommand, WireTarget};
+    let temp = tempfile::tempdir()?;
+    let root = temp.path().join("library");
+    std::fs::create_dir_all(root.join("generators"))?;
+    std::fs::write(root.join(MARKER), "{\"format\":1}\n")?;
+    for name in ["module", "no-lead"] {
+        copy_dir(
+            &Path::new(BUNDLE).join(format!("../{name}")),
+            &root.join(format!("generators/{name}")),
+        )?;
+    }
+    let mut session = session(&root)?;
+    let mut refused = 0;
+    for (generator, preset, count) in [
+        ("module", "module-esp32-s31-wroom-3", 8),
+        ("no-lead", "no-lead-ti-dml0010a", 1),
+        ("no-lead", "no-lead-ti-rxb0014a", 5),
+    ] {
+        let made = call(
+            &mut session,
+            "library.generate_part",
+            json!({"generator": generator, "scope": "component", "preset": preset}),
+        );
+        assert_eq!(made["ok"], true, "{made}");
+        place_made(&mut session, &made)?;
+        let project = session.engine().project();
+        let placed = project.instances.last().ok_or("placed")?;
+        let component = project
+            .library
+            .component(placed.component)
+            .ok_or("component")?;
+        let nc: Vec<u32> = component
+            .definition
+            .terminals
+            .iter()
+            .filter(|t| t.class == TerminalClass::DeviceNc)
+            .map(|t| t.id.0)
+            .collect();
+        assert_eq!(nc.len(), count, "{preset}");
+        let instance = placed.id;
+        for terminal in nc {
+            let at = sparksmith_core::Endpoint {
+                instance,
+                terminal: sparksmith_core::ids::TerminalId(terminal),
+            };
+            let draw = sparksmith_core::Operation::Schematic(SchematicCommand::DrawWire {
+                sheet: None,
+                from: WireTarget::from(at),
+                corners: vec![],
+                to: WireTarget::Free(sparksmith_core::model::FreeEnd {
+                    free: sparksmith_core::units::PointNm::from_mm_f64_rounded([200.0, 200.0])?,
+                }),
+            });
+            let revision = session.engine().revision();
+            let reply = call(
+                &mut session,
+                "project.apply",
+                json!({"operation": serde_json::to_value(draw)?}),
+            );
+            assert_eq!(reply["ok"], false, "{preset} terminal {terminal}: {reply}");
+            assert_eq!(session.engine().revision(), revision);
+            refused += 1;
+        }
+    }
+    assert_eq!(refused, 14);
+    Ok(())
+}

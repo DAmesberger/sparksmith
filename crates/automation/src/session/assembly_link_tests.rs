@@ -779,3 +779,87 @@ fn receipts_of_file_transactions_are_refused_when_applied_directly() -> TestResu
     }
     Ok(())
 }
+
+/// Review §18 (8dea4ac3 recheck): a concurrent save of the linked design
+/// after the native design is staged, before it is put in place, makes the
+/// approved publish another one: refused, the published pair untouched.
+#[test]
+fn a_linked_design_saved_while_publishing_refuses_the_install() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let assembly = dir.path().join("assembly.solidcraft");
+    let mut session = open(dir.path())?;
+    let opening = format!("i{}.opening", instance(&session, "J1")?);
+    publish(&mut session, &design, "interface")?;
+    save_linked_design(&design, &opening, FAR_WALL_Y, &assembly)?;
+    link(&mut session, &assembly, &design)?;
+    super::interface_publish_tests::move_j1(&mut session, 2.0)?;
+    let preview = ok(
+        &mut session,
+        json!({"command": "interface.publish_preview", "params": {
+            "path": design.display().to_string(), "tier": "interface",
+            "assembly_path": assembly.display().to_string()}}),
+    )?;
+    let before = publication(&design)?;
+    let (stage_design, stage_assembly) = (design.clone(), assembly.clone());
+    let stage_opening = opening.clone();
+    *session
+        .after_interface_stage
+        .lock()
+        .map_err(|_| "hook lock")? = Some(Box::new(move || {
+        save_linked_design(
+            &stage_design,
+            &stage_opening,
+            FAR_WALL_Y + 1.0,
+            &stage_assembly,
+        )
+        .map_err(|e| sparksmith_io::Error::Invalid(e.to_string()).into())
+    }));
+    let request = bound_publish(&session, &design, &assembly, "interface", &preview["token"]);
+    let revision = session.engine().revision();
+    let reply = session.dispatch(request);
+    assert_eq!(reply["ok"], false, "{reply}");
+    assert!(
+        reply.to_string().contains("interface.preview_changed"),
+        "{reply}"
+    );
+    assert_eq!(publication(&design)?, before, "nothing installed");
+    assert_eq!(session.engine().revision(), revision);
+    Ok(())
+}
+
+/// A preview made without a destination approves none: its token does not
+/// publish at a path it never saw.
+#[test]
+fn a_preview_without_a_path_publishes_nowhere() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let assembly = dir.path().join("assembly.solidcraft");
+    let other = dir.path().join("other");
+    std::fs::create_dir_all(&other)?;
+    let elsewhere = other.join("board.solidcraft");
+    let mut session = open(dir.path())?;
+    let opening = format!("i{}.opening", instance(&session, "J1")?);
+    publish(&mut session, &design, "interface")?;
+    save_linked_design(&design, &opening, FAR_WALL_Y, &assembly)?;
+    link(&mut session, &assembly, &design)?;
+    let preview = ok(
+        &mut session,
+        json!({"command": "interface.publish_preview", "params": {
+            "tier": "interface", "assembly_path": assembly.display().to_string()}}),
+    )?;
+    let reply = session.dispatch(bound_publish(
+        &session,
+        &elsewhere,
+        &assembly,
+        "interface",
+        &preview["token"],
+    ));
+    assert_eq!(reply["ok"], false, "{reply}");
+    assert!(
+        reply.to_string().contains("interface.preview_changed"),
+        "{reply}"
+    );
+    assert!(!elsewhere.exists(), "nothing written there");
+    Ok(())
+}

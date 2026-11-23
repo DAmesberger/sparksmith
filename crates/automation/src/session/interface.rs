@@ -352,6 +352,15 @@ impl Session {
             let checked = super::export_reply(&project, &report, json!({}));
             published["check"] = checked["check"].clone();
         }
+        #[cfg(test)]
+        if let Some(staged) = self
+            .after_interface_stage
+            .lock()
+            .ok()
+            .and_then(|mut hook| hook.take())
+        {
+            staged()?;
+        }
         // What the preview approved is checked again at installation: the
         // linked design or the destination may have changed while the
         // native design was built.
