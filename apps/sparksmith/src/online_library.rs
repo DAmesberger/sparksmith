@@ -72,7 +72,7 @@ pub enum AccountView {
     /// Asking the registry for a code.
     Requesting,
     /// Waiting for the person to confirm `code` in the browser.
-    Code(DeviceCode),
+    Code(Box<DeviceCode>),
     /// Signed in; the account's name or email once known.
     SignedIn(Option<String>),
     SigningOut,
@@ -151,7 +151,7 @@ impl OnlineLibrary {
     pub fn account(&self) -> AccountView {
         if let Some(attempt) = &self.attempt {
             return match &attempt.code {
-                Some(code) => AccountView::Code(code.clone()),
+                Some(code) => AccountView::Code(Box::new(code.clone())),
                 None => AccountView::Requesting,
             };
         }
