@@ -119,20 +119,25 @@ pub fn emit(report: &PinConfigReport) -> String {
         .filter(|p| p.peripheral.is_none() && p.gpio.is_some() && p.assigned)
         .collect();
     if !plain.is_empty() {
-        out.push_str("\n/ {\n    zephyr,user {\n");
+        out.push_str(
+            "\n/* Set each polarity to GPIO_ACTIVE_LOW or GPIO_ACTIVE_HIGH from the circuit. */\n",
+        );
+        out.push_str("/ {\n    zephyr,user {\n");
         for pin in plain {
             let Some(gpio) = &pin.gpio else { continue };
-            let flags = match pin.pull {
-                Some(Pull::Up) => "GPIO_ACTIVE_HIGH | GPIO_PULL_UP",
-                Some(Pull::Down) => "GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN",
-                Some(Pull::None) | None => "GPIO_ACTIVE_HIGH",
+            let pin_name = lower_ident(&pin.firmware_name);
+            let polarity = format!("SPARKSMITH_{}_POLARITY", pin_name.to_ascii_uppercase());
+            let pull = match pin.pull {
+                Some(Pull::Up) => " | GPIO_PULL_UP",
+                Some(Pull::Down) => " | GPIO_PULL_DOWN",
+                Some(Pull::None) | None => "",
             };
             let _ = writeln!(
                 out,
-                "        /* {}: {} */\n        {}-gpios = <&gpio{} {} ({flags})>;",
+                "        /* {}: {} */\n        {}-gpios = <&gpio{} {} ({polarity}{pull})>;",
                 comment(&pin.name),
                 comment(&pin.function),
-                lower_ident(&pin.firmware_name).replace('_', "-"),
+                pin_name.replace('_', "-"),
                 lower_ident(&gpio.port),
                 gpio.index
             );
