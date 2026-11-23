@@ -1454,7 +1454,7 @@ dependencies = [
 [[package]]
 name = "craft-plugin"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "image",
  "schemars",
@@ -1466,7 +1466,7 @@ dependencies = [
 [[package]]
 name = "craft-plugin-wasm"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "cap-std",
  "craft-plugin",
@@ -2111,7 +2111,7 @@ dependencies = [
 [[package]]
 name = "ecolor"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "bytemuck",
  "emath",
@@ -2145,7 +2145,7 @@ dependencies = [
 [[package]]
 name = "eframe"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -2180,7 +2180,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "accesskit",
  "ahash",
@@ -2199,7 +2199,7 @@ dependencies = [
 [[package]]
 name = "egui-wgpu"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -2218,7 +2218,7 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "accesskit_winit",
  "arboard",
@@ -2241,7 +2241,7 @@ dependencies = [
 [[package]]
 name = "egui_glow"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "bytemuck",
  "egui",
@@ -2294,7 +2294,7 @@ dependencies = [
 [[package]]
 name = "emath"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "bytemuck",
 ]
@@ -2355,7 +2355,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -2380,7 +2380,7 @@ dependencies = [
 [[package]]
 name = "epaint_default_fonts"
 version = "0.37.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 
 [[package]]
 name = "equivalent"
@@ -6522,7 +6522,7 @@ dependencies = [
 [[package]]
 name = "solidcore"
 version = "1.0.1"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -6531,7 +6531,7 @@ dependencies = [
 [[package]]
 name = "solidcore-cadir"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "cadmpeg-ir",
  "solidcore",
@@ -6543,7 +6543,7 @@ dependencies = [
 [[package]]
 name = "solidcore-convert"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "solidcore",
  "solidcore-record",
@@ -6552,7 +6552,7 @@ dependencies = [
 [[package]]
 name = "solidcore-ops"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "serde",
  "solidcore",
@@ -6563,7 +6563,7 @@ dependencies = [
 [[package]]
 name = "solidcore-record"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "serde",
  "serde_json",
@@ -6573,7 +6573,7 @@ dependencies = [
 [[package]]
 name = "solidcore-step"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "solidcore",
  "solidcore-convert",
@@ -6584,7 +6584,7 @@ dependencies = [
 [[package]]
 name = "solidcore-tess"
 version = "0.1.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "rayon",
  "serde",
@@ -6598,12 +6598,12 @@ dependencies = [
 [[package]]
 name = "solidcraft-color"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 
 [[package]]
 name = "solidcraft-control"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "getrandom 0.3.4",
  "serde",
@@ -6613,7 +6613,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-derive"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6623,7 +6623,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-develop"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "solidcore-ops",
  "solidcore-record",
@@ -6633,7 +6633,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-doc"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "log",
  "serde",
@@ -6659,7 +6659,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-dynamics"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "serde",
  "solidcore-record",
@@ -6670,7 +6670,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-engine"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "craft-plugin",
  "craft-plugin-wasm",
@@ -6708,7 +6708,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-format"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "serde_json",
  "sha2 0.10.9",
@@ -6718,7 +6718,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-geom"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "serde",
  "solidcore",
@@ -6731,7 +6731,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-io"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "cadmpeg-core",
  "cadmpeg-ir",
@@ -6780,7 +6780,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-kernel"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "log",
  "rayon",
@@ -6801,7 +6801,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-panel-layout"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "schemars",
  "serde",
@@ -6812,7 +6812,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-profile"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "serde_json",
  "web-time",
@@ -6821,7 +6821,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-render"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "image",
  "moxcms",
@@ -6843,7 +6843,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-sketch"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "harfrust",
  "serde",
@@ -6859,7 +6859,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-smlib"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "log",
  "serde_json",
@@ -6873,7 +6873,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-ui-registry"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "egui",
 ]
@@ -6881,7 +6881,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-ui-text"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "log",
  "serde_json",
@@ -6892,7 +6892,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-viewport"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "image",
  "moxcms",
@@ -6907,7 +6907,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-viewport-egui"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "egui",
  "egui-wgpu",
@@ -6919,7 +6919,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-viewport-gpu"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "log",
  "naga",
@@ -6937,7 +6937,7 @@ dependencies = [
 [[package]]
 name = "solidcraft-views"
 version = "0.47.0"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "schemars",
  "serde",
@@ -9395,7 +9395,7 @@ checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 [[package]]
 name = "winit"
 version = "0.30.13"
-source = "git+https://github.com/DAmesberger/solidcraft.git?rev=84aad11af20e3bdf760d382360d1ad6d4599cad5#84aad11af20e3bdf760d382360d1ad6d4599cad5"
+source = "git+https://github.com/DAmesberger/solidcraft.git?rev=f78bfe81b282d3936d126fcc2e863c52836372a8#f78bfe81b282d3936d126fcc2e863c52836372a8"
 dependencies = [
  "ahash",
  "android-activity",
