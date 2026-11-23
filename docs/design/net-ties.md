@@ -31,7 +31,7 @@ A tie is an ordinary component with terminals, a symbol, a package, a footprint 
 - `ties: Vec<TieSpec>`: each group has a stable component-local TieId, `ends`, the terminals it joins (2 to 8, each electrical and passive, each its own net), and `form`. The form is `copper`, `solder_jumper { default: open | closed, bridge: solder | trace }` or `zero_ohm`.
 - `assembly: bought | copper_only | solder_only`: what the factory does with it, stated by type. This replaces the inference in `library::mechanical::copper_only` (below).
 
-`library.publish` checks the pieces against each other. A copper tie's footprint must carry a bridge that joins pads of every end and must have no body (`PackageModel::NoBody`). A 0 Ω link must have a body and pad grouping like any two-terminal chip. A solder jumper with `trace` must carry the trace as a bridge. `assembly` must agree with the form: a copper tie is `copper_only`, a solder jumper `solder_only`, a 0 Ω link `bought`.
+`library.publish` checks the pieces against each other. A copper tie's footprint must carry a bridge that joins pads of every end and must have no body (`PackageModel::NoBody`). Each 0 Ω group has exactly two passive terminals, each mapped to one distinct land. A standalone link uses one bought chip body. A package containing several independent links has one bought body and one land pair per link. A substitute must preserve the pairs on the board, even when it numbers or orders its terminals and groups differently. A solder jumper with `trace` must carry the trace as a bridge. `assembly` must agree with the form: a copper tie is `copper_only`, a solder jumper `solder_only`, a 0 Ω link `bought`.
 
 ### On the footprint
 

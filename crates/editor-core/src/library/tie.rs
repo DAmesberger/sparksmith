@@ -59,8 +59,7 @@ pub struct Bridge {
 impl TieSpec {
     fn valid_ends(&self, component: &ComponentDefinition) -> bool {
         (2..=8).contains(&self.ends.len())
-            && (self.form != TieForm::ZeroOhm
-                || (self.ends.len() == 2 && component.terminals.len() == 2))
+            && (self.form != TieForm::ZeroOhm || self.ends.len() == 2)
             && self.ends.iter().collect::<BTreeSet<_>>().len() == self.ends.len()
             && self.ends.iter().all(|id| {
                 component
@@ -186,13 +185,15 @@ pub(super) fn findings(
                     if no_body {
                         report("tie.body", "A zero-ohm link needs a package with a body.");
                     }
-                    if fp.pads.len() != 2
-                        || !spec.ends.iter().all(|end| {
-                            fp.pads.iter().any(|p| {
+                    if !spec.ends.iter().all(|end| {
+                        fp.pads
+                            .iter()
+                            .filter(|p| {
                                 p.terminal.and_then(|t| binding.terminal_of(t)) == Some(*end)
                             })
-                        })
-                    {
+                            .count()
+                            == 1
+                    }) {
                         report(
                             "tie.ends",
                             "A zero-ohm link needs one land for each of its two ends.",

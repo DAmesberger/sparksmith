@@ -892,3 +892,92 @@ fn substitute_preserves_typed_tie_groups_on_the_matched_lands() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn paired_zero_ohm_package_accepts_reordered_equivalents_and_refuses_crossed_links() -> Result<()> {
+    use crate::ids::{TerminalId, TieId};
+    use crate::library::tie::{TieForm, TieSpec};
+    let mut engine = Engine::default();
+    let mut make =
+        |name: &str, mapped: [u32; 4], groups: [[u32; 2]; 2]| -> Result<(Fixture, PartRef)> {
+            let [a, b, c, d] = mapped;
+            let f = draft(
+                &mut engine,
+                &Spec {
+                    name,
+                    terminals: vec![
+                        (a, "A", passive()),
+                        (b, "B", passive()),
+                        (c, "C", passive()),
+                        (d, "D", passive()),
+                    ],
+                    units: vec![(
+                        1,
+                        "A",
+                        vec![
+                            (a, [-4., -2.]),
+                            (b, [4., -2.]),
+                            (c, [-4., 2.]),
+                            (d, [4., 2.]),
+                        ],
+                    )],
+                    package: vec![(1, "1"), (2, "2"), (3, "3"), (4, "4")],
+                    mapping: vec![(1, a), (2, b), (3, c), (4, d)],
+                    physical: true,
+                },
+            )?;
+            rewrite(&mut engine, f.component, |def| {
+                if let Definition::Component(component) = def {
+                    component.ties = groups
+                        .map(|pair| TieSpec {
+                            id: TieId(pair[0]),
+                            form: TieForm::ZeroOhm,
+                            ends: pair.map(TerminalId).to_vec(),
+                        })
+                        .to_vec();
+                }
+            })?;
+            publish(&mut engine, f.all())?;
+            let part = publish_part(
+                &mut engine,
+                part(name, f.r1(), BindingRef::new(f.binding, Revision::FIRST)),
+            )?;
+            Ok((f, part))
+        };
+    let (original, _) = make("Paired links", [1, 2, 3, 4], [[1, 2], [3, 4]])?;
+    let (_, reordered) = make("Renumbered links", [9, 8, 7, 6], [[6, 7], [8, 9]])?;
+    let (_, crossed) = make("Crossed links", [9, 8, 7, 6], [[6, 8], [7, 9]])?;
+    let (owner, _) = place(&mut engine, &original, "RN1", 1, [20., 20.])?;
+    let alt = add(&mut engine, "Alternate package")?;
+    variant(
+        &mut engine,
+        VariantCommand::SetPart {
+            instance: owner,
+            variant: alt,
+            part: Some(reordered),
+        },
+    )?;
+    let before = Snapshot::of(&engine);
+    let result = variant(
+        &mut engine,
+        VariantCommand::SetPart {
+            instance: owner,
+            variant: alt,
+            part: Some(crossed),
+        },
+    );
+    assert!(
+        matches!(result,Err(Error::Conflict(ref msg)) if msg.contains("lands joined by a tie"))
+    );
+    before.assert_kept(&engine, "crossed links in a pin-compatible package");
+    assert_eq!(
+        engine
+            .project()
+            .variants
+            .get(alt)
+            .and_then(|v| v.overrides.get(&owner))
+            .and_then(|o| o.part),
+        Some(reordered)
+    );
+    Ok(())
+}
