@@ -18,6 +18,7 @@ pub(super) enum Hit {
     /// A pad: its part, and the pad's net.
     Pad(Id, Option<Id>),
     Tie(Id, sparksmith_core::TieId),
+    Hole(super::BoardFeatureId),
     Via(Id, Id),
     Track(Id, Id),
     Part(Id),
@@ -99,6 +100,10 @@ impl PcbEditor {
                     self.select_hit(hit);
                 }
                 Target::Fill(id)
+            }
+            Hit::Hole(_) => {
+                self.select_hit(hit);
+                Target::Board
             }
             Hit::Nothing => Target::Board,
         }

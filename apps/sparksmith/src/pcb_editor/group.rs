@@ -52,7 +52,9 @@ impl Pick {
             Hit::Track(id, _) => Some(Self::Track(id)),
             Hit::Via(id, _) => Some(Self::Via(id)),
             Hit::Fill(id, _) => Some(Self::Fill(id)),
-            Hit::Nothing => None,
+            // Sketch features are inspected individually; layout group commands
+            // accept only parts, tracks, vias and fills.
+            Hit::Hole(_) | Hit::Nothing => None,
         }
     }
 
@@ -285,7 +287,7 @@ impl PcbEditor {
         along
             .iter()
             .copied()
-            .find(|s| Pick::of_body(s).is_some_and(|p| allows(&self.filter, p)))
+            .find(|s| s.hole.is_some() || Pick::of_body(s).is_some_and(|p| allows(&self.filter, p)))
     }
 
     /// Drop what the last edit, undo or redo took away.

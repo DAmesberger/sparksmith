@@ -2416,6 +2416,101 @@ fn with_washer(mut project: Project) -> Project {
     project
 }
 
+/// The two rings and the barrel all select their mounting hole. Loading the
+/// source table from disk must recover the same picks without the PCB project.
+#[test]
+fn mounting_hole_picks_survive_native_reopening() -> Result<()> {
+    use sparksmith_core::model::board::{BoardFeatureId, BoardShape};
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let mut project = with_washer(fixture()?);
+    let BoardShape::Sketch(sketch) = &mut project.board_shape else {
+        return Err(Error::Verification("expected a board sketch".into()));
+    };
+    let first = sketch.solved.holes[0];
+    let mut second = first;
+    second.id = BoardFeatureId(17);
+    second.at = [6.0, 6.0];
+    sketch.solved.holes.push(second);
+    sketch.next_feature = 18;
+    let plan = plan::of(&project)?;
+    let expected = [None, Some(CopperLayer::Top), Some(CopperLayer::Bottom)];
+    let sources = mesh::plan_sources(&plan);
+    let (meshed, _) = mesh::bodies(&plan, &sources, &mut mesh::Memo::default())?;
+    for hole in [first, second] {
+        let mut from_plan = Vec::new();
+        for body in &meshed {
+            if let plan::Origin::Washer { hole: id, layer } = body.source
+                && id == hole.id
+            {
+                let source = sources
+                    .iter()
+                    .find(|s| Some(s.pick_id) == body.geometry.item);
+                assert_eq!(
+                    source.and_then(|s| s.hole.as_ref()).map(|h| h.id),
+                    Some(hole.id)
+                );
+                from_plan.push(layer);
+            }
+        }
+        assert_eq!(from_plan, expected);
+    }
+    let check = |model: &NativeModel| -> Result<Vec<u64>> {
+        assert!(
+            model
+                .geometry
+                .iter()
+                .filter(|g| g.kind == BodyKind::Substrate)
+                .all(|g| g.item.is_none())
+        );
+        let mut picks = Vec::new();
+        for hole in [first, second] {
+            let sources: Vec<_> = model
+                .sources
+                .iter()
+                .filter(|s| s.hole.as_ref().is_some_and(|h| h.id == hole.id))
+                .collect();
+            let [source] = sources.as_slice() else {
+                return Err(Error::Verification(format!(
+                    "expected one source for hole {:?}",
+                    hole.id
+                )));
+            };
+            let mut layers = Vec::new();
+            let [x, y] = hole.at;
+            for g in model
+                .geometry
+                .iter()
+                .filter(|g| g.item == Some(source.pick_id))
+            {
+                assert_eq!(g.kind, BodyKind::PadCopper);
+                // The circle mesh starts at its eastern edge and is symmetric
+                // about Y = y. An odd chord count can miss its western extreme.
+                let outer_radius = if g.layer.is_some() { 3.0 } else { 1.525 };
+                near(g.max[0] - outer_radius, x);
+                near((g.min[1] + g.max[1]) / 2.0, y);
+                layers.push(g.layer);
+            }
+            layers.sort();
+            assert_eq!(layers, expected);
+            picks.push(source.pick_id);
+        }
+        assert_ne!(picks[0], picks[1]);
+        Ok(picks)
+    };
+    let live = build_flat(&project, &SourceCache::default(), None, Flat::Meshed)?;
+    let picks = check(&live)?;
+    let exact = build(&project)?;
+    assert_eq!(check(&exact)?, picks);
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("plated-hole.solidcraft");
+    let path = path.to_string_lossy();
+    exact.save(crate::native::files::test_file(&path))?;
+    let reopened = Native::open(&path)?;
+    let restored = saved_sources(&reopened)?;
+    assert_eq!(check(&finish(reopened, restored)?)?, picks);
+    Ok(())
+}
+
 /// A plated mounting hole's washer is copper of the board's physical
 /// inventory on every layer: the plan holds a ring on each, of area
 /// π (3² − 1.5²) mm² on the outer layers (hand-derived from the 6 mm

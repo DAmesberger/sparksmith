@@ -27,6 +27,7 @@ use sparksmith_core::library::model3d::{LibraryModel, ModelDefinition as Library
 use sparksmith_core::library::{
     ModelPlacement, PackageDefinition, PackageModel, Pad, PadCopper, PadShape,
 };
+use sparksmith_core::model::board::BoardFeatureId;
 use sparksmith_core::{
     CopperLayer, Fabrication, Id, Layer, PadId, Placement, Point, Project, Stackup, instances,
     layout,
@@ -47,10 +48,22 @@ pub struct BridgeSource {
     pub nets: Vec<Id>,
 }
 
+/// A mounting hole's copper shares the laminate's native component. Name
+/// its individual plan bodies so a pick never includes the laminate or a
+/// neighbouring hole, and each ring keeps its copper layer after reopening.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HoleSource {
+    pub id: BoardFeatureId,
+    pub bodies: BTreeMap<String, Option<CopperLayer>>,
+}
+
 /// Which Sparksmith object a native body came from. Stored in the native file's
 /// metadata so identity survives reopening, compactly ([`identity`]).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Source {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hole: Option<HoleSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tie: Option<BridgeSource>,
     pub pick_id: u64,
@@ -83,7 +96,8 @@ impl Source {
     /// bridges have their own picks, even when they belong to the same part.
     pub fn package_instance(&self) -> Option<Id> {
         self.instance.filter(|_| {
-            self.pad.is_none()
+            self.hole.is_none()
+                && self.pad.is_none()
                 && self.tie.is_none()
                 && self.track.is_none()
                 && self.via.is_none()
@@ -629,10 +643,22 @@ fn finish_with(
     let shared = shared_picks(&native, &sources)?;
     let doc = &native.session().doc;
     // The first source of each component of its own, and each source by pick.
+    let mut holes = BTreeMap::new();
     let mut own: BTreeMap<u64, u64> = BTreeMap::new();
     let mut by_pick: BTreeMap<u64, &Source> = BTreeMap::new();
     for s in &sources {
-        if s.occurrence.is_none() {
+        if let Some(hole) = &s.hole {
+            for (name, &layer) in &hole.bodies {
+                if holes
+                    .insert((s.component, name.as_str()), (s.pick_id, layer))
+                    .is_some()
+                {
+                    return Err(Error::Verification(format!(
+                        "duplicate mounting-hole body {name}"
+                    )));
+                }
+            }
+        } else if s.occurrence.is_none() {
             own.entry(s.component).or_insert(s.pick_id);
         }
         by_pick.entry(s.pick_id).or_insert(s);
@@ -676,11 +702,16 @@ fn finish_with(
         let kind = *kinds
             .get(name)
             .ok_or_else(|| Error::Verification(format!("body {name} has no Sparksmith kind")))?;
+        let hole = holes.get(&(body.component, name));
         let item = shared
             .get(&index)
             .copied()
+            .or_else(|| hole.map(|&(pick, _)| pick))
             .or_else(|| own.get(&body.component).copied());
         let layer = |kind: BodyKind| {
+            if let Some(&(_, layer)) = hole {
+                return layer;
+            }
             item.and_then(|pick| by_pick.get(&pick).copied())
                 .filter(|_| !kind.is_envelope() && !kind.is_generated())
                 .and_then(|s| s.layer)
@@ -1083,6 +1114,7 @@ impl<'a> PlacedPart<'a> {
     /// `occurrence` of a shared definition.
     fn source(&self, pick: u64, component: u64, occurrence: Option<u64>) -> Source {
         Source {
+            hole: None,
             tie: None,
             pick_id: pick,
             instance: Some(self.instance.id),
@@ -1627,6 +1659,7 @@ fn bridge_source(body: &plan::PlanBody, pick_id: u64, component: u64) -> Result<
         return Err(Error::Verification("Expected a bridge body.".into()));
     };
     Ok(Source {
+        hole: None,
         pick_id,
         instance: Some(instance),
         tie: Some(BridgeSource {
@@ -1710,6 +1743,7 @@ fn build_meshed(
     let display = appearance::Board::of(project)?;
     let none = vec![None; project.vias.len()];
     let marks = marks(project, &none, &none, &mut sources)?;
+    washer_sources(&plan.washers, NO_COMPONENT, &mut sources);
     for mark in &marks {
         lands.extend(mark.lands(&display));
     }
@@ -2067,6 +2101,7 @@ fn build_on(mut b: Builder, project: &Project) -> Result<NativeModel> {
     }
     let display = appearance::Board::of(project)?;
     let marks = vias(&mut b, project, &mut styles, &mut sources)?;
+    washer_sources(&plan.washers, substrate.component, &mut sources);
     for mark in &marks {
         lands.extend(mark.lands(&display));
     }
@@ -2174,6 +2209,7 @@ fn pad_lands(pad: &PlacedPad<'_>, pick: u64, lands: &mut Vec<Land>) -> Result<Op
         return Ok(None);
     }
     Ok(Some(Source {
+        hole: None,
         tie: None,
         pick_id: pick,
         instance: Some(pad.placed.instance),
@@ -2208,6 +2244,7 @@ fn track_source(
         });
     }
     Source {
+        hole: None,
         tie: None,
         pick_id: pick,
         instance: None,
@@ -2365,6 +2402,35 @@ fn via_style(
         origin: None,
         first: created.occurrence,
     })
+}
+
+/// One pick per mounting hole, with its barrel and every ring read from
+/// the same plan by the native builder and live mesher.
+fn washer_sources(washers: &[plan::WasherPlan], component: u64, sources: &mut Vec<Source>) {
+    for washer in washers {
+        sources.push(Source {
+            pick_id: next_pick(sources),
+            hole: Some(HoleSource {
+                id: washer.hole,
+                bodies: washer
+                    .bodies
+                    .iter()
+                    .map(|b| (b.name.clone(), b.layer))
+                    .collect(),
+            }),
+            tie: None,
+            instance: None,
+            pad: None,
+            track: None,
+            via: None,
+            fill: None,
+            net: None,
+            layer: None,
+            label: format!("Mounting hole {}", washer.hole.0),
+            component,
+            occurrence: None,
+        });
+    }
 }
 
 /// The washers of plated mounting holes, in the board's own component
@@ -2574,6 +2640,7 @@ fn marks(
             };
         let pick = next_pick(sources);
         sources.push(Source {
+            hole: None,
             tie: None,
             pick_id: pick,
             instance: None,

@@ -673,6 +673,7 @@ impl SceneController {
     pub fn highlight(
         &mut self,
         chosen: &crate::pcb_editor::Group,
+        hole: Option<sparksmith_core::model::board::BoardFeatureId>,
         net: Option<Id>,
         lit: &crate::pcb_editor::Group,
         ties: &crate::ties::Focus,
@@ -685,7 +686,8 @@ impl SceneController {
         let mut focus = Vec::new();
         let mut copper = net.is_some() || !ties.nets.is_empty();
         for s in &self.sources {
-            let picked = picks(s, chosen) && ties.includes(s);
+            let picked = s.hole.as_ref().is_some_and(|h| Some(h.id) == hole)
+                || (picks(s, chosen) && ties.includes(s));
             let on_net = s
                 .net
                 .is_some_and(|n| net == Some(n) || ties.nets.contains(&n))
@@ -716,6 +718,14 @@ impl SceneController {
             .filter(|s| picks(s, chosen))
             .map(|s| s.pick_id)
             .collect()
+    }
+
+    /// The pick shared by all rings and the barrel of the inspected hole.
+    pub fn hole_pick(&self, id: sparksmith_core::model::board::BoardFeatureId) -> Option<u64> {
+        self.sources
+            .iter()
+            .find(|s| s.hole.as_ref().is_some_and(|h| h.id == id))
+            .map(|s| s.pick_id)
     }
 
     /// How many models were asked for: each one a build or an update.

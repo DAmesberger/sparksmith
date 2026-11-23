@@ -1784,6 +1784,7 @@ pub(super) fn paint_solved(
     painter: &egui::Painter,
     view: &BoardView,
     solved: &SolvedBoard,
+    selected: Option<super::BoardFeatureId>,
     ink: &BoardInk,
     edge: Stroke,
 ) {
@@ -1827,5 +1828,14 @@ pub(super) fn paint_solved(
         };
         let radius = (hole.drill as f32 * view.view.scale / 2.0).max(1.5);
         painter.circle(at, radius, ink.drill, Stroke::new(1.0, edge));
+        if selected == Some(hole.id) {
+            let radius = (hole.pad_diameter.unwrap_or(hole.drill) as f32 * view.view.scale / 2.0)
+                .max(radius);
+            painter.circle_stroke(
+                at,
+                radius,
+                Stroke::new(2.0, crate::palette::board().selected),
+            );
+        }
     }
 }
