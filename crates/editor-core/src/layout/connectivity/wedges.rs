@@ -416,6 +416,10 @@ impl CopperGraph {
                 let Some(world) = self.pads.get(pad) else {
                     continue;
                 };
+                // A barrel contact on another layer has no straight land edges.
+                if !world.on(track.layer) {
+                    continue;
+                }
                 let Some(ring) = self.shapes.get(pad_outline(pad)) else {
                     continue;
                 };

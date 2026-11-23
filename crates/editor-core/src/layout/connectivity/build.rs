@@ -389,6 +389,50 @@ fn fill_stations(
     out
 }
 
+type PadBarrels = BTreeMap<(Id, crate::ids::PadId), Vec<(Point, CopperRing)>>;
+
+/// The barrel wall of each pad-owned via, including its finished bore.
+fn thermal_barrels(project: &Project) -> PadBarrels {
+    let mut barrels = BTreeMap::new();
+    if !project
+        .library
+        .footprints
+        .iter()
+        .any(|f| f.definition.pads.iter().any(|p| !p.vias.is_empty()))
+    {
+        return barrels;
+    }
+    let Ok(plating) = project.stackup.plating() else {
+        return barrels;
+    };
+    let wall = plating.wall_nm.to_mm_f64();
+    for placed in crate::layout::placed_pads(project) {
+        let transform = placed.pad_transform();
+        for via in &placed.pad.vias {
+            let centre = transform.apply(via.at());
+            let bore = via.drill() / 2.0;
+            let outline = |radius| crate::geometry::Shape::Circle {
+                center: centre,
+                radius,
+            };
+            let mut outer = CopperRing::of_shape(&outline(bore + wall), true);
+            let inner = outline(bore).flatten(CURVE_SLACK_MM);
+            // Traverse the two loops with opposite winding. The coincident
+            // radial edges close the annulus without adding copper in the bore.
+            if let (Some(&start), Some(&end)) = (outer.ring.first(), inner.first()) {
+                outer.ring.push(start);
+                outer.ring.push(end);
+                outer.ring.extend(inner.into_iter().rev());
+                barrels
+                    .entry((placed.instance, placed.pad.id))
+                    .or_insert_with(Vec::new)
+                    .push((centre, outer));
+            }
+        }
+    }
+    barrels
+}
+
 impl CopperGraph {
     /// Build the graph of `project`'s copper. The engine caches it per
     /// revision ([`crate::Engine::copper_graph`]).
@@ -445,6 +489,7 @@ impl CopperGraph {
             layer,
             first: 0,
             count: 0,
+            barrel_centre: None,
         };
         let mut lands = Vec::with_capacity(tracks.len() + vias.len() + pads.len());
         for (index, track) in tracks.iter().enumerate() {
@@ -466,15 +511,34 @@ impl CopperGraph {
             via_lands.push(first..elements.len());
             lands.push(first..elements.len());
         }
+        // Retain the primary outline index of every pad. Barrel outlines
+        // follow them, but their land elements are grouped with the owner.
+        let thermal = thermal_barrels(project);
         let mut pad_lands = Vec::with_capacity(pads.len());
+        let mut barrel_shapes = Vec::new();
         for (index, pad) in pads.iter().enumerate() {
             let first = elements.len();
-            pad_lands.push(first);
             shapes.push(CopperRing::of_pad(pad));
             for layer in layers.iter().filter(|l| pad.on(**l)) {
                 elements.push(element(ElementKind::Pad { index }, pad.net, *layer));
             }
             lands.push(first..elements.len());
+            if let Some(barrels) = thermal.get(&(pad.instance, pad.pad)) {
+                for (centre, shape) in barrels {
+                    let start = elements.len();
+                    for &layer in &layers {
+                        let mut land = element(ElementKind::Pad { index }, pad.net, layer);
+                        land.barrel_centre = Some(*centre);
+                        elements.push(land);
+                    }
+                    barrel_shapes.push((shape.clone(), start..elements.len()));
+                }
+            }
+            pad_lands.push(first..elements.len());
+        }
+        for (ring, span) in barrel_shapes {
+            shapes.push(ring);
+            lands.push(span);
         }
         // One element per island of each fresh fill; stale copper joins
         // nothing until it is refilled.
@@ -538,7 +602,9 @@ impl CopperGraph {
                 ring,
             },
             ElementKind::Pad { index } => Geo::Land {
-                centre: self.pads.get(index)?.position,
+                centre: element
+                    .barrel_centre
+                    .unwrap_or(self.pads.get(index)?.position),
                 ring,
             },
             ElementKind::Fill { .. } => return None,
@@ -806,7 +872,6 @@ impl CopperGraph {
         }
         self.vertices = vertices;
         let mut edges = Vec::new();
-        let mut previous: Option<&Element> = None;
         for e in &self.elements {
             for v in e.first + 1..e.first + e.count {
                 edges.push(Edge {
@@ -815,26 +880,25 @@ impl CopperGraph {
                     kind: EdgeKind::Stretch,
                 });
             }
-            // Lands of one via or pad are consecutive elements.
-            if let Some(p) = previous {
-                let kind = match (p.kind, e.kind) {
-                    (ElementKind::Via { index: x }, ElementKind::Via { index: y }) if x == y => {
-                        Some(EdgeKind::Barrel)
-                    }
-                    (ElementKind::Pad { index: x }, ElementKind::Pad { index: y }) if x == y => {
-                        Some(EdgeKind::Plated)
-                    }
-                    _ => None,
+        }
+        // Only the lands of one physical outline have a vertical edge.
+        // The pad and each barrel meet on their common layer through scan().
+        for lands in &self.lands {
+            for i in lands.clone().skip(1) {
+                let (Some(a), Some(b)) = (self.elements.get(i - 1), self.elements.get(i)) else {
+                    continue;
                 };
-                if let Some(kind) = kind {
-                    edges.push(Edge {
-                        a: p.first,
-                        b: e.first,
-                        kind,
-                    });
-                }
+                let kind = match b.kind {
+                    ElementKind::Via { .. } => EdgeKind::Barrel,
+                    ElementKind::Pad { .. } => EdgeKind::Plated,
+                    _ => continue,
+                };
+                edges.push(Edge {
+                    a: a.first,
+                    b: b.first,
+                    kind,
+                });
             }
-            previous = Some(e);
         }
         let mut joined: Vec<(usize, usize)> = joints
             .iter()

@@ -311,7 +311,9 @@ impl CopperGraph {
         use crate::geometry::Bounds;
         let mut bounds = BTreeMap::<(Id, usize), Bounds>::new();
         for (lands, shape) in self.lands.iter().zip(&self.shapes) {
-            let Some(outline) = shape.bounds else { continue };
+            let Some(outline) = shape.bounds else {
+                continue;
+            };
             for element in lands.clone() {
                 if let (Some(e), Some(i)) = (
                     self.elements.get(element),
@@ -700,9 +702,9 @@ impl CopperGraph {
             .collect();
         let island: Vec<usize> = (0..pads.len())
             .map(|i| {
-                self.pad_lands
-                    .get(i)
-                    .map_or(usize::MAX - i, |e| dsu.find(self.vertices_of(*e).start))
+                self.pad_lands.get(i).map_or(usize::MAX - i, |e| {
+                    dsu.find(self.vertices_of(e.start).start)
+                })
             })
             .collect();
         spanning(&pads, &island)
