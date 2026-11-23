@@ -78,7 +78,7 @@ A check whose limit is the fab profile's own rule (not an override's, a net clas
 - **Apertures:** each is defined once, numbered from D10 in first-use order, with its `.AperFunction` set by `%TA` before its `%AD`.
 - **File attributes:** `.GenerationSoftware`, `.CreationDate` (only when asked), `.ProjectId` (see [release identity](#release-identity)), `.SameCoordinates`, `.FileFunction` and `.FilePolarity`.
 - **Copper order:**
-  1. Fill regions, largest first: each region dark, its holes clear (`%LPC`). An island inside another region's hole is smaller, so it is drawn after that hole is cleared; nothing drawn after the fills is erased.
+  1. Computed pours on each net are united, keeping copper wherever any pour contributes it. The resulting fill regions are plotted largest first, each region dark and its holes clear (`%LPC`). An island inside another region's hole is smaller, so it is drawn after that hole is cleared; nothing drawn after the fills is erased.
   2. Tracks, as round-aperture `D01` draws, so their ends are exactly round.
   3. Vias (`ViaPad`).
   4. Plated mounting-hole rings (`WasherPad`).
