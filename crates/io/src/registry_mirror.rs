@@ -1,5 +1,5 @@
 //! The offline mirror of an online parts registry (part-search §6.4,
-//! registry R0 §10): `<cache>/registry/<host>/` holds the last index the
+//! registry R0 §10): `<cache>/registry/origins/<origin-digest>/` holds the last index the
 //! registry named, its shards (each a `SourceCatalog` by SHA-256 of its
 //! bytes), and every revision record and asset a placed or previewed part
 //! needed, by content hash. Never authoritative and never part of a
@@ -106,6 +106,40 @@ struct BundleFile {
 #[derive(Clone, Debug)]
 pub struct Mirror {
     root: PathBuf,
+    origin: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct IndexFile {
+    origin: String,
+    snapshot: MirroredIndex,
+}
+
+/// Canonical scheme, host and effective port of an already checked registry URL.
+fn origin(url: &str) -> Result<String> {
+    let bad = || Error::Invalid("The registry URL needs a valid host and port".into());
+    let uri = url.parse::<http::Uri>().map_err(|_| bad())?;
+    let authority = uri.authority().ok_or_else(bad)?;
+    let scheme = uri.scheme_str().ok_or_else(bad)?;
+    let host = authority.host();
+    let port = match authority.as_str().strip_prefix(host).ok_or_else(bad)? {
+        "" if scheme == "https" => 443,
+        "" => 80,
+        suffix => suffix
+            .strip_prefix(':')
+            .ok_or_else(bad)?
+            .parse::<u16>()
+            .map_err(|_| bad())?,
+    };
+    let host = if let Some(literal) = host.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        format!(
+            "[{}]",
+            literal.parse::<std::net::Ipv6Addr>().map_err(|_| bad())?
+        )
+    } else {
+        host.to_ascii_lowercase()
+    };
+    Ok(format!("{scheme}://{host}:{port}"))
 }
 
 /// The folder name for a registry URL: its host and port, lower case,
@@ -287,10 +321,16 @@ fn write_verified(path: &Path, bytes: &[u8]) -> Result<()> {
 
 impl Mirror {
     /// The mirror of the registry at `url` under `cache` (the user cache
-    /// directory): `<cache>/registry/<host>/`. Nothing is created yet.
+    /// directory): `<cache>/registry/origins/<origin-digest>/`. Nothing is created yet.
     pub fn open(cache: &Path, url: &str) -> Result<Self> {
+        crate::settings::check_registry_url(url)?;
+        let origin = origin(url)?;
         Ok(Self {
-            root: cache.join("registry").join(host_key(url)?),
+            root: cache
+                .join("registry")
+                .join("origins")
+                .join(asset_hash(origin.as_bytes()).to_string()),
+            origin,
         })
     }
 
@@ -317,14 +357,18 @@ impl Mirror {
     /// The last index stored, if any and readable.
     pub fn index(&self) -> Option<MirroredIndex> {
         let bytes = read_limited(&self.root.join("index.json"), MAX_INDEX_BYTES).ok()?;
-        serde_json::from_slice(&bytes).ok()
+        let file: IndexFile = serde_json::from_slice(&bytes).ok()?;
+        (file.origin == self.origin).then_some(file.snapshot)
     }
 
     /// Keep `index` as the mirror's current one.
     pub fn store_index(&self, index: &RegistryIndex, fetched: u64) -> Result<()> {
-        let bytes = serde_json::to_vec(&MirroredIndex {
-            index: index.clone(),
-            fetched,
+        let bytes = serde_json::to_vec(&IndexFile {
+            origin: self.origin.clone(),
+            snapshot: MirroredIndex {
+                index: index.clone(),
+                fetched,
+            },
         })?;
         std::fs::create_dir_all(&self.root)?;
         atomic_write_with(&self.root.join("index.json"), |file| {

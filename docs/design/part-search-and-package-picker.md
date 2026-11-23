@@ -450,7 +450,7 @@ An **entry** is one immutable, versioned unit: `publisher/name@version` (version
 
 ### 6.4 Offline cache
 
-- `<cache>/registry/<host>/` holds index shards and blobs by digest. Search works offline on the last snapshot and says its date ("index of 14 November").
+- `<cache>/registry/origins/<origin-digest>/` holds index shards and blobs by digest. Search works offline on the last snapshot and says its date ("index of 14 November").
 - The cache is never authoritative and never part of a project: placing **imports** an exact snapshot into the project (as `library.place_from` does today), so the project opens identically without the network.
 
 ### 6.5 Import preview

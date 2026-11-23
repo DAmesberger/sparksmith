@@ -154,3 +154,43 @@ fn a_stored_bundle_is_reused_offline_and_a_changed_cache_file_is_refused() -> Re
     assert!(offline.bundle(bundle.root, &shard.catalog).is_err());
     Ok(())
 }
+
+#[test]
+fn offline_indexes_belong_to_the_exact_registry_origin() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let open = |url: &str| Mirror::open(dir.path(), url);
+    let https = open("https://Parts.Example/")?;
+    let index = RegistryIndex {
+        format: FORMAT,
+        snapshot: "private snapshot".into(),
+        shards: vec![],
+    };
+    https.store_index(&index, 1)?;
+    assert_eq!(
+        open("https://parts.example:443")?.index().map(|m| m.index),
+        Some(index)
+    );
+    for url in [
+        "http://parts.example",
+        "http://parts.example:443",
+        "https://parts.example:8443",
+    ] {
+        let other = open(url)?;
+        assert_ne!(other.root(), https.root());
+        assert!(other.index().is_none());
+        std::fs::create_dir_all(other.root())?;
+        std::fs::copy(
+            https.root().join("index.json"),
+            other.root().join("index.json"),
+        )?;
+        assert!(
+            other.index().is_none(),
+            "misfiled index from another origin"
+        );
+    }
+    assert_eq!(
+        open("http://[::1]")?.root(),
+        open("http://[0:0:0:0:0:0:0:1]:80")?.root()
+    );
+    Ok(())
+}
