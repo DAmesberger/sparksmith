@@ -696,6 +696,14 @@ fn drill_rows(pf: &PreflightReport) -> Vec<&crate::fabrication::PreflightItem> {
 fn an_undersized_hole_is_never_waived_and_each_is_its_own_row() -> Result<()> {
     let (engine, _) = gate_board_with(&["none"])?;
     let mut file = engine.to_file();
+    // The profile's own minimum drill (0.1 mm), not the gate board's
+    // override: only a profile limit is never waived.
+    crate::rules::apply(
+        &mut file.project.rules,
+        RulesCommand::ClearOverride {
+            key: RuleKey::DrillMin,
+        },
+    )?;
     let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
         return Err(Error::Invalid("the gate board is sketched".into()));
     };
@@ -736,7 +744,7 @@ fn an_undersized_hole_is_never_waived_and_each_is_its_own_row() -> Result<()> {
     assert!(
         refused
             .as_ref()
-            .is_err_and(|e| e.to_string().contains("fabrication.not_waivable")),
+            .is_err_and(|e| e.rule() == Some("fabrication.not_waivable")),
         "{refused:?}"
     );
     let pf = report(&engine)?;

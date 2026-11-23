@@ -116,7 +116,7 @@ impl<'a> Intent<'a> {
                     .is_some()
             {
                 return Err(Error::Invalid(format!(
-                    "Invalid or repeated net name {name:?}."
+                    "Invalid or repeated net name ‘{name}’."
                 )));
             }
             if terminals.is_empty() || terminals.len() > max_terminals.saturating_sub(owners.len())

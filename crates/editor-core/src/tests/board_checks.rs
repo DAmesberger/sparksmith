@@ -1045,6 +1045,9 @@ fn a_waived_finding_leaves_issues_and_stays_waived_in_production() -> Result<()>
                 // its unwaived siblings (fabrication's preflight tests).
                 && r.also.is_empty()
                 && r.severity != issues::Severity::Info
+                // A finding the board needs more of its fab profile for is
+                // never waived (a saved waiver of it is ignored).
+                && r.needs.is_empty()
         })
         .ok_or_else(|| Error::NotFound("a board finding".into()))?;
     let key = preflight::key(&row.finding.code, &row.finding.objects);

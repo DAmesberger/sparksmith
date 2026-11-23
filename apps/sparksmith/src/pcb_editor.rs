@@ -1901,7 +1901,9 @@ impl PcbEditor {
             self.finish_route();
         }
         // Esc away from the board (over it, the cancel above took it).
-        if self.tool != Tool::Select || crate::keys::pressed(ui.ctx(), "pcb.cancel") {
+        if self.tool != Tool::Select
+            || (self.anchor_pick.is_some() && crate::keys::pressed(ui.ctx(), "pcb.cancel"))
+        {
             self.anchor_pick = None;
         }
         kit::tool_cursor(

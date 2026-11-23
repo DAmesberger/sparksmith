@@ -201,7 +201,15 @@ fn path_properties(schema: &Value, out: &mut BTreeSet<String>) {
     match schema {
         Value::Object(object) => {
             if let Some(properties) = object.get("properties").and_then(Value::as_object) {
-                out.extend(properties.keys().filter(|k| looks_like_a_path(k)).cloned());
+                // A sheet path (`SheetPath`, the repeated-sheet occurrence)
+                // names no file.
+                let sheet_path = |v: &Value| v.to_string().contains("#/$defs/SheetPath");
+                out.extend(
+                    properties
+                        .iter()
+                        .filter(|(k, v)| looks_like_a_path(k) && !sheet_path(v))
+                        .map(|(k, _)| k.clone()),
+                );
             }
             object
                 .values()

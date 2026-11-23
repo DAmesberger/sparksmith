@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "command", content = "params", deny_unknown_fields)]
 pub enum InstanceCommand {
+    /// Set what a tie group is for: none, star ground, Kelvin sense, shield
+    /// bond or supply join.
     #[serde(rename = "tie.set_purpose")]
     SetPurpose {
         instance: Id,
@@ -22,6 +24,7 @@ pub enum InstanceCommand {
         group: Option<crate::ids::TieId>,
         purpose: crate::library::tie::TiePurpose,
     },
+    /// Anchor a Kelvin tie end's sense contact on a pad, or clear the anchor.
     #[serde(rename = "tie.set_anchor")]
     SetAnchor {
         instance: Id,

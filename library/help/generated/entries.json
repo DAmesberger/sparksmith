@@ -3431,7 +3431,7 @@
   },
   {
     "id": "entry/rules.set_tie_current",
-    "title": "Set the tie current table and temperature rise",
+    "title": "Set the tie current rating",
     "summary": "Snapshot a sourced IPC-2152 table supplied by the person or a library and the allowed rise.",
     "since": "0.1.0",
     "facts": {
@@ -3936,7 +3936,7 @@
   {
     "id": "entry/tie.set_anchor",
     "title": "Set or clear a Kelvin anchor",
-    "summary": "",
+    "summary": "Anchor a Kelvin tie end's sense contact on a pad, or clear the anchor.",
     "since": "0.1.0",
     "facts": {
       "kind": "entry",
@@ -3950,7 +3950,7 @@
   {
     "id": "entry/tie.set_purpose",
     "title": "Set the purpose of a tie",
-    "summary": "",
+    "summary": "Set what a tie group is for: none, star ground, Kelvin sense, shield bond or supply join.",
     "since": "0.1.0",
     "facts": {
       "kind": "entry",

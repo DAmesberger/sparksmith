@@ -148,8 +148,7 @@ impl HelpSheet {
         self.navigation = Default::default();
         self.focused = self.open
             && self.bounds.is_some_and(|(layer, bounds)| {
-                ctx.memory(|m| m.focused())
-                    .and_then(|id| ctx.read_response(id))
+                focused_widget(ctx)
                     .is_some_and(|r| r.layer_id == layer && bounds.contains(r.rect.center()))
             });
         if !self.focused {
@@ -793,10 +792,23 @@ fn visible(entry: &&HelpEntry) -> bool {
 
 /// The most specific panel or field containing this frame's pointer or
 /// keyboard focus. Stored for this pass only; closed panels lose their target.
+/// Where the focused widget is, read without `Context::read_response`:
+/// building a response surrenders the focus of a widget that was just
+/// focused while a press lands elsewhere (egui's clicked-elsewhere rule).
+fn focused_widget(ctx: &egui::Context) -> Option<egui::WidgetRect> {
+    let id = ctx.memory(|m| m.focused())?;
+    ctx.viewport(|v| {
+        v.this_pass
+            .widgets
+            .get(id)
+            .filter(|w| w.rect.is_positive() && w.rect.is_finite())
+            .or_else(|| v.prev_pass.widgets.get(id))
+            .copied()
+    })
+}
+
 pub(crate) fn region(ui: &Ui, rect: egui::Rect, topic: &str, specificity: u8) {
-    let focus = ui
-        .memory(|m| m.focused())
-        .and_then(|id| ui.ctx().read_response(id));
+    let focus = focused_widget(ui.ctx());
     let focused =
         focus.is_some_and(|r| r.layer_id == ui.layer_id() && rect.contains(r.rect.center()));
     if !focused && !ui.rect_contains_pointer(rect) {
@@ -856,9 +868,7 @@ impl App {
             .filter(|(at, _, _)| *at == pass);
         let mut controls = vec![];
         crate::reveal::copy_targets(ctx, &mut controls);
-        let focused = ctx
-            .memory(|m| m.focused())
-            .and_then(|id| ctx.read_response(id));
+        let focused = focused_widget(ctx);
         let command = ctx
             .pointer_hover_pos()
             .into_iter()

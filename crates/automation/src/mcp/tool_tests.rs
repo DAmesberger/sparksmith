@@ -802,7 +802,8 @@ fn generators_are_found_and_called() -> Fallible<()> {
     assert!(full.to_string().len() > compact);
     for (filter, expected) in [
         (json!({"generator": "chip"}), vec!["chip"]),
-        (json!({"text": "resistor-0603"}), vec!["chip"]),
+        // The tie generator offers zero-ohm-resistor-0603 (a 0 Ω link).
+        (json!({"text": "resistor-0603"}), vec!["chip", "tie"]),
         (json!({"family": "no_lead"}), vec!["no-lead"]),
     ] {
         let got = tools.ok(

@@ -1664,7 +1664,7 @@ impl RulesCommand {
 
 // A new command chooses its permission class here.
 declare_entries!(RulesCommand in rules {
-    SetTieCurrent "rules.set_tie_current" Edit "Set the tie current table and temperature rise" [since(2, 7)],
+    SetTieCurrent "rules.set_tie_current" Edit "Set the tie current rating" [since(2, 7)],
     SetProfile "rules.set_fab_profile" Edit "Set the fab profile",
     SetOptions "rules.set_fab_options" Edit "Choose fab profile options",
     SetOverride "rules.set_override" Edit "Override a rule",

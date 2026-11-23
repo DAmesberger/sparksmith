@@ -38,8 +38,10 @@ fn the_catalog_has_its_293_entries() {
     // queries (assembly variants); then library.account and library.sign_out;
     // then variant.review_substitute; then schematic.pins; then
     // variant.set_exclusions; then tie.set_purpose, tie.set_anchor, tie.list
-    // and rules.set_tie_current; then the two offline help queries.
-    assert_eq!(metadata::entries().len(), 298);
+    // and rules.set_tie_current; then the two offline help queries; then
+    // sheet_symbol.rename, fabrication.profile_suggestions and
+    // schematic.check_intent.
+    assert_eq!(metadata::entries().len(), 301);
 }
 
 /// A title is short, says more than the wire name, and is unique within its

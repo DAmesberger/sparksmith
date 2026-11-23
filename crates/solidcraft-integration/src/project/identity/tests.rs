@@ -373,7 +373,9 @@ fn independent_bridges_keep_their_group_and_end_nets_after_reopen() -> Result<()
             ..source(i as u64 + 1, i as u64 + 2)
         })
         .collect::<Vec<_>>();
-    let bodies = BTreeMap::new();
+    // A native model records at least one body kind; the reader refuses
+    // one without (a bridge is track-like copper).
+    let bodies = BTreeMap::from([("bridge_12_9".to_owned(), BodyKind::CopperTrack)]);
     let mut native = Native::new("Independent ties")?;
     write(&mut native, &sources, &bodies)?;
     let dir = tempfile::tempdir()?;
