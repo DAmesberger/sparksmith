@@ -1,0 +1,120 @@
+{
+ "cases": [
+  {
+   "name": "Kelvin reference",
+   "request": {
+    "abi": 1,
+    "scope": "component",
+    "params": {
+     "form": "kelvin",
+     "ends": 2,
+     "state": "open",
+     "pair": "first",
+     "chip_size": "resistor-0603",
+     "pad_length": 0,
+     "pad_width": 0,
+     "bridge_length": 0,
+     "bridge_width": 0,
+     "gap": 0,
+     "solder_height": 0,
+     "land_gap_min": 200000,
+     "resistor_style": "iec"
+    }
+   },
+   "result": "b8a7ea3dfacb2de5801fc0b903e12cc892a29ec9c074d612056c8e363d9079b0"
+  },
+  {
+   "name": "Eight-end copper star",
+   "request": {
+    "abi": 1,
+    "scope": "component",
+    "params": {
+     "form": "copper",
+     "ends": 8,
+     "state": "open",
+     "pair": "first",
+     "chip_size": "resistor-0603",
+     "pad_length": 800000,
+     "pad_width": 650000,
+     "bridge_length": 0,
+     "bridge_width": 100000,
+     "gap": 300000,
+     "solder_height": 0,
+     "land_gap_min": 200000,
+     "resistor_style": "iec"
+    }
+   },
+   "result": "defe6315779f50af83e27a157fe1f76d8d47394929e3ccd5344c41e3bf08daa4"
+  },
+  {
+   "name": "Two-land solder bridge",
+   "request": {
+    "abi": 1,
+    "scope": "component",
+    "params": {
+     "form": "solder",
+     "ends": 2,
+     "state": "open",
+     "pair": "first",
+     "chip_size": "resistor-0603",
+     "pad_length": 500000,
+     "pad_width": 1000000,
+     "bridge_length": 0,
+     "bridge_width": 1000000,
+     "gap": 200000,
+     "solder_height": 150000,
+     "land_gap_min": 200000,
+     "resistor_style": "iec"
+    }
+   },
+   "result": "5d03c5bdc5cae92a97473a151c7b01f5e79b54e1c3890cbc24c626d85adc1544"
+  },
+  {
+   "name": "Cuttable lands 2 and 3",
+   "request": {
+    "abi": 1,
+    "scope": "component",
+    "params": {
+     "form": "trace",
+     "ends": 3,
+     "state": "closed",
+     "pair": "last",
+     "chip_size": "resistor-0603",
+     "pad_length": 500000,
+     "pad_width": 1000000,
+     "bridge_length": 0,
+     "bridge_width": 152400,
+     "gap": 200000,
+     "solder_height": 0,
+     "land_gap_min": 200000,
+     "resistor_style": "iec"
+    }
+   },
+   "result": "d723def16916281d8f1999a740bfc72ad636b8d74c717f457ed041093e3e8fb5"
+  },
+  {
+   "name": "0603 zero-ohm chip",
+   "request": {
+    "abi": 1,
+    "scope": "component",
+    "params": {
+     "form": "zero_ohm",
+     "ends": 2,
+     "state": "open",
+     "pair": "first",
+     "chip_size": "resistor-0603",
+     "pad_length": 0,
+     "pad_width": 0,
+     "bridge_length": 0,
+     "bridge_width": 0,
+     "gap": 0,
+     "solder_height": 0,
+     "land_gap_min": 200000,
+     "resistor_style": "iec"
+    }
+   },
+   "result": "a7759fc4c86ae63afb1655db20c773c5ac088c86d0d10ed896c94a6ee802e90f"
+  }
+ ],
+ "outputs": "d696e1ad51197f25f879db5adddbe7705e0d693eac03fbdc031460185705d99f"
+}

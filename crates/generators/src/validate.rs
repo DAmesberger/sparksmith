@@ -196,7 +196,11 @@ fn symbol(symbol: &Symbol, terminals: &BTreeSet<&str>) -> Result<(), Failure> {
     Ok(())
 }
 
-fn footprint(footprint: &Footprint, package_terminals: &BTreeSet<&str>) -> Result<(), Failure> {
+fn footprint(
+    footprint: &Footprint,
+    package_terminals: &BTreeSet<&str>,
+    anchored: bool,
+) -> Result<(), Failure> {
     count("pads", footprint.pads.len(), limits::PADS)?;
     let pads = unique("pad", footprint.pads.iter().map(|p| p.key.as_str()))?;
     count("bridges", footprint.bridges.len(), limits::PADS)?;
@@ -336,7 +340,7 @@ fn footprint(footprint: &Footprint, package_terminals: &BTreeSet<&str>) -> Resul
             "The generator's footprint has no pad for package terminal \"{missing}\"."
         )));
     }
-    if footprint.courtyard.len() < 3 {
+    if footprint.courtyard.len() < 3 && !(anchored && footprint.courtyard.is_empty()) {
         return Err(invalid(
             "The generator returned no courtyard outline.".into(),
         ));
@@ -448,6 +452,49 @@ fn model(g: &Generation) -> Result<(), Failure> {
     Ok(())
 }
 
+/// Each group identifies a separate set of passive terminals. The library
+/// checks bridge-to-land contact after expansion into the footprint frame.
+fn tie_groups(component: &v1::Component) -> Result<(), Failure> {
+    if component.ties.is_empty() {
+        return Ok(());
+    }
+    let passive: BTreeSet<_> = component
+        .terminals
+        .iter()
+        .filter(|t| t.direction == v1::Direction::Passive && t.alternates.is_empty())
+        .map(|t| t.key.as_str())
+        .collect();
+    let mut ids = BTreeSet::new();
+    let mut ends = BTreeSet::new();
+    for group in &component.ties {
+        if group.id == 0 || !ids.insert(group.id) {
+            return Err(invalid(
+                "Each generated tie group needs a distinct positive id.".into(),
+            ));
+        }
+        if component.assembly != group.form.assembly() {
+            return Err(invalid(
+                "The assembly of the generated part disagrees with its tie form.".into(),
+            ));
+        }
+        if !(2..=8).contains(&group.ends.len())
+            || (group.form == v1::TieForm::ZeroOhm && group.ends.len() != 2)
+        {
+            return Err(invalid(
+                "A tie needs two to eight ends and a 0 Ω link needs two.".into(),
+            ));
+        }
+        for end in &group.ends {
+            if !passive.contains(end.as_str()) || !ends.insert(end.as_str()) {
+                return Err(invalid(format!(
+                    "Tie end {end} must be a passive terminal belonging to just one group."
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Check a generation for `scope`.
 pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
     count(
@@ -482,7 +529,15 @@ pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
         }
         lead.contact.iter().try_for_each(|v| coordinate(*v))?;
     }
-    footprint(&g.footprint, &package_terminals)?;
+    // An anchored tie has no board footprint: no body, copper, or courtyard.
+    let anchored = g.component.as_ref().is_some_and(|c| {
+        !c.ties.is_empty() && c.ties.iter().all(|t| t.form == v1::TieForm::Copper)
+    }) && matches!(g.model, Some(Model::NoBody))
+        && package_terminals.is_empty()
+        && g.binding.is_empty()
+        && g.footprint.pads.is_empty()
+        && g.footprint.bridges.is_empty();
+    footprint(&g.footprint, &package_terminals, anchored)?;
     model(g)?;
     for note in &g.notes {
         text("note", note)?;
@@ -541,6 +596,7 @@ pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
                 "terminal",
                 component.terminals.iter().map(|t| t.key.as_str()),
             )?;
+            tie_groups(component)?;
             for t in &component.terminals {
                 text("terminal name", &t.name)?;
                 count(
@@ -783,6 +839,41 @@ mod tests {
     use sparksmith_generator_abi::v1::{
         ABI, Capability, Description, Effect, GENERATE_PART, Need, PartOffer, Scope,
     };
+
+    #[test]
+    fn independent_groups_have_distinct_ids_and_disjoint_passive_ends() {
+        use sparksmith_generator_abi::v1::{
+            Assembly, Component, Direction, Terminal, Tie, TieForm,
+        };
+
+        let terminals = ["a", "b", "c", "d"]
+            .map(|key| Terminal {
+                key: key.into(),
+                name: key.into(),
+                direction: Direction::Passive,
+                alternates: Vec::new(),
+                drive: None,
+            })
+            .into();
+        let group = |id, pair: [&str; 2]| Tie {
+            id,
+            form: TieForm::Copper,
+            ends: pair.map(String::from).into(),
+        };
+        let mut component = Component {
+            name: "Two ties".into(),
+            prefix: "NT".into(),
+            fields: Vec::new(),
+            terminals,
+            ties: vec![group(2, ["a", "b"]), group(5, ["c", "d"])],
+            assembly: Assembly::CopperOnly,
+        };
+        assert!(super::tie_groups(&component).is_ok());
+        component.ties[1] = group(2, ["c", "d"]);
+        assert!(super::tie_groups(&component).is_err());
+        component.ties[1] = group(5, ["b", "d"]);
+        assert!(super::tie_groups(&component).is_err());
+    }
 
     pub fn fixture() -> Description {
         Description {

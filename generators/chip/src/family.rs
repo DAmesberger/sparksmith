@@ -724,10 +724,14 @@ pub(crate) fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         orderable: Vec::new(),
         marking: if zero_ohm { None } else { marking },
         component: component_part.then(|| Component {
-            tie: zero_ohm.then(|| v1::Tie {
-                form: v1::TieForm::ZeroOhm,
-                ends: vec!["1".into(), "2".into()],
-            }),
+            ties: zero_ohm
+                .then(|| v1::Tie {
+                    id: 1,
+                    form: v1::TieForm::ZeroOhm,
+                    ends: vec!["1".into(), "2".into()],
+                })
+                .into_iter()
+                .collect(),
             assembly: Default::default(),
             terminals: terminals(d.part),
             prefix: d.part.prefix().into(),

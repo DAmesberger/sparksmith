@@ -73,7 +73,7 @@ fn describe() -> Description {
         row.aliases = vec![];
         presets.push(row);
     }
-    let params = vec![
+    let mut params = vec![
         choice(
             "form",
             "Form",
@@ -116,9 +116,20 @@ fn describe() -> Description {
         length("pad_length", "Pad length", None),
         length("pad_width", "Pad width", None),
         length("bridge_width", "Bridge width", None),
+        length(
+            "bridge_length",
+            "Copper bridge length (0 joins land centres)",
+            None,
+        ),
         length("gap", "Gap between lands", Some("project.copper.pad_gap")),
         length("solder_height", "Illustrative solder height", None),
     ];
+    params.extend(
+        chip.params()
+            .iter()
+            .filter(|p| matches!(p.key.as_str(), "resistor_style" | "land_gap_min"))
+            .cloned(),
+    );
     Description {
         abi: ABI,
         id: "tie".into(),
@@ -144,7 +155,7 @@ fn describe() -> Description {
     }
 }
 
-fn zero_ohm(size: &str) -> Result<Generation, Vec<Problem>> {
+fn zero_ohm(size: &str, request: &Request) -> Result<Generation, Vec<Problem>> {
     let desc = chip::description();
     let p = desc
         .presets()
@@ -163,6 +174,11 @@ fn zero_ohm(size: &str) -> Result<Generation, Vec<Problem>> {
         .map(|p| (p.key.clone(), p.default.clone()))
         .collect();
     params.extend(p.params.clone());
+    for key in ["resistor_style", "land_gap_min"] {
+        if let Some(value) = request.params.get(key) {
+            params.insert(key.into(), value.clone());
+        }
+    }
     params.insert("part".into(), ParamValue::Text("zero_ohm".into()));
     chip::generate(&Request {
         abi: ABI,
@@ -183,7 +199,7 @@ impl Generator for TieGenerator {
         let number = |k| args.int(k).map_err(one);
         let key = text("form")?;
         if key == "zero_ohm" {
-            return zero_ohm(text("chip_size")?);
+            return zero_ohm(text("chip_size")?, request);
         }
         let landless = key == "kelvin";
         let jumper = key == "solder" || key == "trace";
@@ -235,6 +251,15 @@ impl Generator for TieGenerator {
             return Err(vec![problem("param.inconsistent","bridge_width","Choose a positive bridge width that fits the lands. A solder bridge also needs a positive model height.".into())]);
         }
         let pitch = length + gap;
+        // The native bead rounds the top edge to half its height. Leave
+        // enough metal on each side of that fillet for a valid solid.
+        if key == "solder" && height >= neck.min(pitch) {
+            return Err(vec![problem(
+                "param.inconsistent",
+                "solder_height",
+                "The solder height must fit within both the bridge width and the span between lands.".into(),
+            )]);
+        }
         let x = |n: i64| (2 * n - count - 1) * pitch / 2;
         let first = if jumper && last { 2 } else { 1 };
         let end = if jumper { first + 1 } else { count };
@@ -266,10 +291,12 @@ impl Generator for TieGenerator {
                 continue;
             }
             keys.push(k.clone());
-            leads.push(Lead {
-                key: k.clone(),
-                contact: [x(n), 0, 0],
-            });
+            if key == "solder" && (first..=end).contains(&n) {
+                leads.push(Lead {
+                    key: k.clone(),
+                    contact: [x(n), 0, 0],
+                });
+            }
             binding.push(BindingEntry {
                 package_terminal: k.clone(),
                 terminal: k.clone(),
@@ -302,15 +329,32 @@ impl Generator for TieGenerator {
         let a = x(first);
         let b = x(end);
         let bridges = if !landless && form.needs_bridge() {
+            let span = match number("bridge_length")? {
+                0 => b - a,
+                value => value,
+            };
+            let left = a + (b - a - span) / 2;
+            let right = left + span;
+            if left >= a + length / 2
+                || right <= b - length / 2
+                || left < a - length / 2
+                || right > b + length / 2
+            {
+                return Err(vec![problem(
+                    "param.inconsistent",
+                    "bridge_length",
+                    "Both ends of the copper bridge must land on their pads.".into(),
+                )]);
+            }
             vec![Bridge {
                 key: "neck".into(),
                 side: Side::Top,
                 pads: ends.clone(),
                 outline: vec![
-                    [a, -neck / 2],
-                    [b, -neck / 2],
-                    [b, neck - neck / 2],
-                    [a, neck - neck / 2],
+                    [left, -neck / 2],
+                    [right, -neck / 2],
+                    [right, neck - neck / 2],
+                    [left, neck - neck / 2],
                 ],
             }]
         } else {
@@ -337,7 +381,7 @@ impl Generator for TieGenerator {
         };
         Ok(Generation {
             component: Some(Component {
-                tie: Some(Tie { form, ends }),
+                ties: vec![Tie { id: 1, form, ends }],
                 assembly: form.assembly(),
                 name: name.into(),
                 prefix: if jumper { "JP" } else { "NT" }.into(),
@@ -417,6 +461,20 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn an_explicit_copper_length_must_overlap_the_end_lands() -> Result<(), Vec<Problem>> {
+        let mut r = request("copper", 2);
+        r.params
+            .insert("bridge_length".into(), ParamValue::Int(450_000));
+        let g = TieGenerator::generate(&r)?;
+        let outline = &g.footprint.bridges[0].outline;
+        assert_eq!(outline[1][0] - outline[0][0], 450_000);
+        r.params
+            .insert("bridge_length".into(), ParamValue::Int(250_000));
+        assert!(TieGenerator::generate(&r).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn solder_and_trace_join_only_the_selected_pair() -> Result<(), Vec<Problem>> {
         for key in ["solder", "trace"] {
             let mut r = request(key, 3);
@@ -424,8 +482,24 @@ mod tests {
                 .insert("pair".into(), ParamValue::Text("last".into()));
             let g = TieGenerator::generate(&r)?;
             assert_eq!(g.footprint.pads.len(), 3);
+            let contacted: Vec<_> = g
+                .package
+                .geometry
+                .leads
+                .iter()
+                .map(|lead| lead.key.as_str())
+                .collect();
+            let expected = if key == "solder" {
+                &["2", "3"][..]
+            } else {
+                &[]
+            };
+            assert_eq!(contacted, expected);
+            assert!(sparksmith_generator_sdk::golden::terminals_without_contacts(&g).is_empty());
             assert_eq!(
-                g.component.and_then(|c| c.tie).map(|t| t.ends),
+                g.component
+                    .and_then(|c| c.ties.into_iter().next())
+                    .map(|t| t.ends),
                 Some(vec!["2".into(), "3".into()])
             );
             assert_eq!(g.footprint.bridges.len(), usize::from(key == "trace"));
@@ -434,6 +508,72 @@ mod tests {
                 key == "solder"
             );
         }
+        Ok(())
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn the_defaults_and_every_preset_generate() -> Result<(), Vec<Problem>> {
+        let description = sparksmith_generator_sdk::described::<TieGenerator>();
+        for case in sparksmith_generator_sdk::abi::parity::cases(&description) {
+            let part = sparksmith_generator_sdk::generate::<TieGenerator>(&case.request)?;
+            assert_eq!(
+                part.component.as_ref().map(|c| c.ties.len()),
+                Some(1),
+                "{}",
+                case.name
+            );
+        }
+        Ok(())
+    }
+    #[test]
+    fn a_zero_ohm_link_uses_the_chip_body_footprint_and_project_gap() -> Result<(), Vec<Problem>> {
+        let mut r = request("zero_ohm", 2);
+        r.params
+            .insert("land_gap_min".into(), ParamValue::Int(500_000));
+        let link = TieGenerator::generate(&r)?;
+        let desc = chip::description();
+        let mut params: Params = desc
+            .params()
+            .iter()
+            .map(|p| (p.key.clone(), p.default.clone()))
+            .collect();
+        let preset = desc
+            .presets()
+            .iter()
+            .find(|p| p.key == "resistor-0603")
+            .ok_or_else(|| {
+                vec![problem(
+                    "test.preset",
+                    "chip_size",
+                    "Missing resistor preset.".into(),
+                )]
+            })?;
+        params.extend(preset.params.clone());
+        params.insert("land_gap_min".into(), ParamValue::Int(500_000));
+        let resistor = chip::generate(&Request {
+            abi: ABI,
+            scope: Scope::Component,
+            params,
+        })?;
+        assert_eq!(
+            include_bytes!("../parts/chip-resistor.solidcraft").as_slice(),
+            include_bytes!("../../chip/parts/chip-resistor.solidcraft").as_slice(),
+        );
+        assert_eq!(link.model, resistor.model);
+        assert_eq!(link.package, resistor.package);
+        assert_eq!(link.footprint, resistor.footprint);
+        assert!(
+            link.component
+                .is_some_and(|c| c.ties.len() == 1 && c.ties[0].form == TieForm::ZeroOhm)
+        );
+        Ok(())
+    }
+    #[test]
+    fn golden_hashes_match_natively() -> Result<(), String> {
+        let count = sparksmith_generator_sdk::golden::check::<TieGenerator>(include_str!(
+            "../golden.json"
+        ))?;
+        assert_eq!(count, 5);
         Ok(())
     }
 }

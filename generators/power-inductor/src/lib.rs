@@ -464,7 +464,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
-            tie: None,
+            ties: Default::default(),
             assembly: Default::default(),
             terminals: ["1", "2"]
                 .iter()

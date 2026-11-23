@@ -6,13 +6,18 @@
     "description": "Close the gap between two lands with solder.",
     "params": {
       "form": "solder",
-      "state": "open"
+      "state": "open",
+      "pad_length": 500000,
+      "pad_width": 1000000,
+      "gap": 200000,
+      "bridge_width": 1000000,
+      "solder_height": 150000
     },
     "citation": {
-      "document": "SparkFun, How to Work with Jumper Pads and PCB Traces (https://learn.sparkfun.com/tutorials/how-to-work-with-jumper-pads-and-pcb-traces)"
+      "document": "Footprint For Solderable Jumper?, firsthand rectangular-pad example (https://www.pcblibraries.com/forum/footprint-for-solderable-jumper_topic2089.html). SparkFun, How to Work with Jumper Pads and PCB Traces (https://learn.sparkfun.com/tutorials/how-to-work-with-jumper-pads-and-pcb-traces); JLCPCB, Stencil Capabilities (https://jlcpcb.com/capabilities/pcb-stencil-manufacturing)."
     },
-    "basis": "cited",
-    "note": "The source describes the connection and assembly operation. Enter the dimensions for the board."
+    "basis": "estimated",
+    "note": "Each land is 0.5 × 1 mm with 0.2 mm between lands. The illustrative bead spans the land width. Its 0.15 mm height uses a standard JLCPCB stencil thickness as a modelling reference. Actual solder height depends on assembly."
   },
   {
     "key": "cut-trace",
@@ -21,12 +26,16 @@
     "description": "Open a normally closed trace by cutting it.",
     "params": {
       "form": "trace",
-      "state": "closed"
+      "state": "closed",
+      "pad_length": 500000,
+      "pad_width": 1000000,
+      "gap": 200000,
+      "bridge_width": 152400
     },
     "citation": {
-      "document": "SparkFun, How to Work with Jumper Pads and PCB Traces (https://learn.sparkfun.com/tutorials/how-to-work-with-jumper-pads-and-pcb-traces)"
+      "document": "Footprint For Solderable Jumper?, firsthand rectangular-pad example (https://www.pcblibraries.com/forum/footprint-for-solderable-jumper_topic2089.html). SparkFun, How to Work with Jumper Pads and PCB Traces (https://learn.sparkfun.com/tutorials/how-to-work-with-jumper-pads-and-pcb-traces); SparkFun, PCB Design Specifications (https://learn.sparkfun.com/tutorials/retired---how-to-sell-your-widget-on-sparkfun/all)."
     },
-    "basis": "cited",
-    "note": "The source describes the connection and assembly operation. Enter the dimensions for the board."
+    "basis": "estimated",
+    "note": "The 0.5 × 1 mm lands have a 0.2 mm gap. The original cuttable layout uses the 6 mil trace width in SparkFun’s published manufacturing specifications."
   }
 ]

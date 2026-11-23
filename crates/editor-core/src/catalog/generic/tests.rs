@@ -11,7 +11,7 @@ fn every_declared_pattern_parses() -> Result<()> {
     let standards = standards::get()?;
     let grammar = &standards.generic;
     check(grammar)?;
-    assert_eq!(grammar.families.len(), 9, "every family declares patterns");
+    assert_eq!(grammar.families.len(), 11, "every family declares patterns");
     for family in &grammar.families {
         assert!(!family.patterns.is_empty() && !family.examples.is_empty());
         for pattern in &family.patterns {
@@ -90,6 +90,32 @@ fn generic_values_use_the_shared_quantity_parser() -> Result<()> {
         for text in ["4k7k", "-4k7", "0603"] {
             assert!(read_value(&standards, text, kind).is_none(), "{text}");
         }
+    }
+    Ok(())
+}
+
+#[test]
+fn all_generated_tie_forms_select_the_current_requirement() -> Result<()> {
+    let _context = standards::Context::fixture().map(|c| c.enter());
+    let standards = standards::get()?;
+    for (module, key, value) in [
+        ("tie", "form", "solder"),
+        ("tie", "form", "trace"),
+        ("tie", "form", "copper"),
+        ("tie", "form", "kelvin"),
+        ("tie", "form", "zero_ohm"),
+        ("chip", "part", "zero_ohm"),
+    ] {
+        let params = [(
+            key.to_string(),
+            crate::library::generated::ParamValue::Text(value.into()),
+        )]
+        .into();
+        let family = standards
+            .generic
+            .family_of(module, &params)
+            .ok_or_else(|| Error::NotFound(value.into()))?;
+        assert_eq!(family.fields, ["Rated current"]);
     }
     Ok(())
 }

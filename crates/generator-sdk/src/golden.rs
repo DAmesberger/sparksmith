@@ -114,10 +114,23 @@ pub fn terminals_without_contacts(generation: &v1::Generation) -> Vec<&str> {
         return Vec::new();
     }
     let leads = &generation.package.geometry.leads;
+    let solder_only = generation
+        .component
+        .as_ref()
+        .filter(|c| c.assembly == v1::Assembly::SolderOnly);
     let mut missing: Vec<&str> = Vec::new();
     for pad in &generation.footprint.pads {
         let unplated = pad.hole.as_ref().is_some_and(|h| !h.plated);
         let key = pad.terminal.as_str();
+        // A three-land jumper's solder bead touches only the selected pair.
+        if solder_only.is_some_and(|c| {
+            !generation.binding.iter().any(|entry| {
+                entry.package_terminal == key
+                    && c.ties.iter().any(|tie| tie.ends.contains(&entry.terminal))
+            })
+        }) {
+            continue;
+        }
         if pad.kind.is_none()
             && !unplated
             && !key.is_empty()

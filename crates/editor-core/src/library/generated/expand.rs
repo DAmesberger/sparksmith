@@ -347,11 +347,12 @@ fn component_definition(
         .collect();
     Ok(ComponentDefinition {
         assembly: component.assembly,
-        tie: component
-            .tie
-            .as_ref()
+        ties: component
+            .ties
+            .iter()
             .map(|t| {
                 Ok::<_, Error>(super::super::tie::TieSpec {
+                    id: crate::ids::TieId(t.id),
                     form: t.form,
                     ends: t
                         .ends
@@ -360,7 +361,7 @@ fn component_definition(
                         .collect::<Result<_>>()?,
                 })
             })
-            .transpose()?,
+            .collect::<Result<_>>()?,
         next_local: ids.next_local(),
         designator_prefix: component.prefix.clone(),
         terminals,

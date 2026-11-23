@@ -796,7 +796,10 @@ impl TieForm {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Tie {
+    /// Stable, positive id unique within the component.
+    pub id: u32,
     pub form: TieForm,
+    /// Passive terminal keys. Independent groups have disjoint ends.
     pub ends: Vec<String>,
 }
 
@@ -805,6 +808,7 @@ pub struct Tie {
 pub struct Bridge {
     pub key: String,
     pub side: Side,
+    /// Pad keys on the bridge. Their explicit bindings select one tie group.
     pub pads: Vec<String>,
     pub outline: Vec<Point>,
 }
@@ -813,8 +817,8 @@ pub struct Bridge {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Component {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tie: Option<Tie>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ties: Vec<Tie>,
     #[serde(default, skip_serializing_if = "Assembly::is_bought")]
     pub assembly: Assembly,
     pub terminals: Vec<Terminal>,

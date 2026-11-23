@@ -5,12 +5,22 @@
     {
       "family": "tie",
       "generator": "tie",
-      "category": "board/ties",
-      "label": "Net tie {package}",
-      "body": ["pad_length", "pad_width"],
+      "category": "board/jumpers",
+      "label": "Kelvin tie",
       "patterns": ["kelvin tie"],
-      "params": { "form": "kelvin" },
       "examples": ["kelvin tie"],
+      "fields": ["Rated current"]
+    },
+    {
+      "family": "zero_ohm",
+      "generator": "chip",
+      "category": "board/jumpers",
+      "presets": { "part": "resistor" },
+      "params": { "part": "zero_ohm" },
+      "label": "0 Ω link {size}",
+      "body": ["length", "width"],
+      "patterns": ["zero ohm {size:code}"],
+      "examples": ["zero ohm 0603"],
       "fields": ["Rated current"]
     },
     {

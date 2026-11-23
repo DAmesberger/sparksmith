@@ -147,6 +147,8 @@ fn generation_with(
         orderable: Vec::new(),
         marking: None,
         component: component.then(|| Component {
+            ties: Vec::new(),
+            assembly: Assembly::Bought,
             terminals: ["1", "2"]
                 .iter()
                 .map(|k| Terminal {
