@@ -91,10 +91,10 @@ What exists today and what does not:
 | `transcript.jsonl` | **Exists**: Claude Code's stream-json, as in `examples/*-mcp-1/transcript.jsonl` |
 | Per-part review reports | **Exists**: the datasheet-to-component workflow writes them |
 | Model recordings for the built-in chat | **Exists**: `model::record`, replayable offline |
-| `wire.jsonl` | **Not built.** The server-side trace tap is harness slice H4 ([agent harness](agent-harness.md)). Until then a small wrapper that copies stdin and stdout of `sparksmith mcp` to a file with timestamps does it (P1) |
+| `wire.jsonl` | **Exists**: `sparksmith mcp --wire-log run/wire.jsonl` (P1). The server writes every line it reads and writes on its own pipes, byte for byte, with direction, order and time; refused calls are in it, so a `gate.needs_person` answer is the record of a gate request ([development](../development.md#recording-and-replaying-an-mcp-run)) |
 | `decisions.md`, `findings.md` | **Convention only.** The kickoff prompt requires the AI to keep them; findings are also derivable from `checks/` |
 | `usage.json`, `timing.json` | Derived from the transcript by a script (P4) |
-| `replay.jsonl` | **Needs a converter** from MCP verb calls to `stdio` command lines (P2) |
+| `replay.jsonl` | **Exists**: `sparksmith mcp-replay run/wire.jsonl run/replay.jsonl` (P2) derives it from the wire log: the accepted edits and actions and the session reads later calls build on, with paths relative to the run's folder. It stops, naming the call, on anything it cannot map. One replay rebuilds one project; a run that changed several is converted project by project ([development](../development.md#recording-and-replaying-an-mcp-run)) |
 
 Rules for the record:
 
@@ -113,7 +113,7 @@ So a third party:
 
 1. Clones Sparksmith at the pinned commit and builds the CLI (`nix develop`, then `cargo build --locked --profile ci -p sparksmith-cli`).
 2. Sets `SPARKSMITH_LIBRARY_DIR` to the pinned library.
-3. Runs `sparksmith stdio --operator < run/replay.jsonl` and checks that no reply has `"ok":false`.
+3. In a folder holding the files the replay reads and the folders it writes into (its paths are relative to the run's folder), runs `sparksmith stdio --operator < replay.jsonl` and checks that no reply has `"ok":false`.
 4. Runs `sparksmith fab out/board.sparksmith fab/ --profile jlcpcb-4-layer --date none`.
 5. Compares the release revision in any Gerber's `.ProjectId` (or every file's SHA-256) with the published package. **Equal means the published package is exactly what the recorded calls produce.**
 
@@ -194,7 +194,7 @@ Measured numbers only. Anything not measured is written "not measured", never es
 
 1. Freeze the requirements: the founder writes `requirements.md` (function, interfaces, limits, cost target, fabricator, acceptance test). Record its SHA-256. No edits after this.
 2. Pin the tooling: check out the Sparksmith commit, build the CLI, record its hash, pin the library and the model. Write `manifest.json`.
-3. Create the run folder with the empty record files. Start the MCP wrapper that writes `wire.jsonl` (P1).
+3. Create the run folder with the empty record files. The agent's MCP configuration starts `sparksmith mcp` with `--wire-log run/wire.jsonl` (P1); the file must not exist yet.
 4. Write `kickoff.md`: the requirements path, the rules of this protocol (keep `decisions.md` and `findings.md`, cite every number, ask for a gate instead of acting, never ask a person for design input), the fab profile, and where to put outputs. Publish it unchanged.
 
 **The run (AI; operator watches only)**
@@ -212,7 +212,7 @@ Measured numbers only. Anything not measured is written "not measured", never es
 
 **After the run (operator, buyer, hands)**
 
-15. Derive `replay.jsonl` (P2), replay it on a clean checkout, confirm the release revision matches.
+15. Derive `replay.jsonl` with `sparksmith mcp-replay run/wire.jsonl run/replay.jsonl` (P2), replay it on a clean checkout, confirm the release revision matches.
 16. Run the independent checks (section 6) and write `verification/`.
 17. Gate: the founder approves ordering. The buyer uploads the package, records the quote and the DFM result, and orders. Fabricator EQs are relayed to the AI verbatim; answers go back verbatim.
 18. Hands run the physical procedure as written; photos and readings into `physical/`.
@@ -223,8 +223,8 @@ Measured numbers only. Anything not measured is written "not measured", never es
 
 | # | Item | Why | Estimate |
 |---|---|---|---|
-| P1 | MCP wire recorder: a wrapper now, the H4 trace tap later | `wire.jsonl` | wrapper 1–2 h; H4 per the harness plan |
-| P2 | Converter from recorded MCP verb calls to a `stdio` replay, keeping only accepted edits and file effects | Engine replay (section 5) | 3–5 h |
+| P1 | MCP wire log: `sparksmith mcp --wire-log NEW_FILE`, on the server's own pipes, for the headless server and `--live` | `wire.jsonl` | built |
+| P2 | Converter from a wire log to a `stdio` replay: `sparksmith mcp-replay`. It keeps accepted edits, actions and the session reads later calls build on. A scripted board build in CI is recorded, converted and replayed to a byte-identical project and the same release revision (`apps/sparksmith-cli/tests/run_record.rs`) | Engine replay (section 5) | built |
 | P3 | Gerber X2 netlist extractor and copper-connectivity cross-check, written outside the run, permissive licence | Independent netlist check | 4–6 h |
 | P4 | Usage, timing and scorecard script over the transcript | Cost and time totals | 2–3 h |
 | P5 | Redaction script with a leak scan | Publication | 2 h |
