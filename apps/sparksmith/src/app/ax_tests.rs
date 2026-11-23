@@ -525,6 +525,19 @@ fn the_selection_filter_persists_per_user() -> Fallible {
     Ok(())
 }
 
+/// Frames until the Issues list shows the report of the current state:
+/// it is made off the UI thread, so a few frames after an edit can still
+/// show the last one.
+fn until_checked(ax: &mut Ax, what: &str) -> Fallible {
+    ax.until(what, |ax| {
+        ax.app
+            .issues
+            .wait_current(&ax.app.engine, std::time::Duration::ZERO)
+    })?;
+    ax.settle();
+    Ok(())
+}
+
 /// The first issue row the Board's Issues card lists that offers Waive…:
 /// one that blocks no stage.
 fn waivable_board_row(engine: &Engine) -> Fallible<sparksmith_core::issues::IssueRow> {
@@ -575,7 +588,7 @@ fn an_issue_is_waived_inline_with_a_reason_and_one_undo_restores_it() -> Fallibl
             layer: first.layer,
         }),
     )?;
-    ax.settle();
+    until_checked(&mut ax, "the check of the overlapping parts")?;
     let row = waivable_board_row(&ax.app.engine)?;
     let keys: Vec<String> = std::iter::once(&row.finding)
         .chain(&row.also)
@@ -611,7 +624,7 @@ fn an_issue_is_waived_inline_with_a_reason_and_one_undo_restores_it() -> Fallibl
     let reason = "Accepted for the prototype run";
     ax.type_text(reason);
     ax.key(Key::Enter);
-    ax.settle();
+    until_checked(&mut ax, "the check of the waived findings")?;
     let waivers = &ax.app.engine.project().production.waivers;
     for key in &keys {
         assert!(
