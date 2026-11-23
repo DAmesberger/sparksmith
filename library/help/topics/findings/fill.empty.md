@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/fill.edit",
     "entry/fill.refill"
-  ]
+  ],
+  "explanation": "Check the outline and the clearances to its neighbours. The fill’s minimum width, island removal settings and the priority of overlapping fills can each remove the last patch of copper."
 }
 ---

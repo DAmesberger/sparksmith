@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/layout.via_move",
     "entry/layout.track_drag"
-  ]
+  ],
+  "explanation": "The via hole and the kind of nearby copper select the clearance row. A clearance set by the copper net’s class can increase the required distance."
 }
 ---

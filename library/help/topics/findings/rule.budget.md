@@ -10,6 +10,7 @@
   "fix": "Simplify the rule’s computation and run its samples again",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Pin rule reached its evaluation limit"
 }
 ---

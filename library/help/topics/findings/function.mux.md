@@ -10,6 +10,7 @@
   "fix": "Enter the datasheet’s printable mux selector",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Multiplexer selector is invalid"
 }
 ---

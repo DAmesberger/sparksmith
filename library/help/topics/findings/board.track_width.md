@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/layout.track_set"
   ],
-  "rule_key": "track_width_min"
+  "rule_key": "track_width_min",
+  "explanation": "A net class can require a wider track than the board minimum. Read the source printed beside the required width for this track."
 }
 ---

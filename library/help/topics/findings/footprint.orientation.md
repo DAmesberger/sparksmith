@@ -10,6 +10,7 @@
   "fix": "Select a nonzero sketch line for the orientation reference",
   "fixed_by": [
     "entry/library.edit_footprint"
-  ]
+  ],
+  "title": "Footprint orientation reference has no usable direction"
 }
 ---

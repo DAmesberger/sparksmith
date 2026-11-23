@@ -12,6 +12,7 @@
     "entry/layout.add_via",
     "entry/layout.via_delete"
   ],
-  "rule_key": "drill_min"
+  "rule_key": "drill_min",
+  "title": "Via drill below the minimum diameter"
 }
 ---

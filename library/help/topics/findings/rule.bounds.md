@@ -10,6 +10,7 @@
   "fix": "Shorten the scripts or consolidate repeated rules",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Pin rules exceed the supported size"
 }
 ---

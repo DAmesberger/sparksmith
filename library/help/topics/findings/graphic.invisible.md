@@ -10,6 +10,7 @@
   "fix": "Give the graphic a stroke or a fill",
   "fixed_by": [
     "entry/library.edit_graphics"
-  ]
+  ],
+  "title": "Graphic has no visible stroke or fill"
 }
 ---

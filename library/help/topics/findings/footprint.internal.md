@@ -10,6 +10,7 @@
   "fix": "Reopen the last working source and check the reported sketch error",
   "fixed_by": [
     "entry/library.edit_footprint"
-  ]
+  ],
+  "title": "Footprint sketch data could not be read or saved"
 }
 ---

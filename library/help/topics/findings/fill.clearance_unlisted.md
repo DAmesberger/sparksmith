@@ -10,6 +10,7 @@
   "fix": "Refill the fill",
   "fixed_by": [
     "entry/fill.refill"
-  ]
+  ],
+  "explanation": "Inspect the individual rows for this fill. Different neighbours can call for different clearances, and a crossing of the board edge or a keepout can also contribute to the count."
 }
 ---

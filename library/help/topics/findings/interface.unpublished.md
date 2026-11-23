@@ -10,6 +10,7 @@
   "fix": "Review the changed datums and publish the interface when ready",
   "fixed_by": [
     "entry/interface.publish"
-  ]
+  ],
+  "title": "Board interface has unpublished changes"
 }
 ---

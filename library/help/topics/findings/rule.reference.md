@@ -10,6 +10,7 @@
   "fix": "Correct the rule label and reference the current declarations",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Pin rule contains an invalid reference or label"
 }
 ---

@@ -10,6 +10,7 @@
   "fix": "Correct the unit symbols and conversions identified in the finding",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Unit definitions cannot be converted"
 }
 ---

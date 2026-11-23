@@ -10,6 +10,7 @@
   "fix": "Choose movable geometry or edit the holding constraint",
   "fixed_by": [
     "entry/library.edit_footprint"
-  ]
+  ],
+  "title": "Constraints prevent the sketch drag"
 }
 ---

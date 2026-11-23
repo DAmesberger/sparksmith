@@ -11,6 +11,8 @@
   "fixed_by": [
     "entry/layout.track_drag",
     "entry/layout.move_parts"
-  ]
+  ],
+  "title": "Copper features too close together",
+  "explanation": "The two copper object types select a clearance row. Net classes can require more separation, including an isolation distance between pads on the same footprint. The finding names the source of the limit that applied."
 }
 ---

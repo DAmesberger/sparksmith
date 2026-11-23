@@ -10,6 +10,7 @@
   "fix": "Enter positive length, width and height from the package drawing",
   "fixed_by": [
     "entry/library.edit_package"
-  ]
+  ],
+  "title": "Package envelope has an invalid dimension"
 }
 ---

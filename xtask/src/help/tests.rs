@@ -34,6 +34,46 @@ fn a_missing_link_names_both_topics() -> crate::Result<()> {
 }
 
 #[test]
+fn a_finding_names_the_missing_rule_and_profile() -> crate::Result<()> {
+    let mut finding = sparksmith_core::help::finding_entries()?
+        .into_iter()
+        .find(|e| e.id.name() == "board.via_annular_ring")
+        .ok_or("missing annular ring declaration")?;
+    if let Facts::Finding {
+        rule_key, cause, fix, ..
+    } = &mut finding.facts
+    {
+        *rule_key = Some("via_annular_ring_min".into());
+        *cause = "The copper ring is too narrow".into();
+        *fix = "Enlarge the via pad".into();
+    }
+    let rule: HelpId = "rule/fixture/drill_min".parse()?;
+    let mut index = Index::from([
+        (finding.id.clone(), finding.clone()),
+        (
+            rule.clone(),
+            HelpEntry {
+                id: rule,
+                ..guide("test")?
+            },
+        ),
+    ]);
+    let err = validate_entries(&index, Path::new("."))
+        .err()
+        .ok_or("missing profile rule accepted")?;
+    assert!(err.to_string().contains("rule/fixture/via_annular_ring_min"));
+    if let Facts::Finding { rule_key, .. } = &mut finding.facts {
+        *rule_key = Some("misspelled".into());
+    }
+    index.insert(finding.id.clone(), finding);
+    let err = validate_entries(&index, Path::new("."))
+        .err()
+        .ok_or("unknown rule accepted")?;
+    assert!(err.to_string().contains("unknown fabrication rule misspelled"));
+    Ok(())
+}
+
+#[test]
 fn stale_dependency_requires_deliberate_restamping() -> crate::Result<()> {
     let covered = HelpEntry {
         facts: Facts::Setting {

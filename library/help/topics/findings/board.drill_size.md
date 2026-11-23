@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/board.edit"
   ],
-  "rule_key": "drill_min"
+  "rule_key": "drill_min",
+  "title": "Finished hole or slot too small to drill"
 }
 ---

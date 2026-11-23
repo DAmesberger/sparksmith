@@ -10,6 +10,7 @@
   "fix": "Replace the missing terminal in the mapping",
   "fixed_by": [
     "entry/library.assign_terminals"
-  ]
+  ],
+  "title": "Pin mapping names an unknown package terminal"
 }
 ---

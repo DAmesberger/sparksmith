@@ -10,6 +10,7 @@
   "fix": "Check the packed asset, format and appearance pair",
   "fixed_by": [
     "entry/library.import_model"
-  ]
+  ],
+  "title": "Model asset metadata or format is invalid"
 }
 ---

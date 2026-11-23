@@ -12,6 +12,12 @@
     "entry/layout.add_via",
     "entry/layout.via_delete"
   ],
-  "rule_key": "via_annular_ring_min"
+  "rule_key": "via_annular_ring_min",
+  "explanation": "For a round via, subtract the drill diameter from the pad diameter and divide by two. A larger pad leaves more copper around the drill. If you reduce the drill diameter, also check the minimum drill size and board thickness-to-drill ratio.",
+  "related": [
+    "finding/board.via_drill_size",
+    "finding/board.via_aspect_ratio",
+    "guide/fab-profiles"
+  ]
 }
 ---

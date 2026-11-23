@@ -10,6 +10,7 @@
   "fix": "Attach the correct file again to record its content hash",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Attachment hash is invalid"
 }
 ---

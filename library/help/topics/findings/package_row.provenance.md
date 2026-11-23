@@ -10,6 +10,7 @@
   "fix": "Record the drawing title, revision and page with an appropriate basis",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Package row drawing source is incomplete"
 }
 ---

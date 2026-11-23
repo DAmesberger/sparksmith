@@ -10,6 +10,7 @@
   "fix": "Give the function a distinct printable label",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Terminal function label is invalid or repeated"
 }
 ---

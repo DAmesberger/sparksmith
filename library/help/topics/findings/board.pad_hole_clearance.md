@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/layout.move_parts",
     "entry/layout.track_drag"
-  ]
+  ],
+  "explanation": "The pad’s plating determines the hole type. That type and the neighbouring copper select the clearance row. The check skips copper electrically joined to the pad."
 }
 ---

@@ -10,6 +10,7 @@
   "fix": "Map the binding to terminals declared by this revision",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Binding names an unknown electrical terminal"
 }
 ---

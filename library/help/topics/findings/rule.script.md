@@ -10,6 +10,7 @@
   "fix": "Fix the script at the reported location and run the preview",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Pin rule script could not be compiled"
 }
 ---

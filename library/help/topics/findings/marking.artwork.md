@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/library.pack_artwork",
     "entry/library.set_marking"
-  ]
+  ],
+  "title": "Marking artwork is incomplete"
 }
 ---

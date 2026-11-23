@@ -10,6 +10,7 @@
   "fix": "Enter the peripheral kind shown in the datasheet",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Peripheral kind is missing or invalid"
 }
 ---

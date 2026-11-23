@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/layout.route_pair"
   ],
-  "rule_key": "pair_gap_tolerance"
+  "rule_key": "pair_gap_tolerance",
+  "explanation": "The pair gap is resolved per layer from the impedance target or class geometry, with track-to-track clearance as a lower bound. The class can set a gap tolerance. Otherwise the checker takes the greater of the profile’s absolute tolerance and its share of the gap."
 }
 ---

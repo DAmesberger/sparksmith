@@ -10,6 +10,7 @@
   "fix": "Refill the fill",
   "fixed_by": [
     "entry/fill.refill"
-  ]
+  ],
+  "explanation": "The fill and its neighbouring object select the clearance row. Both their net classes and fill-specific clearances can affect the gap. An overlap is reported even when it leaves no gap to measure."
 }
 ---

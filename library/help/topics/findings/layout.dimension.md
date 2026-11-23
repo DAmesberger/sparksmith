@@ -10,6 +10,7 @@
   "fix": "Repair the placement reference or correct the constraint named in the finding",
   "fixed_by": [
     "entry/layout.dimension_edit"
-  ]
+  ],
+  "title": "Placement dimension cannot be solved"
 }
 ---

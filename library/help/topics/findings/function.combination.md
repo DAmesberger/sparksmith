@@ -10,6 +10,7 @@
   "fix": "Choose a compatible direction, signal and drive for the pin",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Function direction and drive are incompatible"
 }
 ---

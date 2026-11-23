@@ -10,6 +10,7 @@
   "fix": "Correct the datum origin and axes named in the finding",
   "fixed_by": [
     "entry/library.edit_package"
-  ]
+  ],
+  "title": "Package datum cannot define a placement frame"
 }
 ---

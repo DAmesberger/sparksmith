@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/fill.refill"
   ],
-  "rule_key": "clearance_fill_board_edge"
+  "rule_key": "clearance_fill_board_edge",
+  "explanation": "The fill-to-board-edge clearance applies around the perimeter and cutouts. Copper that crosses into a cutout or outside the perimeter is reported even without a positive clearance margin."
 }
 ---

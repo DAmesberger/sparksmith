@@ -10,6 +10,7 @@
   "fix": "Enter the signal designation used by the peripheral",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Peripheral role has an invalid signal name"
 }
 ---

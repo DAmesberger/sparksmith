@@ -10,6 +10,7 @@
   "fix": "Enter the identifier of the generator that owns the row",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Package row has no valid generator identifier"
 }
 ---

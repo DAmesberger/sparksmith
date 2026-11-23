@@ -10,6 +10,7 @@
   "fix": "Correct the seed, array identity or dimensions identified in the finding",
   "fixed_by": [
     "entry/library.edit_footprint"
-  ]
+  ],
+  "title": "Footprint array cannot produce distinct pads"
 }
 ---

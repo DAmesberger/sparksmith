@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/fill.edit",
     "entry/fill.refill"
-  ]
+  ],
+  "explanation": "Inspect the thermal gap, spoke width, count and angle at the indicated pad or via. The fill can override the profile’s thermal settings. A spoke survives only if it reaches copper of the same net."
 }
 ---

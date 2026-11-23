@@ -10,6 +10,7 @@
   "fix": "Select the current sketch element and retry the edit",
   "fixed_by": [
     "entry/board.edit"
-  ]
+  ],
+  "title": "Board sketch edit cannot be applied"
 }
 ---

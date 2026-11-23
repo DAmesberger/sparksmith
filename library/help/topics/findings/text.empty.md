@@ -10,6 +10,7 @@
   "fix": "Enter printable text or remove the item",
   "fixed_by": [
     "entry/library.edit_graphics"
-  ]
+  ],
+  "title": "Text item has no printable content"
 }
 ---

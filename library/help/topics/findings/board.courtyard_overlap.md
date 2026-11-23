@@ -10,6 +10,7 @@
   "fix": "Move the parts apart",
   "fixed_by": [
     "entry/layout.move_parts"
-  ]
+  ],
+  "explanation": "This check tests whether the two courtyard polygons overlap. Once the envelopes clear each other, the separate courtyard clearance check measures the gap."
 }
 ---

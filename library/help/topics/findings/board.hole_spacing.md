@@ -10,6 +10,7 @@
   "fix": "Move one of the holes",
   "fixed_by": [
     "entry/board.edit"
-  ]
+  ],
+  "explanation": "The drill spacing depends on the two holes. A via drill, a plated mounting hole and an unplated mounting hole have distinct rows in the clearance table."
 }
 ---

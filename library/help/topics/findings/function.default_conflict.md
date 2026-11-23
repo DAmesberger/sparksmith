@@ -10,6 +10,7 @@
   "fix": "Change the conflicting defaults or correct their resource assignments",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Default and fixed functions conflict"
 }
 ---

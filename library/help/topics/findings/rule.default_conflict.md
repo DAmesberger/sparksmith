@@ -10,6 +10,7 @@
   "fix": "Review the defaults against the rule and correct the conflict",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Pin rule rejects the default assignment"
 }
 ---

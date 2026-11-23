@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/rules.set_fab_options",
     "entry/layout.edit_stackup"
-  ]
+  ],
+  "explanation": "The maximum thickness comes from the selected option choice. Compare that choice with the total thickness in the stackup."
 }
 ---

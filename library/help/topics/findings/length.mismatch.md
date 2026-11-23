@@ -10,6 +10,7 @@
   "fix": "Tune the shorter net with the Tune tool",
   "fixed_by": [
     "entry/layout.tune_length"
-  ]
+  ],
+  "explanation": "Read the target and tolerance from the named length group. A group can use an explicit target length or match its longest member."
 }
 ---

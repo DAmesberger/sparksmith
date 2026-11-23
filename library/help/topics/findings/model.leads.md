@@ -10,6 +10,7 @@
   "fix": "Check each lead contact and map it to its package terminal",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Model lead contacts do not match the package"
 }
 ---

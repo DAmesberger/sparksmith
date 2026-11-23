@@ -10,6 +10,7 @@
   "fix": "Attach the contact to an existing terminal",
   "fixed_by": [
     "entry/library.edit_package"
-  ]
+  ],
+  "title": "Lead contact names an unknown package terminal"
 }
 ---

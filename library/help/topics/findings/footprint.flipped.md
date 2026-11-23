@@ -10,6 +10,7 @@
   "fix": "Review the driving dimensions and restore the intended orientation",
   "fixed_by": [
     "entry/library.edit_footprint"
-  ]
+  ],
+  "title": "Footprint sketch changed orientation"
 }
 ---

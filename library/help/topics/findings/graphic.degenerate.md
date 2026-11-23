@@ -10,6 +10,7 @@
   "fix": "Adjust its points and dimensions or remove the empty shape",
   "fixed_by": [
     "entry/library.edit_graphics"
-  ]
+  ],
+  "title": "Graphic has no drawable geometry"
 }
 ---

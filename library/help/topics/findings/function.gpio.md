@@ -10,6 +10,7 @@
   "fix": "Check the datasheet and give each GPIO terminal its own port and index",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "GPIO assignment is invalid or repeated"
 }
 ---

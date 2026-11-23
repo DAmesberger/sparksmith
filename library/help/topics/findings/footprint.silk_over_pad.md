@@ -10,6 +10,8 @@
   "fix": "Move the silkscreen away from the pad opening",
   "fixed_by": [
     "entry/library.edit_graphics"
-  ]
+  ],
+  "rule_key": "silk_pad_clearance",
+  "explanation": "A stroke that crosses the pad opening can be clipped during fabrication. For a stroke outside the opening, the check compares the gap to the silkscreen-to-pad clearance."
 }
 ---

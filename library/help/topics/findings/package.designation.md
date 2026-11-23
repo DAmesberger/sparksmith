@@ -10,6 +10,7 @@
   "fix": "Give every package terminal a unique printable designation",
   "fixed_by": [
     "entry/library.edit_package"
-  ]
+  ],
+  "title": "Package terminal designation is invalid or repeated"
 }
 ---

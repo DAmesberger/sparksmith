@@ -10,6 +10,7 @@
   "fix": "Enter a complete HTTP or HTTPS address without spaces",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Part reference or offer has an invalid web address"
 }
 ---

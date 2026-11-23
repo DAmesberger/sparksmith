@@ -10,6 +10,7 @@
   "fix": "Correct the template item named in the finding and preview the marking",
   "fixed_by": [
     "entry/library.set_marking"
-  ]
+  ],
+  "title": "Marking template or placement is invalid"
 }
 ---

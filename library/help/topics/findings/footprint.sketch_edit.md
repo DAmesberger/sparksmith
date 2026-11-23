@@ -10,6 +10,7 @@
   "fix": "Select the current geometry and apply a supported sketch edit",
   "fixed_by": [
     "entry/library.edit_footprint"
-  ]
+  ],
+  "title": "Footprint sketch edit cannot be applied"
 }
 ---

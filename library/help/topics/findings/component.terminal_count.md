@@ -10,6 +10,7 @@
   "fix": "Remove duplicate or unused terminal declarations",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Too many electrical terminals on the component"
 }
 ---

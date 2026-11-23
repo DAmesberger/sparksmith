@@ -10,6 +10,7 @@
   "fix": "Move the part or the other hole",
   "fixed_by": [
     "entry/layout.move_parts"
-  ]
+  ],
+  "explanation": "The hole types named in this occurrence select the spacing row. Pad drills are compared with other pad drills, vias and mounting holes, including a second hole within the same pad."
 }
 ---

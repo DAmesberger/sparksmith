@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/layout.set_fabrication",
     "entry/rules.set_fab_profile"
-  ]
+  ],
+  "explanation": "The mask colour option in the active profile lists the available colours. Compare those choices with the solder mask colour on this board."
 }
 ---

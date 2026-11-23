@@ -10,6 +10,7 @@
   "fix": "Preview the update from the linked design",
   "fixed_by": [
     "entry/assembly.update"
-  ]
+  ],
+  "title": "Linked board interface has changed"
 }
 ---

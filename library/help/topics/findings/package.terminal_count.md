@@ -10,6 +10,7 @@
   "fix": "Remove duplicate or unintended terminal declarations",
   "fixed_by": [
     "entry/library.edit_package"
-  ]
+  ],
+  "title": "Too many physical terminals on the package"
 }
 ---

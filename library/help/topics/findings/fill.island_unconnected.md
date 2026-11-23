@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/fill.edit",
     "entry/layout.route"
-  ]
+  ],
+  "explanation": "Inspect the fill’s island removal mode and its net. A kept island can remain in the drawing when it touches no other copper on that net."
 }
 ---

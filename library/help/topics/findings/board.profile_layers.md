@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/rules.set_fab_profile",
     "entry/layout.edit_stackup"
-  ]
+  ],
+  "explanation": "The active profile declares the copper layer counts it supports. Compare its supported boards with the layer count in the project stackup."
 }
 ---

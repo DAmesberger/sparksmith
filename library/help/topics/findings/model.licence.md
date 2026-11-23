@@ -10,6 +10,7 @@
   "fix": "Record the model’s source licence and redistribution permission",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Model redistribution rights are unknown"
 }
 ---

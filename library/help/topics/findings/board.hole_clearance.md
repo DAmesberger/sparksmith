@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/board.edit",
     "entry/layout.track_drag"
-  ]
+  ],
+  "explanation": "The mounting hole’s plating and the nearby copper type select the clearance row. The check also considers the copper net’s class clearance."
 }
 ---

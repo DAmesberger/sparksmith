@@ -10,6 +10,7 @@
   "fix": "Give each resource a distinct printable label",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Peripheral label is invalid or repeated"
 }
 ---

@@ -10,6 +10,7 @@
   "fix": "Review the uncoupled length or route the halves at the pair gap",
   "fixed_by": [
     "entry/layout.route_pair"
-  ]
+  ],
+  "explanation": "The differential impedance target belongs to the pair’s net class. The coupled-line estimate covers parallel runs within the permitted gap tolerance. Inspect the excluded length on each named net."
 }
 ---

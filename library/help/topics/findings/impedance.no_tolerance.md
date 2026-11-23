@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/net_class.edit"
   ],
-  "checks": "setting/impedance_tolerance"
+  "checks": "setting/impedance_tolerance_pct",
+  "explanation": "The net class can supply its own percentage. The checker uses the Settings value when the class leaves its tolerance unset."
 }
 ---

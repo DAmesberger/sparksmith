@@ -10,6 +10,7 @@
   "fix": "Tune the shorter net with the Tune tool",
   "fixed_by": [
     "entry/layout.tune_length"
-  ]
+  ],
+  "explanation": "The positive net’s class supplies the maximum skew. The check compares the measured lengths of the pair’s two signal paths against that class limit."
 }
 ---

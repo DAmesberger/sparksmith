@@ -10,6 +10,7 @@
   "fix": "Correct the reported evaluation error and rerun the sample",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Pin rule failed while checking an assignment"
 }
 ---

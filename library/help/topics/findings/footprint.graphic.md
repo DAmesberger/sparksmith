@@ -10,6 +10,7 @@
   "fix": "Restore its sketch references or redraw the graphic",
   "fixed_by": [
     "entry/library.edit_footprint"
-  ]
+  ],
+  "title": "Footprint graphic cannot be built"
 }
 ---

@@ -10,6 +10,7 @@
   "fix": "Declare the functions the terminal actually offers",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Terminal function list is empty or too large"
 }
 ---

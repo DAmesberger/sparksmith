@@ -10,6 +10,7 @@
   "fix": "Check the source units, model bounds, placement and package envelope",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Model geometry and package envelope disagree"
 }
 ---

@@ -10,6 +10,7 @@
   "fix": "Route the halves together with pair routing",
   "fixed_by": [
     "entry/layout.route_pair"
-  ]
+  ],
+  "explanation": "The positive net’s class sets a maximum uncoupled length. Compare that limit with the longer of the two uncoupled lengths in the routing report."
 }
 ---

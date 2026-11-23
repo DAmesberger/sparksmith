@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/rules.set_fab_options",
     "entry/layout.set_fabrication"
-  ]
+  ],
+  "explanation": "The requirement comes from the option choice named in the finding. Inspect that choice in the active fabrication profile for its permitted pad finishes."
 }
 ---

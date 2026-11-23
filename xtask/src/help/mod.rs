@@ -226,6 +226,13 @@ fn stamp(library: &ShippedLibrary, topic: &HelpId) -> Result<()> {
 }
 
 fn validate_entries(index: &Index, media: &Path) -> Result<()> {
+    let profiles: std::collections::BTreeSet<_> = index
+        .keys()
+        .filter_map(|id| {
+            let (profile, _) = id.as_str().strip_prefix("rule/")?.split_once('/')?;
+            Some(profile)
+        })
+        .collect();
     for e in index.values() {
         let fail = |why: String| format!("{}: {why}", e.id);
         let link = |id: &HelpId| -> Result<()> {
@@ -271,8 +278,20 @@ fn validate_entries(index: &Index, media: &Path) -> Result<()> {
                 fix,
                 fixed_by,
                 checks,
+                rule_key,
                 ..
             } => {
+                if let Some(name) = rule_key {
+                    let key = sparksmith_core::rules::RuleKey::from_name(name)
+                        .ok_or_else(|| fail(format!("unknown fabrication rule {name}")))?;
+                    // Some fabricators publish no assembly rules. Required keys
+                    // must resolve for every installed profile.
+                    if !key.optional() {
+                        for profile in &profiles {
+                            link(&format!("rule/{profile}/{name}").parse()?)?;
+                        }
+                    }
+                }
                 if cause.trim().is_empty() {
                     return Err(fail("missing finding cause".into()).into());
                 }

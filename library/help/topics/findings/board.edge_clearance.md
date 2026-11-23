@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/layout.move_parts",
     "entry/board.edit"
-  ]
+  ],
+  "explanation": "The feature facing the board edge selects the clearance row. Tracks, pads, vias and each type of drill have separate rows. Read the cited feature and distance before moving copper or a hole."
 }
 ---

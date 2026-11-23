@@ -10,6 +10,7 @@
   "fix": "Correct the alias or both size codes named in the finding",
   "fixed_by": [
     "entry/library.edit"
-  ]
+  ],
+  "title": "Package row aliases or size codes are invalid"
 }
 ---

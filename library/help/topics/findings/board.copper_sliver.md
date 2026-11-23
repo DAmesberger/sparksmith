@@ -11,6 +11,7 @@
   "fixed_by": [
     "entry/layout.track_drag",
     "entry/fill.edit"
-  ]
+  ],
+  "explanation": "For a bare gap in a fill, compare its width with the minimum sliver width. For thin hatch lines, compare the hatch stroke with that fill’s minimum width, which defaults to the profile’s minimum fill width."
 }
 ---

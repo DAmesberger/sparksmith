@@ -10,6 +10,7 @@
   "fix": "Assign the datum to an existing sketch point",
   "fixed_by": [
     "entry/library.edit_footprint"
-  ]
+  ],
+  "title": "Footprint datum cannot be located"
 }
 ---
