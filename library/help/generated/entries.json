@@ -1322,7 +1322,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "39bad372224d0be3",
+      "schema_digest": "2e7b317f16545255",
       "examples": []
     }
   },
@@ -1630,7 +1630,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "d84846ff47dae125",
+      "schema_digest": "e572aa1b757a23d8",
       "examples": []
     }
   },
@@ -2283,7 +2283,7 @@
       "module": "library",
       "class": "ask",
       "entry_kind": "action",
-      "schema_digest": "cb75eabd03469295",
+      "schema_digest": "6c8ef5eb68ccc660",
       "examples": []
     }
   },
@@ -2927,7 +2927,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "cd3aab914e3b2641",
+      "schema_digest": "a7a2f029a026aeec",
       "examples": []
     }
   },
@@ -2941,7 +2941,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "801191a00d2237f0",
+      "schema_digest": "4dda4e2b6b754fc6",
       "examples": []
     }
   },

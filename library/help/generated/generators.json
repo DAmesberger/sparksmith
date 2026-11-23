@@ -8,6 +8,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "positions",
           "label": "Positions per row",
           "type": {
@@ -3271,6 +3285,7 @@
       ]
     },
     "related": [
+      "generator/board-to-board#board_mask_expansion_nm",
       "generator/board-to-board#positions",
       "generator/board-to-board#pitch",
       "generator/board-to-board#row_pitch",
@@ -3324,6 +3339,35 @@
           },
           "default": "none",
           "group": "pins"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/board-to-board"
+    ]
+  },
+  {
+    "id": "generator/board-to-board#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
         }
       ],
       "presets": []
@@ -3896,6 +3940,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "body_length",
           "label": "Case length (x)",
           "type": {
@@ -4096,6 +4154,7 @@
       ]
     },
     "related": [
+      "generator/buzzer#board_mask_expansion_nm",
       "generator/buzzer#body_length",
       "generator/buzzer#body_width",
       "generator/buzzer#height",
@@ -4112,6 +4171,35 @@
     ],
     "keywords": [
       "buzzer"
+    ]
+  },
+  {
+    "id": "generator/buzzer#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/buzzer"
     ]
   },
   {
@@ -4484,6 +4572,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "part",
           "label": "Part",
@@ -5324,6 +5426,7 @@
       ]
     },
     "related": [
+      "generator/chip#board_mask_expansion_nm",
       "generator/chip#part",
       "generator/chip#length",
       "generator/chip#width",
@@ -5344,6 +5447,35 @@
     ],
     "keywords": [
       "chip"
+    ]
+  },
+  {
+    "id": "generator/chip#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/chip"
     ]
   },
   {
@@ -5900,6 +6032,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "can_diameter",
           "label": "Can diameter (D)",
           "type": {
@@ -6367,6 +6513,7 @@
       ]
     },
     "related": [
+      "generator/electrolytic#board_mask_expansion_nm",
       "generator/electrolytic#can_diameter",
       "generator/electrolytic#height",
       "generator/electrolytic#base_length",
@@ -6433,6 +6580,35 @@
           },
           "default": 6600000,
           "group": "body"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/electrolytic"
+    ]
+  },
+  {
+    "id": "generator/electrolytic#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
         }
       ],
       "presets": []
@@ -6813,6 +6989,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "copper_diameter",
           "label": "Copper diameter",
           "type": {
@@ -7010,6 +7200,7 @@
       ]
     },
     "related": [
+      "generator/fiducial#board_mask_expansion_nm",
       "generator/fiducial#copper_diameter",
       "generator/fiducial#mask_diameter",
       "generator/fiducial#clear_diameter",
@@ -7020,6 +7211,35 @@
     ],
     "keywords": [
       "fiducial"
+    ]
+  },
+  {
+    "id": "generator/fiducial#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/fiducial"
     ]
   },
   {
@@ -7243,6 +7463,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "contact",
           "label": "Contacts",
@@ -7819,6 +8053,7 @@
       ]
     },
     "related": [
+      "generator/grid#board_mask_expansion_nm",
       "generator/grid#contact",
       "generator/grid#rows",
       "generator/grid#columns",
@@ -7839,6 +8074,35 @@
     ],
     "keywords": [
       "grid"
+    ]
+  },
+  {
+    "id": "generator/grid#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/grid"
     ]
   },
   {
@@ -8342,6 +8606,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "sides",
           "label": "Lead rows",
@@ -10208,6 +10486,7 @@
       ]
     },
     "related": [
+      "generator/gull-wing#board_mask_expansion_nm",
       "generator/gull-wing#sides",
       "generator/gull-wing#leads",
       "generator/gull-wing#leads_short",
@@ -10234,6 +10513,35 @@
     ],
     "keywords": [
       "gull_wing"
+    ]
+  },
+  {
+    "id": "generator/gull-wing#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/gull-wing"
     ]
   },
   {
@@ -10897,6 +11205,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "style",
           "label": "Style",
@@ -12517,6 +12839,7 @@
       ]
     },
     "related": [
+      "generator/header#board_mask_expansion_nm",
       "generator/header#style",
       "generator/header#rows",
       "generator/header#columns",
@@ -12538,6 +12861,35 @@
     ],
     "keywords": [
       "header"
+    ]
+  },
+  {
+    "id": "generator/header#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/header"
     ]
   },
   {
@@ -13063,6 +13415,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "pitch",
           "label": "Contact pitch",
@@ -13657,6 +14023,7 @@
       ]
     },
     "related": [
+      "generator/microsd#board_mask_expansion_nm",
       "generator/microsd#pitch",
       "generator/microsd#first_x",
       "generator/microsd#land_width",
@@ -13724,6 +14091,35 @@
           },
           "default": 4150000,
           "group": "contacts"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/microsd"
+    ]
+  },
+  {
+    "id": "generator/microsd#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
         }
       ],
       "presets": []
@@ -14889,6 +15285,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "width",
           "label": "Module width (x)",
@@ -16386,6 +16796,7 @@
       ]
     },
     "related": [
+      "generator/module#board_mask_expansion_nm",
       "generator/module#width",
       "generator/module#length",
       "generator/module#height",
@@ -16557,6 +16968,35 @@
           },
           "default": 0,
           "group": "antenna"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/module"
+    ]
+  },
+  {
+    "id": "generator/module#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
         }
       ],
       "presets": []
@@ -18342,6 +18782,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "part",
           "label": "Part",
           "type": {
@@ -18924,6 +19378,7 @@
       ]
     },
     "related": [
+      "generator/molded#board_mask_expansion_nm",
       "generator/molded#part",
       "generator/molded#lead",
       "generator/molded#body_length",
@@ -18942,6 +19397,35 @@
     ],
     "keywords": [
       "molded"
+    ]
+  },
+  {
+    "id": "generator/molded#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/molded"
     ]
   },
   {
@@ -19407,6 +19891,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "sides",
           "label": "Terminal sides",
@@ -21672,6 +22170,7 @@
       ]
     },
     "related": [
+      "generator/no-lead#board_mask_expansion_nm",
       "generator/no-lead#sides",
       "generator/no-lead#terminals",
       "generator/no-lead#terminals_short",
@@ -21715,6 +22214,35 @@
     ],
     "keywords": [
       "no_lead"
+    ]
+  },
+  {
+    "id": "generator/no-lead#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/no-lead"
     ]
   },
   {
@@ -22935,6 +23463,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "style",
           "label": "Construction",
           "type": {
@@ -23209,6 +23751,7 @@
       ]
     },
     "related": [
+      "generator/power-inductor#board_mask_expansion_nm",
       "generator/power-inductor#style",
       "generator/power-inductor#body_length",
       "generator/power-inductor#body_width",
@@ -23226,6 +23769,35 @@
     ],
     "keywords": [
       "power-inductor"
+    ]
+  },
+  {
+    "id": "generator/power-inductor#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/power-inductor"
     ]
   },
   {
@@ -23634,6 +24206,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "tube_length",
           "label": "Envelope length",
           "type": {
@@ -23824,6 +24410,7 @@
       ]
     },
     "related": [
+      "generator/reed#board_mask_expansion_nm",
       "generator/reed#tube_length",
       "generator/reed#tube_diameter",
       "generator/reed#height",
@@ -23860,6 +24447,35 @@
           },
           "default": 17520000,
           "group": "leads"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/reed"
+    ]
+  },
+  {
+    "id": "generator/reed#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
         }
       ],
       "presets": []
@@ -24189,6 +24805,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "length",
           "label": "Length above the board",
           "type": {
@@ -24458,6 +25088,7 @@
       ]
     },
     "related": [
+      "generator/standoff#board_mask_expansion_nm",
       "generator/standoff#length",
       "generator/standoff#outer_diameter",
       "generator/standoff#bore_diameter",
@@ -24471,6 +25102,35 @@
     ],
     "keywords": [
       "standoff"
+    ]
+  },
+  {
+    "id": "generator/standoff#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/standoff"
     ]
   },
   {
@@ -24766,6 +25426,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "leads_s",
           "label": "Leads on the −y side",
@@ -25567,6 +26241,7 @@
       ]
     },
     "related": [
+      "generator/tabbed#board_mask_expansion_nm",
       "generator/tabbed#leads_s",
       "generator/tabbed#leads_n",
       "generator/tabbed#step_s",
@@ -25600,6 +26275,35 @@
     ],
     "keywords": [
       "tabbed"
+    ]
+  },
+  {
+    "id": "generator/tabbed#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/tabbed"
     ]
   },
   {
@@ -26468,6 +27172,20 @@
       "kind": "generator",
       "parameters": [
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "style",
           "label": "Construction",
           "type": {
@@ -27001,6 +27719,7 @@
       ]
     },
     "related": [
+      "generator/tactile#board_mask_expansion_nm",
       "generator/tactile#style",
       "generator/tactile#body_length",
       "generator/tactile#body_width",
@@ -27029,6 +27748,35 @@
     ],
     "keywords": [
       "tactile"
+    ]
+  },
+  {
+    "id": "generator/tactile#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/tactile"
     ]
   },
   {
@@ -27733,6 +28481,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "construction",
           "label": "Construction",
@@ -28616,6 +29378,7 @@
       ]
     },
     "related": [
+      "generator/tht#board_mask_expansion_nm",
       "generator/tht#construction",
       "generator/tht#pins",
       "generator/tht#lead_pitch",
@@ -28661,6 +29424,35 @@
           },
           "default": 0,
           "group": "leads"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/tht"
+    ]
+  },
+  {
+    "id": "generator/tht#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
         }
       ],
       "presets": []
@@ -29460,6 +30252,20 @@
           "default": 0
         },
         {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
+        {
           "key": "land_gap_min",
           "label": "Least land gap",
           "help": "The least gap between the two lands; the project's land rules fill it.",
@@ -29726,6 +30532,7 @@
       "generator/tie#bridge_length",
       "generator/tie#gap",
       "generator/tie#solder_height",
+      "generator/tie#board_mask_expansion_nm",
       "generator/tie#land_gap_min",
       "generator/tie#resistor_style",
       "generator/tie#land_pattern",
@@ -29734,6 +30541,35 @@
     ],
     "keywords": [
       "tie"
+    ]
+  },
+  {
+    "id": "generator/tie#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/tie"
     ]
   },
   {
@@ -30270,6 +31106,20 @@
     "facts": {
       "kind": "generator",
       "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        },
         {
           "key": "pins",
           "label": "Contacts",
@@ -33206,6 +34056,7 @@
       ]
     },
     "related": [
+      "generator/wire-to-board#board_mask_expansion_nm",
       "generator/wire-to-board#pins",
       "generator/wire-to-board#pitch",
       "generator/wire-to-board#entry",
@@ -33239,6 +34090,35 @@
     ],
     "keywords": [
       "wire_to_board"
+    ]
+  },
+  {
+    "id": "generator/wire-to-board#board_mask_expansion_nm",
+    "title": "Inherited solder mask expansion",
+    "summary": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "generator",
+      "parameters": [
+        {
+          "key": "board_mask_expansion_nm",
+          "label": "Inherited solder mask expansion",
+          "help": "The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.",
+          "type": {
+            "length": {
+              "min_nm": -1000000000,
+              "max_nm": 1000000000
+            }
+          },
+          "default": 50000,
+          "group": "lands",
+          "context": "project.mask.expansion"
+        }
+      ],
+      "presets": []
+    },
+    "related": [
+      "generator/wire-to-board"
     ]
   },
   {
