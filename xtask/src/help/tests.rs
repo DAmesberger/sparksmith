@@ -117,3 +117,50 @@ fn settings_describe_actual_defaults_and_nested_rows() -> crate::Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn parameter_urls_resolve_as_pages_and_fragment_targets() -> crate::Result<()> {
+    use sparksmith_generators::abi::v1::{Param, ParamType, ParamValue};
+    let dir = tempfile::tempdir()?;
+    std::fs::write(dir.path().join(sparksmith_io::shipped::MARKER), "{}")?;
+    let library = ShippedLibrary::at(dir.path())?;
+    let param = Param {
+        key: "pitch".into(),
+        label: "Land pitch".into(),
+        help: None,
+        ty: ParamType::Length {
+            min_nm: 1,
+            max_nm: 10,
+            step_nm: None,
+        },
+        default: ParamValue::Int(4),
+        group: None,
+        context: None,
+    };
+    let parent = HelpEntry {
+        id: "generator/example".parse()?,
+        title: "Example footprint".into(),
+        facts: Facts::Generator {
+            parameters: vec![param],
+            presets: vec![],
+        },
+        ..guide("test")?
+    };
+    let child = HelpEntry {
+        id: "generator/example#pitch".parse()?,
+        title: "Land pitch".into(),
+        ..parent.clone()
+    };
+    let index = Index::from([(parent.id.clone(), parent), (child.id.clone(), child)]);
+    site::render(dir.path(), &index, &library)?;
+    let latest = dir.path().join("docs/latest");
+    assert!(
+        latest
+            .join("generator/example/parameters/pitch.html")
+            .is_file()
+    );
+    let body = std::fs::read_to_string(latest.join("generator/example.html"))?;
+    assert!(body.contains(r#"<tr id="pitch">"#));
+    assert!(body.contains(r#"href="../generator/example/parameters/pitch.html">Land pitch</a>"#));
+    Ok(())
+}
