@@ -753,11 +753,11 @@ pub fn write_bundle(folder: &Folder, bundle: &Bundle) -> Result<WriteReport> {
         }
         planned.insert(path, (record.lineage, record.revision, hash, bytes));
     }
-    if record_files(folder)?.len() + planned.len() > MAX_FOLDER_RECORDS {
-        return Err(Error::TooLarge(format!(
-            "a library folder holds at most {MAX_FOLDER_RECORDS} revisions"
-        )));
-    }
+    // Serialize the count and the writes on the stable folder manifest. Two
+    // publishers adding different paths cannot both claim the final slot.
+    let manifest = std::fs::File::open(folder.root.join(MANIFEST_FILE))?;
+    manifest.lock()?;
+    let existing_count = record_files(folder)?.len();
     // Check: existing records must hash equal (rN is immutable).
     let mut report = WriteReport::default();
     let mut pending = Vec::new();
@@ -777,6 +777,11 @@ pub fn write_bundle(folder: &Folder, bundle: &Bundle) -> Result<WriteReport> {
         } else {
             pending.push((path, *hash, bytes));
         }
+    }
+    if pending.len() > MAX_FOLDER_RECORDS.saturating_sub(existing_count) {
+        return Err(Error::TooLarge(format!(
+            "a library folder holds at most {MAX_FOLDER_RECORDS} revisions"
+        )));
     }
     // Check: every asset a record names is in the bundle or the folder.
     let packed: BTreeMap<ContentHash, &PackedAsset> =
