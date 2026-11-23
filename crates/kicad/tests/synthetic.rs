@@ -383,6 +383,10 @@ fn a_fiducial_is_a_part_without_terminals() -> Fallible<()> {
         .component(instance.component)
         .ok_or("component")?;
     assert!(component.definition.terminals.is_empty());
+    assert_eq!(
+        component.definition.assembly,
+        sparksmith_core::library::tie::Assembly::CopperOnly
+    );
     assert_eq!(imported.report.count(Case::NoTerminals), 1);
     // On the sheet like any part KiCad has in its schematic.
     assert!(!instance.board_only);
@@ -834,5 +838,21 @@ fn ambiguous_net_tie_groups_preserve_lands_for_review() -> Fallible<()> {
             "{name}"
         );
     }
+    Ok(())
+}
+
+#[test]
+fn a_dnp_mark_on_fabricated_ties_keeps_their_bridges_closed() -> Fallible<()> {
+    let mut board = two_group_board();
+    board.footprints[0].extra.push_str(" (attr dnp)");
+    let imported = import(board.text().as_bytes())?;
+    assert_eq!(imported.report.count(Case::CopperTieDnp), 1);
+    assert_eq!(imported.report.count(Case::NotPopulatedAttribute), 0);
+    let rows = sparksmith_core::instances::ties::rows(imported.engine.project());
+    assert_eq!(rows.len(), 2);
+    assert!(
+        rows.iter()
+            .all(|r| r.state == sparksmith_core::library::tie::JumperState::Closed)
+    );
     Ok(())
 }

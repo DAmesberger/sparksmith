@@ -269,6 +269,8 @@ pub enum Case {
     /// Parts KiCad marks do-not-populate (on the footprint or the symbol):
     /// not populated in the default, body kept.
     NotPopulatedAttribute,
+    /// A not-fitted marker on a fabricated copper tie.
+    CopperTieDnp,
     /// Parts whose value is or carries a not-fitted marker ("DNP"): not
     /// populated in the default, the marker taken out of the value.
     NotPopulatedMarker,
@@ -687,6 +689,11 @@ impl Case {
                 "Z1",
                 Approximate,
                 "zones with corner smoothing, filled without",
+            ),
+            Self::CopperTieDnp => (
+                "P7",
+                Report,
+                "DNP markings on fabricated copper ties, which stay closed",
             ),
             Self::NotPopulatedAttribute => (
                 "P7",

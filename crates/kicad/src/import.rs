@@ -681,16 +681,24 @@ pub fn import_with_models(
     let mut unfitted = Vec::new();
     for ((fp, instance), why) in placed.iter().zip(&instances).zip(&not_fitted) {
         if let Some(why) = why {
-            let case = match why {
-                Why::MarkerValue => Case::NotPopulatedMarker,
-                Why::DoNotPopulate => Case::NotPopulatedAttribute,
-            };
-            report.add_detail(case, &fp.reference, "", why.text());
             let p = session.engine.project();
-            if !p.instance(*instance).is_some_and(|i| {
+            let copper = p.instance(*instance).is_some_and(|i| {
                 sparksmith_core::instances::ties::form(p, i)
                     == Some(sparksmith_core::library::tie::TieForm::Copper)
-            }) {
+            });
+            if copper {
+                report.add_detail(
+                    Case::CopperTieDnp,
+                    &fp.reference,
+                    "",
+                    "Copper bridges stay closed in every assembly variant.",
+                );
+            } else {
+                let case = match why {
+                    Why::MarkerValue => Case::NotPopulatedMarker,
+                    Why::DoNotPopulate => Case::NotPopulatedAttribute,
+                };
+                report.add_detail(case, &fp.reference, "", why.text());
                 unfitted.push(*instance);
             }
         }
@@ -1700,6 +1708,9 @@ impl Session<'_> {
             });
         };
         let mut unpinned = 0;
+        let fiducial = no_body.is_some()
+            && !pads.is_empty()
+            && pads.iter().all(|p| p.kind == PadKind::Fiducial);
         let mut edits = drafts(
             name,
             pads,
@@ -1735,9 +1746,15 @@ impl Session<'_> {
         }
         if let Some(why) = no_body {
             for edit in &mut edits {
-                if let Definition::Package(package) = &mut edit.definition {
-                    package.model = PackageModel::NoBody;
-                    edit.meta.provenance.push_str(&format!("\n{why}"));
+                match &mut edit.definition {
+                    Definition::Package(package) => {
+                        package.model = PackageModel::NoBody;
+                        edit.meta.provenance.push_str(&format!("\n{why}"));
+                    }
+                    Definition::Component(component) if fiducial => {
+                        component.assembly = sparksmith_core::library::tie::Assembly::CopperOnly;
+                    }
+                    _ => {}
                 }
             }
         }
