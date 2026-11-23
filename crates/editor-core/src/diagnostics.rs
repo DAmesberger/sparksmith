@@ -244,6 +244,28 @@ pub enum ObjectRef {
     },
 }
 
+/// How much an issue matters, most severe first. Core decides it; hosts only
+/// map it to a glyph and ink.
+#[derive(
+    Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Severity {
+    /// Blocks a stage (publish, board placement, electrical resolution) or
+    /// breaks a manufacturing or electrical rule. The only red severity.
+    /// Anything that blocks publishing is an error, except a package
+    /// terminal not mapped yet, a to-do that still blocks publishing.
+    Error,
+    /// Lint, and purchasing or rating mismatches.
+    Warning,
+    /// Work that is expected to remain while designing: unrouted
+    /// connections, unplaced instances, unresolved purchasing, package
+    /// terminals not mapped yet.
+    ToDo,
+    /// Information that needs no action.
+    Info,
+}
+
 /// A derived completeness state a finding can block. Nothing stores these
 /// states; they hold when no current finding blocks them.
 #[derive(

@@ -33,27 +33,7 @@ use serde::{Deserialize, Serialize};
 /// characters at the smallest supported column width and clipped there.
 pub const MAX_TITLE: usize = crate::diagnostics::MAX_LINE;
 
-/// How much an issue matters, most severe first. Core decides it; hosts only
-/// map it to a glyph and ink.
-#[derive(
-    Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum Severity {
-    /// Blocks a stage (publish, board placement, electrical resolution) or
-    /// breaks a manufacturing or electrical rule. The only red severity.
-    /// Anything that blocks publishing is an error, except a package
-    /// terminal not mapped yet, a to-do that still blocks publishing.
-    Error,
-    /// Lint, and purchasing or rating mismatches.
-    Warning,
-    /// Work that is expected to remain while designing: unrouted
-    /// connections, unplaced instances, unresolved purchasing, package
-    /// terminals not mapped yet.
-    ToDo,
-    /// Information that needs no action.
-    Info,
-}
+pub use crate::diagnostics::Severity;
 
 /// The part of the project an issue belongs to. Each desktop workspace shows
 /// one area by default.

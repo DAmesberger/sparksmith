@@ -113,7 +113,7 @@ pub mod keymap {
 
 /// Command-search scoring (SolidCraft's `ui-egui/src/shortcut_box.rs`).
 pub mod shortcut_box {
-    pub use crate::chrome::score;
+    pub use sparksmith_core::help::score;
 }
 
 /// The ribbon and application bar heights (SolidCraft's `ui-egui/src/toolbar.rs`).

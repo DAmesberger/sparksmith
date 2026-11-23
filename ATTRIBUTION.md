@@ -54,7 +54,8 @@ Upstream SolidCraft put `crates/ui-kit`, `crates/look` and `crates/theme` under 
 - `src/triad.rs`: `crates/ui-egui/src/gizmo.rs`; a drag always snaps, since Sparksmith has no free-drag modifier preference.
 - `src/proj.rs`, `src/box_select.rs`: `Proj` from `crates/ui-egui/src/viewport.rs` and `BoxSel` from `selection.rs`.
 - `src/dim_label.rs`: `label` of `crates/ui-egui/src/dim_view.rs` for a length, with `length_number` of `crates/doc/src/display_units.rs`.
-- `src/chrome.rs`: `place` (`context_menu.rs`), `key_name` (`keymap.rs`), `score` (`shortcut_box.rs`), and the application bar, ribbon and traffic-light constants (`toolbar.rs`, `ui-kit/src/{app_bar,ribbon,window_chrome}.rs`).
+- `crates/editor-core/src/help/search.rs` shares the `score` function from SolidCraft's `shortcut_box.rs` with the command palette and help readers.
+- `src/chrome.rs`: `place` (`context_menu.rs`), `key_name` (`keymap.rs`), and the application bar, ribbon and traffic-light constants (`toolbar.rs`, `ui-kit/src/{app_bar,ribbon,window_chrome}.rs`).
 - `assets/fonts/`: IBM Plex Sans (variable) and IBM Plex Mono Regular from `assets/fonts/`, each with its `OFL.txt` (SIL Open Font License 1.1).
 
 Adapted source references, under the MIT option above:

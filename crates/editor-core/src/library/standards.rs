@@ -131,6 +131,7 @@ impl Standards {
 /// nothing in the process holds one for everybody.
 #[derive(Clone, Debug)]
 pub struct Context {
+    help: std::result::Result<Arc<crate::help::Index>, String>,
     standards: Arc<Standards>,
     /// The material library, or why loading it failed: a host without 3D
     /// still runs every request that does not build a model. Built models
@@ -227,6 +228,7 @@ impl Context {
     pub fn new(standards: Standards) -> Self {
         Self {
             standards: Arc::new(standards),
+            help: Err("The shipped help/ folder has not been loaded".into()),
             materials: Err(
                 "the material library was not loaded: the program loads the shipped library's materials/ folder before it builds a 3D model"
                     .into(),
@@ -245,6 +247,16 @@ impl Context {
             ),
             artwork: Arc::default(),
         }
+    }
+
+    #[must_use]
+    pub fn with_help(mut self, help: std::result::Result<crate::help::Index, String>) -> Self {
+        self.help = help.map(Arc::new);
+        self
+    }
+
+    pub fn help(&self) -> Result<&crate::help::Index> {
+        self.help.as_deref().map_err(|why| Error::Invalid(why.clone()))
     }
 
     /// This context with the installed marking artwork, by id.

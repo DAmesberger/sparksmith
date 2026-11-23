@@ -129,6 +129,7 @@ pub fn context(shipped: &ShippedLibrary) -> Result<Arc<Context>> {
     let materials = crate::materials::load(shipped).map_err(|e| e.to_string());
     Ok(Arc::new(
         Context::new(load(shipped)?)
+            .with_help(crate::help::load(shipped).map_err(|e| e.to_string()))
             .with_materials(materials)
             .with_generators(generators(shipped).map_err(|e| e.to_string()))
             .with_parts(parts(shipped).map_err(|e| e.to_string()))

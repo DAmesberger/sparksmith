@@ -1016,46 +1016,12 @@ impl Registry {
 
 /// The least [`match_score`] of a match by a word or a substring of the
 /// title, keywords or id; lower scores are letters found in order.
-const WORD_MATCH: u32 = 300;
+use sparksmith_core::help::WORD_MATCH;
 
-/// How well `q` (lower case) finds `command`: its title first, then its
-/// keywords, context and id. 0: no match.
 pub fn match_score(q: &str, command: &Command) -> u32 {
-    use sparksmith_ui::shortcut_box::score;
-    if q.is_empty() {
-        return 1;
-    }
-    let title = score(q, &command.title);
-    // Every word of the query found in the title, keywords or context.
-    let words = format!(
-        "{} {} {}",
-        command.title,
-        command.keywords,
-        command.context.label()
-    )
-    .to_lowercase();
-    let all_words = q.split_whitespace().all(|w| {
-        words
-            .split(|c: char| !c.is_alphanumeric())
-            .any(|k| k.starts_with(w))
-    });
-    let other = if all_words { 700 } else { 0 };
-    let id = score(q, &command.id) / 2;
-    title.max(other).max(id).max(whole_words(q, command))
-}
-
-/// Every word of `q` is a whole word of the title: above a word that only
-/// starts with it. A workspace is where its name leads ("schematic": Go to
-/// Schematic before Export schematic PDF…). 0 otherwise.
-fn whole_words(q: &str, command: &Command) -> u32 {
-    let title = command.title.to_lowercase();
-    let words = title.split(|c: char| !c.is_alphanumeric());
-    let whole = q.split_whitespace().all(|w| words.clone().any(|t| t == w));
-    match (whole, &command.action) {
-        (false, _) => 0,
-        (true, Action::App(AppCommand::Workspace(_))) => 900,
-        (true, _) => 850,
-    }
+    sparksmith_core::help::match_score(q, &command.title, &command.id,
+        &format!("{} {}", command.keywords, command.context.label()),
+        matches!(&command.action, Action::App(AppCommand::Workspace(_))))
 }
 
 /// Whether `a` and `b` sharing `chord` is a conflict: both could see the

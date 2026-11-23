@@ -1,5 +1,7 @@
 //! Offline help shared by the desktop, command surface and static manual.
-use crate::{Class, Stage, issues::Severity, rules::profile::ProfileSource};
+mod search;
+pub use search::{search, score, match_score, WORD_MATCH};
+use crate::{Class, Stage, diagnostics::Severity, rules::profile::ProfileSource};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -93,7 +95,7 @@ pub struct CallExample { pub entry: HelpId, pub params: Value }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Facts {
-    Entry { module: String, class: Class, entry_kind: EntryKind, schema_digest: String, examples: Vec<CallExample> },
+    Entry { module: String, class: Class, entry_kind: Option<EntryKind>, schema_digest: String, examples: Vec<CallExample> },
     Finding { severity: Severity, blocks: Option<Stage>, group: String, fix: String, cause: String,
         explanation: Option<String>, fixed_by: Vec<HelpId>, checks: Option<HelpId> },
     Command { context: String, default_key: Option<String>, reaches: Option<HelpId> },
