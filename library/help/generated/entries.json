@@ -2052,7 +2052,7 @@
   {
     "id": "entry/library.edit_package",
     "title": "Edit a package",
-    "summary": "Apply 1–256 package edits (form, model, placement, quick action) to one package draft in order, as one undo step.",
+    "summary": "Apply 1–256 edits (model, placement, datums, quick action) to one package draft in order, as one undo step.",
     "since": "0.1.0",
     "facts": {
       "kind": "entry",

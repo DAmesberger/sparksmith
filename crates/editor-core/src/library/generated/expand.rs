@@ -52,7 +52,7 @@ pub struct Refs {
     pub footprint: FootprintRef,
 }
 
-/// The courtyard outline's stroke, 0.05 mm, as the footprint templates
+/// The courtyard outline's stroke, 0.05 mm, as the standard drawings
 /// draw it (`footprint_drawings::COURTYARD_STROKE_MM`).
 const COURTYARD_STROKE: Nm = match Nm::try_new(50_000) {
     Some(nm) => nm,

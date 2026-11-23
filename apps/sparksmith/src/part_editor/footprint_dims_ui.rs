@@ -232,7 +232,7 @@ impl PartEditor {
             Tool::new(dims::ALL_DIMS_TOOL, "dimension", "All dims")
                 .enabled(sourced)
                 .selected(self.footprint_dims.detail == dims::DimDetail::All)
-                .tip("Show every dimension, including derived and template-internal ones; otherwise only the independent parameters' and the selection's"),
+                .tip("Show every dimension and constraint, including driven, derived and repeated dimensions and the pads' own constraints; otherwise only the independent parameters' and the selection's"),
         );
         tools.push(self.parameters_tool());
         Group {

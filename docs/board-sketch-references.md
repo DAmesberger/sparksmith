@@ -26,7 +26,7 @@ The founder asked: "can we do complex board shapes also with solidcrafts sketch 
   - Its values are the parameter expressions `<prefix>_x`, `_y` and `_angle`, set from `Placement` (`project.rs`, `BoardJoint`).
   - A planar joint moves as `shift(x, y, 0) · rot_z(angle)` (`doc/src/joints.rs`, `motion`), and the loop solver never moves a value an expression sets (`set_values`). So Solidcraft never solves a part's pose, z included.
 - **The native board design is rebuilt on structural change.** An edit that only changes values is replayed in place, but "any other difference ends the replay and the board is built anew" (`native/replay.rs`). A new build hands out new feature ids.
-- **Part models.** A `PackageModel` is `Envelope`, `Generated`, `Library` (STEP or glTF, `library/model3d.rs`) or `PartFile` (`library/package_model.rs`). A part file's history is inserted into the board design with renumbered features (`models/part_file.rs`, `insert`).
+- **Part models.** A `PackageModel` is `Envelope`, `Library` (STEP or glTF, `library/model3d.rs`), `PartFile` (`library/package_model.rs`) or `NoBody`. A part file's history is inserted into the board design with renumbered features (`models/part_file.rs`, `insert`).
 
 ## 2. What Solidcraft offers (upstream, public)
 
@@ -255,7 +255,6 @@ Sparksmith keeps the map from its own objects (instance ids, board sketch curve 
 | Model | How it gets stable names | Revision change |
 | --- | --- | --- |
 | `PartFile` | Its own history (as today) | Re-found by name in the new revision |
-| `Generated` | Built as a standalone Solidcraft part design by its family builder, one per package revision and `family_rev`. The command sequence is deterministic, so feature ids and names are too. Cached and inserted like a part file | A builder change bumps `family_rev`: a library revision with an impact preview |
 | `Envelope` | The same, as a one-feature box design | Re-found by name |
 | `Library` STEP | Wrapped in a part design whose one Import feature holds the STEP bodies. For the same file bytes the import is deterministic | A new revision has new bytes. Names are re-found and then checked against the stored pick (the point must lie on the face, and the face type and normal must match). They are always reported `Inexact` until acknowledged (Solidcraft marks names of history-less bodies unverified) |
 | `Library` glTF | **No faces.** Solidcraft names no faces on mesh bodies (`face_on_body` returns `None`), and a linked design leaves meshes out | Reported: such parts offer pads, courtyard and their body box only |
@@ -615,19 +614,18 @@ S5 built picking in PCB 3D and the dimension display there.
 
 ## 16. S4 notes
 
-S4 made faces, edges and vertices of every model kind but glTF dimension references: generated models, envelopes and STEP models, besides part files.
+S4 made faces, edges and vertices of every model kind but glTF dimension references: envelopes and STEP models, besides part files.
 
 ### One design per model
 
-`layout::dimensions::model::TraceRequest` now carries a `TraceModel`: `PartFile`, `Package` (the generated model, or the envelope when the package has none, decided by the host as the board build decides it) or `Step`. The host traces each on the design the 3D build uses (`board::model_refs::ModelDesign`), from `sparksmith-solidcraft` `models::named`:
+`layout::dimensions::model::TraceRequest` now carries a `TraceModel`: `PartFile`, `Package` (the package's envelope) or `Step`. The host traces each on the design the 3D build uses (`board::model_refs::ModelDesign`), from `sparksmith-solidcraft` `models::named`:
 
 | Model | Design | Shared with the 3D build |
 | --- | --- | --- |
-| Generated | The family builder's commands in the root of a new design (`models::build_standalone`): parameters and bodies by their own names (`length`, `body`, `termination 2`) | The board inserts this design (`part_file::insert_design`, the part-file insert generalized), so the board's bodies and parameters keep their names (`pkg3r1 body`, `pkg3r1_length`) and the model is built once per process |
 | Envelope | One box feature, body `envelope`, from the package envelope | Not inserted: the board keeps its per-placement box, whose size is a placement parameter a value edit replays in place. The box is the same |
 | STEP | One import feature with the file's bodies named by their keys in the file, then the frame's scale, turn and offset (`imported::add_import`, shared with the board build) | The file's parse: any `SourceCache` or named design holding it shares it (`imported::checked_source`); a file is parsed once while anything holds it |
 
-Designs are cached process-wide by what they are built from (form, builder revision, materials and terminals; envelope size; file hash and frame), 256 at most, least recently used last. The design keeps the evaluated `ModelState` a trace and a pick read.
+Designs are cached process-wide by what they are built from (envelope size; file hash and frame), 256 at most, least recently used last. The design keeps the evaluated `ModelState` a trace and a pick read.
 
 **Determinism.** `models::named` tests build the designs twice in one process and once in a fresh process (the test binary runs itself) and compare every body and face name; a golden list of the 0603 resistor's face names fails on any change in the builder or in Solidcraft's naming, which needs a new `family_rev`.
 

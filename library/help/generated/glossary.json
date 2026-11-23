@@ -752,18 +752,6 @@
     }
   },
   {
-    "id": "term/generated-model",
-    "title": "Generated model",
-    "summary": "A package's parametric 3D model built from its package form by a family builder, with a body role and a physical material on every body; one shared native definition per package revision, used by every instance.",
-    "since": "0.1.0",
-    "facts": {
-      "kind": "term",
-      "definition": "A package's parametric 3D model built from its package form by a family builder, with a body role and a physical material on every body; one shared native definition per package revision, used by every instance.",
-      "avoid": [],
-      "developer_only": false
-    }
-  },
-  {
     "id": "term/generator-gallery",
     "title": "Generator gallery",
     "summary": "One searchable sheet over the shipped generators, their presets and custom values (`library.generators`): new-component scope from New, the start page and the Place palette, package scope from the Footprint tab's From generator and the package panel's Change package….",
@@ -1300,18 +1288,6 @@
     }
   },
   {
-    "id": "term/package-form",
-    "title": "Package form",
-    "summary": "The authored, typed physical construction of a package (generic, chip, gull-wing, no-lead or pin header) with its dimensions; the only source of `pkg_*` values and of generated 3D models, never inferred from a designator or name.",
-    "since": "0.1.0",
-    "facts": {
-      "kind": "term",
-      "definition": "The authored, typed physical construction of a package (generic, chip, gull-wing, no-lead or pin header) with its dimensions; the only source of `pkg_*` values and of generated 3D models, never inferred from a designator or name.",
-      "avoid": [],
-      "developer_only": false
-    }
-  },
-  {
     "id": "term/package-row",
     "title": "Package row",
     "summary": "A revisioned library record naming a generator and its parameters, with aliases, a size code, provenance and a citation of the public outline drawing its values were typed from. A row without a citation is *estimated*.",
@@ -1404,6 +1380,18 @@
     "keywords": [
       "Treating a terminal-less pad as unfinished when it is mechanical"
     ]
+  },
+  {
+    "id": "term/part-file",
+    "title": "Part file",
+    "summary": "A parametric Solidcraft design used as a package's 3D body at literal parameter values, with a body role and a physical material on every body; packages with the same file and values share one native definition. A generator names the part file and the values of the part it makes.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "term",
+      "definition": "A parametric Solidcraft design used as a package's 3D body at literal parameter values, with a body role and a physical material on every body; packages with the same file and values share one native definition. A generator names the part file and the values of the part it makes.",
+      "avoid": [],
+      "developer_only": false
+    }
   },
   {
     "id": "term/part-variant",

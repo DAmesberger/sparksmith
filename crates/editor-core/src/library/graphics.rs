@@ -47,7 +47,7 @@ pub const MAX_PIN_LENGTH_MM: f64 = 50.0;
 pub const MAX_PIN_TEXT_OFFSET_MM: f64 = 10.0;
 /// A radius below this is degenerate.
 pub const MIN_RADIUS_MM: f64 = 0.01;
-/// The symbol module: pin pitch of the templates and the size of pin
+/// The symbol module: pin pitch of the drawn symbols and the size of pin
 /// decorations (IEC TS 63064 / ISO 81714 concept of a 2.5 mm module).
 pub const SYMBOL_MODULE_MM: f64 = 2.5;
 /// Default symbol stroke width.

@@ -1,7 +1,7 @@
-//! Slice D1: the "New from generator" gallery sheet, which replaces the
-//! in-code template gallery. One searchable sheet (the kit search sheet: a
-//! field, one chip per shipped generator, the presets on the left and the
-//! one generator form on the right) serves two scopes:
+//! Slice D1: the "New from generator" gallery sheet. One searchable sheet
+//! (the kit search sheet: a field, one chip per shipped generator, the
+//! presets on the left and the one generator form on the right) serves two
+//! scopes:
 //!
 //! - **New component** (New component ▾ › From generator…, the start page,
 //!   the Place palette): `library.generate` of a complete part, made off

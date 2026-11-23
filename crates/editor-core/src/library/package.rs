@@ -33,19 +33,18 @@ pub struct PackageDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mechanical: Option<Box<super::mechanical::MechanicalPart>>,
     /// Datums the package declares in its model frame, such as a
-    /// connector's opening (slice B2, `library::datum`): authored, copied
-    /// from the part file, or emitted by the typed form.
+    /// connector's opening (slice B2, `library::datum`): authored, or
+    /// copied from the part file.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub datums: Vec<PackageDatum>,
     /// Where each lead touches the seating plane (z = 0), in the model
     /// frame, with the terminal it belongs to: what "Fit leads to pads"
-    /// fits (`package_fit`). Plain data: kept from the typed form an older
-    /// file stored (format 5, part-generation slice D2), never inferred.
+    /// fits (`package_fit`). Plain data, never inferred: `library.generate`
+    /// stores a generated part's.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub leads: Vec<PackageLead>,
     /// How the realistic view draws the leads' solder joints and a chip's
-    /// terminations: plain data kept from the typed form an older file
-    /// stored (format 5); `None` draws none.
+    /// terminations: plain data, never inferred; `None` draws none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub joints: Option<PackageJoints>,
 }
@@ -99,8 +98,8 @@ impl PackageDefinition {
         self.datums.iter().find(|d| d.name.0 == name)
     }
 
-    /// Replace the datums that came from `origin` (a part file or the
-    /// typed form) by `datums`, each marked with that origin. A datum of
+    /// Replace the datums that came from `origin` (a part file) by
+    /// `datums`, each marked with that origin. A datum of
     /// another origin keeps its name: the source's datum of that name is
     /// left out, so what a person authored or edited is never overwritten.
     pub fn replace_datums(&mut self, origin: PackageDatumOrigin, datums: &[PackageDatum]) {

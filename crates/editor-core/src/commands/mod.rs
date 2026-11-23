@@ -129,8 +129,7 @@ pub enum Outcome {
         fit: crate::library::package_fit::LeadFit,
         applied: bool,
     },
-    /// B1 `library.new_from_template` and `library.draft_closure`: the new
-    /// drafts, component first.
+    /// `library.draft_closure`: the new drafts, component first.
     DraftsCreated {
         ids: Vec<DefinitionId>,
     },

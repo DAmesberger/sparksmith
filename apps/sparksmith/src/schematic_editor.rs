@@ -350,7 +350,7 @@ pub struct SchematicEditor {
     /// A template row sent for create-and-place: the revision it was sent
     /// at and the component lineages then published.
     template_sent: Option<(u64, Vec<DefinitionId>)>,
-    /// A template row that takes the form first, and the search it came from.
+    /// A palette row that takes the generator form first, and the search it came from.
     template_form: Option<(Box<crate::generators::MakeRequest>, String)>,
     /// A part being made off the UI thread for placement (slice D1).
     making: Option<crate::generators::Making>,
@@ -632,7 +632,7 @@ impl SchematicEditor {
 
     /// The Place palette, for the app's library sources (S3): its context,
     /// its events and the other-revision choice.
-    /// A template row the palette chose that takes the form, once.
+    /// A row the palette chose that takes the generator form, once.
     pub fn take_template_form(&mut self) -> Option<(Box<crate::generators::MakeRequest>, String)> {
         self.template_form.take()
     }

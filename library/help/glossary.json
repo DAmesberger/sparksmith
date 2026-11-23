@@ -215,14 +215,6 @@
     "developer_only": false
   },
   {
-    "id": "term/package-form",
-    "title": "Package form",
-    "aliases": [],
-    "definition": "The authored, typed physical construction of a package (generic, chip, gull-wing, no-lead or pin header) with its dimensions; the only source of `pkg_*` values and of generated 3D models, never inferred from a designator or name.",
-    "avoid": [],
-    "developer_only": false
-  },
-  {
     "id": "term/physical-material",
     "title": "Physical material",
     "aliases": [],
@@ -231,10 +223,10 @@
     "developer_only": false
   },
   {
-    "id": "term/generated-model",
-    "title": "Generated model",
+    "id": "term/part-file",
+    "title": "Part file",
     "aliases": [],
-    "definition": "A package's parametric 3D model built from its package form by a family builder, with a body role and a physical material on every body; one shared native definition per package revision, used by every instance.",
+    "definition": "A parametric Solidcraft design used as a package's 3D body at literal parameter values, with a body role and a physical material on every body; packages with the same file and values share one native definition. A generator names the part file and the values of the part it makes.",
     "avoid": [],
     "developer_only": false
   },

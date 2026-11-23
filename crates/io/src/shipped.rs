@@ -1,6 +1,6 @@
 //! The shipped library: the data that comes with Sparksmith (fab profiles,
 //! stackups, materials, standards, standard fields, catalog vocabulary,
-//! assistant profiles, part files, templates, generator modules and
+//! assistant profiles, part files, generator modules and
 //! new-project defaults). It is loaded as data from one
 //! folder, never compiled into the program, so the program holds no rules,
 //! profiles or library data of its own.
