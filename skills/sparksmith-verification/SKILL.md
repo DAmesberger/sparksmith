@@ -5,7 +5,18 @@ description: Add or run Sparksmith tests, benchmarks and CI; verify crash fixes,
 
 # Verification and evidence
 
-Run `cargo xtask ci` for the current aggregate gate; see [development](../../docs/development.md) for prerequisites and narrower checks. The wasm gate checks compilation, not browser execution. [Milestone 0](../../docs/milestone-0.md) defines the remaining acceptance evidence; report unimplemented gates explicitly.
+Run `cargo xtask ci` for the current aggregate gate; see [development](../../docs/development.md) for prerequisites and narrower checks. The wasm gate checks compilation, not browser execution.
+
+## Which gate when
+
+A full `cargo xtask ci` takes long and shares one machine with other agents, so run it rarely and only on code that already passes the quick gates:
+
+1. **While iterating:** `cargo xtask affected --run` tests the changed crates and every crate that depends on them, plus the crates whose tests read changed shared data (`xtask/affected.txt`). Run focused tests (`cargo test --profile ci -p CRATE NAME`) between edits as before.
+2. **Before any full CI:** `cargo xtask fast` must pass. It checks formatting, the structural gates that run in seconds, strict Clippy on the changed crates and the surface lock when the automation crate is affected. It stops after the first class of gates that fails.
+3. **Once per merge batch:** one full `cargo xtask ci`, through the full-CI lock when one is in use. Green means the log's own last line: `cargo xtask ci` printed no `xtask:` error and exited 0.
+4. **On push:** hosted CI runs `cargo xtask ci` again, as the extra safety net, not as the first check.
+
+`--base REV` compares with another revision than the merge-base with `main`. A test that reads files outside its crate's folder needs a rule in `xtask/affected.txt`, or `affected` will not select it. [Milestone 0](../../docs/milestone-0.md) defines the remaining acceptance evidence; report unimplemented gates explicitly.
 
 Choose evidence by the changed behavior:
 

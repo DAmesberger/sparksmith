@@ -1,0 +1,31 @@
+# Files outside a crate's own folder that a crate's build or tests read,
+# for `cargo xtask affected` and `cargo xtask fast`
+# (xtask/src/affected.rs). One rule per line: a path prefix relative to
+# the workspace root, then the workspace packages whose tests read it, or
+# `*` for every package (a change there can change any build). A file
+# inside a crate's folder belongs to that crate without a rule. Files no
+# rule and no crate covers (docs, skills, notes) affect no crate.
+
+# The toolchain, the lock file and the workspace manifest build everything.
+Cargo.toml *
+Cargo.lock *
+rust-toolchain.toml *
+.cargo/ *
+flake.nix *
+flake.lock *
+
+# Shipped library data: defaults, materials, profiles, parts, generator
+# bundles and assist workflows, read by tests and by `include_str!`.
+library/ sparksmith-core sparksmith-io sparksmith-solidcraft sparksmith-automation sparksmith-assist sparksmith sparksmith-cli xtask
+
+# The example projects, opened, saved and compared by tests.
+examples/ sparksmith-io sparksmith-solidcraft sparksmith-automation sparksmith-assist sparksmith sparksmith-cli
+
+# Generator presets the automation tests include.
+generators/ sparksmith-automation
+
+# The board interface schema the core's tests compare.
+docs/architecture/board-interface.schema.json sparksmith-core
+
+# The MCP skill the workflow tests read.
+skills/sparksmith-datasheet-part/ sparksmith-automation
