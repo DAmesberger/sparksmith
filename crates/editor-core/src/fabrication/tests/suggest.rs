@@ -290,7 +290,7 @@ fn the_engine_never_waives_a_profile_limited_finding() -> Fallible<()> {
         .find(|i| i.needs.is_some())
         .ok_or("a profile-limited finding")?;
     let before = engine.revision();
-    let refused = engine
+    let error = engine
         .apply(
             before,
             crate::Operation::Fabrication(crate::fabrication::FabricationCommand::Waive {
@@ -299,9 +299,9 @@ fn the_engine_never_waives_a_profile_limited_finding() -> Fallible<()> {
             }),
         )
         .err()
-        .ok_or("the waiver is refused")?
-        .to_string();
-    assert!(refused.contains("fabrication.not_waivable"), "{refused}");
+        .ok_or("the waiver is refused")?;
+    assert_eq!(error.rule(), Some("fabrication.not_waivable"), "{error}");
+    let refused = error.to_string();
     assert!(
         refused.contains(&format!("Needs {}", key().label())),
         "{refused}"

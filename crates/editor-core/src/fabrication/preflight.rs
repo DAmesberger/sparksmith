@@ -336,7 +336,9 @@ pub fn check(
         ));
     }
     for i in &mut items {
-        i.waiver = if unwaivable(&i.key) {
+        // A saved waiver of a finding with needs is ignored, like one of an
+        // unwaivable code: a profile that allows it or a design change clears it.
+        i.waiver = if unwaivable(&i.key) || i.needs.is_some() {
             None
         } else {
             p.production.waiver(&i.key).cloned()
