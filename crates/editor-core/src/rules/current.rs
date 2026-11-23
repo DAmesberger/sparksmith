@@ -36,49 +36,56 @@ impl CurrentRule {
             ));
         }
         if let Some(t) = &self.table {
-            if [&t.edition, &t.figure, &t.source]
-                .iter()
-                .any(|s| s.trim().is_empty() || s.len() > super::MAX_PROFILE_NOTES)
-            {
+            t.validate()?;
+        }
+        Ok(())
+    }
+    pub fn capacity(&self, area_mm2: f64) -> Option<f64> {
+        self.table.as_ref()?.capacity(self.rise_c?, area_mm2)
+    }
+}
+impl CurrentTable {
+    pub fn validate(&self) -> Result<()> {
+        let positive = |v: f64| v.is_finite() && v > 0.0;
+        if [&self.edition, &self.figure, &self.source]
+            .iter()
+            .any(|s| s.trim().is_empty() || s.len() > super::MAX_PROFILE_NOTES)
+        {
+            return Err(Error::Invalid(
+                "Cite the source, edition and figure of the current table.".into(),
+            ));
+        }
+        if self.rows.is_empty() || self.rows.len() > 4096 {
+            return Err(Error::Limit(
+                "A current table needs between 1 and 4096 sourced points.".into(),
+            ));
+        }
+        for p in &self.rows {
+            if ![p.rise_c, p.area_mm2, p.amperes].into_iter().all(positive) {
                 return Err(Error::Invalid(
-                    "Cite the source, edition and figure of the current table.".into(),
+                    "A current table needs positive finite values.".into(),
                 ));
             }
-            if t.rows.is_empty() || t.rows.len() > 4096 {
-                return Err(Error::Limit(
-                    "A current table needs between 1 and 4096 sourced points.".into(),
-                ));
-            }
-            for p in &t.rows {
-                if ![p.rise_c, p.area_mm2, p.amperes].into_iter().all(positive) {
-                    return Err(Error::Invalid(
-                        "A current table needs positive finite values.".into(),
-                    ));
-                }
-            }
-            let mut sorted = t.rows.clone();
-            sorted.sort_by(|a, b| {
-                a.rise_c
-                    .total_cmp(&b.rise_c)
-                    .then(a.area_mm2.total_cmp(&b.area_mm2))
-            });
-            if sorted.windows(2).any(|w| {
-                w[0].rise_c == w[1].rise_c
-                    && (w[0].area_mm2 == w[1].area_mm2 || w[0].amperes > w[1].amperes)
-            }) {
-                return Err(Error::Invalid("At each temperature rise, areas must be distinct and current must increase or stay constant.".into()));
-            }
+        }
+        let mut sorted = self.rows.clone();
+        sorted.sort_by(|a, b| {
+            a.rise_c
+                .total_cmp(&b.rise_c)
+                .then(a.area_mm2.total_cmp(&b.area_mm2))
+        });
+        if sorted.windows(2).any(|w| {
+            w[0].rise_c == w[1].rise_c
+                && (w[0].area_mm2 == w[1].area_mm2 || w[0].amperes > w[1].amperes)
+        }) {
+            return Err(Error::Invalid("At each temperature rise, areas must be distinct and current must increase or stay constant.".into()));
         }
         Ok(())
     }
 
     /// Use the highest tabulated cross section no larger than the bridge
     /// at the chosen rise. Never interpolate or extrapolate a current.
-    pub fn capacity(&self, area_mm2: f64) -> Option<f64> {
-        let rise = self.rise_c?;
-        self.table
-            .as_ref()?
-            .rows
+    pub fn capacity(&self, rise: f64, area_mm2: f64) -> Option<f64> {
+        self.rows
             .iter()
             .filter(|p| p.rise_c == rise && p.area_mm2 <= area_mm2)
             .max_by(|a, b| a.area_mm2.total_cmp(&b.area_mm2))

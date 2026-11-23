@@ -237,8 +237,57 @@ pub fn checks(project: &Project) -> Vec<Finding> {
                 .map(|n| n.id),
         );
     }
-    for net in &project.nets {
-        net_checks(project, net, &resolutions, &power_nets, &mut out);
+    if ties.is_empty() {
+        for net in &project.nets {
+            net_checks(project, net, &resolutions, &power_nets, &mut out);
+        }
+    } else {
+        // ERC sees the combined terminals, while the stored netlist, class
+        // membership, board copper and the physical lengths stay independent.
+        let mut groups = BTreeMap::<Id, Vec<&Net>>::new();
+        for net in &project.nets {
+            groups.entry(network.group(net.id)).or_default().push(net);
+        }
+        let tie_pins: BTreeSet<_> = ties
+            .iter()
+            .flat_map(|t| {
+                t.ends.keys().map(|&terminal| Endpoint {
+                    instance: t.instance,
+                    terminal,
+                })
+            })
+            .collect();
+        for (id, members) in groups {
+            let group = Net {
+                id,
+                name: members
+                    .iter()
+                    .map(|n| n.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" / "),
+                terminals: members
+                    .iter()
+                    .flat_map(|n| &n.terminals)
+                    .filter(|e| !tie_pins.contains(e))
+                    .copied()
+                    .collect(),
+            };
+            if members.iter().any(|n| power_nets.contains(&n.id)) {
+                power_nets.insert(id);
+            }
+            let start = out.len();
+            net_checks(project, &group, &resolutions, &power_nets, &mut out);
+            for finding in &mut out[start..] {
+                if finding.objects.contains(&ObjectRef::Net { id }) {
+                    finding.objects.extend(
+                        members
+                            .iter()
+                            .filter(|n| n.id != id)
+                            .map(|n| ObjectRef::Net { id: n.id }),
+                    );
+                }
+            }
+        }
     }
     labels::checks(
         project,

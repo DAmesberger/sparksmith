@@ -130,7 +130,12 @@ impl ComponentInstance {
             population,
         } = self;
         ComponentInstance {
-            tie: tie.clone(),
+            // A copied part has no board placement yet. An anchor refers to
+            // a particular placed land and must be picked for the new use.
+            tie: tie.as_ref().map(|t| crate::library::tie::TieUse {
+                purpose: t.purpose,
+                ..Default::default()
+            }),
             id,
             component: *component,
             designator,

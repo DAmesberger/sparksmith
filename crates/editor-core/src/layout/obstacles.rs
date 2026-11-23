@@ -24,6 +24,7 @@ pub enum ObstacleKind {
     /// A land: its index among the lands the index was made of
     /// ([`super::physical::lands`] for a whole board's).
     Land(usize),
+    Bridge,
 }
 
 /// One piece of copper, of a net or of none (a fiducial, a tab, an
@@ -40,7 +41,7 @@ pub struct Obstacle {
 impl Obstacle {
     pub(crate) fn object(&self) -> CopperObject {
         match self.kind {
-            ObstacleKind::Track(_) => CopperObject::Track,
+            ObstacleKind::Track(_) | ObstacleKind::Bridge => CopperObject::Track,
             ObstacleKind::Via(_) => CopperObject::Via,
             ObstacleKind::Land(_) => CopperObject::Pad,
         }
@@ -50,6 +51,7 @@ impl Obstacle {
 /// The board's copper, indexed for clearance queries.
 #[derive(Debug, Default)]
 pub struct Obstacles {
+    anchors: std::collections::HashSet<(Id, ObjectRef)>,
     items: Vec<Obstacle>,
     grid: BoundsGrid,
     reach: f64,
@@ -155,9 +157,31 @@ impl Obstacles {
                 ring: land.ring,
             });
         }
+        for bridge in super::placed_bridges(project) {
+            let ring = super::connectivity::bridge_ring(&bridge);
+            if !ring.bounds.is_some_and(|b| keep(&b)) {
+                continue;
+            }
+            objects.push(ObjectRef::Instance {
+                id: bridge.instance,
+            });
+            labels.push(format!(
+                "{} bridge",
+                project
+                    .instance(bridge.instance)
+                    .map_or("tie", |i| &i.designator)
+            ));
+            items.push(Obstacle {
+                net: None,
+                kind: ObstacleKind::Bridge,
+                layers: vec![bridge.layer],
+                ring,
+            });
+        }
         let reach = copper::check_reach(&BoardRules::of(project));
         let grid = BoundsGrid::new(items.iter().map(|i| i.ring.bounds), reach);
         Self {
+            anchors: super::connectivity::anchor_routes(project),
             items,
             grid,
             reach,
@@ -166,6 +190,14 @@ impl Obstacles {
         }
     }
 
+    pub(crate) fn reaches_anchor(&self, k: usize, net: Id, ring: &CopperRing) -> bool {
+        self.object(k)
+            .is_some_and(|o| self.anchors.contains(&(net, o)))
+            && self
+                .items
+                .get(k)
+                .is_some_and(|o| super::connectivity::reaches_anchor(ring, &o.ring))
+    }
     pub fn items(&self) -> &[Obstacle] {
         &self.items
     }
@@ -218,6 +250,7 @@ impl Obstacles {
                 self.items.get(*k).is_some_and(|o| {
                     o.net != Some(net)
                         && o.layers.contains(&layer)
+                        && !self.reaches_anchor(*k, net, &ring)
                         && ring.closer_than(
                             &o.ring,
                             rules.clearance(CopperObject::Track, Some(net), o.object(), o.net),

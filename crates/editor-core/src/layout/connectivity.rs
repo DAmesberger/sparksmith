@@ -39,6 +39,7 @@ mod queries;
 mod tests;
 mod ties;
 mod wedges;
+pub(crate) use ties::bridge_ring;
 pub use ties::{TieIsland, TieJoin};
 
 pub(crate) use build::{islands_joined, track_copper, via_copper};
@@ -317,4 +318,32 @@ impl Dsu {
             *slot = a.min(b);
         }
     }
+}
+
+/// An explicit sense endpoint can make contact on its own anchor land.
+pub(crate) fn reaches_anchor(probe: &CopperRing, land: &CopperRing) -> bool {
+    build::joins(probe, land)
+}
+pub(crate) fn anchor_routes(
+    project: &crate::model::Project,
+) -> std::collections::HashSet<(Id, crate::diagnostics::ObjectRef)> {
+    if !project
+        .instances
+        .iter()
+        .any(|i| i.tie.as_ref().is_some_and(|u| !u.anchors.is_empty()))
+    {
+        return Default::default();
+    }
+    ties::sense_destinations(project, &crate::layout::pads(project))
+        .into_iter()
+        .map(|p| {
+            (
+                p.net,
+                crate::diagnostics::ObjectRef::Pad {
+                    instance: p.instance,
+                    pad: p.pad,
+                },
+            )
+        })
+        .collect()
 }

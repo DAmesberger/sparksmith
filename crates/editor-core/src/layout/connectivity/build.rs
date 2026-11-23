@@ -80,6 +80,15 @@ fn at(a: Point, b: Point, length: f64, s: f64) -> Point {
     [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
 }
 
+pub(super) fn nearest_contact(a: Point, b: Point, c: Point, d: Point) -> Point {
+    let ab = (b[0] - a[0]).hypot(b[1] - a[1]);
+    let cd = (d[0] - c[0]).hypot(d[1] - c[1]);
+    let (s, t) = nearest(a, b, ab, c, d, cd);
+    let first = at(a, b, ab, s);
+    let second = at(c, d, cd, t);
+    [(first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0]
+}
+
 /// The nearest stations of segments `a`–`b` and `c`–`d`: where they
 /// cross, or the closest pair of points.
 fn nearest(a: Point, b: Point, ab: f64, c: Point, d: Point, cd: f64) -> (f64, f64) {
@@ -333,6 +342,8 @@ impl CopperGraph {
     /// every pad on the net its copper had, to ask which pads that copper
     /// would join after the update.
     pub fn with_pads(project: &Project, pads: Vec<WorldPad>) -> Self {
+        let mut pads = pads;
+        pads.extend(super::ties::sense_destinations(project, &pads));
         Self::build(project, pads, None)
     }
 
@@ -344,10 +355,9 @@ impl CopperGraph {
     /// checks a differential pair per pointer move builds this instead of
     /// the whole board's graph.
     pub fn of_nets(project: &Project, nets: &[Id]) -> Self {
-        let pads = crate::layout::pads(project)
-            .into_iter()
-            .filter(|p| nets.contains(&p.net))
-            .collect();
+        let mut all = crate::layout::pads(project);
+        all.extend(super::ties::sense_destinations(project, &all));
+        let pads = all.into_iter().filter(|p| nets.contains(&p.net)).collect();
         Self::build(project, pads, Some(nets))
     }
 

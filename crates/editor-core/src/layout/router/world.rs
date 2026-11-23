@@ -431,6 +431,10 @@ impl<'a> Ctx<'a> {
             };
             if state.hidden.contains(&k)
                 || o.net.is_some_and(|n| !foreign(n))
+                || self
+                    .index
+                    .obstacles
+                    .reaches_anchor(k, probe.net, &probe.ring)
                 || !shares(&probe.layers, &o.layers)
             {
                 continue;

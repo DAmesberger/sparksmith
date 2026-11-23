@@ -378,6 +378,7 @@ pub struct JoinPoint {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct AnchorReport {
     pub land: crate::library::tie::Anchor,
+    pub sense_island: Option<usize>,
     pub at: Option<crate::geometry::Point>,
     pub contacts: Vec<ObjectRef>,
 }
@@ -439,7 +440,27 @@ pub fn report(project: &Project, graph: &crate::layout::CopperGraph) -> Vec<TieR
                         .flatten()
                         .copied()
                         .collect();
-                    anchors.insert(end, AnchorReport { land, at, contacts });
+                    let sense_island = pads
+                        .iter()
+                        .position(|p| {
+                            p.terminal
+                                == (Endpoint {
+                                    instance: tie.instance,
+                                    terminal: end,
+                                })
+                                && p.instance == land.instance
+                                && p.pad == land.pad
+                        })
+                        .and_then(|i| graph.pad_island(i));
+                    anchors.insert(
+                        end,
+                        AnchorReport {
+                            land,
+                            at,
+                            contacts,
+                            sense_island,
+                        },
+                    );
                 }
             }
             let current = currents.remove(&tie.instance).unwrap_or_default();

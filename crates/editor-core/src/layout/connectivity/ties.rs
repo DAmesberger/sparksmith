@@ -37,6 +37,48 @@ struct Item {
     ring: CopperRing,
 }
 
+/// A sense end has a routing destination on its named land. This copy
+/// belongs only to the connectivity graph, never to fabricated copper.
+pub(super) fn sense_destinations(
+    project: &Project,
+    pads: &[crate::layout::WorldPad],
+) -> Vec<crate::layout::WorldPad> {
+    if !project
+        .instances
+        .iter()
+        .any(|i| i.tie.as_ref().is_some_and(|u| !u.anchors.is_empty()))
+    {
+        return vec![];
+    }
+    let lands: BTreeMap<_, _> = pads.iter().map(|p| ((p.instance, p.pad), p)).collect();
+    let mut destinations = Vec::new();
+    for row in crate::instances::ties::rows(project) {
+        let Some(usage) = project.instance(row.instance).and_then(|i| i.tie.as_ref()) else {
+            continue;
+        };
+        for (end, anchor) in &usage.anchors {
+            let Some(&Some(net)) = row.ends.get(end) else {
+                continue;
+            };
+            let Some(&land) = lands.get(&(anchor.instance, anchor.pad)) else {
+                continue;
+            };
+            if land.net == net || !row.ends.values().any(|n| *n == Some(land.net)) {
+                continue;
+            }
+            let mut dest = land.clone();
+            dest.terminal = crate::ids::Endpoint {
+                instance: row.instance,
+                terminal: *end,
+            };
+            dest.net = net;
+            // Keep the real pad identity so picking and messages resolve to the anchor.
+            destinations.push(dest);
+        }
+    }
+    destinations
+}
+
 impl CopperGraph {
     pub fn ties(&self) -> &[TieJoin] {
         &self.ties
@@ -89,7 +131,7 @@ impl CopperGraph {
                 object: ObjectRef::Instance { id: b.instance },
                 layer: b.layer,
                 through: false,
-                bridge: None,
+                bridge: Some(b.bridge),
                 kind: CopperObject::Track,
                 net: None,
                 ring: bridge_ring(b),
@@ -99,6 +141,7 @@ impl CopperGraph {
             .pads
             .iter()
             .enumerate()
+            .filter(|(_, p)| p.instance == p.terminal.instance)
             .map(|(i, p)| ((p.instance, p.pad), i))
             .collect();
         let fill_indices: Vec<_> = fills
@@ -260,14 +303,31 @@ impl CopperGraph {
                     }
                     continue;
                 }
+                let copper = |object: ObjectRef, net: Id| match object {
+                    ObjectRef::Fill { id } => project
+                        .fill(id)
+                        .map_or_else(|| "a fill".into(), |f| fill::fill_label(project, f)),
+                    ObjectRef::Track { .. } => format!("a track on {}", project.net_name(net)),
+                    ObjectRef::Via { .. } => format!("a via on {}", project.net_name(net)),
+                    ObjectRef::Pad { instance, pad } => format!(
+                        "pad {} of {}",
+                        pad.0,
+                        project
+                            .instance(instance)
+                            .map_or("a part", |i| &i.designator)
+                    ),
+                    _ => "copper".into(),
+                };
                 self.tie_findings.push(Finding::new(
                     "tie.second_join",
                     format!(
-                        "{} and {} also meet near ({:.2}, {:.2}) mm outside {}.",
+                        "{} and {} also meet near ({:.2}, {:.2}) mm through {} and {}, outside {}.",
                         project.net_name(a),
                         project.net_name(b),
                         at[0],
                         at[1],
+                        copper(x, a),
+                        copper(y, b),
                         t.designator
                     ),
                     vec![ObjectRef::Instance { id: t.instance }, x, y],
@@ -329,6 +389,28 @@ impl CopperGraph {
                 }
             }
         }
+        for (i, (a, index_a)) in fills.iter().enumerate() {
+            for (b, index_b) in fills.iter().skip(i + 1) {
+                if a.layer != b.layer || !pairs.contains_key(&(a.net.min(b.net), a.net.max(b.net)))
+                {
+                    continue;
+                }
+                if *remaining == 0 {
+                    self.partial = true;
+                    return;
+                }
+                *remaining -= 1;
+                if let Some(at) = fill_contact(a, index_b).or_else(|| fill_contact(b, index_a)) {
+                    record(
+                        a.net,
+                        b.net,
+                        ObjectRef::Fill { id: a.id },
+                        ObjectRef::Fill { id: b.id },
+                        at,
+                    );
+                }
+            }
+        }
         for tie in ties
             .iter()
             .filter(|t| t.purpose == crate::library::tie::TiePurpose::KelvinSense)
@@ -360,7 +442,7 @@ impl CopperGraph {
     }
 }
 
-fn bridge_ring(b: &PlacedBridge) -> CopperRing {
+pub(crate) fn bridge_ring(b: &PlacedBridge) -> CopperRing {
     let ring = b.outline.flatten(crate::layout::copper::CURVE_SLACK_MM);
     let bounds = Bounds::of(ring.iter().copied());
     CopperRing {
@@ -378,4 +460,30 @@ fn bridge_ring(b: &PlacedBridge) -> CopperRing {
         },
         spine: None,
     }
+}
+
+/// A boundary inside the other fill, or two boundaries meeting. Scan
+/// both directions for containment and include the edges of cut-outs.
+fn fill_contact(
+    fill: &fill::Fresh<'_>,
+    other: &fill::RegionIndex,
+) -> Option<crate::geometry::Point> {
+    let reach = super::JOIN_TOLERANCE_MM;
+    for region in &fill.copper.regions {
+        for ring in std::iter::once(&region.outer).chain(&region.holes) {
+            for (a, b) in ring.iter().zip(ring.iter().cycle().skip(1)) {
+                if other.region_at(*a).is_some() {
+                    return Some(*a);
+                }
+                let lo = [a[0].min(b[0]) - reach, a[1].min(b[1]) - reach];
+                let hi = [a[0].max(b[0]) + reach, a[1].max(b[1]) + reach];
+                for (_, c, d) in other.edges_near(lo, hi) {
+                    if crate::geometry::segments_gap(*a, *b, c, d) <= reach {
+                        return Some(build::nearest_contact(*a, *b, c, d));
+                    }
+                }
+            }
+        }
+    }
+    None
 }

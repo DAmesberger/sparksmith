@@ -5830,12 +5830,10 @@ fn author_solder_bridge() -> Vec<u8> {
         ["0 mm", "height"],
         None,
     );
-    fillet(
+    run(
         &mut s,
-        "Rounded solder crown",
-        "Solder",
-        [0.0, 0.3, 0.15],
-        "height / 2",
+        "solid.fillet",
+        json!({"name":"Rounded solder crown","body":"Solder","radius":"height / 2","edges":[[0,0.3,0.15],[0,-0.3,0.15],[-0.5,0,0.15],[0.5,0,0.15]]}),
     );
     assign_look(&mut s, &["Solder"], MaterialId::SolderSac);
     assert_evaluates(&mut s);

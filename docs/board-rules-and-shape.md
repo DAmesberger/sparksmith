@@ -180,7 +180,7 @@ Set the allowed temperature rise in degrees Celsius and supply the table with
 `rules.set_tie_current`. The rule stores a project-local snapshot. Its table
 names the source, IPC-2152 edition and figure. Each row gives `rise_c`,
 `area_mm2` and `amperes`. Sparksmith ships no IPC-2152 curves. The person
-designing the board or their library supplies the data.
+designing the board or their library supplies the data. A fab profile JSON file can carry the same table in `current_table`. The project’s supplied table takes precedence, and the project always chooses the temperature rise.
 
 The check uses the smallest cross section across the bridge lands and the
 foil thickness on the actual copper layer. At the chosen temperature rise

@@ -275,6 +275,18 @@ pub fn substitute_fit<'a>(
                 "{mpn}'s component is missing from the project library."
             ))
         })?;
+    let own_form = library
+        .component(instance.component)
+        .and_then(|c| c.definition.tie.as_ref())
+        .map(|s| s.form);
+    let candidate_form = component.definition.tie.as_ref().map(|s| s.form);
+    if own_form.is_some()
+        && (own_form != Some(crate::library::tie::TieForm::ZeroOhm) || candidate_form != own_form)
+    {
+        return Err(Error::Conflict(format!(
+            "{mpn} cannot substitute for the tie form of {name}."
+        )));
+    }
     if component
         .definition
         .implementation(part.definition.binding.id)
@@ -358,7 +370,7 @@ fn land_order(footprint: &FootprintDefinition) -> Vec<usize> {
 /// Whether two footprints have the same land pattern, pads compared by
 /// number and position whatever order they are stored in.
 fn same_lands(a: &FootprintDefinition, b: &FootprintDefinition) -> bool {
-    if a.pads.len() != b.pads.len() || a.datum != b.datum {
+    if a.pads.len() != b.pads.len() || a.datum != b.datum || a.bridges != b.bridges {
         return false;
     }
     land_order(a).into_iter().zip(land_order(b)).all(|(i, j)| {

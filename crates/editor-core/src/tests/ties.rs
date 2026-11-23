@@ -100,6 +100,11 @@ fn a_bridge_records_both_islands_without_merging_them() -> Result<()> {
         .iter()
         .find(|b| b.bridge.instance == id)
         .ok_or_else(|| crate::Error::NotFound("Expected the bridge of NT1".into()))?;
+    assert!(
+        join.foreign.is_empty(),
+        "An isolated bridge only touches its own lands: {:?}",
+        join.foreign
+    );
     assert_eq!(join.bridge.nets.len(), 2);
     assert_eq!(join.islands.len(), 2);
     assert_ne!(join.islands[0].island, join.islands[1].island);

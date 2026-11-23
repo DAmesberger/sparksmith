@@ -126,8 +126,11 @@ impl CopperGraph {
                     ..
                 } if row.purpose != TiePurpose::KelvinSense => {
                     if let Some(rule) = &project.rules.current
-                        && let Some(table) = &rule.table
-                        && rule.rise_c.is_some()
+                        && let Some(table) = rule
+                            .table
+                            .as_ref()
+                            .or_else(|| project.rules.profile.as_ref()?.current_table.as_ref())
+                        && let Some(rise) = rule.rise_c
                     {
                         let pads = pads.get_or_init(|| {
                             placed_pads(project)
@@ -142,7 +145,7 @@ impl CopperGraph {
                             .map(|t| section(project, &t.bridge, pads))
                             .collect();
                         current.area_mm2 = areas.and_then(|v| v.into_iter().reduce(f64::min));
-                        current.capacity_a = current.area_mm2.and_then(|a| rule.capacity(a));
+                        current.capacity_a = current.area_mm2.and_then(|a| table.capacity(rise, a));
                         current.source = Some(format!(
                             "{}, edition {}, figure {}",
                             table.source, table.edition, table.figure
