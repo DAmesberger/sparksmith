@@ -2996,18 +2996,28 @@ impl PcbEditor {
             .iter()
             .filter(|b| b.layer == layer)
         {
-            let chosen = self.highlighted.is_some_and(|n| bridge.nets.contains(&n))
-                || self.tie_selected(bridge.instance, bridge.group);
+            let group_selected = self.tie_selected(bridge.instance, bridge.group);
+            let lit = self.highlighted.filter(|n| bridge.nets.contains(n));
+            let chosen = group_selected || lit.is_some();
             if !chosen_only || chosen {
                 let mut moved = view;
                 moved.view.origin +=
                     view.screen(self.drag_delta(bridge.instance)) - view.screen([0.0, 0.0]);
-                bridge.mesh.paint_bridge(
-                    painter,
-                    moved,
-                    if chosen { selected } else { plain },
-                    plain.gamma_multiply(0.65),
-                );
+                let (base, stripes) = if group_selected {
+                    (selected, ink.on_board(colors.selected, shade * 0.55))
+                } else if let Some(net) = lit {
+                    if bridge.nets.first() == Some(&net) {
+                        (selected, plain)
+                    } else {
+                        (plain, selected)
+                    }
+                } else {
+                    (
+                        plain,
+                        ink.on_board(colors.copper_layer(layer), shade * 0.55),
+                    )
+                };
+                bridge.mesh.paint_bridge(painter, moved, base, stripes);
             }
         }
         for track in project

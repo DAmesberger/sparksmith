@@ -594,12 +594,40 @@ fn hover_and_selection_run_no_check() -> Fallible {
 }
 
 #[test]
-fn picking_a_bridge_selects_only_its_tie_group_in_both_views() {
+fn picking_a_bridge_selects_only_its_tie_group_in_both_views() -> Fallible {
+    use crate::pcb_editor::{copper_paint::BridgeCopper, fill_paint::FillMesh};
+    use sparksmith_core::model::fill::FilledRegion;
     use sparksmith_core::{BridgeId, TieId};
     use sparksmith_solidcraft::project::{BridgeSource, Source};
-    let mut editor = PcbEditor::default();
-    let group = TieId(2);
-    let instance = 13;
+    let engine = board(ROUTED)?;
+    let (mut editor, ctx) = setup(&engine);
+    let instance = by(&engine, "R1")?;
+    // Two distinct pieces of the Layout plan, picked in actual pointer frames.
+    let view = view_of(&editor, &engine);
+    let graph = editor.graph.clone();
+    for (id, y) in [(1, 17.0), (2, 20.0)] {
+        let region = [FilledRegion {
+            outer: vec![[10., y], [13., y], [13., y + 1.], [10., y + 1.]],
+            holes: vec![],
+        }];
+        editor.layout_copper.bridges.push(BridgeCopper {
+            group: TieId(id),
+            instance,
+            layer: sparksmith_core::CopperLayer::Top,
+            nets: vec![3, 4],
+            mesh: FillMesh::of(0, &region, &region),
+        });
+        click(
+            &mut editor,
+            &engine,
+            &ctx,
+            view.screen([11.5, y + 0.5]),
+            egui::Modifiers::NONE,
+        );
+        assert_eq!(editor.tie_group, Some(TieId(id)));
+        assert_eq!(editor.highlighted_net(), None);
+    }
+    let group = TieId(1);
     let source = Source {
         pick_id: 4,
         instance: Some(instance),
@@ -618,14 +646,15 @@ fn picking_a_bridge_selects_only_its_tie_group_in_both_views() {
             nets: vec![3, 4],
         }),
     };
-    editor.select_hit(super::Hit::Tie(instance, TieId(1)));
-    assert_eq!(editor.tie_group, Some(TieId(1)));
+    editor.set_3d(true);
     editor.select_picked(&[&source]);
     assert_eq!(editor.selected_instance(), Some(instance));
     assert_eq!(editor.tie_group, Some(group));
     assert_eq!(editor.highlighted_net(), None);
     editor.set_3d(false);
     assert_eq!(editor.tie_group, Some(group));
+    assert!(std::sync::Arc::ptr_eq(&graph, &editor.graph));
+    Ok(())
 }
 
 #[test]

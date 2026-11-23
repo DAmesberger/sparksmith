@@ -18,7 +18,7 @@ use sparksmith_core::{CopperLayer, Fill, Id, Point, Project};
 use sparksmith_ui::theme::Tokens;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// How Layout shows fill copper (the view popover's Fills row). Display
 /// only: the document and the 3D view keep the copper.
@@ -63,6 +63,8 @@ pub(super) struct FillMesh {
     /// Each region's outer ring, then its holes.
     regions: Vec<Vec<Vec<Point>>>,
     bounds: [Point; 2],
+    /// Panning, selection and tint changes reuse the clipped copper stripes.
+    hatches: RefCell<BTreeMap<i32, Hatching>>,
 }
 
 impl FillMesh {
@@ -98,6 +100,7 @@ impl FillMesh {
             triangles,
             regions: rings,
             bounds: [lo, hi],
+            hatches: Default::default(),
         }
     }
 
@@ -109,9 +112,19 @@ impl FillMesh {
         stripe: Color32,
     ) {
         paint_mesh(painter, view, self, base);
-        for [a, b] in hatch(self, f64::from(HATCH_PX / view.view.scale)) {
+        for &[a, b] in self.hatch(view.view.scale).iter() {
             painter.line_segment([view.screen(a), view.screen(b)], Stroke::new(1.0, stripe));
         }
+    }
+
+    fn hatch(&self, scale: f32) -> Hatching {
+        let octave = (f64::from(scale.max(1e-3)).log2().floor() as i32).clamp(-30, 30);
+        Rc::clone(
+            self.hatches
+                .borrow_mut()
+                .entry(octave)
+                .or_insert_with(|| Rc::new(hatch(self, f64::from(HATCH_PX) / 2f64.powi(octave)))),
+        )
     }
 
     /// Whether `p` is fill copper (inside an outer ring and no hole).
@@ -259,14 +272,13 @@ fn copper_hash(regions: &[FilledRegion]) -> u64 {
 }
 
 /// Hatch segments over one fill's copper at one zoom step.
-type Hatching = Arc<Vec<[Point; 2]>>;
+type Hatching = Rc<Vec<[Point; 2]>>;
 
 /// The fills' display copper, kept per fill while its copper is unchanged,
 /// and hatching per zoom step.
 #[derive(Default)]
 pub(super) struct FillCache {
-    meshes: BTreeMap<Id, Arc<FillMesh>>,
-    hatches: RefCell<BTreeMap<(Id, i32), Hatching>>,
+    meshes: BTreeMap<Id, FillMesh>,
 }
 
 impl FillCache {
@@ -280,36 +292,15 @@ impl FillCache {
             let hash = copper_hash(&copper.tiles);
             let mesh = match self.meshes.remove(&fill.id) {
                 Some(mesh) if mesh.hash == hash => mesh,
-                _ => Arc::new(FillMesh::of(hash, &copper.tiles, &copper.regions)),
+                _ => FillMesh::of(hash, &copper.tiles, &copper.regions),
             };
             next.insert(fill.id, mesh);
         }
-        let changed = next.len() != self.meshes.len()
-            || next
-                .iter()
-                .any(|(id, m)| !self.meshes.get(id).is_some_and(|o| Arc::ptr_eq(o, m)));
         self.meshes = next;
-        if changed || !self.hatches.borrow().is_empty() {
-            self.hatches.borrow_mut().clear();
-        }
     }
 
     pub(super) fn mesh(&self, fill: Id) -> Option<&FillMesh> {
-        self.meshes.get(&fill).map(Arc::as_ref)
-    }
-
-    /// Hatch segments over fill `id`'s copper for drawing at `scale`.
-    fn hatch(&self, id: Id, scale: f32) -> Option<Hatching> {
-        let mesh = self.meshes.get(&id)?;
-        let step = (f64::from(scale.max(1e-3)).log2()).floor() as i32;
-        let key = (id, step.clamp(-30, 30));
-        if let Some(h) = self.hatches.borrow().get(&key) {
-            return Some(Arc::clone(h));
-        }
-        let spacing = f64::from(HATCH_PX) / 2f64.powi(key.1);
-        let segments = Arc::new(hatch(mesh, spacing));
-        self.hatches.borrow_mut().insert(key, Arc::clone(&segments));
-        Some(segments)
+        self.meshes.get(&fill)
     }
 }
 
@@ -501,11 +492,9 @@ impl PcbEditor {
             };
             match (mesh, self.fill_display) {
                 (Some(mesh), FillDisplay::Hatched) => {
-                    if let Some(lines) = self.fill_meshes.hatch(fill.id, scale) {
-                        let stroke = Stroke::new(1.0, color);
-                        for [a, b] in lines.iter() {
-                            painter.line_segment([view.screen(*a), view.screen(*b)], stroke);
-                        }
+                    let stroke = Stroke::new(1.0, color);
+                    for &[a, b] in mesh.hatch(scale).iter() {
+                        painter.line_segment([view.screen(a), view.screen(b)], stroke);
                     }
                     outline(mesh);
                 }

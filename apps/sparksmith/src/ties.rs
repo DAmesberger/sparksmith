@@ -71,7 +71,7 @@ pub fn card(
                             .join(" ↔ ");
                         let group = r.tie.label(p);
                         let title = if nets.is_empty() {
-                            group
+                            group.into_owned()
                         } else {
                             format!("{group} · {nets}")
                         };
