@@ -12,7 +12,7 @@ use super::{RegistryClient, Reply, Request, unreachable};
 use crate::model::Secret;
 use crate::model::keys::{Keychain, Store};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 use sparksmith_automation::session::online::{OnlineAccount, SignOut};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -307,7 +307,7 @@ impl RegistryClient {
         match reply.status {
             200..=299 => {
                 let account: Account = serde_json::from_slice(&reply.bytes)
-                    .map_err(|e| format!("the registry's account reply is unreadable: {e}"))?;
+                    .map_err(|_| "the registry's account reply is unreadable")?;
                 if let Ok(mut held) = self.auth.account.lock() {
                     *held = Some(account.clone());
                 }
@@ -325,7 +325,7 @@ impl RegistryClient {
     pub fn start_sign_in(&self, client_name: &str) -> Result<DeviceCode, String> {
         let name: String = client_name.chars().take(MAX_CLIENT_NAME).collect();
         let reply = self.send(
-            Request::SignIn(&json!({"client_name": name})),
+            Request::SignIn(&name),
             "/v1/device/code",
             ACCOUNT_TIMEOUT,
             MAX_ACCOUNT_BYTES,
@@ -334,7 +334,7 @@ impl RegistryClient {
             return Err(self.refusal(&reply));
         }
         let wire: WireCode = serde_json::from_slice(&reply.bytes)
-            .map_err(|e| format!("the registry's sign-in code is unreadable: {e}"))?;
+            .map_err(|_| "the registry's sign-in code is unreadable")?;
         let device_code =
             Secret::new(&wire.device_code).ok_or("the registry sent an empty sign-in code")?;
         let complete = if wire.verification_uri_complete.is_empty() {
@@ -356,7 +356,7 @@ impl RegistryClient {
     /// token goes to the keychain before this returns.
     pub fn poll_sign_in(&self, code: &DeviceCode) -> Result<Poll, String> {
         let reply = self.send(
-            Request::SignIn(&json!({"device_code": code.device_code.expose()})),
+            Request::Poll(&code.device_code),
             "/v1/device/token",
             ACCOUNT_TIMEOUT,
             MAX_ACCOUNT_BYTES,
@@ -370,7 +370,11 @@ impl RegistryClient {
                 self.auth
                     .store
                     .set(SERVICE, self.endpoint.base(), token.expose())
-                    .map_err(|e| format!("The system keychain did not keep the sign-in: {e}"))?;
+                    .map_err(|e| {
+                        token.redact(&format!(
+                            "The system keychain did not keep the sign-in: {e}"
+                        ))
+                    })?;
                 if let Ok(mut held) = self.auth.token.lock() {
                     *held = Some(Some(token));
                 }

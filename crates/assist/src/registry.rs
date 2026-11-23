@@ -157,8 +157,20 @@ pub fn index_date(seconds: u64) -> String {
 #[derive(Clone, Copy)]
 enum Request<'a> {
     Read(Option<&'a Secret>),
-    SignIn(&'a serde_json::Value),
+    SignIn(&'a str),
+    Poll(&'a Secret),
     Revoke(&'a Secret),
+}
+
+impl Request<'_> {
+    fn clean(self, message: &str) -> String {
+        match self {
+            Self::Read(Some(secret)) | Self::Poll(secret) | Self::Revoke(secret) => {
+                secret.redact(message)
+            }
+            Self::Read(None) | Self::SignIn(_) => message.to_owned(),
+        }
+    }
 }
 
 /// A reply of any status.
@@ -167,6 +179,30 @@ pub(crate) struct Reply {
     /// `Retry-After`, in seconds.
     retry_after: Option<u64>,
     bytes: Vec<u8>,
+    diagnostic: Option<String>,
+}
+
+impl Reply {
+    fn received(
+        request: Request<'_>,
+        status: u16,
+        retry_after: Option<u64>,
+        bytes: Vec<u8>,
+    ) -> Self {
+        let diagnostic = if status >= 300 {
+            serde_json::from_slice::<serde_json::Value>(&bytes)
+                .ok()
+                .and_then(|v| v["error"]["message"].as_str().map(|m| request.clean(m)))
+        } else {
+            None
+        };
+        Self {
+            status,
+            retry_after,
+            bytes,
+            diagnostic,
+        }
+    }
 }
 
 fn get_err(error: ureq::Error) -> String {
@@ -258,37 +294,27 @@ impl RegistryClient {
         limit: u64,
     ) -> Result<Reply, String> {
         let url = self.request_url(request, path)?;
-        let token = match request {
-            Request::Read(token) => token,
-            Request::SignIn(_) => None,
-            Request::Revoke(token) => Some(token),
-        };
-        let clean = |error: ureq::Error| {
-            let message = get_err(error);
-            match token {
-                Some(token) => token.redact(&message),
-                None => message,
-            }
-        };
-        let sent = match request {
-            Request::SignIn(body) => self
-                .agent
+        let clean = |error| request.clean(&get_err(error));
+        let post = |body: serde_json::Value| {
+            self.agent
                 .post(&url)
                 .config()
                 .timeout_global(Some(timeout))
                 .build()
-                .send_json(body),
-            Request::Read(_) | Request::Revoke(_) => {
-                let request = match request {
-                    Request::Revoke(_) => self.agent.delete(&url),
-                    _ => self.agent.get(&url),
-                };
-                let mut request = request.config().timeout_global(Some(timeout)).build();
-                if let Some(token) = token {
-                    request = request.header("authorization", format!("Bearer {}", token.expose()));
-                }
-                request.call()
+                .send_json(body)
+        };
+        let read = |req: ureq::RequestBuilder<_>, token: Option<&Secret>| {
+            let mut req = req.config().timeout_global(Some(timeout)).build();
+            if let Some(token) = token {
+                req = req.header("authorization", format!("Bearer {}", token.expose()));
             }
+            req.call()
+        };
+        let sent = match request {
+            Request::SignIn(name) => post(serde_json::json!({"client_name": name})),
+            Request::Poll(code) => post(serde_json::json!({"device_code": code.expose()})),
+            Request::Read(token) => read(self.agent.get(&url), token),
+            Request::Revoke(token) => read(self.agent.delete(&url), Some(token)),
         };
         let mut response = sent.map_err(clean)?;
         let status = response.status().as_u16();
@@ -303,11 +329,7 @@ impl RegistryClient {
             .limit(limit)
             .read_to_vec()
             .map_err(clean)?;
-        Ok(Reply {
-            status,
-            retry_after,
-            bytes,
-        })
+        Ok(Reply::received(request, status, retry_after, bytes))
     }
 
     /// A refusal in words: the sign-in a download needs, when to try again
@@ -317,9 +339,9 @@ impl RegistryClient {
             401 => account::SIGN_IN_NEEDED.into(),
             429 => account::rate_limited(reply),
             status => {
-                let message = serde_json::from_slice::<serde_json::Value>(&reply.bytes)
-                    .ok()
-                    .and_then(|v| v["error"]["message"].as_str().map(str::to_owned))
+                let message = reply
+                    .diagnostic
+                    .clone()
                     .unwrap_or_else(|| format!("status {status}"));
                 format!("the registry refused: {message}")
             }
@@ -507,8 +529,8 @@ impl RegistryClient {
             BUNDLE_TIMEOUT,
             MAX_BUNDLE_BYTES,
         )?;
-        let wire: WireBundle = serde_json::from_slice(&bytes)
-            .map_err(|e| format!("the registry's bundle is unreadable: {e}"))?;
+        let wire: WireBundle =
+            serde_json::from_slice(&bytes).map_err(|_| "the registry's bundle is unreadable")?;
         if wire.format != mirror::FORMAT {
             return Err(format!(
                 "registry bundle format {} is not supported",

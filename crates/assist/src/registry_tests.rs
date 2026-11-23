@@ -786,8 +786,7 @@ fn no_token_travels_over_plain_http_to_another_computer() -> TestResult {
 #[test]
 fn registry_credentials_follow_the_parsed_endpoint() -> TestResult {
     let token = Secret::new("inert-test-marker").ok_or("missing marker")?;
-    let start = serde_json::json!({"client_name": "test"});
-    let poll = serde_json::json!({"device_code": "inert-code-marker"});
+    let poll = Secret::new("inert-code-marker").ok_or("missing marker")?;
     for (base, local, allowed) in [
         ("http://LOCALHOST:8787", true, true),
         ("http://127.1.2.3", true, true),
@@ -812,8 +811,8 @@ fn registry_credentials_follow_the_parsed_endpoint() -> TestResult {
             format!("{base}/v1/index")
         );
         for (request, path) in [
-            (Request::SignIn(&start), "/v1/device/code"),
-            (Request::SignIn(&poll), "/v1/device/token"),
+            (Request::SignIn("test"), "/v1/device/code"),
+            (Request::Poll(&poll), "/v1/device/token"),
             (Request::Read(Some(&token)), "/v1/bundles/1/1"),
             (Request::Read(Some(&token)), "/v1/account"),
             (Request::Revoke(&token), "/v1/auth/token"),
@@ -924,5 +923,30 @@ fn a_registry_behind_a_password_says_it_is_not_open()
     let refused = client.search("resistor", 5, 0).err().unwrap_or_default();
     assert!(refused.contains("is not open to the public"), "{refused}");
     assert_ne!(refused, account::SIGN_IN_NEEDED);
+    Ok(())
+}
+
+#[test]
+fn registry_diagnostics_redact_device_codes_and_bearers_in_memory() -> TestResult {
+    let marker = Secret::new("fixture-sensitive-text").ok_or("missing marker")?;
+    let message = "could not use fixture-sensitive-text";
+    let client = plain("https://parts.example", None)?;
+    for request in [
+        Request::Poll(&marker),
+        Request::Read(Some(&marker)),
+        Request::Revoke(&marker),
+    ] {
+        assert_eq!(request.clean(message), "could not use [redacted]");
+        let reply = Reply::received(
+            request,
+            403,
+            None,
+            serde_json::to_vec(&serde_json::json!({"error": {"message": message}}))?,
+        );
+        assert_eq!(
+            client.refusal(&reply),
+            "the registry refused: could not use [redacted]"
+        );
+    }
     Ok(())
 }
