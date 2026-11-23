@@ -47,11 +47,13 @@ pub enum Context {
     /// A focused list (Dimensions, Issues, the parts table): its keys
     /// replace the workspace's while it has the keyboard.
     List,
+    /// Keyboard focus within the docked help reader.
+    Help,
 }
 
 impl Context {
     /// Every context, in sheet order.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Global,
         Self::Component,
         Self::Symbol,
@@ -66,6 +68,7 @@ impl Context {
         Self::BoardShape,
         Self::Pcb3d,
         Self::List,
+        Self::Help,
     ];
 
     pub fn label(self) -> &'static str {
@@ -84,13 +87,16 @@ impl Context {
             Self::BoardShape => "PCB › Board shape",
             Self::Pcb3d => "PCB › 3D",
             Self::List => "Lists",
+            Self::Help => "Help",
         }
     }
 
     pub fn parent(self) -> Option<Self> {
         match self {
             Self::Global => None,
-            Self::Component | Self::Schematic | Self::Pcb | Self::List => Some(Self::Global),
+            Self::Component | Self::Schematic | Self::Pcb | Self::List | Self::Help => {
+                Some(Self::Global)
+            }
             Self::Symbol | Self::Footprint => Some(Self::Component),
             Self::SchematicWire => Some(Self::Schematic),
             Self::PcbLayout | Self::Pcb3d => Some(Self::Pcb),
@@ -111,6 +117,7 @@ impl Context {
                 | Self::PcbTune
                 | Self::BoardShape
                 | Self::List
+                | Self::Help
         )
     }
 
@@ -118,7 +125,7 @@ impl Context {
     /// its own keys and the Everywhere commands apply (the board shape
     /// sketch has its own ribbon).
     pub fn exclusive(self) -> bool {
-        matches!(self, Self::BoardShape | Self::List)
+        matches!(self, Self::BoardShape | Self::List | Self::Help)
     }
 
     /// Whether `self` is `other` or lies inside it.
@@ -155,6 +162,12 @@ impl Chord {
     pub const fn cmd(key: egui::Key) -> Self {
         Self {
             command: true,
+            ..Self::key(key)
+        }
+    }
+    pub const fn alt(key: egui::Key) -> Self {
+        Self {
+            alt: true,
             ..Self::key(key)
         }
     }
@@ -705,6 +718,7 @@ impl Command {
                 | Context::PcbTune
                 | Context::BoardShape => "panel/layout",
                 Context::List | Context::Global => "panel/keyboard-shortcuts",
+                Context::Help => "panel/help",
             },
         }
     }
@@ -1290,6 +1304,18 @@ fn defaults() -> Vec<Command> {
             .chord(Chord::key(K::F1))
             .icon("list")
             .keywords("manual documentation guide context"),
+        key(
+            "help.back",
+            "Back in help",
+            C::Help,
+            Chord::alt(K::ArrowLeft),
+        ),
+        key(
+            "help.forward",
+            "Forward in help",
+            C::Help,
+            Chord::alt(K::ArrowRight),
+        ),
         app("app.shortcuts", "Keyboard shortcuts", A::Shortcuts)
             .chord(Chord::cmd(K::Slash))
             .icon("list")

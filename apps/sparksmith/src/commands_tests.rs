@@ -743,6 +743,29 @@ fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Er
     let registry = Registry::standard();
     let entries = registry.help_entries()?;
     assert_eq!(entries.len(), registry.commands().len());
+    for (name, key) in [
+        ("help.back", egui::Key::ArrowLeft),
+        ("help.forward", egui::Key::ArrowRight),
+    ] {
+        let command = registry.get(name).ok_or("missing help navigation")?;
+        let expected = Chord::alt(key);
+        assert_eq!(command.handler, Handler::InPlace);
+        assert_eq!(command.context, Context::Help);
+        assert_eq!(
+            registry.resolve(expected, &active_contexts(Context::Help)),
+            Some(command)
+        );
+        assert!(
+            registry
+                .resolve(expected, &active_contexts(Context::Schematic))
+                .is_none()
+        );
+        let entry = entries.iter().find(|e| e.id.name() == name).ok_or(name)?;
+        assert!(
+            matches!(&entry.facts, Facts::Command { default_key: Some(key), reaches: Some(id), .. }
+            if key == &expected.name() && id.as_str() == "panel/help")
+        );
+    }
     let route = entries
         .iter()
         .find(|entry| entry.id.name() == "route.width-next")

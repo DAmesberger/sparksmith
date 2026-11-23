@@ -1057,6 +1057,48 @@ fn offline_help_opens_with_f1_and_reads_a_result_from_the_keyboard() -> Fallible
     Ok(())
 }
 
+/// The Help search field keeps ordinary typing, while both its history
+/// bindings work from the field and follow a keymap edit immediately.
+#[test]
+fn help_history_uses_the_focused_readers_effective_keys() -> Fallible {
+    use crate::commands::{Chord, Context};
+
+    let mut ax = Ax::new(Workspace::Schematic)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    ax.app.help.open_topic("panel/help");
+    ax.settle();
+    ax.app.help.open_topic("panel/palette");
+    ax.settle();
+    assert!(
+        ax.ctx.text_edit_focused(),
+        "the reader's search field has focus"
+    );
+    assert!(ax.app.active_contexts().contains(&Context::Help));
+
+    let back = Chord::alt(Key::B);
+    std::sync::Arc::make_mut(&mut ax.app.registry).rebind("help.back", Some(back))?;
+    crate::keys::publish(&ax.ctx, &ax.app.registry);
+    ax.key_with(Key::ArrowLeft, Modifiers::ALT);
+    assert!(ax.has(Role::Heading, "Command palette"), "{}", ax.dump());
+    ax.key_with(back.key, back.modifiers());
+    assert!(ax.has(Role::Heading, "Help"), "{}", ax.dump());
+    ax.key_with(Key::ArrowRight, Modifiers::ALT);
+    assert!(ax.has(Role::Heading, "Command palette"), "{}", ax.dump());
+
+    // The other search field has the keyboard while help is still visible.
+    ax.app.palette.open();
+    ax.settle();
+    assert!(!ax.app.active_contexts().contains(&Context::Help));
+    ax.key_with(back.key, back.modifiers());
+    assert!(
+        ax.has(Role::Heading, "Command palette"),
+        "outside focus must leave history alone"
+    );
+    Ok(())
+}
+
 #[test]
 fn settings_question_opens_the_source_of_the_default() -> Fallible {
     let mut ax = Ax::new(Workspace::Pcb)?;

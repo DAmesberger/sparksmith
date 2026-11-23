@@ -163,6 +163,13 @@ pub(super) fn route(ctx: &egui::Context, held: &mut AfterCommit, id: String) -> 
 impl App {
     /// The keyboard contexts in force, most specific first.
     pub(super) fn active_contexts(&self) -> Vec<Context> {
+        if self.help.focused {
+            return crate::commands::active_contexts(Context::Help);
+        }
+        self.workspace_contexts()
+    }
+
+    pub(super) fn workspace_contexts(&self) -> Vec<Context> {
         let inner = match self.workspace {
             Workspace::Part => self.part.shortcut_context(),
             Workspace::Schematic => self.schematic.shortcut_context(),

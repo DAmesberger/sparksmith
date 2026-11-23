@@ -492,7 +492,7 @@ impl App {
         let wants = kit::card::wants(ctx, 2.0 * f32::from(shell::COLUMN_CARD_INSET));
         let column = kit::card::column(rect, self.issues.expanded(), wants);
         if self.help.open {
-            let active = self.active_contexts();
+            let active = self.workspace_contexts();
             let fix = shell::column_card(
                 ctx,
                 "help",

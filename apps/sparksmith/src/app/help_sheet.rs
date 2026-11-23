@@ -69,6 +69,8 @@ pub(super) struct HelpSheet {
     back: Vec<Page>,
     next: Vec<Page>,
     focus: bool,
+    bounds: Option<(egui::LayerId, egui::Rect)>,
+    pub(super) focused: bool,
     selected: usize,
     navigation: kit::SearchKeys,
     matches: Matches,
@@ -112,6 +114,8 @@ impl HelpSheet {
 
     pub(super) fn close(&mut self) {
         self.open = false;
+        self.focused = false;
+        self.bounds = None;
         self.page.fix = None;
     }
     fn visit(&mut self, page: Page) {
@@ -141,16 +145,29 @@ impl HelpSheet {
     }
     /// Consume navigation before the text field or canvas sees the key.
     pub(super) fn keys(&mut self, ctx: &egui::Context) {
-        if self.open
-            && matches!(self.page.location, Location::Search)
+        self.navigation = Default::default();
+        self.focused = self.open
+            && self.bounds.is_some_and(|(layer, bounds)| {
+                ctx.memory(|m| m.focused())
+                    .and_then(|id| ctx.read_response(id))
+                    .is_some_and(|r| r.layer_id == layer && bounds.contains(r.rect.center()))
+            });
+        if !self.focused {
+            return;
+        }
+        if crate::keys::pressed_navigation(ctx, "help.back") {
+            self.previous();
+        }
+        if crate::keys::pressed_navigation(ctx, "help.forward") {
+            self.forward();
+        }
+        if matches!(self.page.location, Location::Search)
             && ctx.memory(|m| m.has_focus(Id::unique("help-search")))
         {
             self.navigation = kit::search_keys(ctx);
             if self.navigation.escape {
                 self.close();
             }
-        } else {
-            self.navigation = Default::default();
         }
     }
 
@@ -192,15 +209,11 @@ impl HelpSheet {
         registry: &Registry,
         active: &[Context],
     ) -> Option<Fix> {
-        let history_key = |key| ui.input_mut(|i| i.consume_key(egui::Modifiers::ALT, key));
-        if history_key(egui::Key::ArrowLeft) {
-            self.previous();
-        }
-        if history_key(egui::Key::ArrowRight) {
-            self.forward();
-        }
+        self.bounds = Some((ui.layer_id(), ui.max_rect()));
         ui.horizontal_wrapped(|ui| {
-            if ui_kit::button(ui, "Back", ui_kit::Button::Enabled(!self.back.is_empty())).clicked()
+            if ui_kit::button(ui, "Back", ui_kit::Button::Enabled(!self.back.is_empty()))
+                .on_hover_text(crate::keys::labelled(ui.ctx(), "Back in help", "help.back"))
+                .clicked()
             {
                 self.previous();
             }
@@ -209,6 +222,11 @@ impl HelpSheet {
                 "Forward",
                 ui_kit::Button::Enabled(!self.next.is_empty()),
             )
+            .on_hover_text(crate::keys::labelled(
+                ui.ctx(),
+                "Forward in help",
+                "help.forward",
+            ))
             .clicked()
             {
                 self.forward();

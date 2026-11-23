@@ -111,6 +111,16 @@ pub fn pressed_focused(ctx: &egui::Context, id: &str) -> bool {
         .is_some_and(|command| take_while(ctx, &registry, command, true, typing))
 }
 
+/// A navigation command in the control that owns focus. Alt and command
+/// bindings work in its text field; an unmodified character stays in the field.
+pub fn pressed_navigation(ctx: &egui::Context, id: &str) -> bool {
+    let registry = registry(ctx);
+    registry.get(id).is_some_and(|command| {
+        let typing = ctx.text_edit_focused() && registry.chord(command).is_none_or(|c| !c.alt);
+        take_while(ctx, &registry, command, false, typing)
+    })
+}
+
 /// [`pressed`] without key repeats: a held key acts once (Space turns
 /// the next pad once, and holding it pans).
 pub fn pressed_once(ctx: &egui::Context, id: &str) -> bool {
