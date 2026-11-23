@@ -122,6 +122,10 @@ pub enum Origin {
         pad: PadId,
         part: PadPart,
     },
+    Bridge {
+        instance: Id,
+        bridge: sparksmith_core::BridgeId,
+    },
     Track(Id),
     Via {
         via: Id,
@@ -154,6 +158,8 @@ pub struct PlanBody {
     pub kind: BodyKind,
     pub source: Origin,
     pub net: Option<Id>,
+    /// All named nets of a tie bridge.
+    pub tie_nets: Vec<Id>,
     /// The copper layer the body lies on; `None` for one spanning the
     /// board (a slab, a barrel).
     pub layer: Option<CopperLayer>,
@@ -182,6 +188,7 @@ impl PlanBody {
             kind,
             source,
             net,
+            tie_nets: Vec::new(),
             layer,
             z: [z.0, z.1],
             frame,
@@ -283,6 +290,7 @@ pub struct WasherPlan {
 /// order the native build makes them.
 #[derive(Clone, Debug)]
 pub struct BoardPlan {
+    pub bridges: Vec<PlanBody>,
     pub fills: Vec<FillPlan>,
     /// One per placed pad, in [`sparksmith_core::layout::placed_pads`] order.
     pub pads: Vec<PadPlan>,
@@ -300,6 +308,7 @@ impl BoardPlan {
             .iter()
             .flat_map(|f| f.tiles.iter().map(|(body, _)| body))
             .chain(self.pads.iter().flat_map(|p| &p.bodies))
+            .chain(&self.bridges)
             .chain(self.tracks.iter().map(|t| &t.body))
             .chain(self.vias.iter().flat_map(|v| &v.bodies))
             .chain(self.washers.iter().flat_map(|w| &w.bodies))
@@ -383,10 +392,51 @@ fn of_pads_copper(project: &Project, pads: &[PlacedPad<'_>], memo: &mut Memo) ->
             .map(|pad| pad_plan(project, pad))
             .collect::<Result<_>>()?,
         tracks: tracks(project)?,
+        bridges: bridges(project)?,
         vias: vias(project)?,
         washers: washers(project)?,
         laminate: Vec::new(),
     })
+}
+
+/// Each bridge sits in the placement frame, so the native joint keeps it
+/// attached when the part moves or the board thickness changes.
+fn bridges(project: &Project) -> Result<Vec<PlanBody>> {
+    sparksmith_core::layout::placed_bridges(project)
+        .into_iter()
+        .map(|b| {
+            let place = project
+                .placement_of(b.instance)
+                .ok_or_else(|| Error::Verification("Missing tie placement.".into()))?;
+            let frame = Frame {
+                origin: place.position,
+                angle_deg: place.rotation_deg,
+                flipped: b.layer == CopperLayer::Bottom,
+            };
+            let to_local = sparksmith_core::geometry::Transform2 {
+                translate: frame.origin,
+                rotation_deg: frame.angle_deg,
+                mirror: frame.flipped,
+            }
+            .inverse();
+            let contour = Contour::Outline(b.outline).mapped(|p| to_local.apply(p), frame.flipped);
+            let mut body = PlanBody::new(
+                format!("bridge_{}_{}", b.instance, b.bridge),
+                BodyKind::CopperTrack,
+                Origin::Bridge {
+                    instance: b.instance,
+                    bridge: b.bridge,
+                },
+                None,
+                Some(b.layer),
+                span(project, b.layer)?,
+                frame,
+                vec![contour],
+            )?;
+            body.tie_nets = b.nets;
+            Ok(body)
+        })
+        .collect()
 }
 
 /// Each washer of the board's physical inventory
@@ -906,6 +956,7 @@ fn laminate(
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Object {
     Board,
+    Bridge(Id, sparksmith_core::BridgeId),
     Pad(Id, PadId),
     Track(Id),
     Via(Id),
@@ -917,6 +968,7 @@ impl Origin {
         match *self {
             Self::Laminate(_) => Object::Board,
             Self::Pad { instance, pad, .. } => Object::Pad(instance, pad),
+            Self::Bridge { instance, bridge } => Object::Bridge(instance, bridge),
             Self::Track(track) => Object::Track(track),
             Self::Via { via, .. } => Object::Via(via),
             // A washer belongs to the board's sketch, which no pick names.
@@ -982,6 +1034,10 @@ pub fn is_flat(kind: BodyKind) -> bool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Source {
+    Bridge {
+        instance: Id,
+        bridge: sparksmith_core::BridgeId,
+    },
     /// The laminate (or a flat body the build ties to no object).
     Board,
     Pad {
@@ -1003,6 +1059,7 @@ impl From<Object> for Source {
     fn from(object: Object) -> Self {
         match object {
             Object::Board => Self::Board,
+            Object::Bridge(instance, bridge) => Self::Bridge { instance, bridge },
             Object::Pad(instance, pad) => Self::Pad { instance, pad },
             Object::Track(track) => Self::Track { track },
             Object::Via(via) => Self::Via { via },
@@ -1226,6 +1283,9 @@ pub fn check(
         else {
             return Object::Board;
         };
+        if let (Some(instance), Some(tie)) = (source.instance, &source.tie) {
+            return Object::Bridge(instance, tie.bridge);
+        }
         match (
             source.instance,
             source.pad,

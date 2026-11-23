@@ -101,6 +101,19 @@ impl FillMesh {
         }
     }
 
+    pub(super) fn paint_bridge(
+        &self,
+        painter: &egui::Painter,
+        view: BoardView,
+        base: Color32,
+        stripe: Color32,
+    ) {
+        paint_mesh(painter, view, self, base);
+        for [a, b] in hatch(self, f64::from(HATCH_PX / view.view.scale)) {
+            painter.line_segment([view.screen(a), view.screen(b)], Stroke::new(1.0, stripe));
+        }
+    }
+
     /// Whether `p` is fill copper (inside an outer ring and no hole).
     pub(super) fn contains(&self, p: Point) -> bool {
         p[0] >= self.bounds[0][0]

@@ -682,10 +682,22 @@ impl SceneController {
         // selected ones, while a net or a track or via is chosen (not what
         // a row only lights).
         let mut focus = Vec::new();
-        let mut copper = net.is_some();
+        let tie_nets: std::collections::BTreeSet<_> = self
+            .sources
+            .iter()
+            .filter(|s| picks(s, chosen))
+            .filter_map(|s| s.tie.as_ref())
+            .flat_map(|b| b.nets.iter().copied())
+            .collect();
+        let mut copper = net.is_some() || !tie_nets.is_empty();
         for s in &self.sources {
             let picked = picks(s, chosen);
-            let on_net = s.net.is_some() && s.net == net;
+            let on_net = s
+                .net
+                .is_some_and(|n| net == Some(n) || tie_nets.contains(&n))
+                || s.tie
+                    .as_ref()
+                    .is_some_and(|b| net.is_some_and(|n| b.nets.contains(&n)));
             if picked {
                 selected.push(s.pick_id);
                 copper |= s.track.is_some() || s.via.is_some();

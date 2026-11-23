@@ -312,6 +312,20 @@ impl CopperGraph {
             return vec![crate::layout::copper::limit_finding()];
         }
         let mut out = Vec::new();
+        out.extend_from_slice(&self.tie_findings);
+        for tie in self.ties() {
+            let id = tie.bridge.instance;
+            let name = project
+                .instance(id)
+                .map_or("Tie", |i| i.designator.as_str());
+            for object in &tie.foreign {
+                out.push(Finding::new(
+                    "tie.bridge_contact",
+                    format!("{name} bridge touches copper outside its declared lands."),
+                    vec![ObjectRef::Instance { id }, *object],
+                ));
+            }
+        }
         // Only an unrouted pad is named by its label.
         let labels = std::cell::OnceCell::new();
         let mut islands: BTreeMap<Id, BTreeSet<usize>> = BTreeMap::new();

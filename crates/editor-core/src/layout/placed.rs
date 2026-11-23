@@ -276,7 +276,7 @@ pub struct PlacedKeepout {
 /// bottom), on every copper layer or the placement's outer layer, forbidding
 /// fill copper, tracks and vias, and pads when the footprint says so.
 pub fn placed_keepouts(project: &Project) -> Vec<PlacedKeepout> {
-    use crate::library::{KeepoutScope, Outline, Segment};
+    use crate::library::KeepoutScope;
     use crate::model::fill::{KeepoutLayers, KeepoutRules};
     let mut result = Vec::new();
     for placement in &project.placements {
@@ -295,22 +295,7 @@ pub fn placed_keepouts(project: &Project) -> Vec<PlacedKeepout> {
         }
         let t = placement_transform(placement, &footprint.datum);
         for k in &footprint.keepouts {
-            let flip = if t.mirror { -1.0 } else { 1.0 };
-            let outline = Outline {
-                start: t.apply(k.outline.start),
-                segments: k
-                    .outline
-                    .segments
-                    .iter()
-                    .map(|s| match *s {
-                        Segment::Line { to } => Segment::Line { to: t.apply(to) },
-                        Segment::Arc { to, bulge } => Segment::Arc {
-                            to: t.apply(to),
-                            bulge: flip * bulge,
-                        },
-                    })
-                    .collect(),
-            };
+            let outline = transform_outline(&k.outline, &t);
             let layers = match k.scope {
                 KeepoutScope::AllCopper => KeepoutLayers::All,
                 KeepoutScope::ComponentSide => {
@@ -483,3 +468,86 @@ pub fn pick_graphic(
 
 #[cfg(test)]
 mod tests;
+
+/// One fabricated bridge, including its geometry and explicit pad and net identities.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct PlacedBridge {
+    pub instance: Id,
+    pub bridge: crate::ids::BridgeId,
+    pub layer: CopperLayer,
+    pub nets: Vec<Id>,
+    pub pads: Vec<crate::ids::PadId>,
+    pub outline: crate::library::Outline,
+}
+
+/// Fabricated copper is independent of which assembly variant is selected.
+pub fn placed_bridges(project: &Project) -> Vec<PlacedBridge> {
+    if !project.instances.iter().any(|i| i.tie.is_some()) {
+        return Vec::new();
+    }
+    let nets = net_by_terminal(project);
+    let mut bridges = Vec::new();
+    for placement in &project.placements {
+        let Some(i) = project
+            .instance(placement.instance)
+            .filter(|i| i.tie.is_some())
+        else {
+            continue;
+        };
+        let Some(view) = instances::resolve(&project.library, i)
+            .ok()
+            .and_then(|r| r.physical)
+        else {
+            continue;
+        };
+        let fp = &view.footprint.definition;
+        let transform = placement_transform(placement, &fp.datum);
+        for bridge in &fp.bridges {
+            let mut member_nets = bridge
+                .pads
+                .iter()
+                .filter_map(|p| {
+                    let terminal = view.binding.definition.terminal_of(fp.pad(*p)?.terminal?)?;
+                    nets.get(&Endpoint {
+                        instance: i.id,
+                        terminal,
+                    })
+                    .copied()
+                })
+                .collect::<Vec<_>>();
+            member_nets.sort_unstable();
+            member_nets.dedup();
+            bridges.push(PlacedBridge {
+                instance: i.id,
+                bridge: bridge.id,
+                layer: match bridge.side {
+                    PadSide::Top => placement.layer,
+                    PadSide::Bottom => opposite(placement.layer),
+                }
+                .into(),
+                nets: member_nets,
+                pads: bridge.pads.clone(),
+                outline: transform_outline(&bridge.outline, &transform),
+            });
+        }
+    }
+    bridges
+}
+
+fn transform_outline(src: &crate::library::Outline, t: &Transform2) -> crate::library::Outline {
+    use crate::library::{Outline, Segment};
+    Outline {
+        start: t.apply(src.start),
+        segments: src
+            .segments
+            .iter()
+            .map(|s| match *s {
+                Segment::Line { to } => Segment::Line { to: t.apply(to) },
+                Segment::Arc { to, bulge } => Segment::Arc {
+                    to: t.apply(to),
+                    bulge: if t.mirror { -bulge } else { bulge },
+                },
+            })
+            .collect(),
+    }
+}

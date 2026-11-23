@@ -2437,8 +2437,16 @@ impl PcbEditor {
                 .is_some_and(|p| group::allows(&self.filter, p))
                 .then_some(hit)
         };
-        self.pick_pad(at, |p| layers.pad(p))
-            .and_then(|pad| pass(Hit::Pad(pad.instance, pad.net)))
+        self.layout_copper
+            .bridges
+            .iter()
+            .rev()
+            .find(|b| layers.copper_layer(b.layer) && b.mesh.contains(at))
+            .and_then(|b| pass(Hit::Part(b.instance)))
+            .or_else(|| {
+                self.pick_pad(at, |p| layers.pad(p))
+                    .and_then(|pad| pass(Hit::Pad(pad.instance, pad.net)))
+            })
             .or_else(|| {
                 self.pick_via(project, at)
                     .and_then(|via| pass(Hit::Via(via.id, via.net)))
@@ -2899,6 +2907,23 @@ impl PcbEditor {
         let ink = BoardInk::get();
         let plain = ink.on_board(colors.copper_layer(layer), shade);
         let selected = ink.on_board(colors.selected, shade);
+        for bridge in self
+            .layout_copper
+            .bridges
+            .iter()
+            .filter(|b| b.layer == layer)
+        {
+            let chosen = self.highlighted.is_some_and(|n| bridge.nets.contains(&n))
+                || self.group.parts.contains(&bridge.instance);
+            if !chosen_only || chosen {
+                bridge.mesh.paint_bridge(
+                    painter,
+                    view,
+                    if chosen { selected } else { plain },
+                    plain.gamma_multiply(0.65),
+                );
+            }
+        }
         for track in project
             .tracks
             .iter()

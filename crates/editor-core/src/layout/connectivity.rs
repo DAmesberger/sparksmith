@@ -35,7 +35,9 @@ mod lengths;
 mod queries;
 #[cfg(test)]
 mod tests;
+mod ties;
 mod wedges;
+pub use ties::{TieIsland, TieJoin};
 
 pub(crate) use build::{islands_joined, track_copper, via_copper};
 pub use islands::Island;
@@ -124,6 +126,8 @@ struct Group {
 /// build it with [`CopperGraph::of`].
 #[derive(Debug, Default)]
 pub struct CopperGraph {
+    ties: Vec<TieJoin>,
+    tie_findings: Vec<crate::diagnostics::Finding>,
     layers: Vec<CopperLayer>,
     /// The z of each copper layer's foil mid-plane in the stackup, mm.
     mid_planes: BTreeMap<CopperLayer, f64>,

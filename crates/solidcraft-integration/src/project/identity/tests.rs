@@ -2,6 +2,7 @@ use super::*;
 
 fn source(pick_id: u64, component: u64) -> Source {
     Source {
+        tie: None,
         pick_id,
         instance: None,
         pad: None,

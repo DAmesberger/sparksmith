@@ -446,6 +446,9 @@ impl CopperGraph {
         let mut joints = graph.join();
         joints.extend(graph.fill_joints(&fills, first_fill));
         graph.connect(joints);
+        if nets.is_none() {
+            graph.record_ties(project, &fills);
+        }
         graph
     }
 

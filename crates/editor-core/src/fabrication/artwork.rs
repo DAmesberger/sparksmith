@@ -111,6 +111,7 @@ fn side_code(side: Layer) -> &'static str {
 struct Board<'a> {
     project: &'a Project,
     pads: Vec<PlacedPad>,
+    bridges: Vec<layout::PlacedBridge>,
     labels: BTreeMap<(Id, crate::ids::PadId), String>,
     designators: BTreeMap<Id, String>,
     mask_expansion: f64,
@@ -123,6 +124,7 @@ impl<'a> Board<'a> {
         Self {
             project,
             pads: layout::placed_pads(project),
+            bridges: layout::placed_bridges(project),
             labels: layout::pad_labels(project),
             designators: project
                 .instances
@@ -284,6 +286,17 @@ fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) 
         }
     }
     w.polarity(true);
+    for bridge in board.bridges.iter().filter(|b| b.layer == layer) {
+        let nets = bridge
+            .nets
+            .iter()
+            .map(|n| board.net(Some(*n)))
+            .collect::<Vec<_>>()
+            .join(",");
+        w.object(&[("C", board.designator(bridge.instance)), ("N", nets)]);
+        let (start, segments) = outline_path(&bridge.outline, &Transform2::IDENTITY);
+        w.region(Some("EtchedComponent"), start, &segments)?;
+    }
     for track in project.tracks.iter().filter(|t| t.layer == layer) {
         let d = w.aperture(Aperture::circle(track.width)?, Some("Conductor"));
         w.object(&[("N", board.net(Some(track.net)))]);

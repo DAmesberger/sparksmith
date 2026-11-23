@@ -85,3 +85,23 @@ fn publishing_checks_physical_contact_and_assembly_is_typed() -> Result<()> {
     before.assert_kept(&engine, "opening a copper tie");
     Ok(())
 }
+
+#[test]
+fn a_bridge_records_both_islands_without_merging_them() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let fixture = copper_draft(&mut engine)?;
+    add_bridge(&mut engine, fixture, 0.0)?;
+    publish(&mut engine, fixture.all())?;
+    let (id, _) = place(&mut engine, &fixture, "NT1", 1, [45.0, 20.0])?;
+    sync_onto_board(&mut engine)?;
+    let graph = crate::layout::CopperGraph::of(engine.project());
+    let join = graph
+        .ties()
+        .iter()
+        .find(|b| b.bridge.instance == id)
+        .ok_or_else(|| crate::Error::NotFound("Expected the bridge of NT1".into()))?;
+    assert_eq!(join.bridge.nets.len(), 2);
+    assert_eq!(join.islands.len(), 2);
+    assert_ne!(join.islands[0].island, join.islands[1].island);
+    Ok(())
+}

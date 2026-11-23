@@ -67,9 +67,9 @@ pub(crate) use courtyard::limit_finding as courtyard_limit_finding;
 pub use courtyard::{PlacedCourtyard, placed_courtyards};
 pub use pad_hole::{PadHoleIndex, items as pad_hole_items};
 pub use placed::{
-    BoardDrawing, PlacedGraphic, PlacedHole, PlacedItem, PlacedKeepout, PlacedPad, model_to_board,
-    pick_graphic, pick_pad, placed_graphics, placed_keepouts, placed_pads, placement_transform,
-    seat_height,
+    BoardDrawing, PlacedBridge, PlacedGraphic, PlacedHole, PlacedItem, PlacedKeepout, PlacedPad,
+    model_to_board, pick_graphic, pick_pad, placed_bridges, placed_graphics, placed_keepouts,
+    placed_pads, placement_transform, seat_height,
 };
 pub use via::{LayerChangeRequest, ViaRequest, via_pad_clearance_conflict};
 /// Nearby copper pairs one check may compare per shape on average, and

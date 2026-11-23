@@ -93,6 +93,7 @@ pub struct Stats {
 /// The document object a plan body is picked as.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Object {
+    Bridge(Id, sparksmith_core::BridgeId),
     Pad(Id, PadId),
     Track(Id),
     Via(Id),
@@ -103,6 +104,7 @@ fn object(origin: &Origin) -> Option<Object> {
     match *origin {
         Origin::Laminate(_) | Origin::Washer { .. } => None,
         Origin::Pad { instance, pad, .. } => Some(Object::Pad(instance, pad)),
+        Origin::Bridge { instance, bridge } => Some(Object::Bridge(instance, bridge)),
         Origin::Track(track) => Some(Object::Track(track)),
         Origin::Via { via, .. } => Some(Object::Via(via)),
         Origin::Fill { fill, .. } => Some(Object::Fill(fill)),
@@ -113,6 +115,10 @@ fn object(origin: &Origin) -> Option<Object> {
 fn picks(sources: &[Source]) -> HashMap<Object, u64> {
     let mut out = HashMap::new();
     for s in sources {
+        if let (Some(instance), Some(tie)) = (s.instance, &s.tie) {
+            out.insert(Object::Bridge(instance, tie.bridge), s.pick_id);
+            continue;
+        }
         let object = match (s.instance, s.pad, s.track, s.via, s.fill) {
             (Some(instance), Some(pad), ..) => Object::Pad(instance, pad),
             (_, _, Some(track), ..) => Object::Track(track),
@@ -138,6 +144,7 @@ pub fn plan_sources(plan: &BoardPlan) -> Vec<Source> {
             continue;
         }
         let mut source = Source {
+            tie: None,
             pick_id: out.len() as u64 + 1,
             instance: None,
             pad: None,
@@ -154,6 +161,13 @@ pub fn plan_sources(plan: &BoardPlan) -> Vec<Source> {
             Object::Pad(instance, pad) => {
                 source.instance = Some(instance);
                 source.pad = Some(pad);
+            }
+            Object::Bridge(instance, bridge) => {
+                source.instance = Some(instance);
+                source.tie = Some(super::BridgeSource {
+                    bridge,
+                    nets: body.tie_nets.clone(),
+                });
             }
             Object::Track(track) => source.track = Some(track),
             Object::Via(via) => source.via = Some(via),

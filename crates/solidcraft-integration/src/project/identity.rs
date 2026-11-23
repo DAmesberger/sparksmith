@@ -53,6 +53,8 @@ enum Record {
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Sources {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    bridges: BTreeMap<usize, super::BridgeSource>,
     picks: Column,
     components: Column,
     /// `None` is 0 and `Some(v)` is `v + 1` in these.
@@ -292,6 +294,11 @@ impl Sources {
         }
         let column = |f: &dyn Fn(&Source) -> i128| Column::deltas(rows.iter().map(|s| f(s)));
         Self {
+            bridges: rows
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| Some((i, s.tie.clone()?)))
+                .collect(),
             picks: column(&|s| i128::from(s.pick_id)),
             components: column(&|s| i128::from(s.component)),
             occurrences: column(&|s| opt(s.occurrence)),
@@ -315,6 +322,13 @@ impl Sources {
     fn read(&self, budget: usize) -> Result<Vec<Source>> {
         let picks = self.picks.read_deltas(budget)?;
         let rows = picks.len();
+        if self
+            .bridges
+            .iter()
+            .any(|(i, b)| *i >= rows || b.nets.len() > 8)
+        {
+            return Err(broken());
+        }
         let column = |c: &Column| -> Result<Vec<i128>> {
             let values = c.read_deltas(rows)?;
             if values.len() != rows {
@@ -376,6 +390,7 @@ impl Sources {
                 .map(|p| u32::try_from(p).map(PadId).map_err(|_| broken()))
                 .transpose()?;
             out.push(Source {
+                tie: self.bridges.get(&row).cloned(),
                 pick_id: exact(at(&picks)?)?,
                 instance: unopt(at(&instances)?)?,
                 pad,
