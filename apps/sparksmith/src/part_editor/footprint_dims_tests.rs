@@ -927,3 +927,171 @@ fn a_refused_expression_shows_only_its_own_cause() -> TestResult {
     assert!(!shown.contains(&stale), "{stale} still shown: {shown:?}");
     Ok(())
 }
+
+/// Where an inspector frame paints exactly `text` (a field's own text
+/// included).
+fn inspector_text_at(
+    editor: &mut PartEditor,
+    engine: &Engine,
+    ctx: &egui::Context,
+    text: &str,
+) -> Result<Pos2, String> {
+    fn find(shape: &egui::Shape, text: &str) -> Option<Pos2> {
+        match shape {
+            egui::Shape::Text(shape) if shape.galley.job.text == text => {
+                Some(shape.visual_bounding_rect().center())
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|s| find(s, text)),
+            _ => None,
+        }
+    }
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(360.0, 4000.0))),
+            ..Default::default()
+        },
+        |ui| {
+            editor.inspector(ui, engine);
+        },
+    );
+    output.textures_delta.clear();
+    output
+        .shapes
+        .iter()
+        .find_map(|s| find(&s.shape, text))
+        .ok_or_else(|| format!("no {text:?} in {:?}", texts(&output)))
+}
+
+/// Replace the text of the Properties field showing `old` with `new` as a
+/// person does: click it, select all, type, Enter.
+fn retype(
+    editor: &mut PartEditor,
+    engine: &Engine,
+    ctx: &egui::Context,
+    old: &str,
+    new: &str,
+) -> Result<(), String> {
+    let at = inspector_text_at(editor, engine, ctx, old)?;
+    let select_all = egui::Event::Key {
+        key: egui::Key::A,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::COMMAND,
+    };
+    for events in [
+        vec![egui::Event::PointerMoved(at)],
+        vec![button(at, true)],
+        vec![button(at, false)],
+        vec![select_all],
+        vec![egui::Event::Text(new.into())],
+        vec![key(egui::Key::Enter)],
+    ] {
+        inspector_frame(editor, engine, ctx, events);
+    }
+    Ok(())
+}
+
+/// Parameters from the ribbon while a tool is armed: the tool's card gives
+/// way to the footprint card with the Parameters section open, also when
+/// it was left folded. An expression retyped in its cell is one commit
+/// that the sketch follows and one undo step takes back; a refused one
+/// names its problem in the row and leaves the document unchanged.
+#[test]
+fn parameters_from_the_ribbon_edit_an_expression_in_one_step() -> TestResult {
+    let ctx = egui::Context::default();
+    let (mut engine, mut editor, line, _) = sketched(&ctx)?;
+    let draft = editor.draft.as_ref().ok_or("no draft")?.ids.footprint;
+    engine.apply_with(
+        engine.revision(),
+        Operation::Library(sparksmith_core::LibraryCommand::EditFootprint {
+            draft,
+            edits: vec![
+                FootprintEdit::SetParameter {
+                    name: ParamName("pitch".into()),
+                    expr: Expr("1.25 mm".into()),
+                    unit: ParamUnit::Mm,
+                },
+                FootprintEdit::SetParameter {
+                    name: ParamName("span".into()),
+                    expr: Expr("2 * pitch".into()),
+                    unit: ParamUnit::Mm,
+                },
+                FootprintEdit::Sketch(SketchEdit::AddDimension {
+                    kind: DimKind::Distance,
+                    refs: vec![SketchRef::Curve(line)],
+                    value: DimValue::Param(ParamName("span".into())),
+                }),
+            ],
+        }),
+        &SketchEvaluator,
+    )?;
+    editor.commit(&ctx, &engine);
+    let length = |engine: &Engine, editor: &PartEditor| {
+        ends(engine, editor).map(|(a, b)| (b[0] - a[0]).hypot(b[1] - a[1]))
+    };
+    let value_line = |shown: &[String], value: &str| {
+        shown
+            .iter()
+            .any(|t| t.starts_with(&format!("= {value} · used by")))
+    };
+
+    // The section folded and the Dimension tool armed: its tool card holds
+    // the subject slot, and no parameter shows.
+    open_section(&mut editor, &engine, &ctx, "PARAMETERS")?;
+    let shown = inspector_frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(!value_line(&shown, "1.25 mm"), "folded: {shown:?}");
+    editor.on_tool("fp-dimension", &engine);
+    let shown = inspector_frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(!shown.iter().any(|t| t == "PARAMETERS"), "{shown:?}");
+
+    // The ribbon's Parameters: the footprint card, the section open.
+    editor.on_tool("fp-parameters", &engine);
+    let shown = inspector_frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(shown.iter().any(|t| t == "PARAMETERS"), "{shown:?}");
+    assert!(value_line(&shown, "1.25 mm"), "{shown:?}");
+    assert!(value_line(&shown, "2.5 mm"), "{shown:?}");
+    assert!(
+        !send(&mut editor, &mut engine, &ctx)?,
+        "showing them sends nothing"
+    );
+    assert!((length(&engine, &editor)? - 2.5).abs() < 1e-6);
+
+    // A new expression for pitch: one commit, and the bound line follows.
+    let revision = engine.revision();
+    retype(&mut editor, &engine, &ctx, "1.25 mm", "0.5 mm + 1 mm")?;
+    assert_eq!(editor.footprint_dims.panel_error(), None);
+    assert!(send(&mut editor, &mut engine, &ctx)?);
+    assert_eq!(engine.revision(), revision + 1, "one commit");
+    assert!((length(&engine, &editor)? - 3.0).abs() < 1e-6);
+    let shown = inspector_frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(value_line(&shown, "1.5 mm"), "{shown:?}");
+    assert!(value_line(&shown, "3 mm"), "{shown:?}");
+
+    // One undo step takes the change back, in the sketch and in the panel.
+    engine.undo()?;
+    editor.commit(&ctx, &engine);
+    assert!((length(&engine, &editor)? - 2.5).abs() < 1e-6);
+    let shown = inspector_frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(value_line(&shown, "1.25 mm"), "{shown:?}");
+
+    // An expression that cannot be evaluated: the row names the problem,
+    // the typed text stays, nothing is sent and the document is unchanged.
+    let before = engine_source(&engine, &editor);
+    let revision = engine.revision();
+    retype(&mut editor, &engine, &ctx, "1.25 mm", "span / 2")?;
+    let why = editor
+        .footprint_dims
+        .panel_error()
+        .ok_or("the cycle is refused")?
+        .to_owned();
+    assert!(why.contains("pitch"), "{why}");
+    assert!(!send(&mut editor, &mut engine, &ctx)?);
+    assert_eq!(engine.revision(), revision);
+    assert_eq!(engine_source(&engine, &editor), before);
+    let shown = inspector_frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(shown.contains(&why), "{why} in {shown:?}");
+    assert!(shown.iter().any(|t| t == "span / 2"), "{shown:?}");
+    assert!((length(&engine, &editor)? - 2.5).abs() < 1e-6);
+    Ok(())
+}

@@ -192,8 +192,9 @@ impl PartEditor {
             .map_err(|e| e.to_string())
     }
 
-    /// The Footprint ribbon's Constrain group: Dimension and the geometric
-    /// constraints, enabled on a sketched footprint.
+    /// The Footprint ribbon's Constrain group: Dimension, the geometric
+    /// constraints, All dims and Parameters, enabled on a sketched
+    /// footprint.
     pub(super) fn constrain_group(&self) -> crate::shell::Group {
         use crate::shell::{Group, Tool};
         let sourced = self
@@ -233,6 +234,7 @@ impl PartEditor {
                 .selected(self.footprint_dims.detail == dims::DimDetail::All)
                 .tip("Show every dimension, including derived and template-internal ones; otherwise only the independent parameters' and the selection's"),
         );
+        tools.push(self.parameters_tool());
         Group {
             label: "Constrain",
             tools,
