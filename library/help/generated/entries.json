@@ -3123,7 +3123,7 @@
       "module": "project",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "e503c9e37010bc8c",
+      "schema_digest": "2250c6e17436f239",
       "examples": []
     }
   },
@@ -3193,7 +3193,7 @@
       "module": "project",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "4d65dac5f3c7299e",
+      "schema_digest": "66f8e629d439ee08",
       "examples": []
     }
   },
@@ -3468,6 +3468,20 @@
       "class": "edit",
       "entry_kind": "operation",
       "schema_digest": "237d8966db6528a5",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/schematic.check_intent",
+    "title": "Check intended net connections",
+    "summary": "Compare exact named net memberships with the schematic and rehearse the corrective operations.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "schematic",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2e5265a2bccfd7c4",
       "examples": []
     }
   },

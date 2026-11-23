@@ -1,7 +1,7 @@
 ---
 {
   "covers": {
-    "entry/project.schema": "4d65dac5f3c7299e",
+    "entry/project.schema": "66f8e629d439ee08",
     "term/footprint": "40ea9c3fb8d9cac9528b7bb7e4cc9b8377a67129f2e4990c96384e6da939ea02"
   },
   "id": "panel/help",

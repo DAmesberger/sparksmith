@@ -573,7 +573,7 @@ declare_entries!(Query in project {
     PinoutPreview "library.pinout_preview" Read "Preview a pinout import" [in library, long, link, returns(pinout_plan)],
     SuggestPins "functions.suggest" Read "Suggest pin assignments" [in schematic, link, returns(suggest_pins)],
     PinReport "project.pin_report" Read "Pin report" [in schematic, link, returns(pin_report)],
-    CheckIntent "schematic.check_intent" Read "Check intended net connections" [in schematic, long, link, since(1, 12), returns(net_intent)],
+    CheckIntent "schematic.check_intent" Read "Check intended net connections" [in schematic, long, link, since(1, 10), returns(net_intent)],
     PartPins "schematic.pins" Read "List parts' pins" [in schematic, link, since(1, 7), returns(part_pins)],
     PinConfig "project.pin_config" Read "Firmware pin configuration" [in fab, link, returns(pin_config)],
     Marking "instance.marking" Read "Resolve an instance's marking" [in schematic, returns(marking)],
