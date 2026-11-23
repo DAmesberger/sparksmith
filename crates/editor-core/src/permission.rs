@@ -28,7 +28,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "files",
-        (1, 4),
+        (1, 5),
         "Files",
         "New, open and save a project file.",
     ),
@@ -64,7 +64,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "checks",
-        (1, 4),
+        (1, 5),
         "Checks",
         "Issues, the production check and its waivers.",
     ),
@@ -76,7 +76,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "model3d",
-        (2, 1),
+        (2, 2),
         "3D model",
         "The exact 3D export, the board interface, the assembly link and part files.",
     ),

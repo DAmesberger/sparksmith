@@ -2131,9 +2131,10 @@ impl Session {
                     .collect()
             }
         };
-        let mut snapshot = json!({
+        json!({
             "revision": self.engine.revision(),
             "project": project,
+            "netlist": sparksmith_core::instances::ties::Netlist::of(project),
             "drafts": drafts,
             "can_undo": self.engine.can_undo(),
             "can_redo": self.engine.can_redo(),
@@ -2142,12 +2143,7 @@ impl Session {
             // `project.issues` (severity, wording, merging, locating).
             "erc": erc::checks(project),
             "board_checks": layout::checks(project, self.engine.check_settings()),
-        });
-        let ties = sparksmith_core::instances::ties::rows(project);
-        if !ties.is_empty() {
-            snapshot["netlist"] = json!({"nets":project.nets,"ties":ties});
-        }
-        snapshot
+        })
     }
 
     /// Parse and run a JSON request as the operator through the front door,

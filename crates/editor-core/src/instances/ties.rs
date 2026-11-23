@@ -8,6 +8,23 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// A schematic netlist preserves each routed net and names the electrical
+/// joins in the active assembly variant separately.
+#[derive(Serialize, JsonSchema)]
+pub struct Netlist<'a> {
+    pub nets: &'a [crate::model::Net],
+    pub ties: Vec<TieRow>,
+}
+
+impl<'a> Netlist<'a> {
+    pub fn of(project: &'a Project) -> Self {
+        Self {
+            nets: &project.nets,
+            ties: rows(project),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TieRow {
     pub group: TieId,
