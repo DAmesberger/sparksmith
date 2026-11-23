@@ -26,6 +26,23 @@ fn suggested_pair_shows_its_source_before_add() -> Fallible {
             }),
         )?;
     }
+    if let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") {
+        let mut editor = crate::pcb_editor::PcbEditor::default();
+        editor.open_signals();
+        let picture = crate::pcb_editor::raster_tests::picture_of(
+            [320.0, 620.0],
+            sparksmith_ui::theme::Tokens::get().panel,
+            |ui| {
+                editor.subject_slot(ui, &engine);
+            },
+        );
+        let dir = std::path::Path::new(&dir);
+        std::fs::create_dir_all(dir)?;
+        std::fs::write(
+            dir.join("suggested-pair.png"),
+            picture.png().ok_or("card PNG")?,
+        )?;
+    }
     let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
     ax.app.pcb.open_signals();
     ax.settle();
