@@ -76,6 +76,14 @@ impl ModelBackend for Scripted {
             serde_json::to_string(request.messages).unwrap_or_default()
         );
         let chars = whole.len();
+        if std::env::var_os("SPARKSMITH_RECORD_REQUEST_DIGESTS").is_some() {
+            use sha2::{Digest, Sha256};
+            println!(
+                "request-sha256 {} {:x}",
+                self.n + 1,
+                Sha256::digest(whole.as_bytes())
+            );
+        }
         self.sent.push(chars);
         let same = whole
             .bytes()

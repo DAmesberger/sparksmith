@@ -375,6 +375,23 @@ fn discovery(cx: &mut Builder) -> Value {
             ("reply", schema_object()),
         ],
         &[
+            ("title", text.clone()),
+            ("summary", text.clone()),
+            (
+                "person",
+                json!({"enum":[null, sparksmith_core::permission::Person::Approval, sparksmith_core::permission::Person::Review]}),
+            ),
+            (
+                "reach",
+                array(json!({"enum":sparksmith_core::permission::Reach::ALL})),
+            ),
+            (
+                "full",
+                object(
+                    &[("name", text.clone()), ("detail", json!({"const":"full"}))],
+                    &[],
+                ),
+            ),
             ("editor", text.clone()),
             ("send", json!({"type":"object"})),
             ("examples", array(Value::Bool(true))),

@@ -53,7 +53,7 @@ pub(super) fn def_name(schema: &Value) -> Option<&str> {
 
 /// The definitions `schema` references. Text and JSON literals can contain
 /// strings of the same spelling and remain opaque.
-pub(super) fn visit_refs<'a>(schema: &'a Value, mut on_ref: impl FnMut(&'a str)) {
+pub(crate) fn visit_refs<'a>(schema: &'a Value, mut on_ref: impl FnMut(&'a str)) {
     fn visit<'a>(value: &'a Value, context: SchemaContext, on_ref: &mut impl FnMut(&'a str)) {
         if context == SchemaContext::Literal {
             return;

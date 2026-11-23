@@ -2,7 +2,7 @@
 //! gives the exact schema of one operation, query or command
 //! on demand. Everything is derived from the generated catalog, so a command
 //! added to the engine is listed and served without changing this module.
-use super::{Request, SchemaParams};
+use super::{Request, SchemaDetail, SchemaParams};
 use crate::{Error, Result};
 use serde_json::{Map, Value, json};
 use sparksmith_core::permission::EntryDecl;
@@ -13,6 +13,8 @@ use std::sync::OnceLock;
 /// Definitions one `project.schema` entry carries; the rest are named in
 /// `more_defs` and read with `def`.
 const MAX_DEFS_BYTES: usize = 24 * 1024;
+/// URI of a reply schema, resolved by passing it as `def` for the named entry.
+const REPLY_URI: &str = "sparksmith:reply/";
 /// Where an index row cuts a summary; the metadata tests keep every summary
 /// within it ([`super::metadata::MAX_SUMMARY`]).
 const MAX_SUMMARY: usize = super::metadata::MAX_SUMMARY;
@@ -284,6 +286,13 @@ pub(super) fn schema_reply(params: SchemaParams) -> Result<Value> {
         )));
     }
     if let Some(def) = params.def {
+        if let Some(reply_name) = def.strip_prefix(REPLY_URI) {
+            let entry = found
+                .first()
+                .filter(|entry| entry.name == reply_name)
+                .ok_or_else(|| not_found(format!("{name} has no definition {def}")))?;
+            return Ok(json!({"name":name, "def":def, "schema":reply_page(entry)}));
+        }
         let schema = found.iter().find_map(|entry| {
             let (root, key) = match def.strip_prefix("reply:") {
                 Some(key) => (entry.reply_schema(), key),
@@ -301,11 +310,14 @@ pub(super) fn schema_reply(params: SchemaParams) -> Result<Value> {
         }
         return Ok(reply);
     }
-    let matches: Vec<Value> = found.iter().map(|entry| describe(entry)).collect();
+    let matches: Vec<Value> = found
+        .iter()
+        .map(|entry| describe(entry, params.detail))
+        .collect();
     Ok(json!({"name": name, "matches": matches}))
 }
 
-fn describe(entry: &Entry) -> Value {
+fn describe(entry: &Entry, detail: SchemaDetail) -> Value {
     let schema = inline_top_ref(&entry.params, entry.root);
     let mut out = json!({
         "kind": entry.kind,
@@ -313,6 +325,46 @@ fn describe(entry: &Entry) -> Value {
         "class": entry.class,
         "schema": schema,
     });
+    match detail {
+        SchemaDetail::Full => out["reply"] = reply_page(entry),
+        SchemaDetail::Input => {
+            let meta = super::metadata::meta(entry);
+            out["title"] = json!(meta.title);
+            out["summary"] = json!(meta.summary);
+            out["person"] = json!(meta.person);
+            out["reach"] = json!(meta.reach.iter().collect::<Vec<_>>());
+            // The raw project.schema contract promises a JSON Schema in
+            // reply. Its URI can be fetched as def, including on JSON lines.
+            out["reply"] = json!({"$ref": format!("{REPLY_URI}{}", entry.name)});
+            out["full"] = json!({"name": entry.name, "detail": "full"});
+        }
+    }
+    let examples = examples(&entry.name);
+    if !examples.is_empty() {
+        out["examples"] = json!(examples);
+    }
+    if entry.takes_path {
+        out["asks_with_path"] = json!(true);
+    }
+    if let Some(editor) = &entry.editor {
+        out["editor"] = json!(editor);
+    }
+    if let Some(send) = &entry.send {
+        out["send"] = send.clone();
+    }
+    let budget = if detail == SchemaDetail::Input {
+        INPUT_PAGE_BYTES
+    } else {
+        MAX_DEFS_BYTES
+    };
+    add_defs_with_budget(&mut out, &schema, entry.root, budget);
+    if detail == SchemaDetail::Input {
+        fit_input_page(&mut out);
+    }
+    out
+}
+
+fn reply_page(entry: &Entry) -> Value {
     let root = entry.reply_schema();
     let mut reply = root.as_object().map_or_else(
         || root.clone(),
@@ -332,22 +384,7 @@ fn describe(entry: &Entry) -> Value {
     if let (Some(obj), Some(defs)) = (reply.as_object_mut(), reply_defs.as_object()) {
         obj.extend(defs.clone());
     }
-    out["reply"] = reply;
-    let examples = examples(&entry.name);
-    if !examples.is_empty() {
-        out["examples"] = json!(examples);
-    }
-    if entry.takes_path {
-        out["asks_with_path"] = json!(true);
-    }
-    if let Some(editor) = &entry.editor {
-        out["editor"] = json!(editor);
-    }
-    if let Some(send) = &entry.send {
-        out["send"] = send.clone();
-    }
-    add_defs(&mut out, &schema, entry.root);
-    out
+    reply
 }
 
 /// `schema` with a top-level `$ref` replaced by the definition it names, so
@@ -382,6 +419,28 @@ pub(super) fn inline_top_ref(schema: &Value, root: &Value) -> Value {
 /// Add the definitions `schema` reaches, nearest first, up to the budget.
 /// What did not fit is named in `more_defs`.
 fn add_defs(out: &mut Value, schema: &Value, root: &Value) {
+    add_defs_with_budget(out, schema, root, MAX_DEFS_BYTES);
+}
+
+// The initial input view targets one KiB (agent-harness, H1). A caller can
+// read each deferred definition at the normal 24 KiB page size.
+const INPUT_PAGE_BYTES: usize = 1024;
+
+pub(crate) fn fit_input_page(out: &mut Value) {
+    if out.get("$defs").is_none() || out.to_string().len() <= INPUT_PAGE_BYTES {
+        return;
+    }
+    let mut direct = BTreeSet::new();
+    super::schema_walk::visit_refs(&out["schema"], |name| {
+        direct.insert(name.to_owned());
+    });
+    if let Some(object) = out.as_object_mut() {
+        object.remove("$defs");
+        object.insert("more_defs".into(), json!(direct));
+    }
+}
+
+fn add_defs_with_budget(out: &mut Value, schema: &Value, root: &Value, budget: usize) {
     let mut seen = BTreeSet::new();
     let mut queue = VecDeque::new();
     collect_refs(schema, &mut seen, &mut queue);
@@ -393,7 +452,7 @@ fn add_defs(out: &mut Value, schema: &Value, root: &Value) {
             continue;
         };
         let size = def.to_string().len();
-        if used.saturating_add(size) > MAX_DEFS_BYTES {
+        if used.saturating_add(size) > budget {
             more.push(name);
             continue;
         }

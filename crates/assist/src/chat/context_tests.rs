@@ -128,6 +128,38 @@ fn bulky_replies_read_and_moved_past_are_cleared_together_and_name_their_call() 
 }
 
 #[test]
+fn settled_replies_count_the_bytes_their_json_strings_send() -> Fallible {
+    let ascii: String = (0u8..=127).map(char::from).collect();
+    for sample in ["", &ascii, "éΩ📐"] {
+        assert_eq!(json_string_bytes(sample), serde_json::to_vec(sample)?.len());
+    }
+
+    let escaped = json!({"items": vec![r#"a"b\c"#; 300]}).to_string();
+    let policy = Policy {
+        keep_rounds: 1,
+        bulky_chars: 1_500,
+        batch_chars: serde_json::to_vec(&escaped)?.len(),
+        ..Policy::KEEP_ALL
+    };
+    // Only the retired round counts. With the same unescaped byte length,
+    // the structured reply meets the batch budget and the plain one stays.
+    let run = |text: String| {
+        let mut history = vec![
+            calls(&[("old", "query", json!({"name":"library.search"}))]),
+            results(&[("old", text)]),
+            calls(&[("recent", "query", json!({"name":"project.inspect"}))]),
+            results(&[("recent", escaped.clone())]),
+        ];
+        let cleared = clear_settled(&mut history, &policy);
+        assert_eq!(texts(&history)[1], escaped);
+        cleared
+    };
+    assert_eq!(run("x".repeat(escaped.len())), 0);
+    assert_eq!(run(escaped.clone()), 1);
+    Ok(())
+}
+
+#[test]
 fn condensing_keeps_the_ids_of_edits_and_the_person_s_words_and_drops_listings() -> Fallible {
     let place =
         json!({"expected_revision": 3, "operations": [{"op": "component.place", "params": {}}]});

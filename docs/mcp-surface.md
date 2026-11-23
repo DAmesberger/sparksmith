@@ -444,11 +444,11 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - Each hit carries `name`, `kind`, `class`, `title` and `summary`. When hits are cut, `more` counts the rest.
   - Limits: text up to 200 characters; `limit` 1–50 (default 10). Never-class entries are not found.
   - `find` reads the static M2 metadata, not a project, so it does not go through the desk.
-- **`describe {name, def?}`** runs `project.schema` through the gate.
+- **`describe {name, def?, detail?}`** runs `project.schema` through the gate. The default `input` detail includes the input schema, its paged definitions, the call, the class, the person step and the declared reach. Pass the arguments in `full` to read the full contract.
   - It answers one reachable entry with `kind`, `title`, `summary`, `person` where set, and `call`, the call on this surface. Today's `send` shape and `asks_with_path` are removed.
   - `schema` is exactly what the verb's `params` take: an operation's or query's parameters without the tag that names it (`{command, params}` is the core's wire shape, never `apply`'s), with the variant's description. `apply`, `query` and `act` check fields against the same schema (`discovery::params_schema`).
-  - `examples` lists the parameter examples the entry's description gives (each JSON object in backticks), and `call` sends the first in place of `<params>`. `every_describe_example_is_what_apply_and_query_accept` sends every example of every operation and query through the field check and the typed read `apply` and `query` run.
-  - `def` reads one definition.
+  - `examples` lists the parameter examples the entry's description gives (each JSON object in backticks), and `call` sends the first in place of `<params>`. `every_describe_example_passes_the_field_check_and_typed_reader` sends every example of every operation and query through the field check and the typed read `apply` and `query` run.
+  - `def` reads a definition by its advertised key. Raw `project.schema` callers can pass an input match's `reply.$ref` as `def` with the same name to read its reply schema. They can also pass the arguments in `full` to receive the complete match.
 - **`query {project?, name, params}`**: a query becomes `project.query`, and a read command runs as itself.
 - **`apply {project?, expected_revision, operations, dry_run?}`**: 1–256 steps.
   - Document operations run as one new request, `project.apply_all`: one revision and one undo step, all or nothing.
@@ -474,7 +474,7 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - `Engine::apply_all_hosted` applies the steps on a history-free copy and commits once (`MAX_BATCH` 256).
   - `Engine::fork` copies the engine with its history.
   - `Error::in_batch` names the failing step after the message, so a leading rule code stays readable.
-- **Reading a reply contract.** For a catalog entry, `describe` returns its parameter schema in `schema` and its successful front-door result schema in `reply`. The suggested MCP invocation names the entry it submits in `call_reply_entry`. For example, `describe {name:"project.rename"}` describes the single edit's `outcome`. Its MCP `apply` submits `project.apply_all`, whose reply has an `outcomes` array even for one step. Describe that entry for the batch schema. A result definition deferred from either page can be fetched by passing its exact key from `reply.more_defs` as `def`. MCP then supplies the project handle for project calls as described above.
+- **Reading a reply contract.** For a catalog entry, `describe {name, detail:"full"}` returns its parameter schema in `schema` and its successful front-door result schema in `reply`. The suggested MCP invocation names the entry it submits in `call_reply_entry`. For example, `describe {name:"project.rename", detail:"full"}` describes the single edit's `outcome`. Its MCP `apply` submits `project.apply_all`, whose reply has an `outcomes` array even for one step. Request full detail for that entry to read the batch schema. A result definition deferred from either page can be fetched by passing its exact key from `reply.more_defs` as `def`. MCP then supplies the project handle for project calls as described above.
 - **Catalog.** `project.apply_all` ("Apply operations as one step", Edit) is the 42nd request, so the catalog now has 229 entries. Its class is the strictest of its operations, and at least Edit. Today's server lists it as a tool too, from the same catalog.
 - **Deviations from §3:**
   - `find` hits carry no `sparksmith://catalog/{name}` link, and `describe` gives no related skills and no `guide:` text. Those resources and skills arrive with P4, and `guide:` answers `guide.unknown` until then.

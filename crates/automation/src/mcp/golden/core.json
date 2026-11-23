@@ -156,12 +156,19 @@
               "openWorldHint": false,
               "readOnlyHint": true
             },
-            "description": "One entry's parameter and reply schemas, the MCP call and its reply entry.",
+            "description": "Input schema and call. Use full for the reply schema.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
                 "def": {
                   "description": "A key from more_defs or reply.more_defs, including its prefix.",
+                  "type": "string"
+                },
+                "detail": {
+                  "enum": [
+                    "input",
+                    "full"
+                  ],
                   "type": "string"
                 },
                 "name": {
@@ -785,12 +792,19 @@
               "openWorldHint": false,
               "readOnlyHint": true
             },
-            "description": "One entry's parameter and reply schemas, the MCP call and its reply entry.",
+            "description": "Input schema and call. Use full for the reply schema.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
                 "def": {
                   "description": "A key from more_defs or reply.more_defs, including its prefix.",
+                  "type": "string"
+                },
+                "detail": {
+                  "enum": [
+                    "input",
+                    "full"
+                  ],
                   "type": "string"
                 },
                 "name": {

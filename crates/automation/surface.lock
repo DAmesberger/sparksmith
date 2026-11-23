@@ -1,5 +1,5 @@
 {"format": 2, "modules": [
- {"id": "project", "version": "7.22", "digest": "sha256:5f90bb1016c64ad6cbcc3e55f7c9daca5520a638829d82b8361c0d4996fa3939", "entries": [
+ {"id": "project", "version": "7.23", "digest": "sha256:055b65911c17445938a483fdbdc94c0ac2bb026bfa301f62ff6889c1248b6201", "entries": [
   {"name":"project.apply","class":"edit","schema":"d4d8afbc20206e52","reply":"eef34e680f64def5","fields":[["expected_revision","9295ea67127970c6"],["operation","af3d7746f6fe0c15"]],"required":["expected_revision","operation"]},
   {"name":"project.apply_all","class":"edit","schema":"349815e5d2593fcb","reply":"56b65855c78bc3b6","fields":[["expected_revision","9295ea67127970c6"],["operations","b57604d6bc7e37c6"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","reply":"d05a52d8a2db133d","fields":[],"required":[]},
@@ -7,7 +7,7 @@
   {"name":"project.query","class":"read","schema":"840ac1181be4ea45","reply":"6677349be46d1388","fields":[],"required":[]},
   {"name":"project.redo","class":"edit","schema":"5d360ab06dd84fb0","reply":"eb13c9464975f85a","fields":[["expected_revision","9295ea67127970c6"]],"required":["expected_revision"]},
   {"name":"project.rename","class":"edit","schema":"92c2e30151865925","reply":"56fec4cc26b195f2","fields":[["name","f186891b5656c9ae"]],"required":["name"]},
-  {"name":"project.schema","class":"read","schema":"7e398ef3b2cf4d96","reply":"eb54e8f32cb94ec5","fields":[["def","40bd5b57f4261fe2"],["name","40bd5b57f4261fe2"]],"required":[]},
+  {"name":"project.schema","class":"read","schema":"4d65dac5f3c7299e","reply":"34794691c67682ef","fields":[["def","40bd5b57f4261fe2"],["detail","ed59df279df37939"],["name","40bd5b57f4261fe2"]],"required":[]},
   {"name":"project.set_properties","class":"edit","schema":"b70e7ac8f35fea84","reply":"56fec4cc26b195f2","fields":[["properties","ca013f99e14c888a"]],"required":["properties"]},
   {"name":"project.turn_begin","class":"read","schema":"c3b32c54c0444881","reply":"e827c8f6309a0977","fields":[["label","f186891b5656c9ae"]],"required":["label"]},
   {"name":"project.turn_end","class":"read","schema":"8ba67b5506a8d9ac","reply":"e827c8f6309a0977","fields":[["turn","f186891b5656c9ae"]],"required":["turn"]},

@@ -39,7 +39,7 @@ pub struct Policy {
     pub keep_rounds: usize,
     /// A reply at least this long is cleared once it is older.
     pub bulky_chars: usize,
-    /// Older bulky replies are cleared together once they add up to this.
+    /// Older bulky replies are cleared together once their JSON strings occupy this many bytes.
     pub batch_chars: usize,
     /// Condense when the prompt passes this share of the context.
     pub trigger: f64,
@@ -321,24 +321,39 @@ fn clear_before(
     (count, saved)
 }
 
+/// Bytes that a plain UTF-8 string occupies in the request JSON,
+/// including its quotes. Count escapes without allocating another string.
+fn json_string_bytes(text: &str) -> usize {
+    text.bytes().fold(2usize, |bytes, byte| {
+        let encoded = match byte {
+            b'"' | b'\\' | b'\n' | b'\r' | b'\t' | 0x08 | 0x0c => 2,
+            0x00..=0x1f => 6,
+            _ => 1,
+        };
+        bytes.saturating_add(encoded)
+    })
+}
+
 /// Clear older bulky replies once enough have piled up: how many were
 /// cleared (0 when they were left).
 pub fn clear_settled(history: &mut [Message], policy: &Policy) -> usize {
     let from = kept_from(history, policy.keep_rounds);
-    let piled: usize = history
+    let mut piled = 0usize;
+    let batch_ready = history
         .iter()
         .take(from)
         .flat_map(|m| &m.content)
-        .filter_map(|p| match p {
-            Part::ToolResult { text, .. }
-                if !text.starts_with(STUB) && text.len() >= policy.bulky_chars =>
-            {
-                Some(text.len())
+        .any(|part| {
+            let Part::ToolResult { text, .. } = part else {
+                return false;
+            };
+            if text.len() < policy.bulky_chars || text.starts_with(STUB) {
+                return false;
             }
-            _ => None,
-        })
-        .sum();
-    if piled < policy.batch_chars {
+            piled = piled.saturating_add(json_string_bytes(text));
+            piled >= policy.batch_chars
+        });
+    if !batch_ready {
         return 0;
     }
     clear_before(history, from, |text| text.len() >= policy.bulky_chars).0
