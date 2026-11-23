@@ -2,7 +2,7 @@
 {
   "id": "finding/part.binding_unlisted",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/part.binding_unlisted": "d6a5fd6342c169971a101e4aee52dc87e4211382026b91eb5d7f10be7f3a9dc9"
   },

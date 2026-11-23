@@ -2,7 +2,7 @@
 {
   "id": "finding/binding.footprint_unbound",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/binding.footprint_unbound": "5d378e61a325b1a76ba99b86c87d2b63d9fe8dc449212a816277a37b08990f9e"
   },

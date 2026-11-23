@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.override_orphaned",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.override_orphaned": "03320890e452369e8832ab9af8d8d5d59b04447e1d28a545335f8bfcc8b427c2"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/function.pin_option",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/function.pin_option": "62d61bb02f530329f82422b1d4fe1241267bbacb0c80688ad676896d9399c3ad"
   },

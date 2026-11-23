@@ -2,7 +2,7 @@
 {
   "id": "finding/library.source_modified",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/library.source_modified": "ebacb30fda60b5453cce940feffc6c5456d6e01d80c88ba6caf7e7411f26b055"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/fill.island_unconnected",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/fill.island_unconnected": "5019b82b564e915697c178d31c54314f822370bc06e49544f84253192c6e707d"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/assembly.reference_inexact",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/assembly.reference_inexact": "c188222c08371207d4147825f22ca851bca96c42ac9378443d475c54c4f225dd"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/package.leads",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/package.leads": "71e1f485cd77b1b795ab49a4408dbfe2db98478a85a9435ebad55b97bbf0746c"
   },

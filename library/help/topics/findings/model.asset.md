@@ -2,7 +2,7 @@
 {
   "id": "finding/model.asset",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/model.asset": "cbe32265b80a68c0f5c3fb241e6ee381ec989062dcee9a4908890f738f620f65"
   },

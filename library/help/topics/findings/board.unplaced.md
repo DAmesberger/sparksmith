@@ -2,7 +2,7 @@
 {
   "id": "finding/board.unplaced",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.unplaced": "93d980a6dd3860ca1c1fd69b126b75cc5624257a9b85f2d2695564fff5db66d6"
   },

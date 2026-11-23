@@ -2,7 +2,7 @@
 {
   "id": "finding/graphic.fill_open",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/graphic.fill_open": "c40280519441b19d373f7afdc173a12bbab2d9df9d344a362b10b64ac1ce4987"
   },

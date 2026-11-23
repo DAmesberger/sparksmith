@@ -2,7 +2,7 @@
 {
   "id": "finding/graphic.invisible",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/graphic.invisible": "4463e3f0e7623e103503eb7f2f1f229156307c89e9f54c3d6b9a9a8327f8a07e"
   },

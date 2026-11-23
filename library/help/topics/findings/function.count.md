@@ -2,7 +2,7 @@
 {
   "id": "finding/function.count",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/function.count": "f6ae368ffcfb1caba309e35ee7c3257ad2629c9b2447d4b3ead6d971214bed69"
   },

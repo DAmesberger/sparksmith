@@ -2,7 +2,7 @@
 {
   "id": "finding/library.update_available",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/library.update_available": "6f130970b5d3caf2c9456c044a2bbb051d06df294441e357c5ea7ad5a7c6f921"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/pinout.uncertain",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/pinout.uncertain": "42492a8a0957dc555cdb2e9ce41810b22d94e971a6f2399f6c72066221a6cae0"
   },

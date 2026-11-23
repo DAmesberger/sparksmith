@@ -2,7 +2,7 @@
 {
   "id": "finding/layout.dimension_limit",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/layout.dimension_limit": "d56cf0c109ad449085a0c55aafed0b11f07848ce32654801aee59d113a342951"
   },

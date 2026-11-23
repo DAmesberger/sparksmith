@@ -2,7 +2,7 @@
 {
   "id": "finding/board.courtyard_clearance",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.courtyard_clearance": "c4423ea70b75db7a0fca63a0fc80bf675249b8b179b64a6f0ee086495e8bb39b"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/board.check_limit",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.check_limit": "3f1a5893f203bce14fbebfab5662f9bd16acec7fde63255df528dbebe69a8abd"
   },

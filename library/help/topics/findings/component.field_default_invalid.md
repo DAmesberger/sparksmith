@@ -2,7 +2,7 @@
 {
   "id": "finding/component.field_default_invalid",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/component.field_default_invalid": "fda764f893190a26c003c03133bf68c1ce2ada75d034f3fa53ae2616728b1f35"
   },

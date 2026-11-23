@@ -2,7 +2,7 @@
 {
   "id": "finding/part_file.model",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/part_file.model": "8d5d394da2fb801b2cdbc304ed6aca0afb9991e32f4d395aa864af45974f4e01"
   },

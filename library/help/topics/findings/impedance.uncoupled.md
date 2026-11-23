@@ -2,7 +2,7 @@
 {
   "id": "finding/impedance.uncoupled",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/impedance.uncoupled": "4e9008fddc6b9a3c2729678695444fac8a000e081cf801de1b601d6aaf6588dd"
   },

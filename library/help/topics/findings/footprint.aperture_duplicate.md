@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.aperture_duplicate",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.aperture_duplicate": "805977515809e643249df27e20653786fc1cb2e4cf0a9933141f74c01bbb98b2"
   },

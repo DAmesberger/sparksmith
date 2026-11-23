@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.polarity_pad_unknown",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.polarity_pad_unknown": "28d59bdf82a1ddbcd0ccbc5b4bda043889f47e79af4b4686e9b9de81861641de"
   },

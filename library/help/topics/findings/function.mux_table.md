@@ -2,7 +2,7 @@
 {
   "id": "finding/function.mux_table",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/function.mux_table": "b1c9a9efcb866156078ba952c0065e48ee86c8aab85d8f4c7d8717838826bc05"
   },

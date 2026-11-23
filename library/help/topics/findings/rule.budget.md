@@ -2,7 +2,7 @@
 {
   "id": "finding/rule.budget",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/rule.budget": "75b3c70f3bdd6cc6dde968cc0d1679857e721882044a9cbb826bbf1734bdca3b"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.pad_terminal_unknown",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.pad_terminal_unknown": "c4784a9e48143a2a731540347a5212575af549754040f2adbee373a55bc75d0c"
   },

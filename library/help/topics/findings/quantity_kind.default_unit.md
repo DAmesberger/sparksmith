@@ -2,7 +2,7 @@
 {
   "id": "finding/quantity_kind.default_unit",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/quantity_kind.default_unit": "f1e6471a1df4c811e8d32e2994e816e7dee82a2e7694507836cb470fa00a7daf"
   },

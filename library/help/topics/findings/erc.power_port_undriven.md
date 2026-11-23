@@ -2,7 +2,7 @@
 {
   "id": "finding/erc.power_port_undriven",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/erc.power_port_undriven": "19b4f50ca02089bf2a1a7eab5dff765ee6c16f8e003890031df2a6f8b391f4de"
   },

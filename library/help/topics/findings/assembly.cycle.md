@@ -2,7 +2,7 @@
 {
   "id": "finding/assembly.cycle",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/assembly.cycle": "2671f5898d41278fed0c943b4ae0347a046643094300ce9a59a39bd902b5b11a"
   },

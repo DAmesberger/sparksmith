@@ -2,7 +2,7 @@
 {
   "id": "finding/resource.kind",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/resource.kind": "7665c24133f5a0b1158fcb60ee8a28232faec7a7048ec1890d7dab85d64717e5"
   },

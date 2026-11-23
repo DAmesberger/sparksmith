@@ -2,7 +2,7 @@
 {
   "id": "finding/erc.open_drain_contention",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/erc.open_drain_contention": "f908c51e4b8b8ae4794f62131664aafcf78ab000732a57f4b119fb9686f364a0"
   },

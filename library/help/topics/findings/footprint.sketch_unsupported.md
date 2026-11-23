@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.sketch_unsupported",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.sketch_unsupported": "df09f48c547778b03b1c51e6c050154ecf46ebd9ff71972a4392bd0781ea54bc"
   },

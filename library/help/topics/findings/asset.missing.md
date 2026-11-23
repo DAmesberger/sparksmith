@@ -2,7 +2,7 @@
 {
   "id": "finding/asset.missing",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/asset.missing": "5de7652456190d4c4d438f7c43abd30f8a4deebdb3218c6467f3c63f64b770f2"
   },

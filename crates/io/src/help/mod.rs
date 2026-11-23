@@ -46,10 +46,10 @@ pub fn parse_topic(text: &str) -> std::result::Result<(TopicHeader, Vec<Block>),
     if header.id.kind() != header.kind {
         return Err(format!("{} has the wrong kind", header.id));
     }
-    Ok((header, blocks(md, &header.since)?))
+    Ok((header, blocks(md)?))
 }
 
-pub fn blocks(md: &str, version: &str) -> std::result::Result<Vec<Block>, String> {
+pub fn blocks(md: &str) -> std::result::Result<Vec<Block>, String> {
     let mut out = Vec::new();
     let mut lines = md.lines().map(str::trim).peekable();
     while let Some(line) = lines.next() {
@@ -70,10 +70,18 @@ pub fn blocks(md: &str, version: &str) -> std::result::Result<Vec<Block>, String
                 serde_json::from_str(&json).map_err(|e| e.to_string())?,
             ));
         } else if let Some(alt) = line.strip_prefix("![") {
-            let (alt, file) = alt
+            let (alt, target) = alt
                 .strip_suffix(')')
                 .and_then(|s| s.split_once("]("))
                 .ok_or("Invalid help image")?;
+            let (file, version) = target
+                .strip_suffix('"').and_then(|s| s.rsplit_once(" \""))
+                .ok_or("An image needs the captured app version in quotes")?;
+            if version.is_empty() || version.len() > 64
+                || !version.bytes().all(|b| b.is_ascii_alphanumeric() || b".-+".contains(&b))
+            {
+                return Err("Invalid captured app version".into());
+            }
             if alt.trim().is_empty()
                 || !file
                     .bytes()
@@ -263,7 +271,7 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Index> {
             .join(entry.id.name())
             .join("method.md");
         let raw = source(&method)?;
-        entry.body = blocks(&raw, &entry.since)
+        entry.body = blocks(&raw)
             .map_err(|e| Error::Invalid(format!("{}: {e}", method.display())))?;
     }
     // This topic appears when the harness ships its shared method. Both
@@ -289,7 +297,7 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Index> {
                 .into(),
             since: env!("CARGO_PKG_VERSION").into(),
             facts: Facts::Guide,
-            body: blocks(body, env!("CARGO_PKG_VERSION"))
+            body: blocks(body)
                 .map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))?,
             related: vec![],
             keywords: vec![],

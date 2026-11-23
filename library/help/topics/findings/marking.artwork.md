@@ -2,7 +2,7 @@
 {
   "id": "finding/marking.artwork",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/marking.artwork": "fa012bd7c6f584f588ca30ad4c413dbac3a2357191b39c17fa4cf395cc25983e"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/config.function_unresolved",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/config.function_unresolved": "32f6daf3fc3b8903b593f982ef25e4616eea7ea589d537ef7cf29ebeddf58838"
   },

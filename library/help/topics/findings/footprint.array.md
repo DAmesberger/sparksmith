@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.array",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.array": "92018857ec2854bf9e4302a2991556400a8c3632b9993398938c98fb42f1cad0"
   },

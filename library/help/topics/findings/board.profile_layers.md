@@ -2,7 +2,7 @@
 {
   "id": "finding/board.profile_layers",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.profile_layers": "2fcf1f1f2bd9104f376bd62c16ea3497bcafed0656dda9b02ec3fd1630ae856a"
   },

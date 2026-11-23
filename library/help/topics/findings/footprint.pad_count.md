@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.pad_count",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.pad_count": "9fac38151e267de4c1baea8de09fc75f7cc5f5f7c03147a30ba3d51edbabc2b2"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/keepout.via",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/keepout.via": "957dbb730c0da2bd833f8e31fb92b2457a1b7f99ea4d717187d9b0725a1e54b2"
   },

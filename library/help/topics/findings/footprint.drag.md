@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.drag",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.drag": "acb6a70644eb8739e5699400471d643136d9ecc31746dcfbce314a3673e7aa24"
   },

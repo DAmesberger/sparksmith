@@ -2,7 +2,7 @@
 {
   "id": "finding/pair.uncoupled",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/pair.uncoupled": "d720fe27497b288e88ebee5c45d0a4f45277df2a6703b05871a1a9e9e9b40342"
   },

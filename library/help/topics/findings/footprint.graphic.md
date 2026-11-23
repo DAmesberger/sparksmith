@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.graphic",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.graphic": "b5622255683a0fc59350f93927bc6eac57114598fa52fcf13b5c85e44ea998cd"
   },

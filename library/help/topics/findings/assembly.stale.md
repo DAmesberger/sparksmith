@@ -2,7 +2,7 @@
 {
   "id": "finding/assembly.stale",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/assembly.stale": "dc6c30651fc46aae4832f2ce1e634ca68905c336432f86f772898a2e02f042ee"
   },

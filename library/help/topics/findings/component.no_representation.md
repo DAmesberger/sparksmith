@@ -2,7 +2,7 @@
 {
   "id": "finding/component.no_representation",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/component.no_representation": "ef1deddfa28240b3c5306cabb0b445d6f61351cf5f3493b02b97bcf68de40233"
   },

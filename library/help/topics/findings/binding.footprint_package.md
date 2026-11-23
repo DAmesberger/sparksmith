@@ -2,7 +2,7 @@
 {
   "id": "finding/binding.footprint_package",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/binding.footprint_package": "06b848ead8c2a3288b4f7ff73d088f5728f48d5145dda44b77a00276fa560cbd"
   },

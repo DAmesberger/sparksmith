@@ -2,7 +2,7 @@
 {
   "id": "finding/config.rule_unmet",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/config.rule_unmet": "1fd36e3de898e58d19e2debd69afdec1d9a4a26aab604a62db066f730b73e11c"
   },

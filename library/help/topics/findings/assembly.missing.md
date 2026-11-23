@@ -2,7 +2,7 @@
 {
   "id": "finding/assembly.missing",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/assembly.missing": "18a89cc0354cb6feacf26beb64fde199b4b391faa2c13e2761957e1c4fd5f95c"
   },

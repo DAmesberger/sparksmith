@@ -2,7 +2,7 @@
 {
   "id": "finding/board.drill_size",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.drill_size": "446a0bda7468c22a24793e9cb070042497f7dfef8b9f75dbd34b336ef5b9cf9f"
   },

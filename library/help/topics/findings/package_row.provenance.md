@@ -2,7 +2,7 @@
 {
   "id": "finding/package_row.provenance",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/package_row.provenance": "8be7b589f0ed7d0716fcae4a9c654d7aff0314512dd2b57a842100b99f4cb6d6"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/erc.driver_conflict",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/erc.driver_conflict": "e47727755e23707f2611526a044af2bd7432653c4aa4c2bf1404b751145e061c"
   },

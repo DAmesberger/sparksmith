@@ -2,7 +2,7 @@
 {
   "id": "finding/board.hole_spacing",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.hole_spacing": "17fc3b97e8c12c4ba2f0d1f1ce05f35249df41fde7a1bd0a68ce8b6a107ab30b"
   },

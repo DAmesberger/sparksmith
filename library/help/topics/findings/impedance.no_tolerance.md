@@ -2,7 +2,7 @@
 {
   "id": "finding/impedance.no_tolerance",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/impedance.no_tolerance": "11e0e44eccece67bdb1f82f324ed476149a5a168f0442c7df6246d1cd3a01027"
   },

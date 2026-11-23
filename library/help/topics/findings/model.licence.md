@@ -2,7 +2,7 @@
 {
   "id": "finding/model.licence",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/model.licence": "f289f901beaa584773ebf5dc58caf670518b4cb0f3251a2265fa73335b25d5cc"
   },

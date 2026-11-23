@@ -2,7 +2,7 @@
 {
   "id": "finding/board.fiducials_symmetric",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.fiducials_symmetric": "fd5814d2c64c1c6b3cfe139890a470de3a584f0f2f9cd524ba9f55a1bdea5435"
   },

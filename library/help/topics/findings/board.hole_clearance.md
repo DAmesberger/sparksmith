@@ -2,7 +2,7 @@
 {
   "id": "finding/board.hole_clearance",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.hole_clearance": "4b25b505b81458ea5cfb715428c9f1fbd9502d80563311d8ca447a1476d426b2"
   },

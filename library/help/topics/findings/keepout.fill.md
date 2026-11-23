@@ -2,7 +2,7 @@
 {
   "id": "finding/keepout.fill",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/keepout.fill": "da111e93ffd6df4d017d7c3dcd5e242ae455622f9b8732120b7a04eb27f99f67"
   },

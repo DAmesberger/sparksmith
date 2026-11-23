@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.under_constrained",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.under_constrained": "f98053884d7c5fb2ad0ead047f9ee1ada1c3fcb290937ba451c73d5af33e01e9"
   },

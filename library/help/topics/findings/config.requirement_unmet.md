@@ -2,7 +2,7 @@
 {
   "id": "finding/config.requirement_unmet",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/config.requirement_unmet": "5cf91dd349954e22394ad9d5b83c2d8d4dca8004740fa7c6d1ac1717f087323b"
   },

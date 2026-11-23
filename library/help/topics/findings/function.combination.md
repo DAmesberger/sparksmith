@@ -2,7 +2,7 @@
 {
   "id": "finding/function.combination",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/function.combination": "006e7fc0b06e30baf5b6e90923364ecbca0dd9ac67ed70d64fab13443411dc9b"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.param_expr",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.param_expr": "741eb8523549aea02e6fd2a4fbcfac8191da65ca2e71b427af41ce66f0cb4d6d"
   },

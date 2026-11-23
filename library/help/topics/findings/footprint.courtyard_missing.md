@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.courtyard_missing",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.courtyard_missing": "ea05368aa6602482ffaeecde4ff7808f9f7808dac07ab61abfae17d4a86961d1"
   },

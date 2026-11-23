@@ -2,7 +2,7 @@
 {
   "id": "finding/graphic.radius_too_large",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/graphic.radius_too_large": "47f3b99b3ecd0e314e7c853caf91e712b8ab5ffa3fc75de700574f3100f81e65"
   },

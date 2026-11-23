@@ -2,7 +2,7 @@
 {
   "id": "finding/graphic.degenerate",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/graphic.degenerate": "ece6739e3c138831772d4374e145da2df9fb9146d0a8092f510c2153a2f9710c"
   },

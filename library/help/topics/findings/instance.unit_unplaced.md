@@ -2,7 +2,7 @@
 {
   "id": "finding/instance.unit_unplaced",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/instance.unit_unplaced": "421a71ab50e96963be67aaa399b14c99671e823bf3ef6cb02f6922772aef1b06"
   },

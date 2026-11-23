@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.silk_width",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.silk_width": "599468070b13fa183875867de53107cd647b676be071c516cce25b92e87dec8f"
   },

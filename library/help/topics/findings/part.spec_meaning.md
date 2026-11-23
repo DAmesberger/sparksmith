@@ -2,7 +2,7 @@
 {
   "id": "finding/part.spec_meaning",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/part.spec_meaning": "7d1b55832f97f69d9fb5158e0076c70e81ce8b4415eb499200cea103f351bf84"
   },

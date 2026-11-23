@@ -2,7 +2,7 @@
 {
   "id": "finding/definition.stale_base",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/definition.stale_base": "73087cd70783788f7a841a28480ffef3facc440f802bcb0908b26f1b103bde8c"
   },

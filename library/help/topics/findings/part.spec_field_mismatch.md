@@ -2,7 +2,7 @@
 {
   "id": "finding/part.spec_field_mismatch",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/part.spec_field_mismatch": "c9d8cf5ffee6ed965a104ec2cceb3d56d260a5f6792bb27c5d9354796288c2bc"
   },

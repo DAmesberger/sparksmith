@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.text_height",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.text_height": "baa83553536aab925b2cab938f13a36c9d654283486fe5fda78dfad46deede96"
   },

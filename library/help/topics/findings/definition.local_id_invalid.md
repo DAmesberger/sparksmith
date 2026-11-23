@@ -2,7 +2,7 @@
 {
   "id": "finding/definition.local_id_invalid",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/definition.local_id_invalid": "312986b41876e5e789abe6312e64918fcef66750390044a09b0275e0d6e6db30"
   },

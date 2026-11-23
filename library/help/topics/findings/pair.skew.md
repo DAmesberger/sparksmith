@@ -2,7 +2,7 @@
 {
   "id": "finding/pair.skew",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/pair.skew": "b6b96ae41512beb48b7c2e84d01c598c0a086cc0b61c28ad41c2c7e7a662463f"
   },

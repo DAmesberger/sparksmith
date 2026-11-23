@@ -2,7 +2,7 @@
 {
   "id": "finding/board.body_off_pads",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.body_off_pads": "da9e74b0701b7d74cb0a08cac83e4667c2bf69f0c2d1ccec60c730022a8c7829"
   },

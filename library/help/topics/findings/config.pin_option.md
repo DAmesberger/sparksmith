@@ -2,7 +2,7 @@
 {
   "id": "finding/config.pin_option",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/config.pin_option": "151b7bc775d54fd945b1b90467358018ba7adb236c53296c2f8dc96cd2d50fc4"
   },

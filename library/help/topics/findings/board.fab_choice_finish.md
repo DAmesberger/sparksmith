@@ -2,7 +2,7 @@
 {
   "id": "finding/board.fab_choice_finish",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.fab_choice_finish": "38ffa25c340bb3837f863086fb36721c75c41a94081f67637ce4a2bf3df8b6e4"
   },

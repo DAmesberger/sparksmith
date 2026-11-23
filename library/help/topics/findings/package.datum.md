@@ -2,7 +2,7 @@
 {
   "id": "finding/package.datum",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/package.datum": "df5761263ce7915b3c9c94a996b151c4147f4df2b8598623312418634b65c5e8"
   },

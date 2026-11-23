@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.orientation",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.orientation": "7a31a7e94e9da6215612af382f386f3101a9ad0ccbb0c3c571bae4c26e24a1a2"
   },

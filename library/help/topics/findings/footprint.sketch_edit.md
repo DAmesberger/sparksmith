@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.sketch_edit",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.sketch_edit": "2005dc9b58da3896fb22520dde2b26d354621cbfb6d0fc7024a84fdea410628d"
   },

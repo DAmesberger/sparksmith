@@ -2,7 +2,7 @@
 {
   "id": "finding/board.via_dangling",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.via_dangling": "8345568d5cc6ce8a1d16b06ec34123b237e54e4b5d3aad08fef49504b721d56e"
   },

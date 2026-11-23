@@ -2,7 +2,7 @@
 {
   "id": "finding/marking.unrepresentable",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/marking.unrepresentable": "df639b18d28204fa428919d9ba2743c4ce928a176652205b0c91419007ff13bc"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/part.link",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/part.link": "9cbaec6785db4922c4f9bfd6eb32d70fb5039196f47bb387796d2223ab462733"
   },

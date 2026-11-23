@@ -2,7 +2,7 @@
 {
   "id": "finding/variant.substitute_unfit",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/variant.substitute_unfit": "c41c5c1caef152102ddb69e9cd989ac88a420c62215884976e3e5717227425bf"
   },

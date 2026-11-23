@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.terminal_without_pad",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.terminal_without_pad": "afad314bbcbfe7d6bedc185ff99e6028784bd78c884ebe0f1df63b21a52fb3a8"
   },

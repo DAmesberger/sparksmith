@@ -2,7 +2,7 @@
 {
   "id": "finding/component.designator_prefix",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/component.designator_prefix": "fc7fee4be6b5835db316a8cf0610459840cf0f462881bb191edafbe3b5de191c"
   },

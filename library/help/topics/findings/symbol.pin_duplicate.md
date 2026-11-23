@@ -2,7 +2,7 @@
 {
   "id": "finding/symbol.pin_duplicate",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/symbol.pin_duplicate": "0a7812b22b678e27bfee9c1cd97b33e0cead6f2c4f698193384f358d6cd16251"
   },

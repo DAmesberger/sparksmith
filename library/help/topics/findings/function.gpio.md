@@ -2,7 +2,7 @@
 {
   "id": "finding/function.gpio",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/function.gpio": "29bb8be1bbfccb2b87596c6e634950d15c9ad2f5edd2c8ce893317c91f10d443"
   },

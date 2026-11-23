@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.owned_curve",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.owned_curve": "56a861655c977610962ae635b63300c12887d807f14a78c13377e30a1d2dce06"
   },

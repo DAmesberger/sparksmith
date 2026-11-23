@@ -2,7 +2,7 @@
 {
   "id": "finding/symbol.unit_label",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/symbol.unit_label": "274f19bf0714f19ae6577eace15eb72933294d6f3ec6c45692f282cbff2dccaa"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/interface.unpublished",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/interface.unpublished": "879fdc8a28232fe59ae21bec930598c62990075eb965152ec3cd51542d7d9292"
   },

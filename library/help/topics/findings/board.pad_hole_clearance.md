@@ -2,7 +2,7 @@
 {
   "id": "finding/board.pad_hole_clearance",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.pad_hole_clearance": "744f5ff32bd7ee6ad3a6615d098035a8ab56002c039b690225b15a3f94dbb29a"
   },

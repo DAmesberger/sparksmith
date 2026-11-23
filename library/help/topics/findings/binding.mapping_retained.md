@@ -2,7 +2,7 @@
 {
   "id": "finding/binding.mapping_retained",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/binding.mapping_retained": "565bcebbf5236228a40a97a4dfadb6b982b315f83073a1ffc06c19ff00f26965"
   },

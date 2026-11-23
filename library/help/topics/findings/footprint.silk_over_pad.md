@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.silk_over_pad",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.silk_over_pad": "5fcd130006e1011e713a0f7e393a194c4f7191cde047e396ceb339359bef7dc5"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/rule.reference",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/rule.reference": "3e055f423c356425f506fa5718fa9a27520b18fa0d0dcfcb69c0fb6c4f8bde3b"
   },

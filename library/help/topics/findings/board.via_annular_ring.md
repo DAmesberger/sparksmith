@@ -2,7 +2,7 @@
 {
   "id": "finding/board.via_annular_ring",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.via_annular_ring": "c5769bdb455b04399b68cfcc5718f45c345dc70b667c7ca96aa298be3865f5ec"
   },

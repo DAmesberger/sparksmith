@@ -2,7 +2,7 @@
 {
   "id": "finding/board.pth_annular_ring",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.pth_annular_ring": "c1cd12f4e046a15dfd9f73ef54e7b30c46ca899344324f3da301c39bdd8de620"
   },

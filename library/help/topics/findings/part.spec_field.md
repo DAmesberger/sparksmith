@@ -2,7 +2,7 @@
 {
   "id": "finding/part.spec_field",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/part.spec_field": "8ac966f095530332ba7e02a4fbdd2604b8e118ae82cef1af198278e49929b070"
   },

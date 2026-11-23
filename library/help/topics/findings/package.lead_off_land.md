@@ -2,7 +2,7 @@
 {
   "id": "finding/package.lead_off_land",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/package.lead_off_land": "7da4c5d7b67fc6f65f7490033cf438ac36bd5040b57dd6144476998c6a36d03c"
   },

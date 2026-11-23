@@ -2,7 +2,7 @@
 {
   "id": "finding/component.text_field_unknown",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/component.text_field_unknown": "92f906c3b6d9651ca3313eb1ae3aec4ea555d0d861b34e9a729d98c9547a22fa"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/erc.unchecked_terminal",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/erc.unchecked_terminal": "4e5c235cfa39885c207fa9c88aeb759482977cb19d3715e636c63a7d8aae99ec"
   },

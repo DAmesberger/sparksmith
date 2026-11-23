@@ -2,7 +2,7 @@
 {
   "id": "finding/board.shape_outline",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.shape_outline": "fa251dd933a627bae78ff5f4c7d4d39741ea2c6b1183f14118f1427da6253d67"
   },

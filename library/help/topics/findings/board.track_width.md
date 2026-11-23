@@ -2,7 +2,7 @@
 {
   "id": "finding/board.track_width",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.track_width": "348ccb4dd9041b6de5760c12adcee762dd8df0a8d1e6fefa248e953106bc2d9a"
   },

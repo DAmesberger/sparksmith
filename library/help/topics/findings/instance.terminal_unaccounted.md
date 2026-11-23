@@ -2,7 +2,7 @@
 {
   "id": "finding/instance.terminal_unaccounted",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/instance.terminal_unaccounted": "0f959e9da3a1586e9412c9d03b537a974d06fe02a8eb49e85016978434a6120e"
   },

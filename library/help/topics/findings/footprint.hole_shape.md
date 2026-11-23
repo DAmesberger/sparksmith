@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.hole_shape",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.hole_shape": "4c9555b90bdf90f0f4b44e042a612cc9a75d78c632bcbcc7445522952ca331f3"
   },

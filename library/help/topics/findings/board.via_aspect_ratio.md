@@ -2,7 +2,7 @@
 {
   "id": "finding/board.via_aspect_ratio",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.via_aspect_ratio": "d7cb85b8961f95e486b26e039535f1b780c5e320c9a6b03be80d554bd79a7fe6"
   },

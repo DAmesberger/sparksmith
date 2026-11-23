@@ -2,7 +2,7 @@
 {
   "id": "finding/impedance.mismatch",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/impedance.mismatch": "64cf3a41ef7ad16666c928d3e79be2e10fb28552c5086468b0b9d94e4784d3be"
   },

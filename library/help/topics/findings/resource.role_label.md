@@ -2,7 +2,7 @@
 {
   "id": "finding/resource.role_label",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/resource.role_label": "2c64e892eafe3f82cc75c024f57abe1d9beaba35ac6453621c3e33a2de8c668b"
   },

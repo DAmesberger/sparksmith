@@ -2,7 +2,7 @@
 {
   "id": "finding/board.fiducial_copper",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.fiducial_copper": "122358810754088f811a4f1b9bd73f62d1c9523c9504de05c1bf30145ab8c5e6"
   },

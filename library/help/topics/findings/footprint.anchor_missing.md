@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.anchor_missing",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.anchor_missing": "37b4eb95e15d951c54640240000decb04b4bbee40d9d281390b93481665d83a2"
   },

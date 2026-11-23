@@ -2,7 +2,7 @@
 {
   "id": "finding/keepout.pad",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/keepout.pad": "a354f394d86eac39dd36d1822100638605cefc9948ff3ede9decebbd4a5e1fcf"
   },

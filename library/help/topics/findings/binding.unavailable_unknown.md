@@ -2,7 +2,7 @@
 {
   "id": "finding/binding.unavailable_unknown",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/binding.unavailable_unknown": "825d62ec6217f0f9431b4355628729579c4dfbffce0ef326788fab8bce667896"
   },

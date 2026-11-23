@@ -2,7 +2,7 @@
 {
   "id": "finding/definition.revisions_exhausted",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/definition.revisions_exhausted": "d3761f4a4d7c2226f52e865494ccdcbc2d0529feec710e3a50432e563b485a06"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/part.spec_uncomparable",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/part.spec_uncomparable": "2c53ec9072ba94390ddbdbbc88aa8c09a78cafae44fb53443006728e2e9e5fe6"
   },

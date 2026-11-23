@@ -2,7 +2,7 @@
 {
   "id": "finding/field.required_stage",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/field.required_stage": "14468682fb3694425b567640093109a3138d55fbf56d06a6337e3cb814dd0f8a"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/board.copper_sliver",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.copper_sliver": "b7d1ea8ceb86e4cafdf7e9733289e0d70086d866ccdf21eb507cb07ab69f5028"
   },

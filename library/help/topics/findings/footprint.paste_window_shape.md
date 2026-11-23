@@ -2,7 +2,7 @@
 {
   "id": "finding/footprint.paste_window_shape",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/footprint.paste_window_shape": "cee87a222541654f9f8838982fe820bab8fb5cb8bfe31229ddc96a96e06ea58b"
   },

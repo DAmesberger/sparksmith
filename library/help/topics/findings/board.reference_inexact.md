@@ -2,7 +2,7 @@
 {
   "id": "finding/board.reference_inexact",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.reference_inexact": "57040ea471f2d8af67acfe0cc3ceb7af37a1f6b2de55f3449a8428031f0d7311"
   },

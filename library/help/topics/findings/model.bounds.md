@@ -2,7 +2,7 @@
 {
   "id": "finding/model.bounds",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/model.bounds": "d7ebd8d6486ddf0a36e9f5bb162443ce1df8d4bcee79aecd461947a0a470eb72"
   },

@@ -2,7 +2,7 @@
 {
   "id": "finding/layout.dimension_conflict",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/layout.dimension_conflict": "bf64bd5679392ed8d7965d227166d9314ab81446f8930dff76fe3103baf0dd74"
   },

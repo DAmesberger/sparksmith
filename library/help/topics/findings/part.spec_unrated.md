@@ -2,7 +2,7 @@
 {
   "id": "finding/part.spec_unrated",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/part.spec_unrated": "3ffc7b84a61dc471ad3fffced37793ab3e2ff8e40eb10afb7d8226f093f0cec3"
   },

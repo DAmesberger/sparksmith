@@ -2,7 +2,7 @@
 {
   "id": "finding/symbol.field_missing",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/symbol.field_missing": "17d6411dfacb3ef402bb8589e5e23a65001b01e7b8daead847372fb82c1be97c"
   },

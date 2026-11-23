@@ -2,7 +2,7 @@
 {
   "id": "finding/fill.stale",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/fill.stale": "f54c1a6f897bf113ce794edc1aa3c3c819d76842bf2b0940eba596e778f1ca3e"
   },

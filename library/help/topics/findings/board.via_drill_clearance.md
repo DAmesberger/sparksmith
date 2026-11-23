@@ -2,7 +2,7 @@
 {
   "id": "finding/board.via_drill_clearance",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.via_drill_clearance": "510de9af5a87f471a5c54056cf82dbe689f753ebc44929a24321dd9679fb4758"
   },

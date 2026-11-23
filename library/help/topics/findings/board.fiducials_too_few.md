@@ -2,7 +2,7 @@
 {
   "id": "finding/board.fiducials_too_few",
   "kind": "finding",
-  "since": "1.0",
+  "since": "0.1.0",
   "covers": {
     "finding/board.fiducials_too_few": "48798d4adc2fc5afd453914638adb74c1e993947ee5cc5dad83357c753055ff8"
   },
