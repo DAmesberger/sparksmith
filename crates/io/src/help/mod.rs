@@ -1,5 +1,7 @@
 //! Load a version's help from the shipped library. Paths come from the shelf,
 //! never from the caller's topic id.
+pub mod locale;
+
 use crate::{
     Error, Result,
     shipped::{Shelf, ShippedLibrary},
