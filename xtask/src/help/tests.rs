@@ -160,7 +160,52 @@ fn parameter_urls_resolve_as_pages_and_fragment_targets() -> crate::Result<()> {
             .is_file()
     );
     let body = std::fs::read_to_string(latest.join("generator/example.html"))?;
+    let detail = std::fs::read_to_string(latest.join("generator/example/parameters/pitch.html"))?;
+    assert!(detail.contains(r#"href="../../../index.html""#));
+    assert!(detail.contains(r#"href="../../../manual.css""#));
+    let search: Vec<Value> = serde_json::from_slice(&std::fs::read(latest.join("search.json"))?)?;
+    assert!(
+        search
+            .iter()
+            .any(|row| row["id"] == "generator/example#pitch"
+                && row["href"] == "generator/example/parameters/pitch.html")
+    );
     assert!(body.contains(r#"<tr id="pitch">"#));
     assert!(body.contains(r#"href="../generator/example/parameters/pitch.html">Land pitch</a>"#));
+    Ok(())
+}
+
+#[test]
+fn a_renamed_or_ignored_registry_test_cannot_pass_the_gate() {
+    let name = "commands::registry";
+    assert!(!registry_test_passed(
+        "running 0 tests\ntest result: ok. 0 passed",
+        name
+    ));
+    assert!(!registry_test_passed(
+        "test commands::registry ... ignored",
+        name
+    ));
+    assert!(!registry_test_passed(
+        "test different::registry ... ok",
+        name
+    ));
+    assert!(registry_test_passed(
+        "running 1 test\ntest commands::registry ... ok\n",
+        name
+    ));
+}
+
+#[test]
+fn an_oversized_shard_is_named_and_the_previous_file_survives() -> crate::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("generators.json");
+    std::fs::write(&path, "[]")?;
+    let large = "x".repeat(sparksmith_core::format::MAX_FILE_BYTES + 1);
+    let error = compare(&path, &large, true)
+        .err()
+        .ok_or("accepted oversized shard")?;
+    assert!(error.to_string().contains("generators.json"));
+    assert_eq!(std::fs::read_to_string(path)?, "[]");
     Ok(())
 }

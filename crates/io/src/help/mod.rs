@@ -215,7 +215,7 @@ fn installed(dir: &Path, ext: &str, expected: &BTreeSet<String>) -> Result<Vec<P
 }
 
 pub fn source(path: &Path) -> Result<String> {
-    let bytes = crate::library_folder::read_bounded(path, 16 * 1024 * 1024)
+    let bytes = crate::library_folder::read_bounded(path, sparksmith_core::format::MAX_FILE_BYTES)
         .map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))?;
     String::from_utf8(bytes).map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))
 }

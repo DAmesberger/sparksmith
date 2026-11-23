@@ -16,8 +16,11 @@ fn check_example(example: &CallExample) -> Fallible {
     let (params, root) =
         discovery::params_schema(name).ok_or_else(|| format!("unknown entry {name}"))?;
     let mut schema = params.clone();
-    if let (Some(obj), Some(defs)) = (schema.as_object_mut(), root.get("$defs")) {
-        obj.insert("$defs".into(), defs.clone());
+    if let (Some(obj), Some(defs)) = (schema.as_object_mut(), root["$defs"].as_object()) {
+        let reached = discovery::reachable_defs(params, defs);
+        if !reached.is_empty() {
+            obj.insert("$defs".into(), reached.into());
+        }
     }
     let validator = jsonschema::draft202012::new(&schema).map_err(|e| format!("{name}: {e}"))?;
     validator
@@ -33,6 +36,15 @@ fn example_with_wrong_parameter_type_fails_without_mutation() -> Fallible {
     };
     assert!(check_example(&example).is_err());
     Ok(())
+}
+
+#[test]
+fn an_example_with_a_referenced_parameter_accepts_the_declared_shape() -> Fallible {
+    let entry = "entry/project.issues".parse()?;
+    check_example(&CallExample {
+        entry,
+        params: serde_json::json!({"scope":{"kind":"all"}}),
+    })
 }
 
 #[test]
@@ -82,8 +94,8 @@ fn entries_match_the_catalog() -> Fallible {
     }
     rows.sort_by(|a, b| a.id.cmp(&b.id));
     let next = serde_json::to_string_pretty(&rows)? + "\n";
-    if std::env::var_os("SPARKSMITH_UPDATE_HELP").is_some() {
-        std::fs::write(path, next)?;
+    if std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref() == Some(std::ffi::OsStr::new("1")) {
+        sparksmith_io::persistence::atomic_write(&path, next.as_bytes())?;
     } else if help::source(&path)? != next {
         return Err("catalog help is stale; run cargo xtask help --update".into());
     }

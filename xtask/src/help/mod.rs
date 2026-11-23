@@ -114,23 +114,46 @@ fn registry_test(target: &[&str], test: &str, update: bool) -> Result<()> {
     c.current_dir(root()?)
         .args(["test", "--locked", "--profile", "ci"])
         .args(target)
-        .args([test, "--", "--exact"])
+        .args([
+            test, "--", "--exact", "--format", "pretty", "--color", "never",
+        ])
+        .stderr(std::process::Stdio::inherit())
         .env_remove("SPARKSMITH_UPDATE_HELP");
     if update {
         c.env("SPARKSMITH_UPDATE_HELP", "1");
     }
-    if !c.status()?.success() {
-        return Err(format!("help registry test {test} failed").into());
+    let output = c.output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    print!("{stdout}");
+    if !output.status.success() || !registry_test_passed(&stdout, test) {
+        return Err(format!("help registry test {test} did not pass").into());
     }
     Ok(())
 }
 
+// libtest exits successfully for an empty or ignored --exact selection.
+fn registry_test_passed(stdout: &str, test: &str) -> bool {
+    let success = format!("test {test} ... ok");
+    stdout.lines().any(|line| line == success)
+}
+
 fn compare(path: &Path, expected: &str, update: bool) -> Result<()> {
-    if fs::read(path).is_ok_and(|bytes| bytes == expected.as_bytes()) {
+    let max = sparksmith_core::format::MAX_FILE_BYTES;
+    if expected.len() > max {
+        return Err(format!(
+            "{} needs {} bytes; the shelf reader accepts {max}",
+            path.display(),
+            expected.len()
+        )
+        .into());
+    }
+    if fs::metadata(path).is_ok_and(|m| m.len() == expected.len() as u64)
+        && help::source(path).is_ok_and(|current| current == expected)
+    {
         return Ok(());
     }
     if update {
-        fs::write(path, expected)?;
+        sparksmith_io::persistence::atomic_write(path, expected.as_bytes())?;
         Ok(())
     } else {
         Err(format!("{} is stale; run cargo xtask help --update", path.display()).into())
@@ -192,13 +215,11 @@ fn stamp(library: &ShippedLibrary, topic: &HelpId) -> Result<()> {
             );
         }
         header["covers"] = serde_json::to_value(covers)?;
-        fs::write(
-            path,
-            format!(
-                "---\n{}\n---\n{body}",
-                serde_json::to_string_pretty(&header)?
-            ),
-        )?;
+        let next = format!(
+            "---\n{}\n---\n{body}",
+            serde_json::to_string_pretty(&header)?
+        );
+        sparksmith_io::persistence::atomic_write(&path, next.as_bytes())?;
         return Ok(());
     }
     Err(format!("No authored topic {topic}").into())
