@@ -127,7 +127,7 @@ Two warnings of the board checks (`layout/etch.rs`, run by `layout::checks_with`
   - Fill slivers: fill compute already removes solid copper narrower than the fill's min width (an opening, `fill_slivers_are_removed_and_thin_hatches_are_reported`). A hatched fill whose hatch width is under its min fill width is reported as `board.copper_sliver` on the fill, whatever the sliver rule.
 - Each finding names its objects (tracks, pad, fill, the board for an edge) and gives the location in its message, for example "Copper angle 30° < 90°: a track on VCC / a track on VCC on Top at (10.467, 10.125) mm (project override: min copper angle)" or "Unfilled gap 0.4 mm < 0.5 mm: a track on VCC / a track on GND in EN fill on Bottom at (20, 15.325) mm (…)".
 - **Measured** (9 November 2026, macOS arm64, `test` profile: core at opt-level 1): on the 10,000-via benchmark board with a full-board pour and both rules set, the etch checks take 10.6 ms (angles 4.1 ms, slivers 6.9 ms, of which finding the fresh fills is 3.1 ms); unset, they cost nothing (`the_check_is_cheap_on_ten_thousand_vias` prints these).
-- **The ESP32 example** keeps both unset, so its board and production checks have no etch finding (`crates/io/tests/esp32_etch.rs`). Under a 90° angle and its fills' flow limit (2 × 0.3 mm fill clearance + 0.2 mm min width = 0.8 mm) it has 25 acute wedges and 197 slivers; the test prints them.
+- **The ESP32 example** keeps both unset, so its board and production checks have no etch finding (`crates/io/tests/esp32_etch.rs`). Under a 90° angle and its fills' flow limit (twice its fill clearance and its minimum fill width: 0.502 mm on its PCBWay rules) it has 26 acute wedges and 96 slivers; the test prints them.
 
 ## Fiducials
 
