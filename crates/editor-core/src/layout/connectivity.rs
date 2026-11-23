@@ -29,6 +29,8 @@
 //! decides whether copper touches or joins; `cargo xtask connectivity`
 //! enforces that.
 mod build;
+mod current;
+pub use current::TieCurrent;
 mod islands;
 mod joints;
 mod lengths;

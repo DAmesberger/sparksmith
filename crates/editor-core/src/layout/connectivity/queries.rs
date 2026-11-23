@@ -313,6 +313,7 @@ impl CopperGraph {
         }
         let mut out = Vec::new();
         out.extend_from_slice(&self.tie_findings);
+        out.extend(self.current_findings(project));
         for tie in self.ties() {
             let id = tie.bridge.instance;
             let name = project

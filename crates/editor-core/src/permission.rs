@@ -46,7 +46,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "rules",
-        (2, 5),
+        (2, 6),
         "Rules",
         "Design rules, fab profiles, net classes and impedance.",
     ),

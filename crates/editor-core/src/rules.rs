@@ -25,6 +25,7 @@ use crate::diagnostics::{Error, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub mod current;
 pub mod formula;
 pub mod netclass;
 pub mod profile;
@@ -1223,6 +1224,8 @@ pub struct ClearanceSide {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectRules {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current: Option<current::CurrentRule>,
     /// The profile snapshot the project uses (switching replaces it);
     /// none until one is chosen.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1485,6 +1488,9 @@ impl ProjectRules {
     /// Profile, overrides, effective rules, classes and pairs are within
     /// bounds and consistent (unique keys, existing class references).
     pub fn validate(&self) -> Result<()> {
+        if let Some(rule) = &self.current {
+            rule.validate()?;
+        }
         let Some(profile) = &self.profile else {
             if !self.overrides.is_empty() {
                 return Err(Error::Invalid(
@@ -1525,6 +1531,10 @@ impl ProjectRules {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "command", content = "params", deny_unknown_fields)]
 pub enum RulesCommand {
+    /// Snapshot a sourced IPC-2152 table supplied by the person or a library and the allowed rise.
+    /// Sparksmith ships no current curves. Null clears the rule.
+    #[serde(rename = "rules.set_tie_current")]
+    SetTieCurrent { rule: Option<current::CurrentRule> },
     /// Replace the project's profile snapshot (or choose the first).
     /// `profile` is a profile id from `rules.fab_profiles` (the user's
     /// library, a shipped one or the board's own), or a whole profile
@@ -1651,6 +1661,7 @@ impl RulesCommand {
 
 // A new command chooses its permission class here.
 declare_entries!(RulesCommand in rules {
+    SetTieCurrent "rules.set_tie_current" Edit "Set the tie current table and temperature rise" [since(2, 6)],
     SetProfile "rules.set_fab_profile" Edit "Set the fab profile",
     SetOptions "rules.set_fab_options" Edit "Choose fab profile options",
     SetOverride "rules.set_override" Edit "Override a rule",
@@ -1726,6 +1737,12 @@ fn apply_to(rules: &mut ProjectRules, command: RulesCommand) -> Result<Option<si
             rules
                 .overrides
                 .sort_by_key(|o| order.iter().position(|k| *k == o.key));
+        }
+        RulesCommand::SetTieCurrent { rule } => {
+            if let Some(r) = &rule {
+                r.validate()?;
+            }
+            rules.current = rule;
         }
         RulesCommand::SetProjectSource { source } => {
             let source = source
