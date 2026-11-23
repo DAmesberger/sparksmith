@@ -3,12 +3,12 @@
 //! interprets nothing.
 use super::drill::{DrillHole, DrillTable};
 use crate::diagnostics::Result;
-use crate::geometry::{Bounds, Point};
+use crate::geometry::{Bounds, Point, Shape, distance};
 use crate::ids::Id;
 use crate::layout::{self, BoardDrawing, PlacedItem};
-use crate::library::PAD_ARC_TOLERANCE_MM;
+use crate::library::{Outline, PAD_ARC_TOLERANCE_MM, PadShape, Segment};
 use crate::model::DielectricKind;
-use crate::model::board::{CutoutKind, flatten};
+use crate::model::board::{CutoutKind, arc_geometry};
 use crate::model::{Layer, MaskColour, PadFinish, Project, SilkscreenColour};
 use crate::rules::CopperObject;
 use serde::Serialize;
@@ -16,8 +16,6 @@ use std::collections::BTreeMap;
 
 /// Chord tolerance of the drawn outlines, mm.
 pub const DRAWING_CHORD_MM: f64 = 0.01;
-/// Points of one drawn loop.
-pub const MAX_LOOP_POINTS: usize = 4096;
 
 /// One row of the stackup table, top to bottom.
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -140,9 +138,105 @@ fn legend_word(c: SilkscreenColour) -> &'static str {
     }
 }
 
-fn bounded(mut ring: Vec<Point>) -> Vec<Point> {
-    ring.truncate(MAX_LOOP_POINTS);
-    ring
+/// The geometry flattener bounds work per curve. Check its actual chord
+/// count against the analytic sagitta, including the closing circle chord.
+fn checked_primitive(shape: &Shape, tol: f64, name: &str) -> Result<Vec<Point>> {
+    let points = shape.flatten(tol);
+    let curve = match *shape {
+        Shape::Arc {
+            radius, sweep_deg, ..
+        } => Some((
+            radius,
+            sweep_deg.abs().to_radians(),
+            points.len().saturating_sub(1),
+        )),
+        Shape::Circle { radius, .. } => Some((radius, std::f64::consts::TAU, points.len())),
+        _ => None,
+    };
+    if let Some((radius, sweep, count)) = curve {
+        // r * (1 - cos(a/2)), evaluated without subtracting near-equal numbers.
+        let sagitta = 2.0 * radius * (sweep / (4.0 * count as f64)).sin().powi(2);
+        if !sagitta.is_finite() || sagitta > tol {
+            let step = 4.0 * (tol / (2.0 * radius)).sqrt().min(1.0).asin();
+            let needed = (sweep / step).ceil();
+            return Err(crate::Error::Limit(format!(
+                "The {name} needs {needed:.0} chords on one curve to meet {tol} mm. The drawing could produce {count}."
+            )));
+        }
+    }
+    if !points.iter().flatten().all(|v| v.is_finite()) {
+        return Err(crate::Error::Invalid(format!(
+            "The {name} has a non-finite drawing coordinate."
+        )));
+    }
+    Ok(points)
+}
+
+fn close(points: &mut Vec<Point>) {
+    if let Some(&first) = points.first()
+        && points.last() != Some(&first)
+    {
+        points.push(first);
+    }
+}
+
+fn drawing_shape(shape: &Shape, tol: f64, name: &str) -> Result<Vec<Point>> {
+    let mut points = if let Some(parts) = shape.primitives() {
+        let mut points = Vec::new();
+        for part in &parts {
+            for p in checked_primitive(part, tol, name)? {
+                if points.last().is_none_or(|q| distance(*q, p) > 1e-12) {
+                    points.push(p);
+                }
+            }
+        }
+        points
+    } else {
+        checked_primitive(shape, tol, name)?
+    };
+    if shape.is_closed() {
+        close(&mut points);
+    }
+    Ok(points)
+}
+
+/// Read the stored bulges before tessellation: board edges and custom lands
+/// otherwise arrive as already bounded polylines and their error is lost.
+fn drawing_outline(outline: &Outline, tol: f64, name: &str) -> Result<Vec<Point>> {
+    if !outline.closed() {
+        return Err(crate::Error::Invalid(format!("The {name} is open.")));
+    }
+    let mut points = vec![outline.start];
+    let mut from = outline.start;
+    for segment in &outline.segments {
+        let to = segment.to();
+        if let Segment::Arc { bulge, .. } = segment
+            && distance(from, to) * bulge.abs() * 0.5 > tol
+        {
+            // The bulge is the signed sagitta divided by the half-chord.
+            // A shallower arc already meets tolerance as its endpoint chord.
+            let arc = arc_geometry(from, to, *bulge).ok_or_else(|| {
+                crate::Error::Invalid(format!("The {name} has an unrepresentable arc."))
+            })?;
+            let span = Shape::Arc {
+                center: arc.center,
+                radius: arc.radius,
+                start_deg: arc.start.to_degrees(),
+                sweep_deg: arc.sweep.to_degrees(),
+            };
+            let arc_points = checked_primitive(&span, tol, name)?;
+            points.extend(
+                arc_points
+                    .iter()
+                    .skip(1)
+                    .take(arc_points.len().saturating_sub(2)),
+            );
+        }
+        points.push(to);
+        from = to;
+    }
+    close(&mut points);
+    Ok(points)
 }
 
 /// The stackup table rows, top to bottom: copper and dielectrics, the mask
@@ -469,7 +563,7 @@ fn trace_cuts(project: &Project) -> Vec<(Layer, TraceCut)> {
         .collect()
 }
 
-fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
+fn assembly_sides(project: &Project) -> Result<Vec<AssemblySide>> {
     let values = values(project);
     let mut assembly: BTreeMap<(Id, bool), Vec<Vec<Point>>> = BTreeMap::new();
     let mut courtyard: BTreeMap<(Id, bool), Vec<Vec<Point>>> = BTreeMap::new();
@@ -481,14 +575,9 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
             BoardDrawing::Silkscreen(_) => continue,
         };
         if let PlacedItem::Shape { shape, .. } = &g.item {
-            let ring = shape.flatten(DRAWING_CHORD_MM);
+            let name = format!("assembly graphic {} of part {}", g.graphic.0, g.instance);
+            let ring = drawing_shape(shape, DRAWING_CHORD_MM, &name)?;
             if ring.len() >= 2 {
-                let mut ring = bounded(ring);
-                if shape.is_closed()
-                    && let Some(first) = ring.first().copied()
-                {
-                    ring.push(first);
-                }
                 map.entry((g.instance, bottom(side)))
                     .or_default()
                     .push(ring);
@@ -498,7 +587,16 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
     let mut pads: BTreeMap<(Id, bool), Vec<Vec<Point>>> = BTreeMap::new();
     let mut polarity: BTreeMap<Id, Point> = BTreeMap::new();
     for placed in layout::placed_pads(project) {
-        let ring = bounded(placed.outline().flatten(PAD_ARC_TOLERANCE_MM.max(0.005)));
+        let name = format!("pad {} of part {}", placed.pad.number, placed.instance);
+        let ring = if let PadShape::Custom { outline } = &placed.pad.shape {
+            let transform = placed.pad_transform();
+            drawing_outline(outline, PAD_ARC_TOLERANCE_MM, &name)?
+                .into_iter()
+                .map(|p| transform.apply(p))
+                .collect()
+        } else {
+            drawing_shape(&placed.outline(), PAD_ARC_TOLERANCE_MM.max(0.005), &name)?
+        };
         if ring.len() < 3 {
             continue;
         }
@@ -508,11 +606,9 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
             std::slice::from_ref(&placed.layer)
         };
         for side in sides {
-            let mut closed = ring.clone();
-            closed.push(ring[0]);
             pads.entry((placed.instance, bottom(*side)))
                 .or_default()
-                .push(closed);
+                .push(ring.clone());
         }
         let is_polarity = project
             .instance(placed.instance)
@@ -573,7 +669,7 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
             sides.push(AssemblySide { side, parts, cuts });
         }
     }
-    sides
+    Ok(sides)
 }
 
 /// The drawing data of `snapshot`, for the release `identity` (the
@@ -586,22 +682,17 @@ pub fn data(
     let project = snapshot.project();
     let board = project.board();
     let holes = super::drill::holes(project);
-    let mut outline = bounded(flatten(&board.outer, DRAWING_CHORD_MM));
-    if let Some(first) = outline.first().copied() {
-        outline.push(first);
+    let outline = drawing_outline(&board.outer, DRAWING_CHORD_MM, "board outline")?;
+    let mut cutouts = Vec::new();
+    for (i, cutout) in board.cutouts.iter().enumerate() {
+        if cutout.kind != (CutoutKind::Slot { plated: true }) {
+            cutouts.push(drawing_outline(
+                &cutout.outline,
+                DRAWING_CHORD_MM,
+                &format!("board cutout {}", i + 1),
+            )?);
+        }
     }
-    let cutouts = board
-        .cutouts
-        .iter()
-        .filter(|c| c.kind != (CutoutKind::Slot { plated: true }))
-        .map(|c| {
-            let mut ring = bounded(flatten(&c.outline, DRAWING_CHORD_MM));
-            if let Some(first) = ring.first().copied() {
-                ring.push(first);
-            }
-            ring
-        })
-        .collect();
     let f = &project.fabrication;
     Ok(DrawingData {
         title: project.name.clone(),
@@ -620,7 +711,7 @@ pub fn data(
         legend: legend_word(f.silkscreen_colour).into(),
         profile: profile_line(project),
         notes: notes(project, settings),
-        sides: assembly_sides(project),
+        sides: assembly_sides(project)?,
     })
 }
 
@@ -628,6 +719,53 @@ pub fn data(
 mod tests {
     use super::*;
     use crate::Engine;
+
+    #[test]
+    fn a_drawing_names_the_contour_when_its_curve_cannot_meet_tolerance() -> Result<()> {
+        let circle = crate::geometry::Shape::Circle {
+            center: [0.0, 0.0],
+            radius: 10_000.0,
+        };
+        let Err(error) = drawing_shape(&circle, DRAWING_CHORD_MM, "assembly graphic 7") else {
+            return Err(crate::Error::Invalid(
+                "a full turn needs more than 2,200 chords at 10 µm".into(),
+            ));
+        };
+        let message = error.to_string();
+        assert!(message.contains("assembly graphic 7"), "{message}");
+        assert!(message.contains("0.01 mm"), "{message}");
+        assert!(message.contains("2222"), "{message}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_custom_land_and_an_assembly_path_retain_their_last_edge() -> Result<()> {
+        use crate::library::{Outline, Segment};
+        // The pad has 400 semicircles of radius 1.5 mm. At 5 µm
+        // their ends and all intermediate chords require over 4,096 points.
+        let at = |i: usize| {
+            let angle = std::f64::consts::TAU * (i % 400) as f64 / 400.0;
+            [190.0 * angle.cos(), 190.0 * angle.sin()]
+        };
+        let outline = Outline {
+            start: at(0),
+            segments: (1..=400)
+                .map(|i| Segment::Arc {
+                    to: at(i),
+                    bulge: 1.0,
+                })
+                .collect(),
+        };
+        let land = drawing_outline(&outline, 0.005, "pad 1")?;
+        assert!(land.len() > 4096);
+        assert_eq!(land.first(), land.last());
+        for i in 0..400 {
+            assert!(land.contains(&at(i)), "arc endpoint {i}");
+        }
+        let path = crate::geometry::Shape::polygon(land[..land.len() - 1].to_vec());
+        assert_eq!(drawing_shape(&path, DRAWING_CHORD_MM, "body")?, land);
+        Ok(())
+    }
 
     /// Each waiver adds a note asking the fabricator to confirm it: the
     /// board finding's message with the reason, or the code when no
