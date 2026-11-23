@@ -2,12 +2,12 @@
  "cases": [
   {
    "name": "Global 1.0 mm, component",
-   "request": {"abi": 1, "scope": "component", "params": {"clear_diameter": 2000000, "copper_diameter": 1000000, "mask_diameter": 2000000, "sides": "one"}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "clear_diameter": 2000000, "copper_diameter": 1000000, "mask_diameter": 2000000, "sides": "one"}},
    "result": "b643a9f2c5e220e3df84c14e695b70b0ba242f2048796a4a40ffabf4a4a1b779"
   },
   {
    "name": "3R clear area, both sides, package",
-   "request": {"abi": 1, "scope": "package", "params": {"clear_diameter": 3000000, "copper_diameter": 1000000, "mask_diameter": 3000000, "sides": "both"}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "clear_diameter": 3000000, "copper_diameter": 1000000, "mask_diameter": 3000000, "sides": "both"}},
    "result": "7b2da9248ab02e16a7e166bcc42091c131dac924c824fdf84844cdb4fa3ae60b"
   }
  ],

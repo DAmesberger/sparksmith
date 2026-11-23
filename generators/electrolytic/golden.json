@@ -2,17 +2,17 @@
  "cases": [
   {
    "name": "Size D, vent, component",
-   "request": {"abi": 1, "scope": "component", "params": {"base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5800000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true, "marking_height": 0}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5800000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true, "marking_height": 0}},
    "result": "136d10dab8d62d2a266d0566d2cf9e5a2558ebf2adb1635c7b92c5626582e1e5"
   },
   {
    "name": "6.3x5.4, package",
-   "request": {"abi": 1, "scope": "package", "params": {"base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5500000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true, "marking_height": 0}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5500000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true, "marking_height": 0}},
    "result": "43ae53132af4c4cba1ef7c19f3b8d15fdf2af072e609b4bf8ec091f296ea5c44"
   },
   {
    "name": "Size G, no vent, package",
-   "request": {"abi": 1, "scope": "package", "params": {"base_length": 10300000, "base_width": 10300000, "can_diameter": 10000000, "height": 10200000, "land_gap": 4600000, "land_length": 4100000, "land_width": 2000000, "span": 12000000, "terminal_gap": 4600000, "terminal_width": 900000, "vent": false, "marking_height": 0}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "base_length": 10300000, "base_width": 10300000, "can_diameter": 10000000, "height": 10200000, "land_gap": 4600000, "land_length": 4100000, "land_width": 2000000, "span": 12000000, "terminal_gap": 4600000, "terminal_width": 900000, "vent": false, "marking_height": 0}},
    "result": "ef146a332e4bc44497527de21ccfe8add5f3bb8a21a1a4691acc205da930e40a"
   }
  ],

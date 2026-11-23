@@ -6,7 +6,8 @@ use crate::units::round_to;
 use alloc::vec;
 use alloc::vec::Vec;
 use sparksmith_generator_abi::v1::{
-    Fill, Graphic, HAlign, Opening, Pad, PadShape, Point, Primitive, TextContent, VAlign,
+    self, Fill, Graphic, HAlign, Opening, Pad, PadShape, Param, ParamType, ParamValue, Point,
+    Primitive, TextContent, VAlign,
 };
 
 /// Courtyard margin around pads and body (estimated default).
@@ -24,13 +25,28 @@ pub const SILK_OUTSET_NM: i64 = 150_000;
 pub const SILK_PAD_CLEARANCE_NM: i64 = 100_000;
 /// Silkscreen pieces shorter than this are left out.
 pub const MIN_SILK_SEGMENT_NM: i64 = 200_000;
-/// The mask expansion a footprint's pads inherit unless they state their
-/// own (the host's footprint default, 0.05 mm); the silkscreen keeps clear of it.
-pub const DEFAULT_MASK_NM: i64 = 50_000;
 /// Footprint text height.
 pub const TEXT_HEIGHT_NM: i64 = 1_000_000;
 /// Smallest assembly designator height.
 pub const MIN_ASSEMBLY_TEXT_NM: i64 = 100_000;
+
+/// The board's inherited mask expansion, captured with the generation
+/// inputs. A stand-alone family supplies its own estimate in nanometres.
+pub fn mask_expansion_param(standalone_nm: i64) -> Param {
+    Param {
+        key: v1::BOARD_MASK_EXPANSION.into(),
+        label: "Inherited solder mask expansion".into(),
+        help: Some("The board's mask expansion per side. Without a board profile the generator uses its stand-alone estimate.".into()),
+        ty: ParamType::Length {
+            min_nm: -v1::limits::COORDINATE_NM,
+            max_nm: v1::limits::COORDINATE_NM,
+            step_nm: None,
+        },
+        default: ParamValue::Int(standalone_nm),
+        group: Some("lands".into()),
+        context: Some("project.mask.expansion".into()),
+    }
+}
 
 /// An axis-aligned box.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -151,19 +167,14 @@ pub fn courtyard(pads: &[Pad], body: Option<Box2>) -> Option<Vec<Point>> {
 /// A pad's effective solder-mask opening, as a box: its copper box grown
 /// by its own mask expansion, or `default_mask_nm` where it follows the
 /// project's rule (none when tented).
-pub fn opening_box(pad: &Pad, default_mask_nm: i64) -> Box2 {
+pub fn opening_box(pad: &Pad, default_mask_nm: i64) -> Option<Box2> {
     let grow = match pad.mask {
         Opening::Expansion(e) => e,
         Opening::Default => default_mask_nm,
-        Opening::None | Opening::Windows(_) => 0,
+        Opening::None | Opening::Windows(_) => return None,
     };
-    pad_box(pad).inflated(grow.max(0))
-}
-
-/// The silkscreen keep-out of a pad: its opening ([`opening_box`]) grown
-/// by the clearance and half the stroke.
-fn keep_out(pad: &Pad, default_mask_nm: i64) -> Box2 {
-    opening_box(pad, default_mask_nm).inflated(SILK_PAD_CLEARANCE_NM + SILK_STROKE_NM / 2)
+    let bounds = pad_box(pad).inflated(grow);
+    (bounds.max[0] > bounds.min[0] && bounds.max[1] > bounds.min[1]).then_some(bounds)
 }
 
 /// The pieces of the horizontal or vertical segment `a`–`b` outside every box.
@@ -207,7 +218,11 @@ fn clipped(a: Point, b: Point, boxes: &[Box2]) -> Vec<Primitive> {
 /// The body outline [`SILK_OUTSET_NM`] outside `body`, as lines broken
 /// around the pads' mask openings plus clearance.
 pub fn silk_outline(pads: &[Pad], body: Box2, default_mask_nm: i64) -> Vec<Graphic> {
-    let boxes: Vec<Box2> = pads.iter().map(|p| keep_out(p, default_mask_nm)).collect();
+    let boxes: Vec<Box2> = pads
+        .iter()
+        .filter_map(|p| opening_box(p, default_mask_nm))
+        .map(|opening| opening.inflated(SILK_PAD_CLEARANCE_NM + SILK_STROKE_NM / 2))
+        .collect();
     let [c0, c1, c2, c3] = body.inflated(SILK_OUTSET_NM).corners();
     [
         ("bottom", c0, c1),
@@ -321,6 +336,19 @@ mod tests {
             Some([-1_400_000, -300_000])
         );
         assert_eq!(courtyard(&[], None), None);
+    }
+
+    #[test]
+    fn a_shrunk_inherited_opening_sets_the_silk_keepout() {
+        let body = Box2::centred([0, 0], [4_000_000, 2_000_000]);
+        let pads = [rect([0, 1_150_000], [1_000_000, 500_000])];
+        let lines = silk_outline(&pads, body, -50_000);
+        // Half width 0.5 − 0.05 mm mask + 0.1 mm clearance + 0.075 mm half stroke.
+        assert!(lines.iter().any(|g| g.shape
+            == Primitive::Line {
+                a: [-2_150_000, 1_150_000],
+                b: [-625_000, 1_150_000]
+            }));
     }
 
     #[test]

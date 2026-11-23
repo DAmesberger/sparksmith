@@ -15,7 +15,7 @@
 //! applies it around the generator's own `generate` ([`generate`]), so a
 //! generator neither declares nor reads it.
 use crate::Generator;
-use crate::land::{self, Box2, DEFAULT_MASK_NM};
+use crate::land::{self, Box2};
 use alloc::boxed::Box;
 use alloc::collections::BTreeSet;
 use alloc::format;
@@ -23,8 +23,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use sparksmith_generator_abi::codec;
 use sparksmith_generator_abi::v1::{
-    Description, Fill, GENERATE_PART, Generation, Graphic, Opening, Pad, PadKind, Param, ParamType,
-    ParamValue, Primitive, Problem, Request, limits,
+    BOARD_MASK_EXPANSION, Description, Fill, GENERATE_PART, Generation, Graphic, Opening, Pad,
+    PadKind, Param, ParamType, ParamValue, Primitive, Problem, Request, limits,
 };
 
 /// The parameter's key.
@@ -93,10 +93,16 @@ pub fn generate<G: Generator>(request: &Request) -> Result<Generation, Vec<Probl
             )]);
         }
     };
-    let mut generation = G::generate(&own)?;
-    if !lands.is_empty() {
-        apply(&lands, &mut generation).map_err(|p| alloc::vec![p])?;
+    if lands.is_empty() {
+        return G::generate(&own);
     }
+    let Some(ParamValue::Int(mask_expansion)) = request.params.get(BOARD_MASK_EXPANSION) else {
+        return Err(alloc::vec![problem(
+            "Supply the board mask expansion in nanometres for the given lands.".into()
+        )]);
+    };
+    let mut generation = G::generate_for_given_lands(&own)?;
+    apply(&lands, *mask_expansion, &mut generation).map_err(|p| alloc::vec![p])?;
     Ok(generation)
 }
 
@@ -117,7 +123,11 @@ fn free(pad: &Pad) -> bool {
 
 /// Replace `generation`'s pads with `items` and draw the courtyard and the
 /// silkscreen outline again round them.
-pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Problem> {
+pub fn apply(
+    items: &[ParamValue],
+    mask_expansion: i64,
+    generation: &mut Generation,
+) -> Result<(), Problem> {
     let pads = items
         .iter()
         .enumerate()
@@ -181,7 +191,8 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
     // every land's effective mask opening by the silkscreen clearance.
     let keep_outs: Vec<Box2> = pads
         .iter()
-        .map(|p| land::opening_box(p, DEFAULT_MASK_NM).inflated(land::SILK_PAD_CLEARANCE_NM))
+        .filter_map(|p| land::opening_box(p, mask_expansion))
+        .map(|opening| opening.inflated(land::SILK_PAD_CLEARANCE_NM))
         .collect();
     let mut silk: Vec<_> = footprint
         .silk
@@ -190,7 +201,7 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
         .filter(|g| ink_clear(g, &keep_outs))
         .cloned()
         .collect();
-    silk.extend(land::silk_outline(&pads, body, DEFAULT_MASK_NM));
+    silk.extend(land::silk_outline(&pads, body, mask_expansion));
     footprint.silk = silk;
     footprint.pads = pads;
     generation.notes.push(format!(
@@ -372,7 +383,7 @@ mod tests {
                     name: GENERATE_PART.into(),
                     effect: Effect::None,
                     title: None,
-                    params: Vec::new(),
+                    params: vec![land::mask_expansion_param(50_000)],
                     rules: Vec::new(),
                     presets: Vec::new(),
                     part: Some(PartOffer {
@@ -498,6 +509,7 @@ mod tests {
     fn request(lands: Vec<ParamValue>) -> Request {
         let mut params = v1::Params::new();
         params.insert(KEY.into(), ParamValue::List(lands));
+        params.insert(BOARD_MASK_EXPANSION.into(), ParamValue::Int(50_000));
         Request {
             abi: v1::ABI,
             scope: Scope::Package,
@@ -607,7 +619,7 @@ mod tests {
             ),
         ];
         let lands: Vec<ParamValue> = made.footprint.pads.iter().map(json).collect();
-        apply(&lands, &mut made)?;
+        apply(&lands, 50_000, &mut made)?;
         let kept: Vec<&str> = made
             .footprint
             .silk

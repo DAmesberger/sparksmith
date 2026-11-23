@@ -1001,6 +1001,60 @@ fn no_lead_library(dir: &Path) -> TestResult<PathBuf> {
     Ok(root)
 }
 
+#[test]
+fn generated_footprint_replays_the_mask_expansion_of_its_original_board() -> TestResult {
+    use sparksmith_core::Operation;
+    use sparksmith_core::library::generated::ParamValue;
+    use sparksmith_core::rules::{RuleKey, RuleValue, RulesCommand};
+
+    let temp = tempfile::tempdir()?;
+    let root = no_lead_library(temp.path())?;
+    let mut editor = Session::fixture(Engine::showcase()?);
+    editor.set_shipped(ShippedLibrary::at(&root)?);
+    let set_expansion = |editor: &mut Session, mm| -> TestResult {
+        let revision = editor.engine().revision();
+        editor.engine_mut().apply(
+            revision,
+            Operation::Rules(RulesCommand::SetOverride {
+                key: RuleKey::MaskExpansion,
+                value: RuleValue::Length(mm),
+            }),
+        )?;
+        Ok(())
+    };
+    set_expansion(&mut editor, 0.07)?;
+    let made = call(
+        &mut editor,
+        "library.generate_part",
+        json!({"generator": "no-lead", "scope": "package", "preset": "no-lead-qfn-16-3x3-0.5"}),
+    );
+    assert_eq!(made["ok"], true, "{made}");
+    let lib = &editor.engine().project().library;
+    let recipe = lib.generated.last().ok_or("missing recipe")?;
+    assert_eq!(
+        recipe.from.params.get("board_mask_expansion_nm"),
+        Some(&ParamValue::Int(70_000))
+    );
+    let footprint = lib
+        .footprint(recipe.refs()?.footprint)
+        .ok_or("missing footprint")?;
+    assert_eq!(
+        footprint.definition.defaults.mask_expansion_nm.get(),
+        70_000
+    );
+
+    set_expansion(&mut editor, 0.02)?;
+    let path = temp.path().join("captured.sparksmith");
+    let saved = call(&mut editor, "project.save", json!({"path": path}));
+    assert_eq!(saved["ok"], true, "{saved}");
+    std::fs::remove_dir_all(root.join("generators"))?;
+    let mut reopened = session(&root)?;
+    let opened = call(&mut reopened, "project.open", json!({"path": path}));
+    assert_eq!(opened["ok"], true, "{opened}");
+    assert_eq!(reopened.engine().to_file(), editor.engine().to_file());
+    Ok(())
+}
+
 /// Place the root component a `library.generate_part` reply made, by its
 /// first symbol and binding; the instance's fitted Part, if any.
 fn place_made(session: &mut Session, made: &Value) -> TestResult<Option<u64>> {

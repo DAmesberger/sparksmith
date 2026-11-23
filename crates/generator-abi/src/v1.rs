@@ -495,6 +495,11 @@ pub struct InstanceField {
 
 // ---------------------------------------------------------------- generate
 
+/// Standard length parameter that records the mask expansion used to make
+/// a footprint, in nm. Expansion and offline replay use this same value
+/// for the footprint's inherited openings.
+pub const BOARD_MASK_EXPANSION: &str = "board_mask_expansion_nm";
+
 /// A [`GENERATE_PART`] request. `params` are complete: the host fills
 /// every default from the [`Description`] before calling and before
 /// hashing. Its canonical bytes are what the params hash covers.

@@ -36,7 +36,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`).
 /// 2: the SDK's pin table (`pin_table`) and part numbers
 /// (`part_numbers`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// The package envelope's height: 1 oz outer copper, 35 µm (IPC-4562's
 /// nominal 34.8 µm, rounded as fabricators quote it; the fab profiles'
@@ -77,6 +77,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     // The defaults are JLCPCB's: a 1 mm dot in a 2 mm opening, the clear
     // area the opening (presets.json cites them).
     let params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         length(
             "copper_diameter",
             "Copper diameter",

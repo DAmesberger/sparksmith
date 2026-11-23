@@ -2,42 +2,42 @@
  "cases": [
   {
    "name": "header 2x5 2.54 mm, component",
-   "request": {"abi": 1, "scope": "component", "params": {"style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 2, "columns": 5, "pitch": 2540000, "row_pitch": 2540000, "body_height": 2540000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3000000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 2, "columns": 5, "pitch": 2540000, "row_pitch": 2540000, "body_height": 2540000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3000000}},
    "result": "f94b840759e7a581e8c8471c53fa30a1883b67abdb5c8132e26791ee94ea74eb"
   },
   {
    "name": "header 2x5 2.54 mm, package",
-   "request": {"abi": 1, "scope": "package", "params": {"style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 2, "columns": 5, "pitch": 2540000, "row_pitch": 2540000, "body_height": 2540000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3000000}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 2, "columns": 5, "pitch": 2540000, "row_pitch": 2540000, "body_height": 2540000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3000000}},
    "result": "393d508157e5b2bbf599decf8ecc15a4e6ee46b160f48ba7906b3d14e0b8c0d8"
   },
   {
    "name": "header 1x1 2.54 mm (no pattern, no pin-1 dot), component",
-   "request": {"abi": 1, "scope": "component", "params": {"style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 1, "columns": 1, "pitch": 2540000, "row_pitch": 2540000, "body_height": 2540000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3000000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 1, "columns": 1, "pitch": 2540000, "row_pitch": 2540000, "body_height": 2540000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3000000}},
    "result": "109451674a919649a78a315dc0ecec4a3053067dc5121cceed88d82b85b0d10c"
   },
   {
    "name": "header 1x12 2.54 mm (two-digit pin numbers), component",
-   "request": {"abi": 1, "scope": "component", "params": {"style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 1, "columns": 12, "pitch": 2540000, "row_pitch": 2540000, "body_height": 2540000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3000000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 1, "columns": 12, "pitch": 2540000, "row_pitch": 2540000, "body_height": 2540000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3000000}},
    "result": "a91b9b88edf8f80a78bc09b3446f04a2fbc3e916a95c658806d249a6393ef205"
   },
   {
    "name": "header 2x10 1.27 mm (tight-pitch lands), component",
-   "request": {"abi": 1, "scope": "component", "params": {"style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 2, "columns": 10, "pitch": 1270000, "row_pitch": 1270000, "body_height": 1000000, "pin_side": 400000, "pin_above": 3000000, "pin_below": 2300000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "style": "pin", "land_length": 0, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000, "rows": 2, "columns": 10, "pitch": 1270000, "row_pitch": 1270000, "body_height": 1000000, "pin_side": 400000, "pin_above": 3000000, "pin_below": 2300000}},
    "result": "e416ca505a9ec2f81648f1f618094c71c4bfba96bdac42ee410252196fed5290"
   },
   {
    "name": "socket 1x10 2.54 mm (oval lands), component",
-   "request": {"abi": 1, "scope": "component", "params": {"style": "socket", "rows": 1, "columns": 10, "pitch": 2540000, "row_pitch": 2540000, "body_height": 8500000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3100000, "land_length": 2800000, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "style": "socket", "rows": 1, "columns": 10, "pitch": 2540000, "row_pitch": 2540000, "body_height": 8500000, "pin_side": 640000, "pin_above": 6000000, "pin_below": 3100000, "land_length": 2800000, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000}},
    "result": "c576dcee1e5470c2ab165a92f83f048027b5dce9eead3298c2d59158f95878a4"
   },
   {
    "name": "socket SMD bottom entry 2x3 2.54 mm, component",
-   "request": {"abi": 1, "scope": "component", "params": {"style": "socket_smd_bottom", "rows": 2, "columns": 3, "pitch": 2540000, "row_pitch": 2540000, "body_height": 3700000, "pin_side": 500000, "pin_above": 6000000, "pin_below": 3000000, "land_length": 1800000, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "style": "socket_smd_bottom", "rows": 2, "columns": 3, "pitch": 2540000, "row_pitch": 2540000, "body_height": 3700000, "pin_side": 500000, "pin_above": 6000000, "pin_below": 3000000, "land_length": 1800000, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000}},
    "result": "21c1440bed07bb082070b74d0b30739266b07e70b4b941bd3c061f5e5faee42f"
   },
   {
    "name": "socket SMD bottom entry 2x3 2.54 mm, package",
-   "request": {"abi": 1, "scope": "package", "params": {"style": "socket_smd_bottom", "rows": 2, "columns": 3, "pitch": 2540000, "row_pitch": 2540000, "body_height": 3700000, "pin_side": 500000, "pin_above": 6000000, "pin_below": 3000000, "land_length": 1800000, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "style": "socket_smd_bottom", "rows": 2, "columns": 3, "pitch": 2540000, "row_pitch": 2540000, "body_height": 3700000, "pin_side": 500000, "pin_above": 6000000, "pin_below": 3000000, "land_length": 1800000, "land_width": 900000, "land_span": 6400000, "mating_hole": 1100000, "tail_span": 7200000, "standoff": 200000}},
    "result": "11b1cc7cc269c2906879daa36baae9dca4d935644d6e44275c712ebc1c6f3a05"
   }
  ],

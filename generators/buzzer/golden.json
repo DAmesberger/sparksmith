@@ -2,12 +2,12 @@
  "cases": [
   {
    "name": "CMI-9653S, component",
-   "request": {"abi": 1, "scope": "component", "params": {"body_length": 9600000, "body_width": 9600000, "height": 5000000, "label": false, "land_length": 3000000, "land_width": 2500000, "land_x": 3800000, "terminal_out": 250000, "terminal_rise": 2400000, "terminal_width": 1500000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "body_length": 9600000, "body_width": 9600000, "height": 5000000, "label": false, "land_length": 3000000, "land_width": 2500000, "land_x": 3800000, "terminal_out": 250000, "terminal_rise": 2400000, "terminal_width": 1500000}},
    "result": "cfb5dc5f920b2a6a90f30e8e012fc81c5f44bc9627ee6387d946b853da9f69b0"
   },
   {
    "name": "CMI-9653S with label, package",
-   "request": {"abi": 1, "scope": "package", "params": {"body_length": 9600000, "body_width": 9600000, "height": 5000000, "label": true, "land_length": 3000000, "land_width": 2500000, "land_x": 3800000, "terminal_out": 250000, "terminal_rise": 2400000, "terminal_width": 1500000}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "body_length": 9600000, "body_width": 9600000, "height": 5000000, "label": true, "land_length": 3000000, "land_width": 2500000, "land_x": 3800000, "terminal_out": 250000, "terminal_rise": 2400000, "terminal_width": 1500000}},
    "result": "2ee1c52470a8218c4d6e519222b03f5f035d23b2dafb5b33c948d1c44a2cba3b"
   }
  ],

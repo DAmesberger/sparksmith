@@ -436,10 +436,10 @@ impl Explicit {
 
 /// The silkscreen pin-1 dot beyond pin 1's land, on the side of the body
 /// that land is nearest.
-fn pin_one_dot(first: &Pad, body: [i64; 3]) -> Graphic {
+fn pin_one_dot(first: &Pad, body: [i64; 3], mask_expansion: i64) -> Graphic {
     let b = lands::pad_box(first);
     let r = super::PIN_ONE_DOT_RADIUS_NM;
-    let gap = lands::DEFAULT_MASK_NM + lands::SILK_PAD_CLEARANCE_NM + 2 * r;
+    let gap = mask_expansion + lands::SILK_PAD_CLEARANCE_NM + 2 * r;
     // Across x when the land lies relatively nearer the ±x edge.
     let across_x = first.at[0].abs() * body[1] >= first.at[1].abs() * body[0];
     let center = if across_x {
@@ -465,12 +465,13 @@ fn pin_one_dot(first: &Pad, body: [i64; 3]) -> Graphic {
 }
 
 pub fn generate(request: &Request, args: &Args<'_>) -> Result<Generation, Vec<Problem>> {
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let e = read(args)?;
     let pads = e.pads();
     let body = Box2::centred([0, 0], [e.body[0], e.body[1]]);
     let courtyard = lands::courtyard(&pads, Some(body)).unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = lands::silk_outline(&pads, body, lands::DEFAULT_MASK_NM);
+    let mut silk = lands::silk_outline(&pads, body, mask_expansion);
     silk.push(lands::silk_designator(body, top));
     if e.terminals.len() > 2
         && let Some(first) = e
@@ -478,7 +479,7 @@ pub fn generate(request: &Request, args: &Args<'_>) -> Result<Generation, Vec<Pr
             .first()
             .and_then(|t| pads.iter().find(|p| &p.key == t))
     {
-        silk.push(pin_one_dot(first, e.body));
+        silk.push(pin_one_dot(first, e.body, mask_expansion));
     }
     let keys = e.terminals.clone();
     let package = Package {

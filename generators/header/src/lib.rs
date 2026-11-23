@@ -44,7 +44,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`).
 /// 5: the SDK's pin table (`pin_table`) and part numbers
 /// (`part_numbers`).
-const VERSION: u32 = 5;
+const VERSION: u32 = 6;
 
 /// Most rows and pins per row.
 const MAX_ROWS: i64 = 4;
@@ -177,6 +177,7 @@ fn description() -> Description {
 /// without reading the preset table).
 fn description_with(presets: Vec<Preset>) -> Description {
     let params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         Param {
             key: "style".into(),
             label: "Style".into(),
@@ -840,12 +841,13 @@ fn socket_model(d: &Dims) -> v1::Model {
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let d = dims(&args)?;
     let pads = pads(&d);
     let body = d.body();
     let courtyard = land::courtyard(&pads, Some(body)).unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, body, mask_expansion);
     silk.push(land::silk_designator(body, top));
     if d.pins() > 2
         && let Some(first) = pads.first()
@@ -857,7 +859,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 center: [
                     first.at[0]
                         - half
-                        - land::DEFAULT_MASK_NM
+                        - mask_expansion
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],

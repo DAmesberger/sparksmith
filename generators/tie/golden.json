@@ -6,6 +6,7 @@
     "abi": 1,
     "scope": "component",
     "params": {
+     "board_mask_expansion_nm": 50000,
      "form": "kelvin",
      "ends": 2,
      "state": "open",
@@ -29,6 +30,7 @@
     "abi": 1,
     "scope": "component",
     "params": {
+     "board_mask_expansion_nm": 50000,
      "form": "copper",
      "ends": 8,
      "state": "open",
@@ -52,6 +54,7 @@
     "abi": 1,
     "scope": "component",
     "params": {
+     "board_mask_expansion_nm": 50000,
      "form": "solder",
      "ends": 2,
      "state": "open",
@@ -75,6 +78,7 @@
     "abi": 1,
     "scope": "component",
     "params": {
+     "board_mask_expansion_nm": 50000,
      "form": "trace",
      "ends": 3,
      "state": "closed",
@@ -98,6 +102,7 @@
     "abi": 1,
     "scope": "component",
     "params": {
+     "board_mask_expansion_nm": 50000,
      "form": "zero_ohm",
      "ends": 2,
      "state": "open",
