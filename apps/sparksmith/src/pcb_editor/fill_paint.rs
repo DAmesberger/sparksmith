@@ -101,6 +101,12 @@ impl FillMesh {
         }
     }
 
+    pub(super) fn centre(&self) -> Point {
+        [
+            (self.bounds[0][0] + self.bounds[1][0]) * 0.5,
+            (self.bounds[0][1] + self.bounds[1][1]) * 0.5,
+        ]
+    }
     pub(super) fn paint_bridge(
         &self,
         painter: &egui::Painter,
@@ -481,7 +487,7 @@ impl PcbEditor {
         for fill in self.fills_on(project, layer) {
             let chosen = self.fill == Some(fill.id)
                 || self.group.fills.contains(&fill.id)
-                || (fill.net.is_some() && self.highlighted == fill.net);
+                || fill.net.is_some_and(|n| self.net_is_highlighted(n));
             let base = colors.copper_layer(layer);
             let color = ink.on_board(base, look.shade);
             let edge = if chosen {

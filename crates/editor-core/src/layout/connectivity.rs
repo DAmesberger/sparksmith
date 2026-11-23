@@ -134,6 +134,10 @@ pub struct CopperGraph {
         crate::diagnostics::ObjectRef,
         Id,
     )>,
+    contact_pairs:
+        std::collections::HashSet<(crate::diagnostics::ObjectRef, crate::diagnostics::ObjectRef)>,
+    pub(crate) anchor_contacts:
+        BTreeMap<(Id, crate::ids::TerminalId), Vec<crate::diagnostics::ObjectRef>>,
     tie_findings: Vec<crate::diagnostics::Finding>,
     layers: Vec<CopperLayer>,
     /// The z of each copper layer's foil mid-plane in the stackup, mm.

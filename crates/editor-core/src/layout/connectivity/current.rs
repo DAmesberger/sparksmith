@@ -10,7 +10,7 @@ use crate::model::Project;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Default, Debug, Serialize)]
+#[derive(Clone, Default, Debug, PartialEq, Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct TieCurrent {
     pub required_a: Option<f64>,
     pub capacity_a: Option<f64>,

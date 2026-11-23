@@ -350,9 +350,9 @@ impl Generator for TieGenerator {
             package: Package {
                 geometry: PackageGeometry {
                     envelope_nm: [
-                        ((count - 1) * pitch + length).max(1),
-                        width.max(1),
-                        height.max(1),
+                        ((count - 1) * pitch + length).max(10_000),
+                        width.max(10_000),
+                        height.max(10_000),
                     ],
                     seating_nm: 0,
                     leads,

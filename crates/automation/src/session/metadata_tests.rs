@@ -37,7 +37,7 @@ fn the_catalog_has_its_272_entries() {
     // variant.* operations and the variant.list and variant.substitutes
     // queries (assembly variants); then library.account and library.sign_out;
     // then variant.review_substitute; then schematic.pins.
-    assert_eq!(metadata::entries().len(), 291);
+    assert_eq!(metadata::entries().len(), 295);
 }
 
 /// A title is short, says more than the wire name, and is unique within its

@@ -9,7 +9,9 @@ use crate::model::{CopperLayer, Project};
 use crate::rules::CopperObject;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 pub struct TieIsland {
     pub net: Id,
     pub pad: PadId,
@@ -30,6 +32,7 @@ struct Item {
     layer: CopperLayer,
     through: bool,
     net: Option<Id>,
+    bridge: Option<crate::ids::BridgeId>,
     kind: CopperObject,
     ring: CopperRing,
 }
@@ -51,6 +54,7 @@ impl CopperGraph {
                 object: land.object(),
                 layer: land.layer.into(),
                 through: land.through,
+                bridge: None,
                 kind: CopperObject::Pad,
                 net: land.net(),
                 ring: land.ring,
@@ -61,6 +65,7 @@ impl CopperGraph {
                 object: ObjectRef::Track { id: track.id },
                 layer: track.layer,
                 through: false,
+                bridge: None,
                 kind: CopperObject::Track,
                 net: Some(track.net),
                 ring: build::track_copper(track),
@@ -72,6 +77,7 @@ impl CopperGraph {
                     object: ObjectRef::Via { id: via.id },
                     layer,
                     through: false,
+                    bridge: None,
                     kind: CopperObject::Via,
                     net: Some(via.net),
                     ring: build::via_copper(via),
@@ -83,6 +89,7 @@ impl CopperGraph {
                 object: ObjectRef::Instance { id: b.instance },
                 layer: b.layer,
                 through: false,
+                bridge: None,
                 kind: CopperObject::Track,
                 net: None,
                 ring: bridge_ring(b),
@@ -128,7 +135,9 @@ impl CopperGraph {
                     break;
                 }
                 remaining -= 1;
-                if (!item.through && item.layer != bridge.layer) || item.object == owner {
+                if (!item.through && item.layer != bridge.layer)
+                    || (item.object == owner && item.bridge == Some(bridge.bridge))
+                {
                     continue;
                 }
                 let contact = build::joins(&copper, &item.ring);
@@ -215,6 +224,8 @@ impl CopperGraph {
                     continue;
                 }
                 self.tie_contacts.insert((y, x, t.instance));
+                self.contact_pairs.insert((x, y));
+                self.contact_pairs.insert((y, x));
                 if t.purpose == crate::library::tie::TiePurpose::KelvinSense {
                     let mut allowed = false;
                     if let Some(ends) = anchors.get(&t.instance) {
@@ -228,6 +239,12 @@ impl CopperGraph {
                             {
                                 allowed = true;
                                 anchored_ends.insert((t.instance, *end));
+                                let contacts =
+                                    self.anchor_contacts.entry((t.instance, *end)).or_default();
+                                let sense = if land == x { y } else { x };
+                                if !contacts.contains(&sense) {
+                                    contacts.push(sense);
+                                }
                             }
                         }
                     }
@@ -339,7 +356,7 @@ impl CopperGraph {
         let [a, b, ..] = objects else {
             return false;
         };
-        self.tie_contacts.iter().any(|(x, y, _)| a == x && b == y)
+        self.contact_pairs.contains(&(*a, *b))
     }
 }
 

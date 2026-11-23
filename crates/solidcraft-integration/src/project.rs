@@ -1602,16 +1602,6 @@ struct Kept {
     designs: designs::Memo,
 }
 
-/// The live view's model of `project` ([`Flat::Meshed`]). No design of
-/// the board is made: its flat bodies are meshed from the board plan
-/// ([`mesh`]), and each part is its package revision's own design
-/// ([`designs`]), evaluated once and shared by every placement, placed by
-/// the document's transform (the pose the exact build's joints solve,
-/// [`sparksmith_core::interface::package::model_to_board`]). What `kept`
-/// holds is taken instead of made again. The sources (and so the picks)
-/// are the exact build's, in its order. A part design not held is built
-/// on every core, stopping with [`Error::Cancelled`] at its next native
-/// command once `cancel` is set.
 fn bridge_source(body: &plan::PlanBody, pick_id: u64, component: u64) -> Result<Source> {
     let plan::Origin::Bridge { instance, bridge } = body.source else {
         return Err(Error::Verification("Expected a bridge body.".into()));
@@ -1635,6 +1625,16 @@ fn bridge_source(body: &plan::PlanBody, pick_id: u64, component: u64) -> Result<
     })
 }
 
+/// The live view's model of `project` ([`Flat::Meshed`]). No design of
+/// the board is made: its flat bodies are meshed from the board plan
+/// ([`mesh`]), and each part is its package revision's own design
+/// ([`designs`]), evaluated once and shared by every placement, placed by
+/// the document's transform (the pose the exact build's joints solve,
+/// [`sparksmith_core::interface::package::model_to_board`]). What `kept`
+/// holds is taken instead of made again. The sources (and so the picks)
+/// are the exact build's, in its order. A part design not held is built
+/// on every core, stopping with [`Error::Cancelled`] at its next native
+/// command once `cancel` is set.
 fn build_meshed(
     project: &Project,
     kept: Kept,
