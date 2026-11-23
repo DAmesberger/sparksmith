@@ -605,7 +605,59 @@ pub struct Command {
     pub keywords: &'static str,
 }
 
+pub fn workspace_page(workspace: Workspace) -> &'static str {
+    match workspace {
+        Workspace::Part => "panel/component",
+        Workspace::Schematic => "panel/schematic",
+        Workspace::Pcb => "panel/layout",
+    }
+}
+
 impl Command {
+    /// The surface entry this action invokes, or the workspace/panel
+    /// that owns an interactive command. Tool gestures can span several edits.
+    #[cfg(test)]
+    fn destination(&self) -> &'static str {
+        use AppCommand as A;
+        match self.action {
+            Action::App(app) => match app {
+                A::Palette => "panel/palette",
+                A::Shortcuts => "panel/keyboard-shortcuts",
+                A::New => "entry/project.new",
+                A::Open => "entry/project.open",
+                A::Save | A::SaveAs => "entry/project.save",
+                A::Export => "entry/project.export_native",
+                A::ExportSchematicPdf => "entry/schematic.export_pdf",
+                A::Undo => "entry/project.undo",
+                A::Redo => "entry/project.redo",
+                A::ToggleIssues => "panel/issues",
+                A::ToggleBrowser => "panel/browser",
+                A::Messages => "panel/messages",
+                A::LibrarySources => "panel/libraries",
+                A::Settings => "panel/settings",
+                A::ToggleAssistant | A::ConnectAssistants => "panel/assistant",
+                A::Workspace(workspace) => workspace_page(workspace),
+                A::View3d(_) | A::ToggleFollowNet | A::ToggleRealistic | A::TogglePcb3d => "panel/model-3d",
+                A::ToggleParts => "panel/layout",
+                A::Cut | A::Copy | A::Paste => "panel/schematic",
+                A::SelectAll | A::FitView => "panel/properties",
+                A::ClearRecent | A::ImportKicad | A::ImportReport | A::Quit | A::CloseWindow => "panel/files",
+            },
+            Action::Ribbon(workspace, _) => workspace_page(workspace),
+            Action::Pcb(_) | Action::PcbLayer(_) | Action::PcbDialog(_) => "panel/layout",
+            Action::PcbArrange(PcbArrange::Align(_)) => "entry/layout.align",
+            Action::PcbArrange(PcbArrange::Distribute(_)) => "entry/layout.distribute",
+            Action::Key => match self.context {
+                Context::Component | Context::Symbol | Context::Footprint => "panel/component",
+                Context::Schematic | Context::SchematicWire => "panel/schematic",
+                Context::Pcb3d => "panel/model-3d",
+                Context::Pcb | Context::PcbLayout | Context::PcbRoute | Context::PcbFill
+                    | Context::PcbTune | Context::BoardShape => "panel/layout",
+                Context::List | Context::Global => "panel/keyboard-shortcuts",
+            },
+        }
+    }
+
     fn new(
         id: impl Into<String>,
         title: impl Into<String>,

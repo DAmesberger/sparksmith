@@ -733,3 +733,59 @@ fn the_shortcut_sheet_lists_a_name_once_with_all_its_keys() {
     assert_eq!(shown.len(), 1, "{rows:?}");
     assert_eq!(shown[0].1, both);
 }
+
+/// The row for every desktop command, including gesture-only keys, comes
+/// from the same registry the dispatcher uses. Written by xtask help.
+#[test]
+fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Error>> {
+    use sparksmith_core::help::{Facts, HelpEntry};
+    let registry = Registry::standard();
+    let entries = registry.help_entries()?;
+    assert_eq!(entries.len(), registry.commands().len());
+    let route = entries.iter().find(|entry| entry.id.name() == "route.width-next")
+        .ok_or("missing in-place route width key")?;
+    assert!(matches!(&route.facts, Facts::Command { default_key: Some(key), .. } if key == "W"));
+    let save = entries.iter().find(|entry| entry.id.name() == "file.save")
+        .ok_or("missing Save command")?;
+    assert!(matches!(&save.facts, Facts::Command { reaches: Some(id), .. } if id.as_str() == "entry/project.save"));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../library/help/generated/commands.json");
+    let mut data = serde_json::to_string_pretty(&entries)?;
+    data.push('\n');
+    if std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref() == Some(std::ffi::OsStr::new("1")) {
+        std::fs::write(&path, &data)?;
+    }
+    let shipped = std::fs::read_to_string(path)?;
+    assert_eq!(serde_json::from_str::<Vec<HelpEntry>>(&shipped)?, entries);
+    assert_eq!(shipped, data, "regenerate with cargo xtask help --update");
+    Ok(())
+}
+
+impl Registry {
+    /// Export canonical chords rather than platform key-cap labels. Rebinding
+    /// affects the desktop reader only, so every platform ships the same index.
+    fn help_entries(&self) -> Result<Vec<sparksmith_core::help::HelpEntry>, String> {
+        use sparksmith_core::help::{Facts, HelpEntry};
+        let mut entries = Vec::new();
+        for command in self.commands() {
+            let keys: Vec<_> = command.chord.into_iter().chain(command.also.iter().copied())
+                .map(Chord::name).collect();
+            let default_key = if keys.is_empty() { command.key_text.clone() } else { Some(keys.join(", ")) };
+            entries.push(HelpEntry {
+                id: format!("command/{}", command.id).parse()?,
+                title: command.title.clone(),
+                summary: format!("{} in {}.", command.title.trim_end_matches('…'), command.context.label()),
+                since: env!("CARGO_PKG_VERSION").into(),
+                facts: Facts::Command {
+                    context: command.context.label().into(),
+                    default_key,
+                    reaches: Some(command.destination().parse()?),
+                },
+                body: vec![], related: vec![],
+                keywords: command.keywords.split_whitespace().map(str::to_owned).collect(),
+            });
+        }
+        entries.sort_by(|a,b| a.id.cmp(&b.id));
+        Ok(entries)
+    }
+}
