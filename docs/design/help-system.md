@@ -23,7 +23,7 @@ Status: design for review, 22 November 2026. Nothing here is built; building nee
 | Glossary | `GLOSSARY.md` | Developer vocabulary, marked "proposed". Not in the app |
 | Keymap docs | `docs/keyboard-shortcuts.md` (default keymap table) | Copies the registry by hand |
 | Design docs | `docs/` (about 70 files) | Developer and design records, not user help. Mostly stays as it is |
-| Website | `sparksmith-infra/site/index.html` | One landing page. No docs yet |
+| Website | A landing page, kept outside this repository | One landing page. No docs yet |
 
 The pattern: the facts are mostly typed already. What's missing is one shape that collects them, prose next to them, and a check that keeps the two together.
 
