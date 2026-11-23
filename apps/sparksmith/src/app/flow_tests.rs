@@ -785,3 +785,169 @@ fn open_recent_keeps_the_project_and_drops_a_missing_file() -> Fallible {
     );
     Ok(())
 }
+
+/// The folder is ready before a request is submitted, as it is when the
+/// palette offers its entries. Nothing here uses the person's source cache.
+fn install_parts_folder(h: &mut Harness, bundle: &sparksmith_core::library::Bundle) -> Fallible {
+    use sparksmith_io::library_folder as folder;
+    h.app.sources = LibrarySources::new(Some(sparksmith_io::settings::UserDirs {
+        config: h.dir.path().join("config"),
+        cache: h.dir.path().join("cache"),
+    }));
+    let path = h.dir.path().join("parts");
+    let folder = folder::create_folder_as(&path, "Sample Parts", bundle.library)?;
+    folder::write_bundle(&folder, bundle)?;
+    h.app.sources.add(path)?;
+    h.app.sources.wait()?;
+    assert!(
+        h.app
+            .sources
+            .sources()
+            .iter()
+            .any(|source| source.library() == Some(bundle.library))
+    );
+    Ok(())
+}
+
+#[test]
+fn folder_placement_stays_with_the_project_that_requested_it() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _entered = context.enter();
+    let mut h = Harness::new()?;
+    let (pick, bundle) = crate::part_editor::sample_item()?;
+    install_parts_folder(&mut h, &bundle)?;
+    h.app.sources.read_bundle(
+        &h.app.engine,
+        pick.clone(),
+        BundlePurpose::Place(Default::default()),
+    );
+    // An open chooser also holds IDs from this project.
+    let selected = h.app.engine.project().instances[0].id;
+    h.app
+        .schematic
+        .palette_mut()
+        .open_assign(String::new(), vec![selected]);
+    let mut other = Engine::default().to_file();
+    other.project.name = "Second project".into();
+    h.app.replace(other, None, None, false);
+    assert!(!h.app.schematic.palette_mut().is_open());
+    let before = h.app.engine.document().clone();
+    h.app.sources.wait_for_bundle()?;
+    h.app.library_bundles();
+    assert_eq!(h.app.engine.document(), &before);
+    assert_eq!(h.app.engine.project().name, "Second project");
+    assert!(h.app.engine.project().instances.is_empty());
+    assert!(!h.app.engine.can_undo());
+
+    // The same part explicitly requested in the new project still places.
+    h.app.sources.read_bundle(
+        &h.app.engine,
+        pick,
+        BundlePurpose::Place(Default::default()),
+    );
+    h.app.sources.wait_for_bundle()?;
+    h.app.library_bundles();
+    assert_eq!(
+        h.app.engine.project().instances.len(),
+        1,
+        "{}",
+        said(&h.app)
+    );
+    Ok(())
+}
+
+#[test]
+fn folder_assignment_requires_the_instance_version_that_was_chosen() -> Fallible {
+    use sparksmith_core::ids::{LibraryId, SourceLineageId};
+    use sparksmith_core::{InstanceCommand, LibraryCommand, Query, QueryResult};
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _entered = context.enter();
+    let mut h = Harness::new()?;
+    let engine = &mut h.app.engine;
+    let part = crate::resolve_parts::demo_part(engine, "Sample-R")?;
+    let instance = engine.project().instances[0].id;
+    let library = LibraryId(7);
+    let fresh: Vec<_> = (1..65).map(SourceLineageId).collect();
+    let root = part.erased();
+    let name = "Sample Parts".to_owned();
+    let QueryResult::Promote(plan) = engine.query(Query::PromotePreview {
+        root,
+        library,
+        name: name.clone(),
+        fresh: fresh.clone(),
+    })?
+    else {
+        return Err("missing promotion plan".into());
+    };
+    engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::Promote {
+            root,
+            library,
+            name,
+            fresh,
+        }),
+    )?;
+    let pick = library_sources::FolderPick {
+        library,
+        lineage: plan.bundle.root.lineage,
+        revision: plan.bundle.root.revision,
+        name: "Sample-R".into(),
+    };
+    install_parts_folder(&mut h, &plan.bundle)?;
+    let purpose = BundlePurpose::Assign(vec![instance]);
+    h.app
+        .sources
+        .read_bundle(&h.app.engine, pick.clone(), purpose.clone());
+    h.app.engine.apply(
+        h.app.engine.revision(),
+        Operation::Instance(InstanceCommand::SetDesignator {
+            instance,
+            designator: "R27".into(),
+        }),
+    )?;
+    let before = h.app.engine.document().clone();
+    let revision = h.app.engine.revision();
+    h.app.sources.wait_for_bundle()?;
+    h.app.library_bundles();
+    assert_eq!(h.app.engine.document(), &before);
+    assert_eq!(h.app.engine.revision(), revision);
+    assert_eq!(
+        h.app
+            .engine
+            .project()
+            .instance(instance)
+            .ok_or("instance")?
+            .part,
+        None
+    );
+
+    // A separately opened copy has the same instance IDs and Part records.
+    h.app
+        .sources
+        .read_bundle(&h.app.engine, pick.clone(), purpose.clone());
+    let mut copy = h.app.engine.to_file();
+    copy.project.name = "Project copy".into();
+    h.app.replace(copy, None, None, false);
+    let before = h.app.engine.document().clone();
+    h.app.sources.wait_for_bundle()?;
+    h.app.library_bundles();
+    assert_eq!(h.app.engine.document(), &before);
+    assert!(!h.app.engine.can_undo());
+
+    h.app.sources.read_bundle(&h.app.engine, pick, purpose);
+    h.app.sources.wait_for_bundle()?;
+    h.app.library_bundles();
+    assert_eq!(
+        h.app
+            .engine
+            .project()
+            .instance(instance)
+            .ok_or("instance")?
+            .part,
+        Some(part),
+        "{}",
+        said(&h.app)
+    );
+    Ok(())
+}

@@ -560,6 +560,7 @@ pub enum BundlePurpose {
 
 /// A finished bundle read.
 pub struct ReadBundle {
+    pub version: crate::document_version::DocumentVersion,
     pub pick: FolderPick,
     pub purpose: BundlePurpose,
     pub result: Result<Bundle, String>,
@@ -1415,7 +1416,8 @@ impl LibrarySources {
     /// worker: `read_bundle` reads only the closure's files, but that is
     /// still file I/O, kept off the UI thread. The result comes back from
     /// [`Self::take_bundles`] tagged with `purpose`.
-    pub fn read_bundle(&mut self, pick: FolderPick, purpose: BundlePurpose) {
+    pub fn read_bundle(&mut self, engine: &Engine, pick: FolderPick, purpose: BundlePurpose) {
+        let version = crate::document_version::DocumentVersion::of(engine);
         // A shipped component (the palette's shipped parts): read with
         // the shipped library, so it is here already.
         let root = SourceRevision {
@@ -1427,6 +1429,7 @@ impl LibrarySources {
             .and_then(|parts| parts.component(pick.library, root))
         {
             self.bundles.push(ReadBundle {
+                version,
                 pick,
                 purpose,
                 result: Ok(Bundle::clone(bundle)),
@@ -1438,13 +1441,14 @@ impl LibrarySources {
         if self.folder(pick.library).is_err()
             && let Some(online) = &mut self.online
         {
-            online.bundle(pick, purpose);
+            online.bundle(pick, purpose, version);
             return;
         }
         let folder = match self.folder(pick.library) {
             Ok(folder) => folder.clone(),
             Err(error) => {
                 self.bundles.push(ReadBundle {
+                    version,
                     pick,
                     purpose,
                     result: Err(error),
@@ -1464,6 +1468,7 @@ impl LibrarySources {
             )
             .map_err(|e| format!("Reading {} failed: {e}", pick.name));
             let _ = sender.send(Event::Bundle(ReadBundle {
+                version,
                 pick,
                 purpose,
                 result,
@@ -1477,6 +1482,23 @@ impl LibrarySources {
     /// Bundles read since the last call, in the order they finished.
     pub fn take_bundles(&mut self) -> Vec<ReadBundle> {
         std::mem::take(&mut self.bundles)
+    }
+
+    /// Wait for a completed folder read without applying it to the document.
+    #[cfg(test)]
+    pub fn wait_for_bundle(&mut self) -> Result<(), String> {
+        while self.bundles.is_empty() {
+            let event = self
+                .receiver
+                .recv_timeout(std::time::Duration::from_secs(20))
+                .map_err(|e| e.to_string())?;
+            self.handle(event);
+        }
+        self.bundles[0]
+            .result
+            .as_ref()
+            .map(|_| ())
+            .map_err(Clone::clone)
     }
 
     /// Ready sources `library.promote` may write to.

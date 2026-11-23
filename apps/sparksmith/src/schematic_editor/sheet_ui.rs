@@ -300,6 +300,12 @@ impl SchematicEditor {
     /// start on its first page with nothing selected and the page framed.
     /// The frame waits for the next canvas frame, whenever Schematic shows.
     pub fn document_opened(&mut self, project: &Project) {
+        self.palette.close();
+        let _ = self.palette.take_events();
+        self.tool = Tool::Select;
+        self.board_pick = None;
+        self.library_update = None;
+        self.update = Default::default();
         self.select(None, None, project);
         self.wire = None;
         self.draw_from = None;

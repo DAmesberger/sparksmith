@@ -952,15 +952,18 @@ impl App {
                 PaletteEvent::PlaceFrom {
                     pick,
                     other_revision,
-                } => self
-                    .sources
-                    .read_bundle(pick, BundlePurpose::Place(other_revision)),
+                } => self.sources.read_bundle(
+                    &self.engine,
+                    pick,
+                    BundlePurpose::Place(other_revision),
+                ),
                 PaletteEvent::UpdateProjectCopy(pick) => {
-                    self.sources.read_bundle(pick, BundlePurpose::Update(None));
+                    self.sources
+                        .read_bundle(&self.engine, pick, BundlePurpose::Update(None));
                 }
                 PaletteEvent::AssignFrom { pick, instances } => {
                     self.sources
-                        .read_bundle(pick, BundlePurpose::Assign(instances));
+                        .read_bundle(&self.engine, pick, BundlePurpose::Assign(instances));
                 }
                 PaletteEvent::ManageSources => self.sources.open_card(),
                 PaletteEvent::PlacePartFile(name) => {
@@ -970,8 +973,11 @@ impl App {
             }
         }
         if let Some((instance, pick)) = instance_update {
-            self.sources
-                .read_bundle(pick, BundlePurpose::Update(Some(vec![instance])));
+            self.sources.read_bundle(
+                &self.engine,
+                pick,
+                BundlePurpose::Update(Some(vec![instance])),
+            );
         }
         match action {
             Some(library_sources::ComponentAction::Promote { component, name }) => {
@@ -1003,6 +1009,16 @@ impl App {
             return;
         }
         for read in self.sources.take_bundles() {
+            if !read.version.is_current(&self.engine) {
+                self.say(
+                    Level::Info,
+                    format!(
+                        "The project changed while reading {}. Choose it again.",
+                        read.pick.name
+                    ),
+                );
+                continue;
+            }
             let bundle = match read.result {
                 Ok(bundle) => bundle,
                 Err(error) => {
@@ -1224,9 +1240,11 @@ impl App {
                     }
                 }
                 part_editor::FolderAction::EditCopy => self.edit_copy(),
-                part_editor::FolderAction::Place(pick) => self
-                    .sources
-                    .read_bundle(pick, BundlePurpose::Place(Default::default())),
+                part_editor::FolderAction::Place(pick) => self.sources.read_bundle(
+                    &self.engine,
+                    pick,
+                    BundlePurpose::Place(Default::default()),
+                ),
             }
         }
         self.part.tick();
