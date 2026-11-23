@@ -643,9 +643,11 @@ fn footprints_that_are_no_part_get_no_body_as_in_the_source() -> Fallible {
 fn library_references_stay_unresolved_and_an_expired_import_refuses() -> Fallible {
     let dir = tempfile::tempdir()?;
     std::fs::write(dir.path().join("own.step"), VENDOR)?;
+    let mut presets = presets::Presets::default();
     let mut models = Models::new(
         dir.path(),
         crate::session::generators::fixture_batch_runtime,
+        &mut presets,
     )?;
     let mut engine = Engine::demo()?;
     let facts = sparksmith_kicad::models::Facts::default();

@@ -1,4 +1,4 @@
-//! The shipped generators' presets, made once per import: which package a
+//! The shipped generators' presets, indexed by manifest revision: which package a
 //! source footprint's lands are ([`Presets::identify`]). The part itself is
 //! made by the preset's generator with the source's lands as its land
 //! pattern ([`super::parts`]), so identifying a package never changes a pad.
@@ -43,7 +43,6 @@ const BODY_MARGIN: f64 = 0.02;
 /// or "size B" never do).
 const MIN_NAME_CHARS: usize = 4;
 
-const MAX_PRESETS: usize = 512;
 pub(super) struct Candidate {
     pub(super) bundle: Arc<GeneratorBundle>,
     pub(super) generation: v1::Generation,
@@ -68,12 +67,18 @@ pub(super) struct Candidate {
     courtyard_mm: Option<[f64; 2]>,
 }
 #[derive(Default)]
-pub(super) struct Presets {
+pub(crate) struct Presets {
     /// The runtime the importer chose (batch admission); else the
     /// engine's, else the process's.
     runtime: Option<Arc<dyn GeneratorRuntime + Send + Sync>>,
     candidates: Option<Vec<Candidate>>,
-    failure: Option<String>,
+    revision: Option<Vec<(String, ContentHash)>>,
+    // Partial candidates are private until every eligible preset is indexed.
+    partial: Vec<Candidate>,
+    next_generator: usize,
+    active: Option<(Arc<GeneratorBundle>, v1::Description, usize)>,
+    permanent_failure: Option<String>,
+    refresh: bool,
     matches: BTreeMap<ContentHash, Result<Found, Miss>>,
 }
 /// The package a footprint's lands are: a preset, and how they fit it.
@@ -128,122 +133,190 @@ fn mm2(v: [i64; 2]) -> [f64; 2] {
 }
 
 impl Presets {
-    /// Presets made with `runtime`, whatever runtime the engine has.
-    pub(super) fn with_runtime(runtime: Arc<dyn GeneratorRuntime + Send + Sync>) -> Self {
-        Self {
-            runtime: Some(runtime),
-            ..Self::default()
-        }
+    /// Called once per import. Recheck the library revision before the first
+    /// footprint search; keep no previous project's geometry match cache.
+    pub(super) fn start_import(&mut self, runtime: Arc<dyn GeneratorRuntime + Send + Sync>) {
+        self.runtime = Some(runtime);
+        self.matches.clear();
+        self.refresh = true;
     }
+
+    fn check_revision(&mut self, library: &ShippedLibrary) -> Result<(), String> {
+        let revision = library
+            .generator_revisions()
+            .map_err(|e| format!("Preset catalog incomplete: {e}"))?;
+        if self.revision.as_ref() != Some(&revision) {
+            self.revision = Some(revision);
+            self.candidates = None;
+            self.partial.clear();
+            self.active = None;
+            self.next_generator = 0;
+            self.matches.clear();
+            self.permanent_failure = None;
+        }
+        Ok(())
+    }
+
     fn load(
         &mut self,
         runtime: &dyn GeneratorRuntime,
         deadline: std::time::Instant,
     ) -> Result<(), String> {
-        if let Some(failure) = &self.failure {
-            return Err(failure.clone());
+        if !self.refresh && self.candidates.is_some() {
+            return Ok(());
         }
-        let result = self.build(runtime, deadline);
-        if let Err(failure) = &result {
-            self.failure = Some(failure.clone());
-        }
-        result
+        let library = ShippedLibrary::locate().map_err(|e| e.to_string())?;
+        self.load_from(&library, runtime, deadline)
     }
-    fn build(
+
+    fn load_from(
         &mut self,
+        library: &ShippedLibrary,
+        runtime: &dyn GeneratorRuntime,
+        deadline: std::time::Instant,
+    ) -> Result<(), String> {
+        super::check_time(deadline).map_err(|reason| {
+            format!(
+                "Preset catalog incomplete: indexed {} presets. {reason}",
+                self.partial.len()
+            )
+        })?;
+        self.check_revision(library)?;
+        self.refresh = false;
+        let total = self.revision.as_ref().map_or(0, Vec::len);
+        self.resume(library, runtime, deadline).map_err(|reason| format!(
+            "Preset catalog incomplete: indexed {} presets, finished {} of {total} generators. {reason}",
+            self.partial.len(), self.next_generator
+        ))
+    }
+
+    fn resume(
+        &mut self,
+        library: &ShippedLibrary,
         runtime: &dyn GeneratorRuntime,
         deadline: std::time::Instant,
     ) -> Result<(), String> {
         if self.candidates.is_some() {
             return Ok(());
         }
-        super::check_time(deadline)?;
-        let library = ShippedLibrary::locate().map_err(|e| e.to_string())?;
-        let names = library.generators().map_err(|e| e.to_string())?;
-        if names.len() > 64 {
-            return Err("3D preset search exceeds 64 generators".into());
+        if let Some(failure) = &self.permanent_failure {
+            return Err(failure.clone());
         }
-        let mut candidates = Vec::new();
-        let mut count = 0;
-        for name in names {
+        let revision = self
+            .revision
+            .as_ref()
+            .ok_or("Missing generator revisions")?;
+        while let Some((name, hash)) = revision.get(self.next_generator) {
             super::check_time(deadline)?;
-            let bundle = Arc::new(library.generator(&name).map_err(|e| e.to_string())?);
-            super::check_time(deadline)?;
-            let description = runtime
-                .describe(&bundle.module)
-                .map_err(|e| e.to_string())?;
-            super::check_time(deadline)?;
-            if !description.scopes().contains(&v1::Scope::Package) {
-                continue;
-            }
-            for preset in description.presets() {
-                super::check_time(deadline)?;
-                count += 1;
-                if count > MAX_PRESETS {
-                    return Err("3D preset search exceeds 512 presets".into());
+            if self.active.is_none() {
+                let bundle = library.generator(name).map_err(|e| e.to_string())?;
+                if bundle.hash != *hash {
+                    return Err(format!(
+                        "Generator {name} changed during indexing. Retry to use its new revision."
+                    ));
                 }
-                let scope = if description.scopes().contains(&v1::Scope::Component) {
+                super::check_time(deadline)?;
+                let desc = runtime
+                    .describe(&bundle.module)
+                    .map_err(|e| format!("Generator {name}: {e}"))?;
+                self.active = Some((Arc::new(bundle), desc, 0));
+            }
+            let Some((bundle, desc, next)) = &mut self.active else {
+                return Err("Missing active generator".into());
+            };
+            if desc.scopes().contains(&v1::Scope::Package) {
+                let scope = if desc.scopes().contains(&v1::Scope::Component) {
                     v1::Scope::Component
                 } else {
                     v1::Scope::Package
                 };
-                let request = generated::complete(&description, scope, &preset.params)
-                    .map_err(|e| e.to_string())?;
-                super::check_time(deadline)?;
-                let generation = runtime
-                    .generate(&bundle.module, &request)
-                    .map_err(|e| e.to_string())?
-                    .generation;
-                super::check_time(deadline)?;
-                let pads = expand::land_pattern(&generation).map_err(|e| e.to_string())?;
-                let polarity = polarities(&generation);
-                let lands = Lands::new(&pads, |label| polarity.get(label).copied());
-                let tolerance_nm = lands.tolerance_nm(CENTRE_FLOOR_NM, CENTRE_FRACTION);
-                let envelope = generation.package.geometry.envelope_nm;
-                let courtyard = &generation.footprint.courtyard;
-                let courtyard_mm = (!courtyard.is_empty()).then(|| {
-                    let lo = [0, 1].map(|a| courtyard.iter().map(|p| p[a]).min().unwrap_or(0));
-                    let hi = [0, 1].map(|a| courtyard.iter().map(|p| p[a]).max().unwrap_or(0));
-                    mm2([hi[0] - lo[0], hi[1] - lo[1]])
-                });
-                let departures = description
-                    .params()
-                    .iter()
-                    .filter(|p| matches!(p.ty, v1::ParamType::Enum { .. }))
-                    .filter_map(|p| match (preset.params.get(&p.key), &p.default) {
-                        (Some(v1::ParamValue::Text(chosen)), v1::ParamValue::Text(default))
-                            if chosen != default =>
-                        {
-                            Some(chosen.to_lowercase())
-                        }
-                        _ => None,
-                    })
-                    .collect();
-                let names = std::iter::once(&preset.key)
-                    .chain(&preset.aliases)
-                    .map(|n| plain(n))
-                    .filter(|n| n.len() >= MIN_NAME_CHARS && n.bytes().any(|b| b.is_ascii_digit()))
-                    .collect();
-                candidates.push(Candidate {
-                    generator: name.clone(),
-                    preset: preset.key.clone(),
-                    scope,
-                    params: preset.params.clone(),
-                    bundle: bundle.clone(),
-                    lands,
-                    tolerance_nm,
-                    name: format!("{name}/{}", preset.key),
-                    names,
-                    departures,
-                    body_mm: mm2([envelope[0], envelope[1]]),
-                    courtyard_mm,
-                    generation,
-                });
+                while let Some(preset) = desc.presets().get(*next) {
+                    super::check_time(deadline)?;
+                    let permanent =
+                        |why: String| format!("Invalid preset {name}/{}: {why}", preset.key);
+                    let request =
+                        generated::complete(desc, scope, &preset.params).map_err(|e| {
+                            let reason = permanent(e.to_string());
+                            self.permanent_failure = Some(reason.clone());
+                            reason
+                        })?;
+                    // Admission, cancellation and deadlines belong to this
+                    // attempt. Retain the cursor and retry the failed call.
+                    let generation = runtime
+                        .generate(&bundle.module, &request)
+                        .map_err(|e| format!("Generator {name}/{}: {e}", preset.key))?
+                        .generation;
+                    let candidate =
+                        Self::indexed_candidate(name, bundle, desc, preset, scope, generation)
+                            .map_err(|e| {
+                                let reason = permanent(e);
+                                self.permanent_failure = Some(reason.clone());
+                                reason
+                            })?;
+                    self.partial.push(candidate);
+                    *next += 1;
+                }
             }
+            self.active = None;
+            self.next_generator += 1;
         }
         super::check_time(deadline)?;
-        self.candidates = Some(candidates);
+        self.candidates = Some(std::mem::take(&mut self.partial));
         Ok(())
+    }
+
+    fn indexed_candidate(
+        name: &str,
+        bundle: &Arc<GeneratorBundle>,
+        description: &v1::Description,
+        preset: &v1::Preset,
+        scope: v1::Scope,
+        generation: v1::Generation,
+    ) -> Result<Candidate, String> {
+        let pads = expand::land_pattern(&generation).map_err(|e| e.to_string())?;
+        let polarity = polarities(&generation);
+        let lands = Lands::new(&pads, |label| polarity.get(label).copied());
+        let tolerance_nm = lands.tolerance_nm(CENTRE_FLOOR_NM, CENTRE_FRACTION);
+        let envelope = generation.package.geometry.envelope_nm;
+        let courtyard = &generation.footprint.courtyard;
+        let courtyard_mm = (!courtyard.is_empty()).then(|| {
+            let lo = [0, 1].map(|a| courtyard.iter().map(|p| p[a]).min().unwrap_or(0));
+            let hi = [0, 1].map(|a| courtyard.iter().map(|p| p[a]).max().unwrap_or(0));
+            mm2([hi[0] - lo[0], hi[1] - lo[1]])
+        });
+        let departures = description
+            .params()
+            .iter()
+            .filter(|p| matches!(p.ty, v1::ParamType::Enum { .. }))
+            .filter_map(|p| match (preset.params.get(&p.key), &p.default) {
+                (Some(v1::ParamValue::Text(chosen)), v1::ParamValue::Text(default))
+                    if chosen != default =>
+                {
+                    Some(chosen.to_lowercase())
+                }
+                _ => None,
+            })
+            .collect();
+        let names = std::iter::once(&preset.key)
+            .chain(&preset.aliases)
+            .map(|n| plain(n))
+            .filter(|n| n.len() >= MIN_NAME_CHARS && n.bytes().any(|b| b.is_ascii_digit()))
+            .collect();
+        Ok(Candidate {
+            generator: name.to_owned(),
+            preset: preset.key.clone(),
+            scope,
+            params: preset.params.clone(),
+            bundle: bundle.clone(),
+            lands,
+            tolerance_nm,
+            name: format!("{name}/{}", preset.key),
+            names,
+            departures,
+            body_mm: mm2([envelope[0], envelope[1]]),
+            courtyard_mm,
+            generation,
+        })
     }
     /// The preset `pads` (a footprint's lands) are, or why none is; the
     /// placed part's manufacturer part number `mpn`, when it names one of
@@ -372,6 +445,9 @@ impl Presets {
     /// `…-1` preset), the finding naming both; the lands are kept as they
     /// are. `None` when the part number agrees or names no shipped package.
     pub(super) fn contradiction(&self, mpn: &str, found: Option<&Found>) -> Option<String> {
+        if self.refresh {
+            return None;
+        }
         let candidates = self.candidates.as_ref()?;
         let matched = found.and_then(|f| candidates.get(f.index));
         let named_apart: Vec<&Candidate> = candidates
@@ -1478,6 +1554,127 @@ mod tests {
             .ok_or("a land moved off its lead")?;
         assert_eq!(lead, "1");
         assert!(miss > 0.0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_large_catalog_resumes_at_the_interrupted_preset_and_rebuilds_on_revision() -> Fallible {
+        use sparksmith_generators::abi::{Failure, Generated};
+        use sparksmith_io::generator_bundle::{FORMAT, MANIFEST, Manifest, ManifestFile};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::{Duration, Instant};
+
+        struct CatalogRuntime {
+            desc: v1::Description,
+            result: Generated,
+            calls: AtomicUsize,
+        }
+        impl GeneratorRuntime for CatalogRuntime {
+            fn describe(&self, module: &[u8]) -> Result<v1::Description, Failure> {
+                let mut desc = self.desc.clone();
+                if module == [64] {
+                    for cap in &mut desc.capabilities {
+                        cap.presets.truncate(1);
+                    }
+                }
+                Ok(desc)
+            }
+            fn generate(&self, _: &[u8], _: &v1::Request) -> Result<Generated, Failure> {
+                if self.calls.fetch_add(1, Ordering::Relaxed) == 18 {
+                    return Err(Failure::one("generator.busy", "Worker busy.".into()));
+                }
+                Ok(self.result.clone())
+            }
+        }
+
+        let fixture = crate::session::generators::fixture_runtime();
+        let chip = ShippedLibrary::locate()?.generator("chip")?;
+        let mut desc = fixture.describe(&chip.module).map_err(|e| e.to_string())?;
+        let first = desc.presets().first().ok_or("chip preset")?.clone();
+        let request = generated::complete(&desc, v1::Scope::Package, &first.params)
+            .map_err(|e| e.to_string())?;
+        let result = fixture
+            .generate(&chip.module, &request)
+            .map_err(|e| e.to_string())?;
+        let part = desc
+            .capabilities
+            .iter_mut()
+            .find(|c| c.name == v1::GENERATE_PART)
+            .ok_or("part capability")?;
+        part.presets = (0..8)
+            .map(|n| v1::Preset {
+                key: format!("p{n}"),
+                ..first.clone()
+            })
+            .collect();
+        let runtime = CatalogRuntime {
+            desc,
+            result,
+            calls: AtomicUsize::new(0),
+        };
+        let dir = tempfile::tempdir()?;
+        std::fs::write(dir.path().join(sparksmith_io::shipped::MARKER), "{}")?;
+        let library = ShippedLibrary::at(dir.path())?;
+        let bundle = |n: u8, module: u8| -> Fallible {
+            let name = format!("family-{n:02}");
+            let folder = dir.path().join("generators").join(&name);
+            std::fs::create_dir_all(&folder)?;
+            std::fs::write(folder.join("module.wasm"), [module])?;
+            let manifest = Manifest {
+                format: FORMAT,
+                name,
+                module: ManifestFile {
+                    file: "module.wasm".into(),
+                    sha256: sparksmith_core::library::bundle::asset_hash(&[module]),
+                },
+                parts: vec![],
+            };
+            std::fs::write(folder.join(MANIFEST), serde_json::to_vec(&manifest)?)?;
+            Ok(())
+        };
+        for n in 0..65 {
+            bundle(n, n)?;
+        }
+        let deadline = || Instant::now() + Duration::from_secs(120);
+        let mut presets = Presets::default();
+        let error = presets
+            .load_from(&library, &runtime, deadline())
+            .err()
+            .ok_or("busy after 18 presets")?;
+        assert!(
+            error.contains("18 presets") && error.contains("incomplete"),
+            "{error}"
+        );
+        assert!(
+            presets.candidate(0).is_none(),
+            "partial search cannot identify a unique match"
+        );
+        let expired = presets
+            .load_from(&library, &runtime, Instant::now())
+            .err()
+            .ok_or("deadline")?;
+        assert!(expired.contains("time limit"), "{expired}");
+        assert_eq!(runtime.calls.load(Ordering::Relaxed), 19);
+        presets.load_from(&library, &runtime, deadline())?;
+        assert_eq!(
+            runtime.calls.load(Ordering::Relaxed),
+            514,
+            "only the interrupted generation is repeated"
+        );
+        assert_eq!(
+            presets.candidate(512).map(|c| c.name.as_str()),
+            Some("family-64/p0")
+        );
+        assert!(presets.candidate(513).is_none());
+
+        // Same folder names, different manifest revision. The last generator
+        // now exposes eight presets and the previous complete index is stale.
+        bundle(64, 65)?;
+        presets.load_from(&library, &runtime, deadline())?;
+        assert_eq!(
+            presets.candidate(519).map(|c| c.name.as_str()),
+            Some("family-64/p7")
+        );
         Ok(())
     }
 

@@ -9,7 +9,7 @@
 //! for that recreation.
 mod lands;
 mod parts;
-mod presets;
+pub(crate) mod presets;
 use sparksmith_core::Engine;
 use sparksmith_core::library::bundle::AssetBytes;
 use sparksmith_core::library::{ModelPlacement, Pad};
@@ -19,24 +19,29 @@ use sparksmith_kicad::report::{Case, Placeholder};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-pub(crate) struct Models {
+pub(crate) struct Models<'a> {
     deadline: std::time::Instant,
     files: ProjectModels,
-    presets: presets::Presets,
+    presets: &'a mut presets::Presets,
     /// Each project reference's resolved source ("path (sha256 …)"), or why
     /// it did not resolve.
     sources: BTreeMap<String, Result<String, String>>,
 }
-impl Models {
+impl<'a> Models<'a> {
     /// The parts of the project at `root`, made by generator workers that
     /// `runtime` gives for the import's deadline: batch admission, so a busy
     /// pool delays the import instead of costing it its parts.
-    pub(crate) fn new(root: &Path, runtime: crate::kicad_import::Runtime) -> Result<Self, String> {
+    pub(crate) fn new(
+        root: &Path,
+        runtime: crate::kicad_import::Runtime,
+        presets: &'a mut presets::Presets,
+    ) -> Result<Self, String> {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(300);
+        presets.start_import(runtime(deadline));
         Ok(Self {
             deadline,
             files: ProjectModels::new(root).map_err(|e| e.to_string())?,
-            presets: presets::Presets::with_runtime(runtime(deadline)),
+            presets,
             sources: BTreeMap::new(),
         })
     }
@@ -64,7 +69,7 @@ impl Models {
         Ok(value)
     }
 }
-impl Provider for Models {
+impl Provider for Models<'_> {
     fn part(&mut self, engine: &mut Engine, request: &PartRequest<'_>) -> Result<Outcome, String> {
         self.check_time()?;
         let runtime = self.presets.runtime(engine);

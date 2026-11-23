@@ -375,6 +375,7 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
             return;
         }
         ctx.request_repaint();
+        let mut import_catalog = sparksmith_automation::kicad_import::ImportCatalog::default();
         while let Ok(job) = jobs.recv() {
             let result = match job {
                 Job::Read(ticket, path) => {
@@ -384,7 +385,8 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                 Job::Import(ticket, path) => {
                     // The CLI's import, off the UI thread; the window
                     // shows that it runs (`FileUi::importing`).
-                    let value = sparksmith_automation::kicad_import::import(&path, None)
+                    let value = import_catalog
+                        .import(&path, None)
                         .map(|imported| Box::new((imported.engine.to_file(), imported.report)));
                     Event::Imported(ticket, path, value)
                 }
