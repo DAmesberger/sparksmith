@@ -219,6 +219,8 @@ impl App {
             "The window is waiting for the person to answer another assistant request"
         } else if self.files.busy() || self.files.prompting() {
             "A file operation or file question is open in the window"
+        } else if self.open_system_windows().contains(&true) {
+            "A system window is open over the editor"
         } else if ctx.egui_wants_keyboard_input() && !composing {
             "The person is editing text in a field"
         } else if ctx.dragged_id().is_some() || ctx.input(|i| i.pointer.any_down()) {

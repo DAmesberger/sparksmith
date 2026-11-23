@@ -599,3 +599,27 @@ fn an_assistant_steers_the_window_and_the_project_stays() -> Fallible {
     assert_eq!(h.app.engine.document(), &before);
     Ok(())
 }
+
+#[test]
+fn a_connection_dialog_holds_the_live_edit_until_closed() -> Fallible {
+    let mut h = Harness::new()?;
+    let revision = h.app.engine.revision();
+    let before = h.app.engine.document().clone();
+    h.app.live.toggle_window();
+    h.frame(Vec::new());
+    assert!(h.app.live.is_open());
+    let batch = json!({"entry":"project.apply_all", "expected_revision":revision, "params":{
+        "operations": [{"editor":"Layout", "operation":{"command":"layout.add_via",
+            "params":h.add_via(revision)["params"]}}]
+    }});
+    assert_eq!(code(&h.call(live::CALL, batch.clone())?), "live.busy");
+    assert_eq!(h.app.engine.document(), &before);
+    assert_eq!(
+        h.call(live::REVISION, json!({}))?["result"]["revision"],
+        revision
+    );
+    h.app.live.close();
+    assert_eq!(h.call(live::CALL, batch)?["ok"], true);
+    assert_eq!(h.app.engine.revision(), revision + 1);
+    Ok(())
+}
