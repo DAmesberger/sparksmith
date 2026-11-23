@@ -319,13 +319,16 @@ fn the_wire_matches_the_golden_transcript() -> Fallible<()> {
         reply(8)["result"]["prompts"][1]["name"],
         "datasheet_to_component"
     );
-    for (id, code) in [(3, -32601), (6, -32602), (7, -32602), (9, -32601)] {
+    assert_eq!(reply(9)["result"]["resources"][0]["uri"], help::INDEX);
+    assert!(discover["capabilities"]["resources"].is_object());
+    assert!(discover["capabilities"]["completions"].is_object());
+    for (id, code) in [(3, -32601), (6, -32602), (7, -32602)] {
         assert_eq!(reply(id)["error"]["code"], code, "{}", reply(id));
     }
-    for (id, code) in [(10, -32601), (12, -32602), (13, -32601), (14, -32601)] {
+    for (id, code) in [(10, -32602), (12, -32602), (13, -32601), (14, -32601)] {
         assert_eq!(reply(id)["error"]["code"], code, "{}", reply(id));
     }
-    for (id, code) in [(15, -32601), (16, -32601)] {
+    for (id, code) in [(15, -32601), (16, -32602)] {
         assert_eq!(reply(id)["error"]["code"], code, "{}", reply(id));
     }
     Ok(())
@@ -586,23 +589,88 @@ fn the_datasheet_prompt_serves_the_method() -> Fallible<()> {
 fn help_resource_and_query_serve_identical_bytes_and_complete_ids() -> Fallible<()> {
     let dir = tempfile::tempdir()?;
     let mut session = Session::default();
-    session.set_shipped(sparksmith_io::shipped::ShippedLibrary::for_checkout()?);
+    let library = sparksmith_io::shipped::ShippedLibrary::for_checkout()?;
+    let profile: Value = serde_json::from_slice(&std::fs::read(
+        library.root().join("profiles/jlcpcb-2-layer.json"),
+    )?)?;
+    session.set_shipped(library);
+    let configured = session.dispatch(json!({"command":"project.apply","params":{
+        "expected_revision":session.engine().revision(),
+        "operation":{"editor":"Rules","operation":{"command":"rules.set_fab_profile",
+        "params":{"profile":profile["fab_profile"]}}}}}));
+    assert_eq!(configured["ok"], true, "{configured}");
     let server = Server::new(session, Grant::new(Mode::AutoAllowEdits, [dir.path().to_owned()]))?;
     block_on(async move {
         let (mut wire, serving) = Wire::open(server);
         let id = "finding/board.via_annular_ring";
-        for (n,uri,name,params) in [(1,help::INDEX.to_owned(),"help.search",json!({"text":""})),
-            (3,format!("{}/{id}",help::INDEX),"help.topic",json!({"id":id}))] {
-            wire.send(&request(n, "resources/read", json!({"uri":uri})).to_string()).await?;
+        let cases = [
+            (1, help::INDEX.to_owned(), "help.search", json!({"text":""})),
+            (3, format!("{}/{id}", help::INDEX), "help.topic", json!({"id":id})),
+        ];
+        for (n, uri, name, params) in cases {
+            let read = request(n, "resources/read", json!({"uri":uri}));
+            wire.send(&read.to_string()).await?;
             let resource = wire.reply().await?;
-            let text = resource["result"]["contents"][0]["text"].as_str().ok_or_else(|| format!("resource failed: {resource}"))?;
-            wire.send(&request(n+1, "tools/call", json!({"name":"query","arguments":{"name":name,"params":params}})).to_string()).await?;
-            let query = wire.reply().await?;
-            assert_eq!(query["result"]["content"][0]["text"], text);
+            let text = resource["result"]["contents"][0]["text"].as_str()
+                .ok_or_else(|| format!("resource failed: {resource}"))?;
+            let query = request(n + 1, "tools/call",
+                json!({"name":"query","arguments":{"name":name,"params":params}}));
+            wire.send(&query.to_string()).await?;
+            assert_eq!(wire.reply().await?["result"]["content"][0]["text"], text);
+            if name == "help.topic" {
+                let topic: Value = serde_json::from_str(text)?;
+                assert!(topic["active_rule"].is_null());
+                assert!(topic["facts"]["checks"].is_null());
+            }
         }
-        wire.send(&request(5,"completion/complete",json!({"ref":{"type":"ref/resource","uri":help::TEMPLATE},"argument":{"name":"id","value":id}})).to_string()).await?;
-        assert_eq!(wire.reply().await?["result"]["completion"]["values"],json!([id]));
-        drop(wire); serving.await??;
+        let complete = request(5, "completion/complete", json!({
+            "ref":{"type":"ref/resource","uri":help::TEMPLATE},
+            "argument":{"name":"id","value":id}
+        }));
+        wire.send(&complete.to_string()).await?;
+        assert_eq!(wire.reply().await?["result"]["completion"]["values"], json!([id]));
+        let inspect = request(6, "tools/call", json!({"name":"query",
+            "arguments":{"name":"project.inspect","params":{}}}));
+        wire.send(&inspect.to_string()).await?;
+        let reply = wire.reply().await?;
+        let handle: Value = serde_json::from_str(reply["result"]["content"][0]["text"].as_str()
+            .ok_or("missing project reply")?)?;
+        let project = handle["project"].as_str().ok_or("missing project handle")?;
+        let query = request(7, "tools/call", json!({"name":"query","arguments":{
+            "name":"help.topic","project":project,"params":{"id":id}}}));
+        wire.send(&query.to_string()).await?;
+        let reply = wire.reply().await?;
+        let topic: Value = serde_json::from_str(reply["result"]["content"][0]["text"].as_str()
+            .ok_or("missing contextual reply")?)?;
+        assert_eq!(topic["facts"]["checks"], "rule/jlcpcb-2-layer/via_annular_ring_min");
+        assert_eq!(topic["active_rule"]["source"], profile["fab_profile"]["source"]);
+        drop(wire);
+        serving.await??;
+        Fallible::Ok(())
+    })??;
+    Ok(())
+}
+
+#[test]
+fn help_resource_and_guide_honor_the_module_grant() -> Fallible<()> {
+    let policy = Grant::new(Mode::AllowAll, []).without_module("help");
+    let server = Server::new(Session::default(), policy)?;
+    block_on(async move {
+        let (mut wire, serving) = Wire::open(server);
+        let read = request(1, "resources/read", json!({"uri":help::INDEX}));
+        wire.send(&read.to_string()).await?;
+        assert_eq!(wire.reply().await?["error"]["data"]["code"], "gate.module");
+        let describe = request(2, "tools/call", json!({
+            "name":"describe","arguments":{"name":"guide:routing"}
+        }));
+        wire.send(&describe.to_string()).await?;
+        let reply = wire.reply().await?;
+        assert_eq!(reply["result"]["isError"], true, "{reply}");
+        let diagnostic: Value = serde_json::from_str(reply["result"]["content"][0]["text"]
+            .as_str().ok_or("missing guide error")?)?;
+        assert_eq!(diagnostic["code"], "gate.module");
+        drop(wire);
+        serving.await??;
         Fallible::Ok(())
     })??;
     Ok(())
