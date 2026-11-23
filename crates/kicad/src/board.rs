@@ -691,6 +691,14 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
             }
             "net_tie_pad_groups" => {
                 fp.net_tie = true;
+                // Preserve an empty declaration for review. Only the old
+                // attribute omits the groups and means all numbered lands.
+                if item.args().is_empty() {
+                    if fp.tie_groups.len() >= MAX_PADS {
+                        return Err(BoardError::Limit("too many net-tie pad groups"));
+                    }
+                    fp.tie_groups.push(Vec::new());
+                }
                 for group in item.args() {
                     let names: Vec<_> = group
                         .atom()

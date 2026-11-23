@@ -1080,49 +1080,70 @@ fn boxes_overlap(a: &[Point], b: &[Point]) -> bool {
     alo[0] <= bhi[0] && blo[0] <= ahi[0] && alo[1] <= bhi[1] && blo[1] <= ahi[1]
 }
 
-/// Translate only the source's drawn copper and its explicitly authorised pads.
-/// Multiple independent groups need more than one schematic tie.
-pub(crate) fn copper_tie(
-    fp: &Footprint,
-    pads: &[Pad],
-) -> Option<(
-    sparksmith_core::library::tie::TieSpec,
-    Vec<sparksmith_core::library::tie::Bridge>,
-)> {
+/// The groups on a single source footprint and the copper regions they own.
+/// Pad identities determine ownership through the component's pin mapping.
+#[derive(Clone, Debug)]
+pub(crate) struct ImportedTies {
+    pub groups: Vec<sparksmith_core::library::tie::TieSpec>,
+    pub bridges: Vec<sparksmith_core::library::tie::Bridge>,
+}
+
+/// Translate a marked footprint only if each group is connected by its own
+/// original copper drawings. An invalid declaration keeps its pads for review.
+pub(crate) fn copper_ties(fp: &Footprint, pads: &[Pad]) -> Result<ImportedTies, &'static str> {
+    use sparksmith_core::ids::{BridgeId, TieId};
     use sparksmith_core::library::tie::{Bridge, TieForm, TieSpec};
-    use std::collections::BTreeSet;
-    if !fp.net_tie
-        || fp.unsupported_tie_copper
-        || fp.tie_copper.is_empty()
-        || fp.tie_groups.len() > 1
-    {
-        return None;
+    use std::collections::{BTreeMap, BTreeSet};
+    if fp.unsupported_tie_copper {
+        return Err("This tie has unsupported copper drawings.");
     }
-    let names: BTreeSet<&str> = match fp.tie_groups.first() {
-        Some(group) => group.iter().map(String::as_str).collect(),
-        None => pads
+    if fp.tie_copper.is_empty() {
+        return Err("The footprint has no copper drawing joining its declared lands.");
+    }
+    let numbers: BTreeMap<_, _> = pads
+        .iter()
+        .filter_map(|p| Some((p.number.as_str(), p.terminal?)))
+        .collect();
+    // The older net_tie attribute has no groups and declares one tie.
+    let declared: Vec<Vec<&str>> = if fp.tie_groups.is_empty() {
+        vec![numbers.keys().copied().collect()]
+    } else {
+        fp.tie_groups
             .iter()
-            .filter(|p| p.terminal.is_some())
-            .map(|p| p.number.as_str())
-            .collect(),
+            .map(|g| g.iter().map(String::as_str).collect())
+            .collect()
     };
-    let declared: Vec<_> = pads
-        .iter()
-        .filter(|p| p.terminal.is_some() && names.contains(p.number.as_str()))
-        .collect();
-    if names
-        .iter()
-        .any(|name| !declared.iter().any(|p| p.number == *name))
-    {
-        return None;
+    let mut group_of = BTreeMap::new();
+    let mut groups = Vec::new();
+    for names in declared {
+        let mut ends = BTreeSet::new();
+        for name in names {
+            let terminal = numbers
+                .get(name)
+                .filter(|_| !name.is_empty())
+                .ok_or("A declared tie group names a missing or unnumbered land.")?;
+            if !ends.insert(sparksmith_core::TerminalId(terminal.0)) {
+                return Err("A tie group repeats one of its pad numbers.");
+            }
+        }
+        if !(2..=8).contains(&ends.len()) {
+            return Err("Each tie group needs two to eight distinct terminals.");
+        }
+        // Deterministic even when the source reorders its quoted groups.
+        let id = TieId(ends.first().ok_or("A tie group has no terminals.")?.0);
+        for end in &ends {
+            if group_of.insert(PackageTerminalId(end.0), id).is_some() {
+                return Err("Two tie groups claim the same terminal.");
+            }
+        }
+        groups.push(TieSpec {
+            id,
+            form: TieForm::Copper,
+            ends: ends.into_iter().collect(),
+        });
     }
-    let ends: BTreeSet<_> = declared
-        .iter()
-        .filter_map(|p| p.terminal.map(|t| sparksmith_core::TerminalId(t.0)))
-        .collect();
-    if !(2..=8).contains(&ends.len()) {
-        return None;
-    }
+    groups.sort_by_key(|g| g.id);
+    let mut group_lands = BTreeMap::<TieId, Vec<Vec<PadId>>>::new();
     let mut bridges = Vec::new();
     for layer in ["F.Cu", "B.Cu"] {
         let shapes = fp
@@ -1141,10 +1162,10 @@ pub(crate) fn copper_tie(
         };
         for region in primitive_union(vec![], &shapes).0 {
             let [ring] = region.as_slice() else {
-                return None;
+                return Err("A bridge drawing contains a hole that its outline cannot represent.");
             };
             if ring.len() > MAX_OUTLINE_SEGMENTS {
-                return None;
+                return Err("A bridge drawing exceeds the supported outline size.");
             }
             let outline = polygon_outline(
                 &ring
@@ -1152,24 +1173,29 @@ pub(crate) fn copper_tie(
                     .map(|p| Local { flip: fp.back }.point(*p))
                     .collect::<Vec<_>>(),
             );
-            let contact = outline.flatten(CHORD_MM);
-            let lands: Vec<_> = declared
-                .iter()
-                .filter(|p| {
-                    (p.side == side || p.kind == PadKind::PlatedThrough)
-                        && sparksmith_core::geometry::polygons_overlap(
-                            &contact,
-                            &p.outline(CHORD_MM),
-                        )
-                })
-                .map(|p| p.id)
-                .collect();
-            if lands.len() < 2 {
-                return None;
+            let mut lands = Vec::new();
+            let mut owner = None;
+            for pad in pads {
+                if sparksmith_core::library::tie::bridge_touches_pad(&outline, side, pad) {
+                    let group = pad
+                        .terminal
+                        .and_then(|end| group_of.get(&end).copied())
+                        .ok_or("Bridge copper touches a land outside every declared group.")?;
+                    if owner.replace(group).is_some_and(|old| old != group) {
+                        return Err("Bridge copper touches lands from separate tie groups.");
+                    }
+                    lands.push(pad.id);
+                }
             }
+            if lands.len() < 2 {
+                return Err("A bridge drawing does not reach two lands in its group.");
+            }
+            let group = owner.ok_or("A bridge drawing has no declared lands.")?;
+            group_lands.entry(group).or_default().push(lands.clone());
             bridges.push(Bridge {
-                id: sparksmith_core::ids::BridgeId(
-                    u32::try_from(pads.len() + bridges.len() + 1).ok()?,
+                id: BridgeId(
+                    u32::try_from(pads.len() + bridges.len() + 1)
+                        .map_err(|_| "Too many bridge drawings.")?,
                 ),
                 outline,
                 side,
@@ -1177,28 +1203,30 @@ pub(crate) fn copper_tie(
             });
         }
     }
-    if bridges.is_empty() {
-        return None;
-    }
-    let mut reached: BTreeSet<_> = bridges.first()?.pads.iter().copied().collect();
-    loop {
-        let before = reached.len();
-        for b in &bridges {
-            if b.pads.iter().any(|p| reached.contains(p)) {
-                reached.extend(b.pads.iter().copied());
-            }
+    for group in &groups {
+        // A group may contain several drawings that meet on a shared land,
+        // including the two sides of a plated pad. A second isolated drawing
+        // cannot stand in for copper between those drawings.
+        let mut pieces = group_lands.remove(&group.id).unwrap_or_default();
+        let mut joined: BTreeSet<_> = pieces
+            .pop()
+            .ok_or("A declared tie group has no bridge drawing.")?
+            .into_iter()
+            .collect();
+        while let Some(i) = pieces
+            .iter()
+            .position(|p| p.iter().any(|id| joined.contains(id)))
+        {
+            joined.extend(pieces.swap_remove(i));
         }
-        if before == reached.len() {
-            break;
+        if !pieces.is_empty()
+            || !group.ends.iter().all(|end| {
+                pads.iter()
+                    .any(|p| p.terminal == Some(PackageTerminalId(end.0)) && joined.contains(&p.id))
+            })
+        {
+            return Err("The bridge drawings do not connect every end of a declared tie group.");
         }
     }
-    declared.iter().all(|p| reached.contains(&p.id)).then(|| {
-        (
-            TieSpec {
-                form: TieForm::Copper,
-                ends: ends.into_iter().collect(),
-            },
-            bridges,
-        )
-    })
+    Ok(ImportedTies { groups, bridges })
 }

@@ -304,7 +304,28 @@ pub fn import_with_models(
         );
         // Mask and paste polygons that are a pad's opening become its rule.
         let openings = translate::take_openings(&board, fp, &mut pads);
-        let tie = translate::copper_tie(fp, &pads);
+        let tie = if fp.net_tie {
+            match translate::copper_ties(fp, &pads) {
+                Ok(tie) => {
+                    let detail = if tie.groups.len() == 1 {
+                        "Choose the purpose of this copper tie.".to_owned()
+                    } else {
+                        format!(
+                            "{} independent copper ties. Choose a purpose for each group.",
+                            tie.groups.len()
+                        )
+                    };
+                    report.add_detail(Case::ImportedTie, &fp.reference, "", &detail);
+                    Some(tie)
+                }
+                Err(reason) => {
+                    report.add_detail(Case::NetTie, &fp.reference, "", reason);
+                    None
+                }
+            }
+        } else {
+            None
+        };
         let drawings = if tie.is_some() {
             fp.tie_copper.len()
         } else {
@@ -352,21 +373,6 @@ pub fn import_with_models(
         report.add_n(Case::FootprintDrawings, fp.drawings);
         if models.is_none() {
             report.add_n(Case::Models, fp.models.len());
-        }
-        if tie.is_some() {
-            report.add_detail(
-                Case::ImportedTie,
-                &fp.reference,
-                "",
-                "Choose the purpose of this tie.",
-            );
-        } else if fp.net_tie {
-            report.add_detail(
-                Case::NetTie,
-                &fp.reference,
-                "",
-                "The pad groups and copper drawings do not describe one supported connected tie.",
-            );
         }
         if fp.reference.to_ascii_uppercase().starts_with("JP")
             && fp.pads.len() >= 2
@@ -979,12 +985,8 @@ fn prefix_of(reference: &str) -> String {
 
 /// One distinct source footprint: its pads, KiCad symbol, value and part
 /// number.
-type ImportedTie = (
-    sparksmith_core::library::tie::TieSpec,
-    Vec<sparksmith_core::library::tie::Bridge>,
-);
 struct SourceDefinition {
-    tie: Option<ImportedTie>,
+    tie: Option<translate::ImportedTies>,
     pads: Vec<Pad>,
     symbol: Option<crate::schematic::LibSymbol>,
     value: Option<String>,
@@ -1130,7 +1132,7 @@ fn value_text(value: &str) -> Option<String> {
 
 /// Parsed electrical data and the optional mechanical model for one definition.
 struct ComponentSource<'a> {
-    tie: Option<ImportedTie>,
+    tie: Option<translate::ImportedTies>,
     name: &'a str,
     /// The KiCad footprint id (`Library:Name`), recorded in the provenance.
     source_id: &'a str,
@@ -1739,20 +1741,32 @@ impl Session<'_> {
                 }
             }
         }
-        if let Some((spec, bridges)) = tie {
+        if let Some(ties) = tie {
             for edit in &mut edits {
                 match &mut edit.definition {
                     Definition::Footprint(fp) => {
-                        fp.next_local = bridges
+                        fp.next_local = ties
+                            .bridges
                             .iter()
                             .map(|b| b.id.0 + 1)
                             .max()
                             .unwrap_or(fp.next_local);
-                        fp.bridges = bridges.clone();
+                        fp.bridges = ties.bridges.clone();
                     }
                     Definition::Component(c) => {
-                        c.assembly = spec.form.assembly();
-                        c.tie = Some(spec.clone());
+                        c.assembly = sparksmith_core::library::tie::Assembly::CopperOnly;
+                        c.ties = ties.groups.clone();
+                        if let Some(field) = self.engine.context().and_then(|ctx| {
+                            ctx.standards()
+                                .fields
+                                .local(&self.engine.project().library, "Rated current")
+                        }) {
+                            c.fields.push(sparksmith_core::fields::FieldSelection {
+                                field,
+                                default: None,
+                                show_on_symbol: false,
+                            });
+                        }
                     }
                     _ => {}
                 }
@@ -1858,7 +1872,7 @@ fn component_body(
     let count = u32::try_from(named.len()).unwrap_or(u32::MAX);
     ComponentDefinition {
         assembly: Default::default(),
-        tie: None,
+        ties: Default::default(),
         pin_rules: Vec::new(),
         marking: None,
         review: None,

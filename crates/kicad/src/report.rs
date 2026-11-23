@@ -64,9 +64,9 @@ pub enum Case {
     PasteRatioWindow,
     /// G4: footprint text and drawings (silkscreen, courtyard, fab).
     FootprintDrawings,
-    /// G5: net-tie footprints: pads imported on their own nets, the tie
-    /// between the nets not (no net-tie part yet), each named.
+    /// A footprint that marked a tie whose groups or drawings could not be imported.
     NetTie,
+    /// One footprint with all its independent copper tie groups imported.
     ImportedTie,
     JumperSuggestion,
     /// G6: per-pad zone connection and clearance overrides.
@@ -341,7 +341,7 @@ impl Case {
                 Report,
                 "footprint text and drawings, not imported in this slice",
             ),
-            Self::ImportedTie => ("G5", Exact, "imported as a copper tie; choose its purpose"),
+            Self::ImportedTie => ("G5", Exact, "footprints imported with copper tie groups"),
             Self::JumperSuggestion => (
                 "G5",
                 Report,
@@ -350,7 +350,7 @@ impl Case {
             Self::NetTie => (
                 "G5",
                 Report,
-                "net ties not imported because their drawings and declared lands do not form one supported copper tie",
+                "net ties not imported because their declared groups or copper drawings need review",
             ),
             Self::PadZoneOverrides => (
                 "G6",
