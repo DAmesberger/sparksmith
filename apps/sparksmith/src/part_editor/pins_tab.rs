@@ -1413,17 +1413,18 @@ fn paste_body(
     if !summary.is_empty() {
         kit::status(ui, &summary, kit::Tone::Note);
     }
-    for problem in problems.iter().take(kit::LIST_MAX_ROWS) {
-        kit::status(ui, &problem.message, kit::Tone::Dim);
-    }
-    if problems.len() > kit::LIST_MAX_ROWS {
-        kit::note(
-            ui,
-            &format!(
-                "{} more rows with problems",
-                problems.len() - kit::LIST_MAX_ROWS
-            ),
-        );
+    let max = if flow.all_problems {
+        problems.len()
+    } else {
+        kit::LIST_MAX_ROWS
+    };
+    let listed = kit::list_frame(ui, problems.len(), max, |ui, index| {
+        if let Some(problem) = problems.get(index) {
+            kit::status(ui, &problem.message, kit::Tone::Dim);
+        }
+    });
+    if listed.show_all {
+        flow.all_problems = true;
     }
     let Some((document, plan)) = &flow.plan else {
         return;

@@ -734,6 +734,48 @@ fn paste_preview_plans_without_changing_the_document() -> TestResult {
     Ok(())
 }
 
+#[test]
+fn paste_problems_expand_without_an_import_plan() -> TestResult {
+    let mut h = Harness::new()?;
+    h.click("Paste table…")?;
+    let flow = h.editor.pins.table.paste.as_mut().ok_or("paste dialog")?;
+    flow.text = format!("Pin;Name\n{}", ";Missing\n".repeat(9));
+    flow.mapping.header = true;
+    flow.mapping.columns = vec![ColumnMap::Number, ColumnMap::Name];
+    let target = "Row 10 has no number";
+    assert!(!h.texts().iter().any(|line| line == target));
+    // The problems and their expansion control live in the dialog's scroll area.
+    let scroll = |h: &mut Harness| {
+        for _ in 0..12 {
+            h.frame(vec![
+                egui::Event::PointerMoved(egui::pos2(1080.0, 400.0)),
+                egui::Event::MouseWheel {
+                    source: egui::MouseWheelSource::Unknown,
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -120.0),
+                    modifiers: egui::Modifiers::NONE,
+                    phase: egui::TouchPhase::Move,
+                },
+            ]);
+        }
+    };
+    scroll(&mut h);
+    h.click("Show all ›")?;
+    scroll(&mut h);
+    assert!(h.texts().iter().any(|line| line == target));
+    assert!(
+        h.editor
+            .pins
+            .table
+            .paste
+            .as_ref()
+            .ok_or("paste dialog")?
+            .plan
+            .is_none()
+    );
+    Ok(())
+}
+
 /// The Symbol tab's terminal card keeps name, class and a function
 /// summary, and "Edit in Pins tab" opens that terminal in the Pins tab.
 #[test]
