@@ -3,6 +3,26 @@
 //! checked against the tally; Sparksmith keeps no prices and no spend.
 use serde::{Deserialize, Serialize};
 
+/// Estimated tokens from UTF-8 bytes when the provider has no count. The
+/// chat's scripted workload provides the reference for this estimate.
+pub fn estimated_tokens(bytes: u64) -> u64 {
+    bytes.div_ceil(3)
+}
+
+/// Estimated output includes thinking text and tool arguments as generated.
+pub fn estimated_output_tokens(parts: &[crate::model::Part]) -> u64 {
+    use crate::model::Part;
+    let bytes = parts
+        .iter()
+        .map(|part| match part {
+            Part::Reasoning { text, .. } | Part::Text { text, .. } => text.len() as u64,
+            Part::ToolCall { input, .. } => input.to_string().len() as u64,
+            _ => 0,
+        })
+        .fold(0, u64::saturating_add);
+    estimated_tokens(bytes)
+}
+
 /// Token counts of one response, in neutral names.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Usage {

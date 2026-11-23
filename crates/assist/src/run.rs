@@ -38,8 +38,6 @@ const MIN_OUTPUT_ROOM: u64 = 4_000;
 /// Characters of one tool result sent back; longer results are cut with a
 /// note (the model can ask for a narrower view).
 pub const MAX_RESULT_CHARS: usize = 120_000;
-/// Characters per token of what the conversation grows by, for the estimate.
-const CHARS_PER_TOKEN: u64 = 3;
 /// Added to the estimate of the next prompt.
 const ESTIMATE_MARGIN: u64 = 4_000;
 
@@ -458,7 +456,9 @@ pub(crate) fn tool_specs(run_profile: &RunProfile) -> Vec<ToolSpec> {
 pub(crate) fn first_estimate(system: &str, specs: &[ToolSpec], document_tokens: u64) -> u64 {
     let tool_chars = serde_json::to_string(specs).map_or(0, |t| t.len() as u64);
     document_tokens
-        .saturating_add((tool_chars + system.len() as u64) / CHARS_PER_TOKEN)
+        .saturating_add(crate::usage::estimated_tokens(
+            tool_chars.saturating_add(system.len() as u64),
+        ))
         .saturating_add(ESTIMATE_MARGIN)
 }
 
@@ -645,7 +645,9 @@ pub(crate) fn converse(
         if !first {
             // What the server counted last, and what came since; after
             // clearing, the characters left.
-            let grown = last_prompt + appended / CHARS_PER_TOKEN + ESTIMATE_MARGIN;
+            let grown = last_prompt
+                .saturating_add(crate::usage::estimated_tokens(appended))
+                .saturating_add(ESTIMATE_MARGIN);
             let counted = |_: &[Message]| grown;
             if let Some(condensed) = harness.history_strategy().condense(
                 &mut messages,
@@ -653,11 +655,12 @@ pub(crate) fn converse(
                 profile.capabilities.context_tokens,
                 &counted,
             ) {
-                let after = messages
-                    .iter()
-                    .map(|m| appended_chars(&m.content))
-                    .fold(fixed_chars, u64::saturating_add)
-                    .div_ceil(CHARS_PER_TOKEN);
+                let after = crate::usage::estimated_tokens(
+                    messages
+                        .iter()
+                        .map(|m| appended_chars(&m.content))
+                        .fold(fixed_chars, u64::saturating_add),
+                );
                 events(Event::Condensed(crate::chat::Condensed {
                     after_tokens: after,
                     ..condensed
@@ -683,7 +686,9 @@ pub(crate) fn converse(
         } else if condensed_now {
             last_prompt + ESTIMATE_MARGIN
         } else {
-            last_prompt + appended / CHARS_PER_TOKEN + ESTIMATE_MARGIN
+            last_prompt
+                .saturating_add(crate::usage::estimated_tokens(appended))
+                .saturating_add(ESTIMATE_MARGIN)
         };
         // The context holds prompt and output: never ask for more than fits.
         let room = profile

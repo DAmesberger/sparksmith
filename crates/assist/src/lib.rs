@@ -27,6 +27,8 @@
 //!
 //! This crate sits above `sparksmith-automation` and below the apps
 //! (`cargo xtask layers`); the HTTP client stays out of the core.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub mod board_script;
 pub mod chat;
 pub mod desk;
 pub mod documents;

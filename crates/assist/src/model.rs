@@ -175,6 +175,16 @@ pub struct ModelRequest<'a> {
     pub timeout: Duration,
 }
 
+impl ModelRequest<'_> {
+    /// The UTF-8 size of tool definitions, system text and message history.
+    pub fn prompt_bytes(&self) -> Result<usize> {
+        Ok(serde_json::to_vec(self.tools)?
+            .len()
+            .saturating_add(self.system.len())
+            .saturating_add(serde_json::to_vec(self.messages)?.len()))
+    }
+}
+
 /// Why a reply ended.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]

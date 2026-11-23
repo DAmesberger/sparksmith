@@ -42,6 +42,7 @@ pub mod fields;
 pub mod lenient;
 pub mod prompts;
 pub mod tools;
+pub mod trace;
 pub mod wire;
 
 use crate::gate::Grant;

@@ -43,9 +43,6 @@ pub const NUDGE_FILE: &str = "nudge-prompt.md";
 pub const REACH: &str = "chat";
 /// Largest shipped file read.
 const MAX_FILE_BYTES: u64 = 256 * 1024;
-/// Characters per token of the history, for the estimate of the next
-/// prompt.
-const CHARS_PER_TOKEN: u64 = 3;
 /// `{product}` in the prompt stands for the program's name.
 const PRODUCT_PLACEHOLDER: &str = "{product}";
 
@@ -317,11 +314,12 @@ pub fn turn(
     let fixed =
         (config.system.len() + serde_json::to_string(&config.tools).map_or(0, |t| t.len())) as u64;
     let estimate = |history: &[Message]| -> u64 {
-        history
-            .iter()
-            .map(|m| crate::model::appended_chars(&m.content))
-            .fold(fixed, u64::saturating_add)
-            .div_ceil(CHARS_PER_TOKEN)
+        crate::usage::estimated_tokens(
+            history
+                .iter()
+                .map(|m| crate::model::appended_chars(&m.content))
+                .fold(fixed, u64::saturating_add),
+        )
     };
     let context = profile.capabilities.context_tokens;
     let window = policy.window(context);
@@ -342,12 +340,13 @@ pub fn turn(
                 .unwrap_or(profile.output.per_request),
             profile.request_timeout,
             |request| {
-                let prompt = request
-                    .messages
-                    .iter()
-                    .map(|message| crate::model::appended_chars(&message.content))
-                    .fold(request.system.len() as u64, u64::saturating_add)
-                    .div_ceil(CHARS_PER_TOKEN);
+                let prompt = crate::usage::estimated_tokens(
+                    request
+                        .messages
+                        .iter()
+                        .map(|message| crate::model::appended_chars(&message.content))
+                        .fold(request.system.len() as u64, u64::saturating_add),
+                );
                 crate::request::Driver {
                     backend,
                     budget,

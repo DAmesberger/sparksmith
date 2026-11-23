@@ -10,7 +10,7 @@ workspace = true
 
 [features]
 # Fixtures for the tests of the crates above (never in the product).
-test-fixtures = []
+test-fixtures = ["sparksmith-automation/test-fixtures"]
 
 [dependencies]
 sparksmith-core.workspace = true

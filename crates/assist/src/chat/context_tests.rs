@@ -188,10 +188,11 @@ fn condensing_keeps_the_ids_of_edits_and_the_person_s_words_and_drops_listings()
         results(&[("c", bulky(10))]),
     ];
     let estimate = |h: &[Message]| {
-        h.iter()
-            .map(|m| crate::model::appended_chars(&m.content))
-            .sum::<u64>()
-            / 3
+        crate::usage::estimated_tokens(
+            h.iter()
+                .map(|m| crate::model::appended_chars(&m.content))
+                .sum::<u64>(),
+        )
     };
     // Below the trigger nothing changes.
     let before = history.clone();

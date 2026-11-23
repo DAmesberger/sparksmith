@@ -902,7 +902,7 @@ impl Runner<'_, '_> {
             session.open_step(Some(open));
         });
         let estimate = run::first_estimate(&self.system, &self.specs, 0)
-            .saturating_add((brief.len() as u64).div_ceil(3));
+            .saturating_add(crate::usage::estimated_tokens(brief.len() as u64));
         let Some(harness) = self.step_harnesses.get(&step.id) else {
             return Next::End(RunEnd::Failed {
                 step: step.id.clone(),

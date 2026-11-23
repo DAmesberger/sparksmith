@@ -6951,6 +6951,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-agent-bench"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sparksmith-assist",
+ "sparksmith-automation",
+ "sparksmith-core",
+ "sparksmith-io",
+ "tempfile",
+]
+
+[[package]]
 name = "sparksmith-assist"
 version = "0.1.0"
 dependencies = [

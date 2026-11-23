@@ -1,0 +1,8 @@
+{
+  "outline_mm": [24, 20],
+  "width_mm": 0.5,
+  "net_names": ["PROBE", "RETURN"],
+  "tracks": 2,
+  "blockers": 0,
+  "warnings": 2
+}

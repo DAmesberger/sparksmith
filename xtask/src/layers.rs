@@ -44,6 +44,7 @@ const LAYERS: &[(&str, u8)] = &[
     ("sparksmith-assist", 4),
     ("sparksmith-ui", 4),
     ("sparksmith-cli", 5),
+    ("sparksmith-agent-bench", 5),
     ("sparksmith", 5),
 ];
 

@@ -1,0 +1,1 @@
+Resize the two-header adapter to 24 × 20 mm and widen both PROBE and RETURN to 0.5 mm. Preserve the track endpoints, nets and placements. Save the revised project in the designated run folder and report production preflight.

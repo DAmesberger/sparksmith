@@ -37,6 +37,7 @@ members = [
     "apps/sparksmith-cli",
     "crates/ui",
     "apps/sparksmith",
+    "tools/agent-bench",
     "xtask",
 ]
 

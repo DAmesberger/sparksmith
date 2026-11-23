@@ -18,15 +18,13 @@ use super::{
     DocumentSource, Message, ModelBackend, ModelProfile, ModelReply, ModelRequest, Part, Role,
     StopReason,
 };
-use crate::usage::Usage;
+use crate::usage::{Usage, estimated_tokens};
 use crate::{Error, Result};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-/// Rough characters per token, where a server reports no usage.
-const CHARS_PER_TOKEN: u64 = 4;
 /// Longest piece of malformed arguments quoted back to the model.
 const MAX_QUOTED: usize = 400;
 
@@ -329,10 +327,6 @@ fn parse_calls(message: &Value, counter: &mut u64) -> Vec<Part> {
     out
 }
 
-fn estimated_tokens(chars: u64) -> u64 {
-    chars.div_ceil(CHARS_PER_TOKEN)
-}
-
 /// The error a response or a stream's chunk reports inside a 200, as
 /// OpenRouter and others do for a failed generation.
 fn reported_error(response: &Value) -> Option<Error> {
@@ -556,17 +550,9 @@ pub fn parse_reply(
             cache_read_tokens: cached,
         }
     } else {
-        let written: u64 = content
-            .iter()
-            .map(|p| match p {
-                Part::Reasoning { text, .. } | Part::Text { text, .. } => text.len() as u64,
-                Part::ToolCall { input, .. } => input.to_string().len() as u64,
-                _ => 0,
-            })
-            .sum();
         Usage {
             input_tokens: estimated_tokens(prompt_chars),
-            output_tokens: estimated_tokens(written),
+            output_tokens: crate::usage::estimated_output_tokens(&content),
             ..Usage::default()
         }
     };
@@ -1015,8 +1001,8 @@ mod tests {
             &json!({"choices": [{"message": {"content": "12345678"}, "finish_reason": "stop"}]}),
         )?;
         assert!(got.usage_estimated);
-        assert_eq!(got.usage.input_tokens, 1_000, "4 000 prompt characters");
-        assert_eq!(got.usage.output_tokens, 2, "8 reply characters");
+        assert_eq!(got.usage.input_tokens, 1_334, "4 000 prompt bytes");
+        assert_eq!(got.usage.output_tokens, 3, "8 reply bytes");
         Ok(())
     }
 

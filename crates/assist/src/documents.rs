@@ -34,8 +34,6 @@ pub const MAX_DATASHEET_BYTES: u64 = 22 * 1024 * 1024;
 pub const TOKENS_PER_PAGE: u64 = 3_000;
 /// Pages assumed for a datasheet given by URL when estimating.
 const URL_PAGES: u64 = 120;
-/// Characters per token of extracted text, for the first request's estimate.
-const TEXT_CHARS_PER_TOKEN: u64 = 4;
 /// A page with less text than this is listed as probably a drawing.
 const SPARSE_PAGE_CHARS: usize = 300;
 /// Pages one run may view: each stays in the conversation.
@@ -374,7 +372,7 @@ fn degraded(datasheets: &[Datasheet], vision: bool) -> Result<Prepared> {
             });
         }
         if has_text {
-            tokens = tokens.saturating_add((body.len() as u64).div_ceil(TEXT_CHARS_PER_TOKEN));
+            tokens = tokens.saturating_add(crate::usage::estimated_tokens(body.len() as u64));
             parts.push(Part::Document {
                 title,
                 context: UNTRUSTED.into(),

@@ -631,7 +631,8 @@ fn a_long_datasheet_reaches_the_model_as_an_outline_and_the_pages_it_reads() -> 
     // A whole run is far inside the limit the person had set (350 000):
     // every request's prompt, re-sent, adds up to well under it.
     let sent: usize = posts.iter().map(|p| p.2.to_string().len()).sum();
-    assert!(sent / 3 < 100_000, "about {} tokens sent", sent / 3);
+    let tokens = crate::usage::estimated_tokens(sent as u64);
+    assert!(tokens < 100_000, "about {tokens} tokens sent");
     Ok(())
 }
 
