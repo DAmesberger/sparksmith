@@ -324,6 +324,7 @@ fn example_boards_mesh_as_their_plan() {
         // board's drills (a dielectric's, as one merged body was).
         let laminate_ms = |slabs: Vec<plan::PlanBody>| {
             let only = plan::BoardPlan {
+                bridges: vec![],
                 fills: Vec::new(),
                 pads: Vec::new(),
                 tracks: Vec::new(),

@@ -156,6 +156,9 @@ pub struct Footprint {
     pub margins: Margins,
     pub pads: Vec<KPad>,
     pub net_tie: bool,
+    pub tie_groups: Vec<Vec<String>>,
+    pub tie_copper: Vec<(String, Primitive)>,
+    pub unsupported_tie_copper: bool,
     /// Footprint drawings on copper, mask or paste layers.
     pub fab_graphics: usize,
     /// Of those, the filled polygons on a mask or paste layer (footprint
@@ -238,6 +241,13 @@ pub struct Chamfer {
 pub enum Primitive {
     Poly {
         points: Vec<PointNm>,
+        width: Nm,
+        fill: bool,
+    },
+    Arc {
+        start: PointNm,
+        mid: PointNm,
+        end: PointNm,
         width: Nm,
     },
     Circle {
@@ -593,8 +603,29 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
         zone: zone_override(node, path)?,
         ..Footprint::default()
     };
+    let marked = node.child("net_tie_pad_groups").is_some()
+        || node
+            .child("attr")
+            .is_some_and(|a| a.args().iter().any(|v| v.atom() == Some("net_tie")));
     for item in node.args() {
         let Some(head) = item.head() else { continue };
+        if marked
+            && matches!(head, "fp_text" | "fp_text_box" | "property")
+            && item
+                .child("layer")
+                .and_then(|l| l.arg(0))
+                .is_some_and(|l| l.ends_with(".Cu"))
+        {
+            let hidden = |n: &Node| {
+                n.args().iter().any(|v| v.atom() == Some("hide"))
+                    || n.child("hide").is_some_and(|v| v.arg(0) != Some("no"))
+            };
+            if !hidden(item) && !item.child("effects").is_some_and(hidden) {
+                // Copper text may cross the declared groups. Its strokes
+                // are not a supported bridge drawing.
+                fp.unsupported_tie_copper = true;
+            }
+        }
         match head {
             "pad" => {
                 if fp.pads.len() >= MAX_PADS {
@@ -638,6 +669,34 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                     fp.edge_cuts += 1;
                 } else if fab_layer(layer) {
                     fp.fab_graphics += 1;
+                    if marked && layer.ends_with(".Cu") {
+                        if fp.tie_copper.len() >= MAX_OPENINGS {
+                            return Err(BoardError::Limit("too many drawings in a net tie"));
+                        }
+                        let mut parsed = KPad::default();
+                        let style = item
+                            .child("stroke")
+                            .and_then(|s| s.child("type"))
+                            .and_then(|t| t.arg(0));
+                        if matches!(layer, "F.Cu" | "B.Cu")
+                            && matches!(style, None | Some("default" | "solid"))
+                        {
+                            primitive(
+                                item,
+                                head.trim_start_matches("fp_"),
+                                "footprint",
+                                filled(item),
+                                &mut parsed,
+                            )?;
+                        }
+                        if parsed.unsupported_primitives == 0
+                            && let Some(primitive) = parsed.primitives.pop()
+                        {
+                            fp.tie_copper.push((layer.into(), primitive));
+                        } else {
+                            fp.unsupported_tie_copper = true;
+                        }
+                    }
                     if fp.openings.len() < MAX_OPENINGS
                         && let Some(opening) = opening(item, head, layer)?
                     {
@@ -668,7 +727,29 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                 }
                 fp.zones.push(crate::items::zone(item)?);
             }
-            "net_tie_pad_groups" => fp.net_tie = true,
+            "net_tie_pad_groups" => {
+                fp.net_tie = true;
+                // Preserve an empty declaration for review. Only the old
+                // attribute omits the groups and means all numbered lands.
+                if item.args().is_empty() {
+                    if fp.tie_groups.len() >= MAX_PADS {
+                        return Err(BoardError::Limit("too many net-tie pad groups"));
+                    }
+                    fp.tie_groups.push(Vec::new());
+                }
+                for group in item.args() {
+                    let names: Vec<_> = group
+                        .atom()
+                        .unwrap_or_default()
+                        .split(',')
+                        .map(|s| s.trim().to_owned())
+                        .collect();
+                    if names.len() > MAX_PADS || fp.tie_groups.len() >= MAX_PADS {
+                        return Err(BoardError::Limit("too many net-tie pad names"));
+                    }
+                    fp.tie_groups.push(names);
+                }
+            }
             "attr" => {
                 let has = |flag: &str| item.args().iter().any(|a| a.atom() == Some(flag));
                 if has("net_tie") {
@@ -869,80 +950,112 @@ fn primitives(node: &Node, pad: &mut KPad) -> Result<()> {
     let path = "footprint/pad/primitives";
     for item in node.args() {
         let Some(head) = item.head() else { continue };
-        let p = format!("{path}/{head}");
-        match head {
-            "gr_poly" => {
-                let pts = item
-                    .child("pts")
-                    .ok_or_else(|| BoardError::Value(p.clone()))?;
-                let mut points = Vec::new();
-                for xy in pts.args() {
-                    if xy.head() != Some("xy") {
-                        pad.unsupported_primitives += 1;
-                        continue;
-                    }
-                    if points.len() >= MAX_POLY_POINTS {
-                        return Err(BoardError::Limit("a pad polygon of more than 4096 points"));
-                    }
-                    points.push(point(xy, 0, &p)?);
+        primitive(
+            item,
+            head.strip_prefix("gr_").unwrap_or(""),
+            path,
+            true,
+            pad,
+        )?;
+    }
+    Ok(())
+}
+fn primitive(
+    item: &Node,
+    kind: &str,
+    path: &str,
+    polygon_fill: bool,
+    pad: &mut KPad,
+) -> Result<()> {
+    let p = format!("{path}/{}", item.head().unwrap_or_default());
+    match kind {
+        "poly" => {
+            let pts = item
+                .child("pts")
+                .ok_or_else(|| BoardError::Value(p.clone()))?;
+            let mut points = Vec::new();
+            for xy in pts.args() {
+                if xy.head() != Some("xy") {
+                    pad.unsupported_primitives += 1;
+                    continue;
                 }
-                pad.primitives.push(Primitive::Poly {
-                    points,
-                    width: width_of(item, &p)?,
-                });
+                if points.len() >= MAX_POLY_POINTS {
+                    return Err(BoardError::Limit("a pad polygon of more than 4096 points"));
+                }
+                points.push(point(xy, 0, &p)?);
             }
-            "gr_circle" => {
-                let center = point(
-                    item.child("center")
-                        .ok_or_else(|| BoardError::Value(p.clone()))?,
-                    0,
-                    &p,
-                )?;
-                let end = point(
-                    item.child("end")
-                        .ok_or_else(|| BoardError::Value(p.clone()))?,
-                    0,
-                    &p,
-                )?;
-                let radius = ((end[0] - center[0]) as f64).hypot((end[1] - center[1]) as f64);
-                pad.primitives.push(Primitive::Circle {
-                    center,
-                    radius,
-                    width: width_of(item, &p)?,
-                    fill: filled(item),
-                });
-            }
-            "gr_rect" => {
-                let get = |h: &str| -> Result<PointNm> {
-                    point(
-                        item.child(h).ok_or_else(|| BoardError::Value(p.clone()))?,
-                        0,
-                        &p,
-                    )
-                };
-                pad.primitives.push(Primitive::Rect {
-                    start: get("start")?,
-                    end: get("end")?,
-                    width: width_of(item, &p)?,
-                    fill: filled(item),
-                });
-            }
-            "gr_line" => {
-                let get = |h: &str| -> Result<PointNm> {
-                    point(
-                        item.child(h).ok_or_else(|| BoardError::Value(p.clone()))?,
-                        0,
-                        &p,
-                    )
-                };
-                pad.primitives.push(Primitive::Line {
-                    start: get("start")?,
-                    end: get("end")?,
-                    width: width_of(item, &p)?,
-                });
-            }
-            _ => pad.unsupported_primitives += 1,
+            pad.primitives.push(Primitive::Poly {
+                points,
+                width: width_of(item, &p)?,
+                fill: polygon_fill,
+            });
         }
+        "circle" => {
+            let center = point(
+                item.child("center")
+                    .ok_or_else(|| BoardError::Value(p.clone()))?,
+                0,
+                &p,
+            )?;
+            let end = point(
+                item.child("end")
+                    .ok_or_else(|| BoardError::Value(p.clone()))?,
+                0,
+                &p,
+            )?;
+            let radius = ((end[0] - center[0]) as f64).hypot((end[1] - center[1]) as f64);
+            pad.primitives.push(Primitive::Circle {
+                center,
+                radius,
+                width: width_of(item, &p)?,
+                fill: filled(item),
+            });
+        }
+        "rect" => {
+            let get = |h: &str| -> Result<PointNm> {
+                point(
+                    item.child(h).ok_or_else(|| BoardError::Value(p.clone()))?,
+                    0,
+                    &p,
+                )
+            };
+            pad.primitives.push(Primitive::Rect {
+                start: get("start")?,
+                end: get("end")?,
+                width: width_of(item, &p)?,
+                fill: filled(item),
+            });
+        }
+        "arc" if item.head() == Some("fp_arc") && item.child("mid").is_some() => {
+            let get = |h: &str| -> Result<PointNm> {
+                point(
+                    item.child(h).ok_or_else(|| BoardError::Value(p.clone()))?,
+                    0,
+                    &p,
+                )
+            };
+            pad.primitives.push(Primitive::Arc {
+                start: get("start")?,
+                mid: get("mid")?,
+                end: get("end")?,
+                width: width_of(item, &p)?,
+            });
+        }
+        "line" => {
+            let get = |h: &str| -> Result<PointNm> {
+                point(
+                    item.child(h).ok_or_else(|| BoardError::Value(p.clone()))?,
+                    0,
+                    &p,
+                )
+            };
+            pad.primitives.push(Primitive::Line {
+                start: get("start")?,
+                end: get("end")?,
+                width: width_of(item, &p)?,
+            });
+        }
+        _ => pad.unsupported_primitives += 1,
     }
     Ok(())
 }

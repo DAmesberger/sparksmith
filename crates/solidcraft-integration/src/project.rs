@@ -38,10 +38,21 @@ use std::collections::{BTreeMap, BTreeSet};
 /// bounded (within 2 % of the radius) on boards of thousands of tracks.
 const TRACK_CAP_SEGMENTS: usize = 8;
 
+/// The bridge identity and all the end nets named by this piece of copper.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BridgeSource {
+    pub group: sparksmith_core::TieId,
+    pub bridge: sparksmith_core::BridgeId,
+    pub nets: Vec<Id>,
+}
+
 /// Which Sparksmith object a native body came from. Stored in the native file's
 /// metadata so identity survives reopening, compactly ([`identity`]).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Source {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tie: Option<BridgeSource>,
     pub pick_id: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instance: Option<Id>,
@@ -65,6 +76,20 @@ pub struct Source {
     /// is; `None` for a component of its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub occurrence: Option<u64>,
+}
+
+impl Source {
+    /// The placed package whose model this pick identifies. Its lands and
+    /// bridges have their own picks, even when they belong to the same part.
+    pub fn package_instance(&self) -> Option<Id> {
+        self.instance.filter(|_| {
+            self.pad.is_none()
+                && self.tie.is_none()
+                && self.track.is_none()
+                && self.via.is_none()
+                && self.fill.is_none()
+        })
+    }
 }
 
 /// How a model holds the board's flat bodies (laminate, pad, track, via
@@ -1058,6 +1083,7 @@ impl<'a> PlacedPart<'a> {
     /// `occurrence` of a shared definition.
     fn source(&self, pick: u64, component: u64, occurrence: Option<u64>) -> Source {
         Source {
+            tie: None,
             pick_id: pick,
             instance: Some(self.instance.id),
             pad: None,
@@ -1591,6 +1617,35 @@ struct Kept {
     designs: designs::Memo,
 }
 
+fn bridge_source(body: &plan::PlanBody, pick_id: u64, component: u64) -> Result<Source> {
+    let plan::Origin::Bridge {
+        instance,
+        group,
+        bridge,
+    } = body.source
+    else {
+        return Err(Error::Verification("Expected a bridge body.".into()));
+    };
+    Ok(Source {
+        pick_id,
+        instance: Some(instance),
+        tie: Some(BridgeSource {
+            group,
+            bridge,
+            nets: body.tie_nets.clone(),
+        }),
+        pad: None,
+        track: None,
+        via: None,
+        fill: None,
+        net: None,
+        layer: body.layer,
+        label: body.name.clone(),
+        component,
+        occurrence: None,
+    })
+}
+
 /// The live view's model of `project` ([`Flat::Meshed`]). No design of
 /// the board is made: its flat bodies are meshed from the board plan
 /// ([`mesh`]), and each part is its package revision's own design
@@ -1645,6 +1700,9 @@ fn build_meshed(
         }
     }
     let mut paths = Vec::with_capacity(project.tracks.len());
+    for body in &plan.bridges {
+        sources.push(bridge_source(body, next_pick(&sources), NO_COMPONENT)?);
+    }
     for track in &project.tracks {
         let pick = next_pick(&sources);
         sources.push(track_source(track, pick, NO_COMPONENT, &mut paths));
@@ -1938,6 +1996,39 @@ fn build_on(mut b: Builder, project: &Project) -> Result<NativeModel> {
         });
     }
     let mut paths = Vec::with_capacity(project.tracks.len());
+    for body in &plan.bridges {
+        let plan::Origin::Bridge { instance, .. } = body.source else {
+            return Err(Error::Verification("Expected a bridge body.".into()));
+        };
+        let layer = body
+            .layer
+            .ok_or_else(|| Error::Verification("A bridge needs its copper layer.".into()))?;
+        let side = layer
+            .side()
+            .ok_or_else(|| Error::Verification("A bridge needs an outer copper layer.".into()))?;
+        let prefix = format!("instance_{instance}");
+        let created = b.native.component(&body.name, false)?;
+        b.native.whole_profile_body(ProfileBody {
+            name: &body.name,
+            offset: 0.into(),
+            contours: &body.loops,
+            height: copper_param(layer).into(),
+        })?;
+        b.record(&body.name, body.kind)?;
+        joints.push((
+            BoardJoint {
+                board,
+                occurrence: created.occurrence,
+                x: format!("{prefix}_x").into(),
+                y: format!("{prefix}_y").into(),
+                angle: format!("{prefix}_angle").into(),
+                mount: Mount::Side(side),
+            },
+            JointFrame::ORIGIN,
+            None,
+        ));
+        sources.push(bridge_source(body, next_pick(&sources), created.component)?);
+    }
     if plan.tracks.len() != project.tracks.len() {
         return Err(Error::Verification(
             "the board plan holds another number of tracks".into(),
@@ -2083,6 +2174,7 @@ fn pad_lands(pad: &PlacedPad<'_>, pick: u64, lands: &mut Vec<Land>) -> Result<Op
         return Ok(None);
     }
     Ok(Some(Source {
+        tie: None,
         pick_id: pick,
         instance: Some(pad.placed.instance),
         pad: Some(local.id),
@@ -2116,6 +2208,7 @@ fn track_source(
         });
     }
     Source {
+        tie: None,
         pick_id: pick,
         instance: None,
         pad: None,
@@ -2134,8 +2227,7 @@ fn track_source(
 fn part_picks(sources: &[Source]) -> BTreeMap<Id, u64> {
     sources
         .iter()
-        .filter(|s| s.pad.is_none())
-        .filter_map(|s| s.instance.map(|i| (i, s.pick_id)))
+        .filter_map(|s| s.package_instance().map(|i| (i, s.pick_id)))
         .collect()
 }
 
@@ -2482,6 +2574,7 @@ fn marks(
             };
         let pick = next_pick(sources);
         sources.push(Source {
+            tie: None,
             pick_id: pick,
             instance: None,
             pad: None,

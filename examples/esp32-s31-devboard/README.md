@@ -23,6 +23,8 @@ cargo build --locked --profile ci -p sparksmith-cli        # or inside nix devel
 sh examples/esp32-s31-devboard/regenerate.sh
 ```
 
+After a generator changes, run `sh examples/esp32-s31-devboard/regenerate.sh --rebase` with the rebuilt CLI and bundles. This carries authored edits onto the new generated parts before replaying. The source module has no project ID. On its first save the board receives a deterministic ID from its own contents and filename. An updated generator can therefore change the board ID. Commit the resulting fabrication files with the board so their IDs agree.
+
 ## Board
 
 - **Size:** 40 × 64 mm, 1.5 mm corner radius, four M2.5 mounting holes (2.7 mm NPTH, board-level holes), each `inset` (3.5 mm) from its two nearest edges, so the sketch is fully defined and the holes follow a width or height change.

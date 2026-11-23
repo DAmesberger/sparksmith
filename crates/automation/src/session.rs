@@ -2139,6 +2139,7 @@ impl Session {
     /// carries the core's `component.check` report, from one staged
     /// `component.check_drafts` query.
     pub fn snapshot(&self) -> Value {
+        let _context = self.engine.enter_context();
         let project = self.engine.project();
         let items = &self.engine.drafts().items;
         let drafts: Vec<Value> = match self.engine.query(Query::CheckDrafts { detail: true }) {
@@ -2165,6 +2166,7 @@ impl Session {
         json!({
             "revision": self.engine.revision(),
             "project": project,
+            "netlist": sparksmith_core::instances::ties::Netlist::of(project),
             "drafts": drafts,
             "can_undo": self.engine.can_undo(),
             "can_redo": self.engine.can_redo(),

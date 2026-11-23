@@ -141,6 +141,8 @@ fn sample(name: &str, kind: Kind<'_>, refs: SampleRefs, layout: Layout) -> Resul
             id: refs.component,
             meta: meta(name),
             definition: Definition::Component(ComponentDefinition {
+                assembly: Default::default(),
+                ties: Default::default(),
                 pin_rules: Vec::new(),
                 marking: None,
                 review: None,

@@ -366,6 +366,7 @@ pub(super) fn apply(rules: &mut ProjectRules, command: RulesCommand) -> Result<O
         | RulesCommand::SetOptions { .. }
         | RulesCommand::SetOverride { .. }
         | RulesCommand::ClearOverride { .. }
+        | RulesCommand::SetTieCurrent { .. }
         | RulesCommand::SetProjectSource { .. }
         | RulesCommand::AddDiffPair { .. }
         | RulesCommand::EditDiffPair { .. }

@@ -80,6 +80,74 @@ fn at(a: Point, b: Point, length: f64, s: f64) -> Point {
     [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
 }
 
+pub(super) fn nearest_contact(a: Point, b: Point, c: Point, d: Point) -> Point {
+    let ab = (b[0] - a[0]).hypot(b[1] - a[1]);
+    let cd = (d[0] - c[0]).hypot(d[1] - c[1]);
+    let (s, t) = nearest(a, b, ab, c, d, cd);
+    let first = at(a, b, ab, s);
+    let second = at(c, d, cd, t);
+    [(first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0]
+}
+
+/// A point on the common copper of two outlines already known to meet.
+pub(super) fn contact_point(a: &CopperRing, b: &CopperRing) -> Option<Point> {
+    for (item, other) in [(a, b), (b, a)] {
+        let inside = |p: Point| match other.spine {
+            Some((c, d, r)) => segment_distance(p, c, d) <= r,
+            None => polygon_contains(&other.ring, p),
+        };
+        if let Some((c, d, _)) = item.spine {
+            if let Some(p) = [c, d].into_iter().find(|p| inside(*p)) {
+                return Some(p);
+            }
+        } else if let Some(p) = item.ring.iter().copied().find(|p| inside(*p)) {
+            return Some(p);
+        }
+    }
+    let edges = |ring: &CopperRing| -> Vec<(Point, Point, f64)> {
+        match ring.spine {
+            Some(spine) => vec![spine],
+            None => ring_edges(&ring.ring).map(|(p, q)| (p, q, 0.)).collect(),
+        }
+    };
+    let right = edges(b);
+    for (p, q, r) in edges(a) {
+        for &(c, d, r2) in &right {
+            if segments_gap(p, q, c, d) > r + r2 + JOIN_TOLERANCE_MM + a.slack + b.slack {
+                continue;
+            }
+            let l = (q[0] - p[0]).hypot(q[1] - p[1]);
+            let n = (d[0] - c[0]).hypot(d[1] - c[1]);
+            let (s, t) = nearest(p, q, l, c, d, n);
+            let first = at(p, q, l, s);
+            let second = at(c, d, n, t);
+            let f = if r + r2 > 0.0 { r / (r + r2) } else { 0.5 };
+            return Some([
+                first[0] + f * (second[0] - first[0]),
+                first[1] + f * (second[1] - first[1]),
+            ]);
+        }
+    }
+    None
+}
+
+pub(super) fn fill_contact_point(index: &RegionIndex, ring: &CopperRing) -> Option<Point> {
+    if let Some((p, q, _)) = ring.spine {
+        if let Some(at) = [p, q].into_iter().find(|p| index.region_at(*p).is_some()) {
+            return Some(at);
+        }
+    } else if let Some(p) = ring.ring.iter().find(|p| index.region_at(**p).is_some()) {
+        return Some(*p);
+    }
+    let bounds = ring.bounds?.inflated(JOIN_REACH_MM);
+    for (_, c, d) in index.edges_near(bounds.min, bounds.max) {
+        let edge = CopperRing::capsule(c, d, 0.);
+        if let Some(p) = contact_point(ring, &edge) {
+            return Some(p);
+        }
+    }
+    None
+}
 /// The nearest stations of segments `a`–`b` and `c`–`d`: where they
 /// cross, or the closest pair of points.
 fn nearest(a: Point, b: Point, ab: f64, c: Point, d: Point, cd: f64) -> (f64, f64) {
@@ -333,6 +401,8 @@ impl CopperGraph {
     /// every pad on the net its copper had, to ask which pads that copper
     /// would join after the update.
     pub fn with_pads(project: &Project, pads: Vec<WorldPad>) -> Self {
+        let mut pads = pads;
+        pads.extend(super::ties::sense_destinations(project, &pads));
         Self::build(project, pads, None)
     }
 
@@ -344,10 +414,9 @@ impl CopperGraph {
     /// checks a differential pair per pointer move builds this instead of
     /// the whole board's graph.
     pub fn of_nets(project: &Project, nets: &[Id]) -> Self {
-        let pads = crate::layout::pads(project)
-            .into_iter()
-            .filter(|p| nets.contains(&p.net))
-            .collect();
+        let mut all = crate::layout::pads(project);
+        all.extend(super::ties::sense_destinations(project, &all));
+        let pads = all.into_iter().filter(|p| nets.contains(&p.net)).collect();
         Self::build(project, pads, Some(nets))
     }
 
@@ -446,6 +515,9 @@ impl CopperGraph {
         let mut joints = graph.join();
         joints.extend(graph.fill_joints(&fills, first_fill));
         graph.connect(joints);
+        if nets.is_none() {
+            graph.record_ties(project, &fills);
+        }
         graph
     }
 

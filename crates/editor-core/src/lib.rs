@@ -166,6 +166,8 @@ impl Operation {
                 | InstanceCommand::SelectFunctions { instance, .. }
                 | InstanceCommand::SetUnitUnused { instance, .. }
                 | InstanceCommand::SetNoConnect { instance, .. }
+                | InstanceCommand::SetPurpose { instance, .. }
+                | InstanceCommand::SetAnchor { instance, .. }
                 | InstanceCommand::SetPhysical { instance, .. }
                 | InstanceCommand::SetPinConfig { instance, .. }
                 | InstanceCommand::SetMarking { instance, .. }
@@ -278,6 +280,9 @@ pub enum Query {
     /// included.
     #[serde(rename = "library.resolve_groups")]
     ResolveGroups {},
+    /// The distinct nets of every deliberate tie, active state, contacts and current margin.
+    #[serde(rename = "tie.list")]
+    Ties {},
     /// The assembly variants, the active one, and every bought part's
     /// population and fitted Part in the default and in each variant.
     #[serde(rename = "variant.list")]
@@ -551,6 +556,7 @@ declare_entries!(Query in project {
     InspectLineage "library.inspect" Read "Inspect a lineage" [in library, link, returns(lineage)],
     Bom "project.bom" Read "Bill of materials" [link, returns(bom)],
     ResolveGroups "library.resolve_groups" Read "Group instances for purchasing" [in library, link, returns(resolve_groups)],
+    Ties "tie.list" Read "List deliberate net ties" [long,link,since(7,24),returns(ties)],
     Variants "variant.list" Read "List assembly variants" [link, since(7, 13), returns(variants)],
     Substitutes "variant.substitutes" Read "Parts that fit a footprint" [link, since(7, 13), returns(substitutes)],
     FootprintPreview "library.footprint_preview" Read "Preview a footprint" [in library, long, link, returns(footprint_preview)],
@@ -602,6 +608,7 @@ pub enum QueryResult {
     Lineage(Box<catalog::ItemReport>),
     Bom(completeness::BomReport),
     ResolveGroups(completeness::ResolveReport),
+    Ties(Vec<layout::connectivity::TieReport>),
     Variants(instances::variants::VariantsReport),
     Substitutes(Vec<instances::variants::Substitute>),
     FootprintPreview(Box<library::footprint_edit::FootprintPreview>),
@@ -2268,6 +2275,10 @@ impl Engine {
             Query::ResolveGroups {} => Ok(QueryResult::ResolveGroups(
                 completeness::resolve_groups(&self.document.project)?,
             )),
+            Query::Ties {} => Ok(QueryResult::Ties(layout::connectivity::report(
+                self.project(),
+                &self.copper_graph(),
+            ))),
             Query::Variants {} => Ok(QueryResult::Variants(instances::variants::report(
                 &self.document.project,
             )?)),

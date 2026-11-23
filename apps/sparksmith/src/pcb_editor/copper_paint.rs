@@ -20,11 +20,20 @@ pub(super) struct FillCopper {
     pub regions: Vec<FilledRegion>,
 }
 
+pub(super) struct BridgeCopper {
+    pub group: sparksmith_core::TieId,
+    pub instance: Id,
+    pub layer: CopperLayer,
+    pub nets: Vec<Id>,
+    pub mesh: super::fill_paint::FillMesh,
+}
+
 /// The board's copper per revision, flattened for drawing.
 #[derive(Default)]
 pub(super) struct LayoutCopper {
     /// Each pad's land on every layer it has copper on.
     pads: HashMap<(Id, PadId), Vec<(CopperLayer, CoreShape)>>,
+    pub(super) bridges: Vec<BridgeCopper>,
     /// Each track's stadium.
     tracks: HashMap<Id, Vec<Point>>,
     /// Each via's ring per layer: centre and outer radius.
@@ -39,6 +48,7 @@ impl LayoutCopper {
     /// Take the copper of `project`'s board from the plan.
     pub(super) fn update(&mut self, project: &Project) {
         self.pads.clear();
+        self.bridges.clear();
         self.tracks.clear();
         self.vias.clear();
         self.fills.clear();
@@ -65,6 +75,24 @@ impl LayoutCopper {
                             .entry((instance, pad))
                             .or_default()
                             .push((layer, CoreShape::polygon(ring)));
+                    }
+                }
+                Origin::Bridge {
+                    instance, group, ..
+                } => {
+                    if let Some(ring) = outer_ring(body) {
+                        let region = FilledRegion {
+                            outer: ring,
+                            holes: vec![],
+                        };
+                        let regions = std::slice::from_ref(&region);
+                        self.bridges.push(BridgeCopper {
+                            instance,
+                            group,
+                            layer,
+                            nets: body.tie_nets.clone(),
+                            mesh: super::fill_paint::FillMesh::of(0, regions, regions),
+                        });
                     }
                 }
                 Origin::Track(id) => {

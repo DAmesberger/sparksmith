@@ -971,3 +971,42 @@ fn the_value_fields_show_their_whole_value_in_the_properties_column() -> TestRes
     assert!(checked >= 3, "only {checked} rule names drawn");
     Ok(())
 }
+
+#[test]
+fn changing_and_clearing_allowed_rise_keep_the_designers_table() -> TestResult {
+    use rules::current::{CurrentPoint, CurrentRule, CurrentTable};
+    let mut engine = Engine::demo()?;
+    // Synthetic values for this test only.
+    let table = CurrentTable {
+        edition: "Test edition".into(),
+        figure: "Test figure".into(),
+        source: "Test measurement".into(),
+        rows: vec![CurrentPoint {
+            rise_c: 4.0,
+            area_mm2: 0.16,
+            amperes: 1.2,
+        }],
+    };
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::SetTieCurrent {
+            rule: Some(CurrentRule {
+                rise_c: None,
+                table: Some(table.clone()),
+            }),
+        }),
+    )?;
+    for rise in [Some(4.0), None] {
+        let command = set_tie_rise(&engine.project().rules, rise);
+        engine.apply(engine.revision(), Operation::Rules(command))?;
+        let stored = engine
+            .project()
+            .rules
+            .current
+            .as_ref()
+            .ok_or("missing current rule")?;
+        assert_eq!(stored.rise_c, rise);
+        assert_eq!(stored.table.as_ref(), Some(&table));
+    }
+    Ok(())
+}

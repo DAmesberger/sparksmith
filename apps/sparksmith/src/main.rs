@@ -44,6 +44,7 @@ mod scene;
 mod schematic_editor;
 mod shell;
 mod symbol_view;
+mod ties;
 mod update_preview;
 mod variants;
 mod viewport;

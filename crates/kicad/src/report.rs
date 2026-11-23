@@ -64,9 +64,11 @@ pub enum Case {
     PasteRatioWindow,
     /// G4: footprint text and drawings (silkscreen, courtyard, fab).
     FootprintDrawings,
-    /// G5: net-tie footprints: pads imported on their own nets, the tie
-    /// between the nets not (no net-tie part yet), each named.
+    /// A footprint that marked a tie whose groups or drawings could not be imported.
     NetTie,
+    /// One footprint with all its independent copper tie groups imported.
+    ImportedTie,
+    JumperSuggestion,
     /// G6: per-pad zone connection and clearance overrides.
     PadZoneOverrides,
     /// G6: footprint-wide zone connection and clearance overrides.
@@ -267,6 +269,8 @@ pub enum Case {
     /// Parts KiCad marks do-not-populate (on the footprint or the symbol):
     /// not populated in the default, body kept.
     NotPopulatedAttribute,
+    /// A not-fitted marker on a fabricated copper tie.
+    CopperTieDnp,
     /// Parts whose value is or carries a not-fitted marker ("DNP"): not
     /// populated in the default, the marker taken out of the value.
     NotPopulatedMarker,
@@ -343,10 +347,16 @@ impl Case {
                 Report,
                 "footprint text and drawings, not imported in this slice",
             ),
+            Self::ImportedTie => ("G5", Exact, "footprints imported with copper tie groups"),
+            Self::JumperSuggestion => (
+                "G5",
+                Report,
+                "possible solder jumpers to review for conversion",
+            ),
             Self::NetTie => (
                 "G5",
                 Report,
-                "net-tie footprints: pads imported on their own nets, the tie between them not imported (no net-tie part)",
+                "net ties not imported because their declared groups or copper drawings need review",
             ),
             Self::PadZoneOverrides => (
                 "G6",
@@ -684,6 +694,11 @@ impl Case {
                 Approximate,
                 "zones with corner smoothing, filled without",
             ),
+            Self::CopperTieDnp => (
+                "P7",
+                Report,
+                "DNP markings on fabricated copper ties, which stay closed",
+            ),
             Self::NotPopulatedAttribute => (
                 "P7",
                 Exact,
@@ -925,8 +940,10 @@ pub struct Counts {
 
 /// The cases whose occurrences [`Report::summary_named`] lists by name:
 /// what the import left for the person to resolve.
-pub const NAMED_CASES: [Case; 3] = [
+pub const NAMED_CASES: [Case; 5] = [
     Case::NetTie,
+    Case::ImportedTie,
+    Case::JumperSuggestion,
     Case::StackupMaskSides,
     Case::SymbolWithoutFootprint,
 ];

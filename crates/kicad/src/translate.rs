@@ -349,7 +349,7 @@ fn pad_or_refusal(
                 } => {
                     round.push((local(*center), radius / 1e6 + mm(*width) / 2.0));
                 }
-                Primitive::Poly { points, width } if *width > 0 => {
+                Primitive::Poly { points, width, .. } if *width > 0 => {
                     round.extend(points.iter().map(|p| (local(*p), mm(*width) / 2.0)));
                 }
                 Primitive::Rect {
@@ -780,14 +780,75 @@ fn custom_ring(kpad: &KPad, size: Point) -> Result<(Vec<Point>, bool), Case> {
         let (hx, hy) = (size[0] / 2.0, size[1] / 2.0);
         parts.push(vec![vec![[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]]]);
     }
-    for primitive in &kpad.primitives {
+    let (union, curved) = primitive_union(parts, &kpad.primitives);
+    chords |= curved;
+    match union.as_slice() {
+        [only] if only.len() == 1 => Ok((only[0].clone(), chords)),
+        _ => Err(Case::CustomPadNotOneOutline),
+    }
+}
+
+fn primitive_union(mut parts: Vec<Rings>, primitives: &[Primitive]) -> (Vec<Rings>, bool) {
+    let mut chords = false;
+    for primitive in primitives {
         match primitive {
-            Primitive::Poly { points, width } => {
+            Primitive::Arc {
+                start,
+                mid,
+                end,
+                width,
+            } => {
+                let (a, m, b) = (local(*start), local(*mid), local(*end));
+                let Some((centre, radius)) = crate::shape::circle_through(a, m, b) else {
+                    return (Vec::new(), true);
+                };
+                let half = mm(*width) / 2.0;
+                if half <= 0.0 {
+                    return (Vec::new(), true);
+                }
+                let angle = |p: Point| (p[1] - centre[1]).atan2(p[0] - centre[0]).to_degrees();
+                let from = angle(a);
+                let to = (angle(b) - from).rem_euclid(360.);
+                let sweep = if (angle(m) - from).rem_euclid(360.) <= to {
+                    to
+                } else {
+                    to - 360.
+                };
+                // The copper is an annular sector and two round endcaps.
+                let arc = |radius| {
+                    sparksmith_core::geometry::Shape::Arc {
+                        center: centre,
+                        radius,
+                        start_deg: from,
+                        sweep_deg: sweep,
+                    }
+                    .flatten(CHORD_MM)
+                };
+                let mut sector = arc(radius + half);
+                if radius > half {
+                    sector.extend(arc(radius - half).into_iter().rev());
+                } else {
+                    sector.push(centre);
+                }
+                parts.extend([vec![sector], vec![circle(a, half)], vec![circle(b, half)]]);
+                chords = true;
+            }
+            Primitive::Poly {
+                points,
+                width,
+                fill,
+            } => {
                 let ring: Vec<Point> = points.iter().map(|p| local(*p)).collect();
                 if *width > 0 {
                     chords = true;
                 }
-                parts.extend(grown(vec![ring], mm(*width) / 2.0));
+                if *fill {
+                    parts.extend(grown(vec![ring], mm(*width) / 2.0));
+                } else if *width > 0 {
+                    for (a, b) in ring.iter().zip(ring.iter().cycle().skip(1)) {
+                        parts.push(vec![capsule(*a, *b, mm(*width) / 2.)]);
+                    }
+                }
             }
             Primitive::Circle {
                 center,
@@ -848,10 +909,7 @@ fn custom_ring(kpad: &KPad, size: Point) -> Result<(Vec<Point>, bool), Case> {
         OverlayRule::Subject,
         FillRule::NonZero,
     );
-    match union.as_slice() {
-        [only] if only.len() == 1 => Ok((only[0].clone(), chords)),
-        _ => Err(Case::CustomPadNotOneOutline),
-    }
+    (union, chords)
 }
 
 /// The package terminal a pad lands, for the pads that need one.
@@ -1071,4 +1129,159 @@ fn boxes_overlap(a: &[Point], b: &[Point]) -> bool {
     };
     let ((alo, ahi), (blo, bhi)) = (bounds(a), bounds(b));
     alo[0] <= bhi[0] && blo[0] <= ahi[0] && alo[1] <= bhi[1] && blo[1] <= ahi[1]
+}
+
+/// The groups on a single source footprint and the copper regions they own.
+/// Pad identities determine ownership through the component's pin mapping.
+#[derive(Clone, Debug)]
+pub(crate) struct ImportedTies {
+    pub groups: Vec<sparksmith_core::library::tie::TieSpec>,
+    pub bridges: Vec<sparksmith_core::library::tie::Bridge>,
+}
+
+/// Translate a marked footprint only if each group is connected by its own
+/// original copper drawings. An invalid declaration keeps its pads for review.
+pub(crate) fn copper_ties(fp: &Footprint, pads: &[Pad]) -> Result<ImportedTies, &'static str> {
+    use sparksmith_core::ids::{BridgeId, TieId};
+    use sparksmith_core::library::tie::{Bridge, TieForm, TieSpec};
+    use std::collections::{BTreeMap, BTreeSet};
+    if fp.unsupported_tie_copper {
+        return Err("This tie has unsupported copper drawings.");
+    }
+    if fp.tie_copper.is_empty() {
+        return Err("The footprint has no copper drawing joining its declared lands.");
+    }
+    let numbers: BTreeMap<_, _> = pads
+        .iter()
+        .filter_map(|p| Some((p.number.as_str(), p.terminal?)))
+        .collect();
+    // The older net_tie attribute has no groups and declares one tie.
+    let declared: Vec<Vec<&str>> = if fp.tie_groups.is_empty() {
+        vec![numbers.keys().copied().collect()]
+    } else {
+        fp.tie_groups
+            .iter()
+            .map(|g| g.iter().map(String::as_str).collect())
+            .collect()
+    };
+    let mut group_of = BTreeMap::new();
+    let mut groups = Vec::new();
+    for names in declared {
+        let mut ends = BTreeSet::new();
+        for name in names {
+            let terminal = numbers
+                .get(name)
+                .filter(|_| !name.is_empty())
+                .ok_or("A declared tie group names a missing or unnumbered land.")?;
+            if !ends.insert(sparksmith_core::TerminalId(terminal.0)) {
+                return Err("A tie group repeats one of its pad numbers.");
+            }
+        }
+        if !(2..=8).contains(&ends.len()) {
+            return Err("Each tie group needs two to eight distinct terminals.");
+        }
+        // Deterministic even when the source reorders its quoted groups.
+        let id = TieId(ends.first().ok_or("A tie group has no terminals.")?.0);
+        for end in &ends {
+            if group_of.insert(PackageTerminalId(end.0), id).is_some() {
+                return Err("Two tie groups claim the same terminal.");
+            }
+        }
+        groups.push(TieSpec {
+            id,
+            form: TieForm::Copper,
+            ends: ends.into_iter().collect(),
+        });
+    }
+    groups.sort_by_key(|g| g.id);
+    let mut group_lands = BTreeMap::<TieId, Vec<Vec<PadId>>>::new();
+    let mut bridges = Vec::new();
+    for layer in ["F.Cu", "B.Cu"] {
+        let shapes = fp
+            .tie_copper
+            .iter()
+            .filter(|(l, _)| l == layer)
+            .map(|(_, p)| p.clone())
+            .collect::<Vec<_>>();
+        if shapes.is_empty() {
+            continue;
+        }
+        let side = if (layer == "F.Cu") != fp.back {
+            PadSide::Top
+        } else {
+            PadSide::Bottom
+        };
+        let regions = primitive_union(vec![], &shapes).0;
+        if regions.is_empty() {
+            return Err("The footprint has an invalid or empty copper drawing on a tie layer.");
+        }
+        for region in regions {
+            let [ring] = region.as_slice() else {
+                return Err("A bridge drawing contains a hole that its outline cannot represent.");
+            };
+            if ring.len() > MAX_OUTLINE_SEGMENTS {
+                return Err("A bridge drawing exceeds the supported outline size.");
+            }
+            let outline = polygon_outline(
+                &ring
+                    .iter()
+                    .map(|p| Local { flip: fp.back }.point(*p))
+                    .collect::<Vec<_>>(),
+            );
+            let mut lands = Vec::new();
+            let mut owner = None;
+            for pad in pads {
+                if sparksmith_core::library::tie::bridge_touches_pad(&outline, side, pad) {
+                    let group = pad
+                        .terminal
+                        .and_then(|end| group_of.get(&end).copied())
+                        .ok_or("Bridge copper touches a land outside every declared group.")?;
+                    if owner.replace(group).is_some_and(|old| old != group) {
+                        return Err("Bridge copper touches lands from separate tie groups.");
+                    }
+                    lands.push(pad.id);
+                }
+            }
+            if lands.len() < 2 {
+                return Err("A bridge drawing does not reach two lands in its group.");
+            }
+            let group = owner.ok_or("A bridge drawing has no declared lands.")?;
+            group_lands.entry(group).or_default().push(lands.clone());
+            bridges.push(Bridge {
+                id: BridgeId(
+                    u32::try_from(pads.len() + bridges.len() + 1)
+                        .map_err(|_| "Too many bridge drawings.")?,
+                ),
+                outline,
+                side,
+                pads: lands,
+            });
+        }
+    }
+    for group in &groups {
+        // A group may contain several drawings that meet on a shared land,
+        // including the two sides of a plated pad. A second isolated drawing
+        // cannot stand in for copper between those drawings.
+        let mut pieces = group_lands.remove(&group.id).unwrap_or_default();
+        let mut joined: BTreeSet<_> = pieces
+            .pop()
+            .ok_or("A declared tie group has no bridge drawing.")?
+            .into_iter()
+            .collect();
+        while let Some(i) = pieces
+            .iter()
+            .position(|p| p.iter().any(|id| joined.contains(id)))
+        {
+            joined.extend(pieces.swap_remove(i));
+        }
+        if !pieces.is_empty()
+            || !group.ends.iter().all(|end| {
+                pads.iter()
+                    .any(|p| p.terminal == Some(PackageTerminalId(end.0)) && joined.contains(&p.id))
+            })
+        {
+            return Err("The bridge drawings do not connect every end of a declared tie group.");
+        }
+    }
+    Ok(ImportedTies { groups, bridges })
 }

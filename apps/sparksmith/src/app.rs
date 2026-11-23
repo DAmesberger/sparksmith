@@ -1627,8 +1627,12 @@ impl App {
         let pick = if self.workspace == Workspace::Part {
             // Component 3D shows every layer of its package.
             self.scene.viewport.set_layers(Default::default());
-            self.scene
-                .highlight(&Default::default(), None, &Default::default());
+            self.scene.highlight(
+                &Default::default(),
+                None,
+                &Default::default(),
+                &Default::default(),
+            );
             // A read-only library item builds from its scratch engine and
             // never sends an operation to the project.
             let preview = self.part.lend_preview();
@@ -1652,6 +1656,7 @@ impl App {
                 &self.pcb.selected(),
                 self.pcb.highlighted_net(),
                 &self.pcb.lit(),
+                &self.pcb.tie_focus(),
             );
             let pick = self.scene.viewport.show(ui, viewport::NavCaps::BOARD);
             // How to move the view; the Fit view button's hover help lists

@@ -843,6 +843,7 @@ fn adopted_footprint(
         })
     });
     Ok(FootprintDefinition {
+        bridges: Vec::new(),
         package: footprint.package,
         next_local,
         source: None,

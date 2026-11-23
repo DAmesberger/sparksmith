@@ -254,6 +254,14 @@ local_id!(
     PadId
 );
 local_id!(
+    /// One independent join within a component, stable across its revisions.
+    TieId
+);
+local_id!(
+    /// A footprint bridge in the shared local namespace.
+    BridgeId
+);
+local_id!(
     /// An enumeration choice of a field, stable across its revisions.
     ChoiceId
 );

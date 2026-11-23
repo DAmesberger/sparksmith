@@ -2,6 +2,7 @@ use super::*;
 
 fn source(pick_id: u64, component: u64) -> Source {
     Source {
+        tie: None,
         pick_id,
         instance: None,
         pad: None,
@@ -353,4 +354,35 @@ fn columns_are_lossless_and_short_for_runs_and_periods() -> Result<()> {
     assert!(Column("7*4".into()).read_values(3).is_err());
     assert!(Column("(1 2)*2".into()).read_values(3).is_err());
     Ok(())
+}
+
+#[test]
+fn independent_bridges_keep_their_group_and_end_nets_after_reopen() -> Result<()> {
+    use sparksmith_core::{BridgeId, TieId};
+    let sources = [(1, 9, vec![21, 22]), (2, 10, vec![23, 24])]
+        .into_iter()
+        .enumerate()
+        .map(|(i, (group, bridge, nets))| Source {
+            instance: Some(12),
+            layer: Some(CopperLayer::Top),
+            tie: Some(super::super::BridgeSource {
+                group: TieId(group),
+                bridge: BridgeId(bridge),
+                nets,
+            }),
+            ..source(i as u64 + 1, i as u64 + 2)
+        })
+        .collect::<Vec<_>>();
+    let bodies = BTreeMap::new();
+    let mut native = Native::new("Independent ties")?;
+    write(&mut native, &sources, &bodies)?;
+    let dir = tempfile::tempdir()?;
+    let path = dir
+        .path()
+        .join("ties.solidcraft")
+        .to_string_lossy()
+        .into_owned();
+    native.save_new(crate::native::files::test_file(&path))?;
+    let (reopened, _) = read(&Native::open(&path)?)?;
+    same(&sources, &reopened)
 }

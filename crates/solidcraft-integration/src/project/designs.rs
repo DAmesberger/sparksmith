@@ -368,7 +368,7 @@ fn part_bodies(model: &NativeModel) -> std::collections::BTreeMap<u64, (String, 
     for source in model
         .sources
         .iter()
-        .filter(|s| s.instance.is_some() && s.pad.is_none())
+        .filter(|s| s.package_instance().is_some())
     {
         out.insert(source.pick_id, (source.label.clone(), Vec::new()));
     }

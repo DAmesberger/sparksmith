@@ -174,3 +174,18 @@ No check for local fiducials of fine-pitch parts yet: JLCPCB's blog places them 
 - The Board shape mode, the Fill tool and card, the Net classes card and the Design rules panel are covered by engine and egui-frame tests (`the_host_evaluator_solves_a_cutout_gesture_on_the_engine` drives a Cutout gesture through the linked sketch engine).
 - The shipped showcase's cutout and slot are drawn at coordinates, not dimensioned, so its sketch solves under-constrained; its outline is fully driven by `width`, `height` and `corner_r`.
 - `rules.preview_fab_profile` runs two issue reports on the UI thread; it has not been measured at 10,000 vias.
+
+### Current through a tie
+
+Set the allowed temperature rise in degrees Celsius and supply the table with
+`rules.set_tie_current`. The rule stores a project-local snapshot. Its table
+names the source, IPC-2152 edition and figure. Each row gives `rise_c`,
+`area_mm2` and `amperes`. Sparksmith ships no IPC-2152 curves. The person
+designing the board or their library supplies the data. A fab profile JSON file can carry the same table in `current_table`. The project’s supplied table takes precedence, and the project always chooses the temperature rise.
+
+The check uses the smallest cross section across the bridge lands and the
+foil thickness on the actual copper layer. At the chosen temperature rise
+it uses the largest tabulated area no greater than that cross section.
+The reported margin is the capacity less the instance's Rated current.
+A missing table, setting or applicable row leaves the current unchecked.
+A fitted 0 Ω link uses its manufacturer's Part rating.

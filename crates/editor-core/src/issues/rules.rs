@@ -19,7 +19,7 @@ pub(super) const UNMAPPED_PACKAGE_TERMINAL: &str = "binding.mapping_missing";
 /// publish blocker is always red and always counted, except a package
 /// terminal not mapped yet: after a package change it is the next step of
 /// the work, a counted to-do that still blocks publishing.
-pub(super) fn severity(finding: &Finding) -> Severity {
+pub(super) fn severity(project: &crate::model::Project, finding: &Finding) -> Severity {
     if finding.code == UNMAPPED_PACKAGE_TERMINAL {
         return Severity::ToDo;
     }
@@ -27,7 +27,14 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         return Severity::Error;
     }
     match finding.code.as_str() {
-        "board.clearance"
+        "tie.loop" if finding.objects.iter().any(|object| star_terminal(project, *object)) => Severity::Error,
+        "tie.same_net"
+        | "tie.star_points"
+        | "tie.second_join"
+        | "tie.bridge_contact"
+        | "tie.kelvin_off_anchor"
+        | "tie.current_exceeded"
+        | "board.clearance"
         | "board.courtyard_overlap"
         | "board.courtyard_clearance"
         | "board.edge_clearance"
@@ -77,7 +84,7 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         | "variant.substitute_unfit"
         | CHECK_FAILED => Severity::Error,
         "board.unrouted" | "board.unplaced" | NO_PART => Severity::ToDo,
-        "erc.unchecked_terminal"
+        "tie.other_bridge" | "tie.current_unchecked" | "erc.unchecked_terminal"
         | "fill.stale"
         // The fill removed spokes that would join nothing; the person is
         // told, nothing needs doing.
@@ -89,9 +96,45 @@ pub(super) fn severity(finding: &Finding) -> Severity {
     }
 }
 
+fn star_terminal(project: &crate::model::Project, object: ObjectRef) -> bool {
+    let ObjectRef::Terminal { endpoint } = object else {
+        return false;
+    };
+    let Some(instance) = project.instance(endpoint.instance) else {
+        return false;
+    };
+    let Some(component) = project.library.component(instance.component) else {
+        return false;
+    };
+    component.definition.ties.iter().any(|spec| {
+        spec.ends.contains(&endpoint.terminal)
+            && instance
+                .ties
+                .get(&spec.id)
+                .is_some_and(|usage| usage.purpose == crate::library::tie::TiePurpose::StarGround)
+    })
+}
+
 /// The group header of a code: "Clearance", "Unrouted connections".
 pub fn group_title(code: &str) -> String {
     let known = match code {
+        "tie.same_net" => "Tie ends on the same net",
+        "tie.loop" => "Loops through ties",
+        "tie.star_points" => "Extra star-ground joins",
+        "tie.second_join" => "Extra copper joins",
+        "tie.bridge_contact" => "Copper touching a tie bridge",
+        "tie.other_bridge" => "Parts spanning a star ground",
+        "tie.kelvin_off_anchor" => "Kelvin contacts off the anchor",
+        "tie.current_exceeded" => "Tie current above capacity",
+        "tie.current_unchecked" => "Tie current unchecked",
+        "tie.ends" => "Tie terminals",
+        "tie.assembly" => "Tie assembly",
+        "tie.package" => "Tie package",
+        "tie.unowned_bridge" => "Bridge on an ordinary part",
+        "tie.body" => "Tie body",
+        "tie.bridge" => "Tie bridge",
+        "tie.bridge_lands" => "Bridge lands",
+
         "board.clearance" => "Clearance",
         "board.acute_copper" => "Acute copper angles",
         "board.copper_sliver" => "Unfilled slivers",
@@ -611,6 +654,22 @@ pub(super) fn title(names: &Names<'_>, findings: &[&Finding]) -> String {
 /// `project.issues` adds. A test checks this list against the sources, so
 /// a new code is classified (severity, group title) when it is added.
 pub const KNOWN_CODES: &[&str] = &[
+    "tie.assembly",
+    "tie.body",
+    "tie.bridge",
+    "tie.bridge_contact",
+    "tie.bridge_lands",
+    "tie.current_exceeded",
+    "tie.current_unchecked",
+    "tie.ends",
+    "tie.kelvin_off_anchor",
+    "tie.loop",
+    "tie.other_bridge",
+    "tie.package",
+    "tie.same_net",
+    "tie.second_join",
+    "tie.star_points",
+    "tie.unowned_bridge",
     "asset.missing",
     "binding.duplicate_footprint_lineage",
     "binding.footprint_count",

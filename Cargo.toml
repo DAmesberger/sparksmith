@@ -20,6 +20,7 @@ members = [
     "generators/chip",
     "generators/electrolytic",
     "generators/fiducial",
+    "generators/tie",
     "generators/grid",
     "generators/gull-wing",
     "generators/header",

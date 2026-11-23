@@ -17,6 +17,7 @@ mod identity;
 mod inventory;
 mod preflight;
 mod suggest;
+mod ties;
 mod units;
 
 use sparksmith_fabcheck::excellon as excellon_reader;

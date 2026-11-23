@@ -5806,6 +5806,40 @@ pub fn author_usb_c_receptacle() -> Vec<u8> {
     solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
+// The solder deposit is an illustrative rounded bead. Its centre follows the
+// selected pair of lands. The assembly variant decides whether it is placed.
+fn author_solder_bridge() -> Vec<u8> {
+    let mut s = Session::default();
+    run(&mut s, "file.new", json!({"name":"Solder jumper bridge"}));
+    import(
+        &mut s,
+        &[
+            param("length", "1 mm", "mm", "Length across the two lands"),
+            param("width", "0.6 mm", "mm", "Width of the solder deposit"),
+            param("height", "0.15 mm", "mm", "Illustrative solder height"),
+            param("shift", "0 mm", "mm", "Midpoint of the selected pair"),
+        ],
+    );
+    x_box(
+        &mut s,
+        "Solder",
+        Some("Solder"),
+        ["shift - length / 2", "shift + length / 2"],
+        false,
+        "width",
+        ["0 mm", "height"],
+        None,
+    );
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name":"Rounded solder crown","body":"Solder","radius":"height / 2","edges":[[0,0.3,0.15],[0,-0.3,0.15],[-0.5,0,0.15],[0.5,0,0.15]]}),
+    );
+    assign_look(&mut s, &["Solder"], MaterialId::SolderSac);
+    assert_evaluates(&mut s);
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
+}
+
 #[test]
 #[ignore = "writes library/parts/*.solidcraft, the chip, header, gull-wing, no-lead, molded and tabbed generators' part files and the examples' part files"]
 fn author_parts() {
@@ -5826,7 +5860,12 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 77] = [
+    let parts: [(&str, &str, Author); 78] = [
+        (
+            "generators/tie/parts",
+            "solder-bridge",
+            author_solder_bridge,
+        ),
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",

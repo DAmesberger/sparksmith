@@ -29,13 +29,20 @@
 //! decides whether copper touches or joins; `cargo xtask connectivity`
 //! enforces that.
 mod build;
+mod current;
+pub use current::TieCurrent;
 mod islands;
 mod joints;
 mod lengths;
 mod queries;
+mod report;
+pub use report::{AnchorReport, JoinPoint, TieReport, report};
 #[cfg(test)]
 mod tests;
+mod ties;
 mod wedges;
+pub(crate) use ties::bridge_ring;
+pub use ties::{TieIsland, TieJoin};
 
 pub(crate) use build::{islands_joined, track_copper, via_copper};
 pub use islands::Island;
@@ -124,6 +131,21 @@ struct Group {
 /// build it with [`CopperGraph::of`].
 #[derive(Debug, Default)]
 pub struct CopperGraph {
+    ties: Vec<TieJoin>,
+    tie_contacts: std::collections::HashSet<(
+        crate::diagnostics::ObjectRef,
+        crate::diagnostics::ObjectRef,
+        Id,
+        crate::ids::TieId,
+        CopperLayer,
+    )>,
+    contact_pairs:
+        std::collections::HashSet<(crate::diagnostics::ObjectRef, crate::diagnostics::ObjectRef)>,
+    anchor_points:
+        BTreeMap<(Id, crate::ids::TerminalId), Vec<(crate::geometry::Point, CopperLayer)>>,
+    pub(crate) anchor_contacts:
+        BTreeMap<(Id, crate::ids::TerminalId), Vec<crate::diagnostics::ObjectRef>>,
+    tie_findings: Vec<crate::diagnostics::Finding>,
     layers: Vec<CopperLayer>,
     /// The z of each copper layer's foil mid-plane in the stackup, mm.
     mid_planes: BTreeMap<CopperLayer, f64>,
@@ -302,4 +324,32 @@ impl Dsu {
             *slot = a.min(b);
         }
     }
+}
+
+/// An explicit sense endpoint can make contact on its own anchor land.
+pub(crate) fn reaches_anchor(probe: &CopperRing, land: &CopperRing) -> bool {
+    build::joins(probe, land)
+}
+pub(crate) fn anchor_routes(
+    project: &crate::model::Project,
+) -> std::collections::HashSet<(Id, crate::diagnostics::ObjectRef)> {
+    if !project
+        .instances
+        .iter()
+        .any(|i| i.ties.values().any(|u| !u.anchors.is_empty()))
+    {
+        return Default::default();
+    }
+    ties::sense_destinations(project, &crate::layout::pads(project))
+        .into_iter()
+        .map(|p| {
+            (
+                p.net,
+                crate::diagnostics::ObjectRef::Pad {
+                    instance: p.instance,
+                    pad: p.pad,
+                },
+            )
+        })
+        .collect()
 }

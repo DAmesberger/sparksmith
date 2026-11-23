@@ -66,6 +66,7 @@ pub(crate) struct Ctx<'a> {
     pub(crate) rules: DesignRules,
     pub(crate) layers: Vec<CopperLayer>,
     pub(crate) pads: Vec<PlacedPad>,
+    bridges: Vec<crate::layout::PlacedBridge>,
     /// Board keepouts, then placed footprint keep-outs with the instance
     /// that carries them.
     pub(crate) keepouts: Vec<(crate::model::Keepout, Option<Id>)>,
@@ -82,6 +83,7 @@ pub(crate) struct Ctx<'a> {
 /// The board objects that can change one fill's copper.
 #[derive(Default)]
 struct Relevant {
+    bridges: Vec<usize>,
     pads: Vec<usize>,
     vias: Vec<usize>,
     tracks: Vec<usize>,
@@ -184,6 +186,7 @@ impl<'a> Ctx<'a> {
             layers: project.stackup.layers(),
             pads,
             pad_bounds,
+            bridges: crate::layout::placed_bridges(project),
             keepouts: effective_keepouts(project),
             classes,
             override_reach,
@@ -322,6 +325,11 @@ impl<'a> Ctx<'a> {
                 out.tracks.push(i);
             }
         }
+        for (i, bridge) in self.bridges.iter().enumerate() {
+            if bridge.layer == layer && near(bounds_of(&bridge.outline.flatten(FILL_CHORD_MM))) {
+                out.bridges.push(i);
+            }
+        }
         for (i, (k, _)) in self.keepouts.iter().enumerate() {
             if k.on(layer) && k.forbid.fills && near(bounds_of(&k.outline.flatten(FILL_CHORD_MM))) {
                 out.keepouts.push(i);
@@ -376,9 +384,17 @@ impl<'a> Ctx<'a> {
             vias: Vec<&'b crate::model::Via>,
             tracks: Vec<(&'b crate::model::Track, Option<&'b str>)>,
             keepouts: Vec<&'b crate::model::Keepout>,
+            #[serde(skip_serializing_if = "Vec::is_empty")]
+            bridges: Vec<(&'b crate::layout::PlacedBridge, Vec<Option<NetClassId>>)>,
             higher: Vec<(Id, String)>,
         }
         let inputs = Inputs {
+            bridges: rel
+                .bridges
+                .iter()
+                .filter_map(|i| self.bridges.get(*i))
+                .map(|b| (b, b.nets.iter().map(|n| self.class(Some(*n))).collect()))
+                .collect(),
             fill: (
                 &fill.net,
                 net_name(fill.net),
@@ -596,6 +612,20 @@ impl<'a> Ctx<'a> {
                     });
                     rings.push(geom::circle(v.position, v.drill / 2.0, tol));
                 }
+            }
+        }
+        for b in rel.bridges.iter().filter_map(|i| self.bridges.get(*i)) {
+            if let Some(ring) = geom::ccw(b.outline.flatten(tol)) {
+                let gap = b
+                    .nets
+                    .iter()
+                    .map(|n| self.clearance(fill, CopperObject::Track, self.class(Some(*n))))
+                    .fold(self.clearance(fill, CopperObject::Track, None), f64::max);
+                regions.extend(geom::offset(
+                    &[vec![ring]],
+                    gap + if arcs(&b.outline) { tol } else { 0.0 },
+                    tol,
+                ));
             }
         }
         for t in rel.tracks.iter().filter_map(|i| p.tracks.get(*i)) {

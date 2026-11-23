@@ -267,10 +267,14 @@ fn a_fiducial_on_both_sides_keeps_both_outer_layers_clear() -> TestResult {
     // pick-and-place lists it.
     let instance = project.instance(f).ok_or("no fiducial")?;
     let library = &project.library;
-    assert!(sparksmith_core::library::mechanical::copper_only(
-        library,
-        instance.component
-    ));
+    assert_eq!(
+        library
+            .component(instance.component)
+            .ok_or("missing fiducial component")?
+            .definition
+            .assembly,
+        sparksmith_core::library::tie::Assembly::CopperOnly
+    );
     assert!(!sparksmith_core::library::mechanical::in_bom(
         library,
         instance.component

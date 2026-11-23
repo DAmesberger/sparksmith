@@ -273,7 +273,8 @@ pub fn substitute_fit<'a>(
     r: PartRef,
 ) -> Result<PhysicalView<'a>> {
     let name = &instance.designator;
-    let own = resolve(library, instance)?.physical.ok_or_else(|| {
+    let resolved = resolve(library, instance)?;
+    let own = resolved.physical.ok_or_else(|| {
         Error::Conflict(format!(
             "{name} has no footprint, so no other part can be fitted on it."
         ))
@@ -292,6 +293,18 @@ pub fn substitute_fit<'a>(
                 "{mpn}'s component is missing from the project library."
             ))
         })?;
+    if resolved
+        .component
+        .definition
+        .ties
+        .iter()
+        .chain(&component.definition.ties)
+        .any(|tie| tie.form != crate::library::tie::TieForm::ZeroOhm)
+    {
+        return Err(Error::Conflict(format!(
+            "{mpn} cannot substitute for {name}: only bought parts can be substituted."
+        )));
+    }
     if component
         .definition
         .implementation(part.definition.binding.id)
@@ -337,12 +350,21 @@ pub fn substitute_fit<'a>(
         footprint,
         package,
     };
-    let ours = pad_groups(&own, target, &own_order(target));
+    let ours = pad_groups(
+        &own,
+        &resolved.component.definition.ties,
+        &own_order(target),
+    );
     let theirs = pad_groups(
         &view,
-        &footprint.definition,
+        &component.definition.ties,
         &matched_order(target, &footprint.definition),
     );
+    if ours.as_ref().map(|g| &g.ties) != theirs.as_ref().map(|g| &g.ties) || ours.is_none() {
+        return Err(Error::Conflict(format!(
+            "{mpn} does not fit {name}: it changes the tie form or the lands joined by a tie."
+        )));
+    }
     if ours != theirs {
         return Err(Error::Conflict(format!(
             "{mpn} does not fit {name}: its pins join or split {name}'s pads differently, \
@@ -375,7 +397,7 @@ fn land_order(footprint: &FootprintDefinition) -> Vec<usize> {
 /// Whether two footprints have the same land pattern, pads compared by
 /// number and position whatever order they are stored in.
 fn same_lands(a: &FootprintDefinition, b: &FootprintDefinition) -> bool {
-    if a.pads.len() != b.pads.len() || a.datum != b.datum {
+    if a.pads.len() != b.pads.len() || a.datum != b.datum || a.bridges != b.bridges {
         return false;
     }
     land_order(a).into_iter().zip(land_order(b)).all(|(i, j)| {
@@ -408,22 +430,46 @@ fn matched_order(target: &FootprintDefinition, other: &FootprintDefinition) -> V
 /// position of the first pad of its terminal.
 fn pad_groups(
     physical: &PhysicalView<'_>,
-    footprint: &FootprintDefinition,
+    ties: &[crate::library::tie::TieSpec],
     order: &[usize],
-) -> Vec<Option<usize>> {
+) -> Option<PadGroups> {
     let mut first: BTreeMap<TerminalId, usize> = BTreeMap::new();
-    order
+    let terminals = order
         .iter()
         .enumerate()
         .map(|(position, index)| {
-            let terminal = footprint
+            let terminal = physical
+                .footprint
+                .definition
                 .pads
                 .get(*index)
                 .and_then(|p| p.terminal)
                 .and_then(|t| physical.binding.definition.terminal_of(t))?;
             Some(*first.entry(terminal).or_insert(position))
         })
-        .collect()
+        .collect();
+    let mut by_lands = BTreeMap::new();
+    for tie in ties {
+        let mut ends: Vec<_> = tie
+            .ends
+            .iter()
+            .map(|terminal| first.get(terminal).copied())
+            .collect::<Option<_>>()?;
+        ends.sort_unstable();
+        by_lands.insert(ends, tie.form);
+    }
+    Some(PadGroups {
+        terminals,
+        ties: by_lands,
+    })
+}
+
+#[derive(PartialEq)]
+struct PadGroups {
+    terminals: Vec<Option<usize>>,
+    /// Component-local ids differ between Parts. Compare each tie by the
+    /// lands its ends map to under the binding, and by its electrical form.
+    ties: BTreeMap<Vec<usize>, crate::library::tie::TieForm>,
 }
 
 /// Every Part of the project library that fits `instance`'s footprint
@@ -495,6 +541,9 @@ pub struct VariantCell {
 /// One part's row in `variant.list`.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct VariantRow {
+    /// Population means closed/open for a solder jumper.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tie_form: Option<crate::library::tie::TieForm>,
     pub instance: Id,
     pub designator: String,
     /// The default part's value text.
@@ -514,7 +563,7 @@ pub struct VariantsReport {
     /// The active variant; `None` is the default.
     pub active: Option<Id>,
     pub variants: Vec<VariantSummary>,
-    /// Every part that is bought (BOM parts), in designator order.
+    /// Bought parts and solder jumpers whose state the variant controls, in designator order.
     pub parts: Vec<VariantRow>,
 }
 
@@ -526,7 +575,13 @@ pub fn report(project: &Project) -> Result<VariantsReport> {
     let mut instances: Vec<&ComponentInstance> = project
         .instances
         .iter()
-        .filter(|i| super::on_bom(library, i))
+        .filter(|i| {
+            super::on_bom(library, i)
+                || matches!(
+                    super::ties::form(project, i),
+                    Some(crate::library::tie::TieForm::SolderJumper { .. })
+                )
+        })
         .collect();
     instances.sort_by(|a, b| {
         designator_key(&a.designator)
@@ -539,6 +594,7 @@ pub fn report(project: &Project) -> Result<VariantsReport> {
     };
     for instance in instances {
         rows.push(VariantRow {
+            tie_form: super::ties::form(project, instance),
             instance: instance.id,
             designator: instance.designator.clone(),
             value: super::value_text(library, instance)?,
@@ -815,6 +871,23 @@ fn check_exceptions(exceptions: &[RequirementException]) -> Result<()> {
     Ok(())
 }
 
+fn check_population(project: &Project, id: Id, population: Option<Population>) -> Result<()> {
+    if population == Some(Population::NotPopulated)
+        && let Some(i) = project.instance(id)
+        && project
+            .library
+            .component(i.component)
+            .and_then(|c| c.definition.ties.first())
+            .is_some_and(|s| s.form == crate::library::tie::TieForm::Copper)
+    {
+        return Err(invalid(format!(
+            "{} is fabricated copper and is always closed.",
+            i.designator
+        )));
+    }
+    Ok(())
+}
+
 fn set_population(
     project: &mut Project,
     instances: &[Id],
@@ -829,6 +902,9 @@ fn set_population(
     }
     if ids.iter().any(|id| project.instance(*id).is_none()) {
         return Err(Error::NotFound("Unknown component instance.".into()));
+    }
+    for id in &ids {
+        check_population(project, *id, population)?;
     }
     match variant {
         None => {
@@ -914,6 +990,7 @@ pub fn check(project: &Project) -> Result<()> {
             ));
         }
         for (id, o) in &v.overrides {
+            check_population(project, *id, o.population)?;
             if project.instance(*id).is_none() || o.is_empty() {
                 return Err(invalid(format!(
                     "variant “{name}” overrides a part that is not in the design"

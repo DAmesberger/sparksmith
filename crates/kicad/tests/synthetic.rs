@@ -383,6 +383,10 @@ fn a_fiducial_is_a_part_without_terminals() -> Fallible<()> {
         .component(instance.component)
         .ok_or("component")?;
     assert!(component.definition.terminals.is_empty());
+    assert_eq!(
+        component.definition.assembly,
+        sparksmith_core::library::tie::Assembly::CopperOnly
+    );
     assert_eq!(imported.report.count(Case::NoTerminals), 1);
     // On the sheet like any part KiCad has in its schematic.
     assert!(!instance.board_only);
@@ -675,12 +679,9 @@ fn a_placeholder_body_is_centred_on_its_pads_not_on_the_footprint_origin() -> Fa
     Ok(())
 }
 
-/// A net tie (KiCad's `net_tie_pad_groups`) joins distinct nets on
-/// purpose; Sparksmith has no net-tie part, so its pads come in on their
-/// own nets and the tie does not. The import names each such footprint
-/// as not carried over, for the person importing their own project.
+/// A declaration with no copper in the gap cannot be fabricated as a tie.
 #[test]
-fn net_tie_footprints_are_named_as_not_carried_over() -> Fallible<()> {
+fn a_missing_bridge_is_reported_by_designator() -> Fallible<()> {
     let mut tie = Footprint::new(
         "NT1",
         [10.0, 10.0, 0.0],
@@ -701,7 +702,8 @@ fn net_tie_footprints_are_named_as_not_carried_over() -> Fallible<()> {
   (gr_rect (start 0 0) (end 20 20) (stroke (width 0.1) (type default)) (layer \"Edge.Cuts\"))\n"
             .into(),
     };
-    let imported = import(board.text().as_bytes())?;
+    let text = board.text();
+    let imported = import(text.as_bytes())?;
     let report = &imported.report;
     assert_eq!(report.count(Case::NetTie), 1);
     let detail = report
@@ -715,5 +717,186 @@ fn net_tie_footprints_are_named_as_not_carried_over() -> Fallible<()> {
     let named = report.summary_named();
     assert!(named.contains("NT1"), "{named}");
     assert!(!report.summary().contains("NT1"));
+    let drawn=text.replace("(net_tie_pad_groups \"1, 2\")","(net_tie_pad_groups \"1, 2\") (fp_rect (start -0.5 -0.1) (end 0.5 0.1) (stroke (width 0) (type solid)) (fill solid) (layer \"F.Cu\"))");
+    let with_copper = import(drawn.as_bytes())?;
+    assert_eq!(with_copper.report.count(Case::ImportedTie), 1);
+    assert_eq!(with_copper.report.count(Case::NetTie), 0);
+    let project = with_copper.engine.project();
+    let rows = sparksmith_core::instances::ties::rows(project);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].purpose,
+        sparksmith_core::library::tie::TiePurpose::None
+    );
+    let bridges = sparksmith_core::layout::placed_bridges(project);
+    assert_eq!(bridges.len(), 1);
+    assert_eq!(bridges[0].nets.len(), 2);
+    Ok(())
+}
+
+fn two_group_board() -> Board {
+    let mut part = Footprint::new(
+        "NT1",
+        [10., 10., 0.],
+        false,
+        vec![
+            Pad::smd("1", "rect", [-1., 0., 0.], [0.6, 0.6]).with("(net 1 \"A\")"),
+            Pad::smd("2", "rect", [1., 0., 0.], [0.6, 0.6]).with("(net 2 \"B\")"),
+            Pad::smd("3", "rect", [-1., 2., 0.], [0.6, 0.6]).with("(net 3 \"C\")"),
+            Pad::smd("4", "rect", [1., 2., 0.], [0.6, 0.6]).with("(net 4 \"D\")"),
+        ],
+    );
+    part.extra = r#"(net_tie_pad_groups "1,2" "3,4")
+      (fp_rect (start -1 -0.1) (end 1 0.1) (stroke (width 0) (type solid)) (fill solid) (layer "F.Cu"))
+      (fp_rect (start -1 1.9) (end 1 2.1) (stroke (width 0) (type solid)) (fill solid) (layer "F.Cu"))"#.into();
+    Board {
+        copper: 2,
+        origin: None,
+        setup: String::new(),
+        footprints: vec![part],
+        items: r#"(net 1 "A") (net 2 "B") (net 3 "C") (net 4 "D")
+    (gr_rect (start 0 0) (end 20 20) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#
+            .into(),
+    }
+}
+
+#[test]
+fn two_pad_groups_on_one_footprint_are_independent_ties() -> Fallible<()> {
+    let imported = import(two_group_board().text().as_bytes())?;
+    let project = imported.engine.project();
+    assert_eq!(project.instances.len(), 1);
+    let rows = sparksmith_core::instances::ties::rows(project);
+    assert_eq!(rows.len(), 2);
+    assert_ne!(rows[0].group, rows[1].group);
+    let network = sparksmith_core::instances::ties::Network::of(&rows);
+    let mut groups = std::collections::BTreeSet::new();
+    let graph = sparksmith_core::layout::CopperGraph::of(project);
+    for row in rows {
+        let expected = if row.ends.contains_key(&sparksmith_core::TerminalId(1)) {
+            ["A", "B"]
+        } else {
+            ["C", "D"]
+        };
+        let names = row
+            .ends
+            .values()
+            .flatten()
+            .map(|n| project.net_name(*n))
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(names, expected.into());
+        let members = row
+            .ends
+            .values()
+            .flatten()
+            .map(|n| network.group(*n))
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(members.len(), 1);
+        groups.extend(members);
+        let join = graph
+            .ties()
+            .iter()
+            .find(|t| t.bridge.group == row.group)
+            .ok_or("missing group bridge")?;
+        assert_eq!(join.islands.len(), 2);
+        assert!(join.foreign.is_empty());
+    }
+    assert_eq!(groups.len(), 2);
+    Ok(())
+}
+
+#[test]
+fn curved_bridge_follows_the_three_point_arc_and_preserves_the_second_group() -> Fallible<()> {
+    let mut board = two_group_board();
+    board.footprints[0].extra = r#"(net_tie_pad_groups "1,2" "3,4")
+      (fp_arc (start -1 0) (mid 0 -1) (end 1 0) (stroke (width 0.12) (type solid)) (layer "F.Cu"))
+      (fp_poly (pts (xy -1 2) (xy 0 1.97) (xy 1 2) (xy 0 2.03))
+        (stroke (width 0.12) (type solid)) (fill none) (layer "F.Cu"))"#
+        .into();
+    let imported = import(board.text().as_bytes())?;
+    assert_eq!(imported.report.count(Case::ImportedTie), 1);
+    let project = imported.engine.project();
+    let owner = project.instances.first().ok_or("missing tie")?;
+    let view = sparksmith_core::instances::resolve(&project.library, owner)?
+        .physical
+        .ok_or("missing tie footprint")?;
+    let bridges = &view.footprint.definition.bridges;
+    assert_eq!(bridges.len(), 2);
+    let arc = bridges
+        .iter()
+        .find(|b| b.pads.contains(&sparksmith_core::PadId(1)))
+        .ok_or("arc missing")?;
+    let ring = arc.outline.flatten(0.00025);
+    assert!(sparksmith_core::geometry::polygon_contains(&ring, [0., 1.]));
+    assert!(!sparksmith_core::geometry::polygon_contains(
+        &ring,
+        [0., 0.]
+    ));
+    Ok(())
+}
+
+#[test]
+fn ambiguous_net_tie_groups_preserve_lands_for_review() -> Fallible<()> {
+    let source = two_group_board().text();
+    for (name, edited) in [
+        (
+            "shared pad",
+            source.replace(r#""1,2" "3,4""#, r#""1,2" "2,3,4""#),
+        ),
+        ("unknown pad", source.replace(r#""3,4""#, r#""3,5""#)),
+        (
+            "dashed stroke",
+            source.replace(
+                "(fp_rect (start -1 -0.1) (end 1 0.1) (stroke (width 0) (type solid)) (fill solid)",
+                "(fp_line (start -1 0) (end 1 0) (stroke (width 0.05) (type dash))",
+            ),
+        ),
+        (
+            "visible copper text",
+            source.replace(
+                "(net_tie_pad_groups",
+                r#"(fp_text user "A" (at 0 0) (layer "F.Cu")) (net_tie_pad_groups"#,
+            ),
+        ),
+        ("empty declaration", source.replace(r#""1,2" "3,4""#, "")),
+        (
+            "cross-group drawing",
+            source.replace("(end 1 0.1)", "(end 1 2.1)"),
+        ),
+        (
+            "missing group bridge",
+            source.replace("(start -1 1.9)", "(start 0.5 1.9)"),
+        ),
+    ] {
+        assert_ne!(edited, source, "fixture for {name}");
+        let imported = import(edited.as_bytes())?;
+        assert_eq!(imported.report.count(Case::NetTie), 1, "{name}");
+        assert_eq!(imported.report.count(Case::ImportedTie), 0, "{name}");
+        let p = imported.engine.project();
+        assert_eq!(placed_pads(p).len(), 4, "{name}");
+        assert!(
+            sparksmith_core::instances::ties::rows(p).is_empty(),
+            "{name}"
+        );
+        assert!(
+            sparksmith_core::layout::placed_bridges(p).is_empty(),
+            "{name}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn a_dnp_mark_on_fabricated_ties_keeps_their_bridges_closed() -> Fallible<()> {
+    let mut board = two_group_board();
+    board.footprints[0].extra.push_str(" (attr dnp)");
+    let imported = import(board.text().as_bytes())?;
+    assert_eq!(imported.report.count(Case::CopperTieDnp), 1);
+    assert_eq!(imported.report.count(Case::NotPopulatedAttribute), 0);
+    let rows = sparksmith_core::instances::ties::rows(imported.engine.project());
+    assert_eq!(rows.len(), 2);
+    assert!(
+        rows.iter()
+            .all(|r| r.state == sparksmith_core::library::tie::JumperState::Closed)
+    );
     Ok(())
 }

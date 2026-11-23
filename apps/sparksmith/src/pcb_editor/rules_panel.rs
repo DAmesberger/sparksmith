@@ -230,6 +230,8 @@ pub(super) struct RulesPanel {
     listing: Result<Listing, String>,
     /// Number fields being edited, committed when focus leaves.
     staged: BTreeMap<RuleKey, f64>,
+    /// A blank rise leaves the current check unconfigured.
+    tie_rise: Option<String>,
     /// Refusals of a field's last commit, in shown wording.
     errors: BTreeMap<RuleKey, String>,
     /// The revision the field state belongs to.
@@ -253,6 +255,7 @@ impl RulesPanel {
             library,
             listing: Ok(Listing::default()),
             staged: BTreeMap::new(),
+            tie_rise: None,
             errors: BTreeMap::new(),
             revision: None,
             focus,
@@ -807,6 +810,7 @@ impl PcbEditor {
         if panel.revision != Some(engine.revision()) {
             // Undo, redo or another edit: fields show the document again.
             panel.staged.clear();
+            panel.tie_rise = None;
             panel.errors.clear();
             panel.revision = Some(engine.revision());
         }
@@ -1126,6 +1130,17 @@ fn body(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> (Option<Operati
     }
     panel.reveal = false;
     super::impedance_view::impedance_section(ui, engine.project());
+    if let Some((edit, typing)) = kit::section(
+        ui,
+        "pcb-rules-tie-current",
+        "Net tie current",
+        false,
+        None,
+        |ui| tie_current_section(ui, rules, &mut panel.tie_rise),
+    ) {
+        focused |= typing;
+        op = op.or(edit.map(|command| (command, Origin::Command)));
+    }
     let mut library_op = None;
     kit::section(
         ui,
@@ -1145,6 +1160,67 @@ fn body(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> (Option<Operati
         None => library_op,
     };
     (op, focused)
+}
+
+/// Edit only the project temperature rise. A private table on the project
+/// or fab profile keeps its provenance when a rise is set or cleared.
+fn tie_current_section(
+    ui: &mut Ui,
+    rules: &ProjectRules,
+    staged: &mut Option<String>,
+) -> (Option<RulesCommand>, bool) {
+    let table = rules
+        .current
+        .as_ref()
+        .and_then(|r| r.table.as_ref())
+        .or_else(|| rules.profile.as_ref()?.current_table.as_ref());
+    if let Some(table) = table {
+        kit::value_row(
+            ui,
+            "Table",
+            &format!("{} · {} · {}", table.source, table.edition, table.figure),
+        );
+    } else {
+        kit::note(
+            ui,
+            "Sparksmith ships no IPC-2152 curve data. Supply a sourced table in the project or its fab profile to check copper ties.",
+        );
+    }
+    let stored = rules.current.as_ref().and_then(|r| r.rise_c);
+    let mut text = staged
+        .clone()
+        .unwrap_or_else(|| stored.map_or_else(String::new, |v| v.to_string()));
+    let input = kit::checked_text_row(ui, "Allowed rise (°C)", &mut text, "Unset", false);
+    if input.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        *staged = None;
+        return (None, false);
+    }
+    if input.changed() {
+        *staged = Some(text.clone());
+    }
+    let rise = match text.trim() {
+        "" => None,
+        s => match s.parse::<f64>() {
+            Ok(v) if v.is_finite() && v > 0.0 => Some(v),
+            _ => {
+                kit::note(ui, "Enter a positive temperature rise in °C.");
+                return (None, input.has_focus());
+            }
+        },
+    };
+    let op = if input.lost_focus() && rise != stored {
+        Some(set_tie_rise(rules, rise))
+    } else {
+        None
+    };
+    (op, input.has_focus())
+}
+
+fn set_tie_rise(rules: &ProjectRules, rise_c: Option<f64>) -> RulesCommand {
+    let table = rules.current.as_ref().and_then(|r| r.table.clone());
+    let rule = (rise_c.is_some() || table.is_some())
+        .then_some(rules::current::CurrentRule { rise_c, table });
+    RulesCommand::SetTieCurrent { rule }
 }
 
 /// The profile's manufacturing options, one choice row each; the change

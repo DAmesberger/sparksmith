@@ -1012,6 +1012,81 @@ fn a_substitute_review_stands_only_while_what_it_decided_on_is_unchanged() -> Re
     Ok(())
 }
 
+#[test]
+fn substitute_preserves_typed_tie_groups_on_the_matched_lands() -> Result<()> {
+    use crate::ids::{TerminalId, TieId};
+    use crate::library::tie::{TieForm, TieSpec};
+    let mut engine = Engine::default();
+    let mut make = |name: &str, ends: [u32; 2], link: bool| -> Result<(Fixture, PartRef)> {
+        let [a, b] = ends;
+        let f = draft(
+            &mut engine,
+            &Spec {
+                name,
+                terminals: vec![(a, "A", passive()), (b, "B", passive())],
+                units: vec![(1, "A", vec![(a, [-4., 0.]), (b, [4., 0.])])],
+                package: vec![(1, "1"), (2, "2")],
+                mapping: vec![(1, a), (2, b)],
+                physical: true,
+            },
+        )?;
+        if link {
+            rewrite(&mut engine, f.component, |d| {
+                if let Definition::Component(c) = d {
+                    c.ties = vec![TieSpec {
+                        id: TieId(a),
+                        ends: ends.map(TerminalId).to_vec(),
+                        form: TieForm::ZeroOhm,
+                    }];
+                }
+            })?;
+        }
+        publish(&mut engine, f.all())?;
+        let p = publish_part(
+            &mut engine,
+            part(name, f.r1(), BindingRef::new(f.binding, Revision::FIRST)),
+        )?;
+        Ok((f, p))
+    };
+    let (passive, ordinary_part) = make("Resistor control", [1, 2], false)?;
+    let (link, zero_part) = make("Jumper resistor", [1, 2], true)?;
+    let (_, compatible) = make("Compatible jumper", [27, 11], true)?;
+    let (regular, _) = place(&mut engine, &passive, "R1", 1, [12., 12.])?;
+    let (jumper, _) = place(&mut engine, &link, "R2", 1, [26., 12.])?;
+    let alt = add(&mut engine, "Alternate")?;
+    for (instance, part) in [(regular, zero_part), (jumper, ordinary_part)] {
+        let before = Snapshot::of(&engine);
+        let result = variant(
+            &mut engine,
+            VariantCommand::SetPart {
+                instance,
+                variant: alt,
+                part: Some(part),
+            },
+        );
+        assert!(matches!(result, Err(Error::Conflict(_))));
+        before.assert_kept(&engine, "changing the typed join on the same lands");
+    }
+    variant(
+        &mut engine,
+        VariantCommand::SetPart {
+            instance: jumper,
+            variant: alt,
+            part: Some(compatible),
+        },
+    )?;
+    assert_eq!(
+        engine
+            .project()
+            .variants
+            .get(alt)
+            .and_then(|v| v.overrides.get(&jumper))
+            .and_then(|o| o.part),
+        Some(compatible)
+    );
+    Ok(())
+}
+
 /// Review §12: the firmware device is the part the active variant fits:
 /// its Part and MPN, as the BOM buys it. A substitute of another component
 /// is another device, and its firmware is refused naming the variant.
@@ -1100,6 +1175,95 @@ fn purchasing_population_and_placement_are_separate_answers() -> Result<()> {
             .instances
             .iter()
             .any(|i| i.id == b.r1 && i.bom_excluded)
+    );
+    Ok(())
+}
+
+#[test]
+fn paired_zero_ohm_package_accepts_reordered_equivalents_and_refuses_crossed_links() -> Result<()> {
+    use crate::ids::{TerminalId, TieId};
+    use crate::library::tie::{TieForm, TieSpec};
+    let mut engine = Engine::default();
+    let mut make =
+        |name: &str, mapped: [u32; 4], groups: [[u32; 2]; 2]| -> Result<(Fixture, PartRef)> {
+            let [a, b, c, d] = mapped;
+            let f = draft(
+                &mut engine,
+                &Spec {
+                    name,
+                    terminals: vec![
+                        (a, "A", passive()),
+                        (b, "B", passive()),
+                        (c, "C", passive()),
+                        (d, "D", passive()),
+                    ],
+                    units: vec![(
+                        1,
+                        "A",
+                        vec![
+                            (a, [-4., -2.]),
+                            (b, [4., -2.]),
+                            (c, [-4., 2.]),
+                            (d, [4., 2.]),
+                        ],
+                    )],
+                    package: vec![(1, "1"), (2, "2"), (3, "3"), (4, "4")],
+                    mapping: vec![(1, a), (2, b), (3, c), (4, d)],
+                    physical: true,
+                },
+            )?;
+            rewrite(&mut engine, f.component, |def| {
+                if let Definition::Component(component) = def {
+                    component.ties = groups
+                        .map(|pair| TieSpec {
+                            id: TieId(pair[0]),
+                            form: TieForm::ZeroOhm,
+                            ends: pair.map(TerminalId).to_vec(),
+                        })
+                        .to_vec();
+                }
+            })?;
+            publish(&mut engine, f.all())?;
+            let part = publish_part(
+                &mut engine,
+                part(name, f.r1(), BindingRef::new(f.binding, Revision::FIRST)),
+            )?;
+            Ok((f, part))
+        };
+    let (original, _) = make("Paired links", [1, 2, 3, 4], [[1, 2], [3, 4]])?;
+    let (_, reordered) = make("Renumbered links", [9, 8, 7, 6], [[6, 7], [8, 9]])?;
+    let (_, crossed) = make("Crossed links", [9, 8, 7, 6], [[6, 8], [7, 9]])?;
+    let (owner, _) = place(&mut engine, &original, "RN1", 1, [20., 20.])?;
+    let alt = add(&mut engine, "Alternate package")?;
+    variant(
+        &mut engine,
+        VariantCommand::SetPart {
+            instance: owner,
+            variant: alt,
+            part: Some(reordered),
+        },
+    )?;
+    let before = Snapshot::of(&engine);
+    let result = variant(
+        &mut engine,
+        VariantCommand::SetPart {
+            instance: owner,
+            variant: alt,
+            part: Some(crossed),
+        },
+    );
+    assert!(
+        matches!(result,Err(Error::Conflict(ref msg)) if msg.contains("lands joined by a tie"))
+    );
+    before.assert_kept(&engine, "crossed links in a pin-compatible package");
+    assert_eq!(
+        engine
+            .project()
+            .variants
+            .get(alt)
+            .and_then(|v| v.overrides.get(&owner))
+            .and_then(|o| o.part),
+        Some(reordered)
     );
     Ok(())
 }

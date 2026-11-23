@@ -7199,6 +7199,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-gen-tie"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
 name = "sparksmith-gen-wire-to-board"
 version = "0.1.0"
 dependencies = [

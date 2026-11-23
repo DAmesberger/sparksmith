@@ -153,6 +153,13 @@ fn context_value(
             .map(|nm| v1::ParamValue::Int(nm.get()))
     };
     match param.context.as_deref()? {
+        "project.copper.pad_gap" => {
+            let pad = crate::rules::CopperObject::Pad;
+            let gap = rules.land_estimators().ok()?.copper.clearance.get(pad, pad);
+            crate::units::Nm::from_mm_f64_rounded(gap)
+                .ok()
+                .map(|nm| v1::ParamValue::Int(nm.get()))
+        }
         "project.land.chip_gap_min" => land(|l| l.chip_gap_min),
         "project.land.gull_wing_width_extra" => land(|l| l.gull_wing_width_extra),
         "project.land.exposed_pad_clearance" => land(|l| l.exposed_pad_clearance),

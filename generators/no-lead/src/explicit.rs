@@ -500,6 +500,7 @@ pub fn generate(request: &Request, args: &Args<'_>) -> Result<Generation, Vec<Pr
         },
     };
     let footprint = Footprint {
+        bridges: Vec::new(),
         pads,
         courtyard,
         silk,
@@ -517,6 +518,8 @@ pub fn generate(request: &Request, args: &Args<'_>) -> Result<Generation, Vec<Pr
         orderable: Vec::new(),
         marking: crate::marking(args).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
+            ties: Default::default(),
+            assembly: Default::default(),
             terminals: keys
                 .iter()
                 .map(|key| Terminal {

@@ -147,6 +147,8 @@ fn generation_with(
         orderable: Vec::new(),
         marking: None,
         component: component.then(|| Component {
+            ties: Vec::new(),
+            assembly: Assembly::Bought,
             terminals: ["1", "2"]
                 .iter()
                 .map(|k| Terminal {
@@ -225,6 +227,7 @@ fn generation_with(
             },
         },
         footprint: Footprint {
+            bridges: Vec::new(),
             pads: if inserted {
                 let mut third = pad("1", [0, 1_200_000]);
                 third.key = "3".into();

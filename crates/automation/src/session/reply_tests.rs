@@ -213,6 +213,18 @@ fn only_the_changed_draft_is_reported() -> TestResult {
     Ok(())
 }
 
+#[test]
+fn the_netlist_keeps_ordinary_nets_when_there_are_no_ties() -> TestResult {
+    let mut session = demo()?;
+    let nets = json!(session.engine().project().nets);
+    let result = ok(session.respond(
+        Caller::Operator,
+        json!({"command":"project.inspect","params":{"at":"/netlist"}}),
+    ))?;
+    assert_eq!(result["value"], json!({"nets":nets,"ties":[]}));
+    Ok(())
+}
+
 /// `project.inspect` answers with counts that match the document; `at` reads
 /// one part of the snapshot; a pointer that names nothing is refused.
 #[test]

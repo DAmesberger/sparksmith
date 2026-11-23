@@ -431,12 +431,17 @@ impl<'a> Ctx<'a> {
             };
             if state.hidden.contains(&k)
                 || o.net.is_some_and(|n| !foreign(n))
+                || self
+                    .index
+                    .obstacles
+                    .reaches_anchor(k, probe.net, &probe.ring)
                 || !shares(&probe.layers, &o.layers)
             {
                 continue;
             }
             let drill = self.base_via(k).map(CopperRing::of_drill);
-            if self.too_close(probe, &o.ring, drill.as_ref(), o.object(), o.net)
+            if o.rule_nets()
+                .any(|n| self.too_close(probe, &o.ring, drill.as_ref(), o.object(), n))
                 && push(
                     Hit {
                         target: Target::Base(k),
@@ -636,7 +641,12 @@ impl<'a> Ctx<'a> {
                         Some(&CopperRing::of_drill(v)),
                     );
                 }
-                let need = self.clearance(object, net, o.object(), o.net);
+                let need = self.clearance(
+                    object,
+                    net,
+                    o.object(),
+                    o.limiting_net(&self.rules, object, net),
+                );
                 Hull::of_points(&o.ring.ring, o.ring.slack + need + grow + MARGIN, facets)
             }
             Target::Line(l, s) => {
@@ -761,7 +771,10 @@ impl<'a> Ctx<'a> {
                 Some(o) => format!(
                     "Too close to {}: {}",
                     self.index.obstacles.label(k),
-                    need(o.object(), o.net)
+                    need(
+                        o.object(),
+                        o.limiting_net(&self.rules, probe.object, probe.net)
+                    )
                 ),
                 None => self.describe(hit),
             },

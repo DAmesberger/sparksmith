@@ -18,6 +18,10 @@ pub const MAX_DESIGNATOR_PREFIX: usize = 8;
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentDefinition {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ties: Vec<super::tie::TieSpec>,
+    #[serde(default, skip_serializing_if = "super::tie::Assembly::is_bought")]
+    pub assembly: super::tie::Assembly,
     /// Next unused local ID. Retired IDs are never reused.
     pub next_local: u32,
     /// The letters `component.place` numbers new instances under when no
@@ -186,7 +190,9 @@ impl ComponentDefinition {
     }
 
     pub(super) fn within_bounds(&self) -> bool {
-        self.designator_prefix.len() <= MAX_LABEL
+        self.ties.len() <= MAX_TERMINALS / 2
+            && self.ties.iter().all(|s| s.ends.len() <= 8)
+            && self.designator_prefix.len() <= MAX_LABEL
             && self.terminals.len() <= MAX_TERMINALS
             && self.representations.len() <= MAX_COMPONENT_LISTS
             && self.implementations.len() <= MAX_COMPONENT_LISTS
@@ -227,6 +233,7 @@ impl ComponentDefinition {
     pub(super) fn findings(&self, id: DefinitionId, library: &Library, out: &mut Vec<Finding>) {
         let this = ObjectRef::Definition { id };
         let named = |r: DefinitionRef| super::names::capitalised(&library.describe(r));
+        super::tie::findings(self, id, library, out);
         if !designator_prefix_valid(&self.designator_prefix) {
             out.push(issue(
                 "component.designator_prefix",
@@ -387,8 +394,17 @@ impl ComponentDefinition {
                 .iter()
                 .map(|m| m.terminal)
                 .collect();
+            let anchored_ends: BTreeSet<_> =
+                if super::tie::anchored(self, &binding.definition, library) {
+                    self.ties
+                        .iter()
+                        .flat_map(|tie| tie.ends.iter().copied())
+                        .collect()
+                } else {
+                    BTreeSet::new()
+                };
             for terminal in &self.terminals {
-                if !mapped.contains(&terminal.id) {
+                if !mapped.contains(&terminal.id) && !anchored_ends.contains(&terminal.id) {
                     out.push(issue(
                         "component.mapping_missing",
                         format!(

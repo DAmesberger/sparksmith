@@ -1017,6 +1017,25 @@ pub fn polygon_contains(polygon: &[Point], p: Point) -> bool {
     inside
 }
 
+/// A point on a filled polygon near its centre, including for concave outlines.
+pub(crate) fn polygon_marker(ring: &[Point]) -> Option<Point> {
+    let [cx, y] = Bounds::of(ring.iter().copied())?.center();
+    if polygon_contains(ring, [cx, y]) {
+        return Some([cx, y]);
+    }
+    let mut crossings: Vec<_> = ring
+        .iter()
+        .zip(ring.iter().cycle().skip(1))
+        .filter(|(a, b)| (a[1] > y) != (b[1] > y))
+        .map(|(a, b)| a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]))
+        .collect();
+    crossings.sort_by(f64::total_cmp);
+    crossings
+        .chunks_exact(2)
+        .max_by(|a, b| (a[1] - a[0]).total_cmp(&(b[1] - b[0])))
+        .map(|span| [(span[0] + span[1]) / 2.0, y])
+}
+
 /// Twice the signed area: positive for a counter-clockwise ring.
 pub fn signed_area2(polygon: &[Point]) -> f64 {
     let n = polygon.len();

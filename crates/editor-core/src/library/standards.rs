@@ -432,6 +432,8 @@ pub fn get() -> Result<Arc<Standards>> {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum GenericFamily {
+    Tie,
+    ZeroOhm,
     Header,
     Resistor,
     Capacitor,
@@ -448,6 +450,8 @@ impl GenericFamily {
     /// The family's name as the grammar writes it (`header`).
     pub fn name(self) -> &'static str {
         match self {
+            Self::Tie => "tie",
+            Self::ZeroOhm => "zero_ohm",
             Self::Header => "header",
             Self::Resistor => "resistor",
             Self::Capacitor => "capacitor",

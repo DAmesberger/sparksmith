@@ -2752,3 +2752,147 @@ fn a_package_of_no_body_places_nothing() -> Result<()> {
     );
     Ok(())
 }
+
+/// Both faces of the board use the same authored 0.2 mm strip and 35 µm
+/// copper. Its two named nets survive both model paths, including picking.
+#[test]
+fn bridge_group_and_both_nets_survive_the_live_and_exact_board() -> Result<()> {
+    use sparksmith_core::library::tie::{Assembly, Bridge, TieForm, TieSpec};
+    use sparksmith_core::library::{FootprintKeepout, PadSide};
+    use sparksmith_core::schematic::SchematicCommand;
+    use sparksmith_core::{BridgeId, LabelKind, Operation, TieId};
+
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let mut engine = Engine::demo().map_err(|e| Error::Verification(e.to_string()))?;
+    let (first, second) = instances(engine.project())?;
+    for (instance, terminal, x) in [(first, 1, -24.0), (second, 2, 24.0)] {
+        engine
+            .apply(
+                engine.revision(),
+                Operation::Schematic(SchematicCommand::PlaceLabel {
+                    sheet: None,
+                    name: "RETURN".into(),
+                    kind: LabelKind::Local,
+                    position: pt([x, 0.0]),
+                    rotation: Default::default(),
+                    attach: Some(
+                        Endpoint {
+                            instance,
+                            terminal: TerminalId(terminal),
+                        }
+                        .into(),
+                    ),
+                }),
+            )
+            .map_err(|e| Error::Verification(e.to_string()))?;
+    }
+    let mut project = engine.project().clone();
+    let expected: std::collections::BTreeSet<_> = project.nets.iter().map(|n| n.id).collect();
+    assert_eq!(expected.len(), 2);
+    let component = &mut project.library.components[0].definition;
+    let group = TieId(component.next_local);
+    component.next_local += 1;
+    component.assembly = Assembly::CopperOnly;
+    component.ties = vec![TieSpec {
+        id: group,
+        ends: vec![TerminalId(1), TerminalId(2)],
+        form: TieForm::Copper,
+    }];
+    for instance in &mut project.instances {
+        instance.ties.insert(group, Default::default());
+    }
+    let package = &mut project.library.packages[0].definition;
+    package.model = PackageModel::NoBody;
+    package.joints = None;
+    let footprint = &mut project.library.footprints[0].definition;
+    let bridge = BridgeId(footprint.next_local);
+    footprint.next_local += 1;
+    let a = footprint.pads[0].position()[0];
+    let b = footprint.pads[1].position()[0];
+    footprint.bridges.push(Bridge {
+        id: bridge,
+        side: PadSide::Top,
+        pads: footprint.pads.iter().map(|p| p.id).collect(),
+        outline: FootprintKeepout::rect("", [a.min(b), -0.1], [a.max(b), 0.1]).outline,
+    });
+    for placement in &mut project.placements {
+        placement.rotation_deg = 90.0;
+        placement.layer = if placement.instance == first {
+            Layer::Top
+        } else {
+            Layer::Bottom
+        };
+    }
+
+    let plan = plan::of(&project)?;
+    assert_eq!(plan.bridges.len(), 2);
+    for layer in copper_agree::agreement(&project, &plan)? {
+        assert!(layer.agrees(), "{layer:?}");
+    }
+    let mut missing = plan.clone();
+    missing.bridges.clear();
+    for layer in copper_agree::agreement(&project, &missing)? {
+        assert!(
+            layer.objects_differ_mm2 > 0.0,
+            "removed bridge on {:?}",
+            layer.layer
+        );
+    }
+    let cache = SourceCache::default();
+    let live = build_flat(&project, &cache, None, Flat::Meshed)?;
+    let exact = build(&project)?;
+    let differences = plan::parity(&plan, &exact)?;
+    assert!(differences.is_empty(), "{differences:#?}");
+    let extra = plan::check(&missing, &exact, &mut || Ok(()))?.differences;
+    assert_eq!(extra.len(), 2);
+    for difference in extra {
+        let plan::Source::Bridge { instance, .. } = difference.source else {
+            return Err(Error::Verification("Expected the omitted bridge.".into()));
+        };
+        let owner = project
+            .instance(instance)
+            .ok_or_else(|| Error::Verification("Missing bridge owner.".into()))?;
+        let line = crate::export::describe(&project, &difference);
+        assert!(
+            line.starts_with(&format!(
+                "Bridge {bridge} of {} group {group}",
+                owner.designator
+            )),
+            "{line}"
+        );
+        assert!(line.contains("bridge copper"), "{line}");
+    }
+    for model in [&live, &exact] {
+        assert!(
+            part_picks(&model.sources).is_empty(),
+            "the copper-only packages have no package body to pick"
+        );
+        for (instance, layer) in [(first, Layer::Top), (second, Layer::Bottom)] {
+            let matches = |s: &Source| s.instance == Some(instance) && s.tie.is_some();
+            let source = model
+                .sources
+                .iter()
+                .find(|s| matches(s))
+                .ok_or_else(|| Error::Verification("Missing copper bridge.".into()))?;
+            let identity = source
+                .tie
+                .as_ref()
+                .ok_or_else(|| Error::Verification("Missing bridge identity.".into()))?;
+            assert_eq!((identity.group, identity.bridge), (group, bridge));
+            assert_eq!(source.layer, Some(layer.into()));
+            assert_eq!(
+                identity
+                    .nets
+                    .iter()
+                    .copied()
+                    .collect::<std::collections::BTreeSet<_>>(),
+                expected
+            );
+            near(
+                source_geometry(model, BodyKind::CopperTrack, matches)?.volume(),
+                (a - b).abs() * 0.2 * 0.035,
+            );
+        }
+    }
+    Ok(())
+}

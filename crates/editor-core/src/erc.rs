@@ -263,12 +263,85 @@ pub fn checks(project: &Project) -> Vec<Finding> {
                 .map(|r| (i.id, r))
         })
         .collect();
-    let mut out = Vec::new();
-    let power_nets = labels::power_nets(project);
-    for net in &project.nets {
-        net_checks(project, net, &resolutions, &power_nets, &mut out);
+    let ties = instances::ties::rows(project);
+    let network = instances::ties::Network::of(&ties);
+    let mut out = instances::ties::findings(project, &ties, &network);
+    let named_power = labels::power_nets(project);
+    let mut power_nets = named_power.clone();
+    let mut driven = std::collections::BTreeSet::new();
+    if !ties.is_empty() {
+        driven.extend(labels::grounded(project).iter().map(|n| network.group(*n)));
+        for net in &project.nets {
+            if net.terminals.iter().any(|e| matches!(behavior(&resolutions,*e),Some(Behavior::Active(f)) if supplies(f.direction))) {
+                driven.insert(network.group(net.id));
+            }
+        }
+        power_nets.extend(
+            project
+                .nets
+                .iter()
+                .filter(|n| driven.contains(&network.group(n.id)))
+                .map(|n| n.id),
+        );
     }
-    labels::checks(project, &resolutions, &mut out);
+    if ties.is_empty() {
+        for net in &project.nets {
+            net_checks(project, net, &resolutions, &power_nets, &mut out);
+        }
+    } else {
+        // ERC sees the combined terminals, while the stored netlist, class
+        // membership, board copper and the physical lengths stay independent.
+        let mut groups = BTreeMap::<Id, Vec<&Net>>::new();
+        for net in &project.nets {
+            groups.entry(network.group(net.id)).or_default().push(net);
+        }
+        let tie_pins: BTreeSet<_> = ties
+            .iter()
+            .flat_map(|t| {
+                t.ends.keys().map(|&terminal| Endpoint {
+                    instance: t.instance,
+                    terminal,
+                })
+            })
+            .collect();
+        for (id, members) in groups {
+            let group = Net {
+                id,
+                name: members
+                    .iter()
+                    .map(|n| n.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" / "),
+                terminals: members
+                    .iter()
+                    .flat_map(|n| &n.terminals)
+                    .filter(|e| !tie_pins.contains(e))
+                    .copied()
+                    .collect(),
+            };
+            if members.iter().any(|n| power_nets.contains(&n.id)) {
+                power_nets.insert(id);
+            }
+            let start = out.len();
+            net_checks(project, &group, &resolutions, &power_nets, &mut out);
+            for finding in &mut out[start..] {
+                if finding.objects.contains(&ObjectRef::Net { id }) {
+                    finding.objects.extend(
+                        members
+                            .iter()
+                            .filter(|n| n.id != id)
+                            .map(|n| ObjectRef::Net { id: n.id }),
+                    );
+                }
+            }
+        }
+    }
+    labels::checks(
+        project,
+        &resolutions,
+        &|net| driven.contains(&network.group(net)),
+        &mut out,
+    );
     for instance in &project.instances {
         if let Some(resolution) = resolutions.get(&instance.id) {
             let rules = project

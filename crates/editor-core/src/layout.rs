@@ -67,9 +67,9 @@ pub(crate) use courtyard::limit_finding as courtyard_limit_finding;
 pub use courtyard::{PlacedCourtyard, placed_courtyards};
 pub use pad_hole::{PadHoleIndex, items as pad_hole_items};
 pub use placed::{
-    BoardDrawing, PlacedGraphic, PlacedHole, PlacedItem, PlacedKeepout, PlacedPad, model_to_board,
-    pick_graphic, pick_pad, placed_graphics, placed_keepouts, placed_pads, placement_transform,
-    seat_height,
+    BoardDrawing, PlacedBridge, PlacedGraphic, PlacedHole, PlacedItem, PlacedKeepout, PlacedPad,
+    model_to_board, pick_graphic, pick_pad, placed_bridges, placed_graphics, placed_keepouts,
+    placed_pads, placement_transform, seat_height,
 };
 pub use via::{LayerChangeRequest, ViaRequest, via_pad_clearance_conflict};
 /// Nearby copper pairs one check may compare per shape on average, and
@@ -1940,7 +1940,7 @@ pub fn check_families(
         if stopped && check.after_copper_limit() {
             continue;
         }
-        let findings = match kept(check) {
+        let mut findings = match kept(check) {
             Some(findings) => findings,
             None => {
                 let (findings, stop) = check.run(project, copper, graph, settings);
@@ -1948,6 +1948,14 @@ pub fn check_families(
                 findings
             }
         };
+        if matches!(check, BoardCheck::Clearance | BoardCheck::Fills)
+            && project.instances.iter().any(|i| !i.ties.is_empty())
+        {
+            findings.retain(|f| {
+                !matches!(f.code.as_str(), "board.clearance" | "fill.clearance")
+                    || !graph.get().accounts_for(&f.objects)
+            });
+        }
         out.push((check, findings));
     }
     (out, stopped)

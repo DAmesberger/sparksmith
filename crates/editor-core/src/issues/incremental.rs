@@ -210,44 +210,46 @@ impl Checked {
         }
         // The connectivity of the nets reached, from a graph of those nets;
         // every other net's findings are the last state's.
-        let mut connectivity = kept.and_then(|last| {
-            let old = last
-                .board
-                .iter()
-                .find(|(c, _)| *c == BoardCheck::Connectivity)?;
-            // Nothing the copper graph reads changed.
-            if touched.is_empty() {
-                return Some(old.1.clone());
-            }
-            let graph = graph_of(&BTreeSet::new())?;
-            let nets = sub.nets();
-            let order = ConnectivityOrder::new(project, &pads);
-            let kept: Vec<&Finding> = old
-                .1
-                .iter()
-                .filter(|f| order.net(f).is_none_or(|n| !nets.contains(&n)))
-                .collect();
-            // Both lists are in the graph's order: merge them.
-            let mut findings = Vec::with_capacity(kept.len());
-            let mut from = 0usize;
-            for f in graph.findings(project) {
-                let key = order.key(&f);
-                let to = from
-                    + kept
-                        .get(from..)
-                        .map_or(0, |rest| rest.partition_point(|o| order.key(o) < key));
-                findings.extend(
-                    kept.get(from..to)
-                        .into_iter()
-                        .flatten()
-                        .map(|o| (*o).clone()),
-                );
-                findings.push(f);
-                from = to;
-            }
-            findings.extend(kept.get(from..).into_iter().flatten().map(|o| (*o).clone()));
-            Some(findings)
-        });
+        let mut connectivity = kept
+            .filter(|_| !project.instances.iter().any(|i| !i.ties.is_empty()))
+            .and_then(|last| {
+                let old = last
+                    .board
+                    .iter()
+                    .find(|(c, _)| *c == BoardCheck::Connectivity)?;
+                // Nothing the copper graph reads changed.
+                if touched.is_empty() {
+                    return Some(old.1.clone());
+                }
+                let graph = graph_of(&BTreeSet::new())?;
+                let nets = sub.nets();
+                let order = ConnectivityOrder::new(project, &pads);
+                let kept: Vec<&Finding> = old
+                    .1
+                    .iter()
+                    .filter(|f| order.net(f).is_none_or(|n| !nets.contains(&n)))
+                    .collect();
+                // Both lists are in the graph's order: merge them.
+                let mut findings = Vec::with_capacity(kept.len());
+                let mut from = 0usize;
+                for f in graph.findings(project) {
+                    let key = order.key(&f);
+                    let to = from
+                        + kept
+                            .get(from..)
+                            .map_or(0, |rest| rest.partition_point(|o| order.key(o) < key));
+                    findings.extend(
+                        kept.get(from..to)
+                            .into_iter()
+                            .flatten()
+                            .map(|o| (*o).clone()),
+                    );
+                    findings.push(f);
+                    from = to;
+                }
+                findings.extend(kept.get(from..).into_iter().flatten().map(|o| (*o).clone()));
+                Some(findings)
+            });
         let made_connectivity = connectivity.is_some();
         let (board, stopped) =
             layout::check_families(project, &copper, &source, settings, &mut |check| {

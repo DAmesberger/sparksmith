@@ -81,6 +81,7 @@ fn generation() -> Generation {
             },
         },
         footprint: Footprint {
+            bridges: Vec::new(),
             pads: vec![Pad {
                 key: "1".into(),
                 terminal: "1".into(),

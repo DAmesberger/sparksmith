@@ -556,11 +556,7 @@ pub fn board_decals_reporting(
     }
     let mut picks: BTreeMap<Id, BTreeSet<u64>> = BTreeMap::new();
     for s in sources {
-        if let Some(instance) = s.instance
-            && s.pad.is_none()
-            && s.track.is_none()
-            && s.via.is_none()
-        {
+        if let Some(instance) = s.package_instance() {
             picks.entry(instance).or_default().insert(s.pick_id);
         }
     }

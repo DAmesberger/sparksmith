@@ -425,6 +425,7 @@ mod tests {
                     },
                 },
                 footprint: Footprint {
+                    bridges: Vec::new(),
                     pads: vec![land("1", -750_000), land("2", 750_000)],
                     courtyard: vec![[-1, -1], [1, -1], [1, 1], [-1, 1]],
                     silk: Vec::new(),

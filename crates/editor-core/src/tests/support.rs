@@ -364,6 +364,8 @@ pub fn bodies(spec: &Spec<'_>, f: &Fixture) -> Vec<DraftEdit> {
     let first = Revision::FIRST;
     let (terminals, next) = terminals(&spec.terminals);
     let component = ComponentDefinition {
+        assembly: Default::default(),
+        ties: Default::default(),
         next_local: next,
         designator_prefix: "U".into(),
         terminals,

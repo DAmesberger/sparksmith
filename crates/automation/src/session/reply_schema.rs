@@ -99,6 +99,10 @@ impl Builder {
         required(&mut rerouted, "summary", self.typed::<String>());
         for (name, schema) in [
             ("project", self.reference::<Project>()),
+            (
+                "netlist",
+                self.reference::<sparksmith_core::instances::ties::Netlist<'static>>(),
+            ),
             ("drafts", array(json!({"anyOf":[compact_draft,snapshot]}))),
             ("erc", self.typed::<Vec<Finding>>()),
             ("board_checks", self.typed::<Vec<Finding>>()),

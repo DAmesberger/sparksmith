@@ -485,7 +485,7 @@ pub(crate) fn finding_rows(project: &Project, findings: &[Finding]) -> Vec<Findi
     findings
         .iter()
         .map(|finding| FindingRow {
-            severity: rules::severity(finding),
+            severity: rules::severity(project, finding),
             title: rules::title(&names, &[finding]),
             refs: finding.objects.clone(),
         })
@@ -563,7 +563,7 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
     let also: Vec<Finding> = findings.collect();
     let severity = std::iter::once(&finding)
         .chain(&also)
-        .map(rules::severity)
+        .map(|f| rules::severity(names.project, f))
         .min()
         .unwrap_or(Severity::Info);
     let cause = rules::line_full(&finding.message);

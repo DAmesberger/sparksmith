@@ -395,6 +395,10 @@ pub struct PcbEditor {
     /// a class edit sets the width and an edit by hand keeps it.
     width_from: Option<(Id, u64)>,
     route_start: Option<Point>,
+    /// The Kelvin tie group and end waiting for the next electrical land click.
+    anchor_pick: Option<crate::ties::AnchorPick>,
+    tie_group: Option<sparksmith_core::TieId>,
+    board_ties: crate::ties::BoardTies,
     /// A layer change pressed (V) during a route: the via's position and
     /// the layer the route reaches it on. The next click routes there,
     /// places the via and routes on on `layer` (`layout.route_layer_change`).
@@ -609,6 +613,9 @@ impl Default for PcbEditor {
             width: 0.3,
             width_from: None,
             route_start: None,
+            anchor_pick: None,
+            tie_group: None,
+            board_ties: Default::default(),
             pending_via: None,
             route: Default::default(),
             shoved: Default::default(),
@@ -781,10 +788,35 @@ impl PcbEditor {
     pub fn selected_track(&self) -> Option<Id> {
         self.track
     }
+    fn tie_selected(&self, instance: Id, group: sparksmith_core::TieId) -> bool {
+        self.is_selected(instance)
+            && (self.instance != Some(instance) || self.tie_group.is_none_or(|g| g == group))
+    }
+    fn net_is_highlighted(&self, net: Id) -> bool {
+        self.highlighted == Some(net)
+            || self
+                .board_ties
+                .net_groups(net)
+                .iter()
+                .any(|&(i, g)| self.tie_selected(i, g))
+    }
+    pub fn tie_focus(&self) -> crate::ties::Focus {
+        let nets = self
+            .board_ties
+            .rows()
+            .iter()
+            .filter(|r| self.tie_selected(r.tie.instance, r.tie.group))
+            .flat_map(|r| r.tie.ends.values().flatten().copied())
+            .collect();
+        self.board_ties
+            .focus(self.instance.zip(self.tie_group), nets)
+    }
     pub fn highlighted_net(&self) -> Option<Id> {
         self.highlighted
     }
     pub fn set_selection(&mut self, instance: Option<Id>, track: Option<Id>, net: Option<Id>) {
+        self.anchor_pick = None;
+        self.tie_group = None;
         self.net = net;
         self.highlighted = net;
         if instance != self.instance {
@@ -911,6 +943,7 @@ impl PcbEditor {
             }
             self.graph = engine.copper_graph();
             self.airwires = self.graph.airwires();
+            self.board_ties = Default::default();
             self.cache_board(engine.project());
             self.cached_revision = Some(engine.revision());
             // An instance without a placement stays selected: the card
@@ -938,6 +971,14 @@ impl PcbEditor {
             }
         }
         self.project_markers(engine);
+        if let Some(rows) = self.reports.ties(engine) {
+            self.board_ties.update(
+                rows,
+                self.board_pads
+                    .iter()
+                    .filter_map(|p| Some((p.placed.terminal?, p.placed.pad.id))),
+            );
+        }
         let key = (
             engine.revision(),
             self.instance.or(self.track).or(self.via).or(self.fill),
@@ -1212,6 +1253,7 @@ impl PcbEditor {
     pub fn on_tool(&mut self, tool: &str, engine: &Engine) -> Option<Operation> {
         self.sync(engine);
         self.discard_staged();
+        self.anchor_pick = None;
         if let Some(operation) = self.shape_tool(tool, engine) {
             return operation;
         }
@@ -1578,14 +1620,15 @@ impl PcbEditor {
             Inspected::Placement(id) => {
                 let placement = project.placements.iter().find(|p| p.instance == id)?;
                 let moved = self.placement_section(ui, project, placement);
+                let tie = self.tie_section(ui, engine, id);
                 let text = self.text_section(ui, project, id);
                 let part = self.part_section(ui, engine, id);
                 let exported = self.interface_part_section(ui, engine, id);
-                moved.or(text).or(part).or(exported)
+                moved.or(tie).or(text).or(part).or(exported)
             }
-            Inspected::Unplaced(_) => {
+            Inspected::Unplaced(id) => {
                 self.unplaced_section(ui, engine);
-                None
+                self.tie_section(ui, engine, id)
             }
             Inspected::Track(id) => {
                 let track = project.tracks.iter().find(|t| t.id == id)?;
@@ -1607,6 +1650,23 @@ impl PcbEditor {
                 renamed.or(shape).or(interface)
             }
         }
+    }
+
+    fn tie_section(&mut self, ui: &mut Ui, engine: &Engine, id: Id) -> Option<Operation> {
+        let instance = engine.project().instance(id)?;
+        let waiting = self.anchor_pick;
+        let operation = crate::ties::card(
+            ui,
+            engine,
+            instance,
+            &self.reports,
+            &mut self.tie_group,
+            Some(&mut self.anchor_pick),
+        );
+        if self.anchor_pick.is_some() && self.anchor_pick != waiting {
+            self.end_route();
+        }
+        operation
     }
 
     /// The pinned footer's object actions: Rotate 90°, Flip and Schematic ›
@@ -1839,7 +1899,14 @@ impl PcbEditor {
         if self.tool == Tool::Route && response.clicked_by(PointerButton::Secondary) {
             self.finish_route();
         }
-        kit::tool_cursor(ui, &response, self.tool != Tool::Select);
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) || self.tool != Tool::Select {
+            self.anchor_pick = None;
+        }
+        kit::tool_cursor(
+            ui,
+            &response,
+            self.tool != Tool::Select || self.anchor_pick.is_some(),
+        );
         let double = self.tool == Tool::Route && response.double_clicked();
         if double {
             self.finish_route();
@@ -1879,6 +1946,7 @@ impl PcbEditor {
         }
         if self.tool == Tool::Select
             && self.fill_drag.is_none()
+            && self.anchor_pick.is_none()
             && !self.update.is_open()
             && response.drag_started_by(PointerButton::Primary)
         {
@@ -2005,7 +2073,15 @@ impl PcbEditor {
         if response.clicked_by(PointerButton::Primary)
             && let Some(at) = cursor
         {
-            if self.tool == Tool::Via {
+            if let Some(pick) = self.anchor_pick {
+                let layers = self.seen();
+                if let Some(pad) = self.pick_pad(at, |p| {
+                    layers.pad(p) && p.instance != pick.instance && p.terminal.is_some()
+                }) {
+                    operation = Some(pick.place(pad.instance, pad.pad.id));
+                    self.anchor_pick = None;
+                }
+            } else if self.tool == Tool::Via {
                 operation = self.place_via(project, at, scale);
             } else if self.tool == Tool::Fill {
                 operation = self.fill_click(view, at);
@@ -2050,6 +2126,7 @@ impl PcbEditor {
             .track_drag_moved(engine.revision())
             .unwrap_or_else(|| self.route_moved(engine.revision()));
         self.paint_board(&painter, view, project);
+        self.paint_tie_points(&painter, |point, _| Some(view.screen(point)));
         if let Some(bx) = &dragged_box {
             crate::schematic_editor::paint_box(&painter, bx.clone());
         }
@@ -2437,8 +2514,16 @@ impl PcbEditor {
                 .is_some_and(|p| group::allows(&self.filter, p))
                 .then_some(hit)
         };
-        self.pick_pad(at, |p| layers.pad(p))
-            .and_then(|pad| pass(Hit::Pad(pad.instance, pad.net)))
+        self.layout_copper
+            .bridges
+            .iter()
+            .rev()
+            .find(|b| layers.copper_layer(b.layer) && b.mesh.contains(at))
+            .and_then(|b| pass(Hit::Tie(b.instance, b.group)))
+            .or_else(|| {
+                self.pick_pad(at, |p| layers.pad(p))
+                    .and_then(|pad| pass(self.pad_hit(pad.instance, pad.pad.id, pad.net)))
+            })
             .or_else(|| {
                 self.pick_via(project, at)
                     .and_then(|via| pass(Hit::Via(via.id, via.net)))
@@ -2455,6 +2540,13 @@ impl PcbEditor {
             .unwrap_or(Hit::Nothing)
     }
 
+    fn pad_hit(&self, instance: Id, pad: sparksmith_core::PadId, net: Option<Id>) -> menu::Hit {
+        match self.board_ties.group_of_pad(instance, pad) {
+            Some(group) => menu::Hit::Tie(instance, group),
+            None => menu::Hit::Pad(instance, net),
+        }
+    }
+
     /// Select what a 3D click picks, as a Layout click on the same object
     /// does ([`Self::select_hit`]): a pad selects its part and lights the
     /// pad's net (pads are not selected on their own in either view).
@@ -2465,8 +2557,13 @@ impl PcbEditor {
         let Some(s) = self.selectable_body(along) else {
             return self.select_hit(Hit::Nothing);
         };
+        if let (Some(instance), Some(tie)) = (s.instance, &s.tie) {
+            return self.select_hit(Hit::Tie(instance, tie.group));
+        }
+        if let (Some(instance), Some(pad)) = (s.instance, s.pad) {
+            return self.select_hit(self.pad_hit(instance, pad, s.net));
+        }
         match (s.instance, s.via, s.fill, s.track) {
-            (Some(instance), ..) if s.pad.is_some() => self.select_hit(Hit::Pad(instance, s.net)),
             (None, Some(via), ..) => self.select_via(via, s.net),
             (_, _, Some(fill), _) => self.select_fill(fill, s.net),
             (Some(instance), ..) => self.select_hit(Hit::Part(instance)),
@@ -2488,14 +2585,9 @@ impl PcbEditor {
         picked: Option<&sparksmith_solidcraft::project::Source>,
         along: &[&sparksmith_solidcraft::project::Source],
     ) {
-        use menu::Hit;
         let part = along
             .first()
-            .and_then(|s| {
-                (s.pad.is_none() && s.track.is_none() && s.via.is_none() && s.fill.is_none())
-                    .then_some(s.instance)
-                    .flatten()
-            })
+            .and_then(|s| s.package_instance())
             .filter(|&id| group::allows(&self.filter, group::Pick::Part(id)));
         let Some(instance) = part else {
             let picks: Vec<_> = picked.into_iter().chain(along.iter().copied()).collect();
@@ -2504,9 +2596,10 @@ impl PcbEditor {
         let net = self.highlighted;
         match along
             .iter()
-            .find(|s| s.instance == Some(instance) && s.pad.is_some())
+            .filter(|s| s.instance == Some(instance))
+            .find_map(|s| Some((s.pad?, s.net.or(net))))
         {
-            Some(pad) => self.select_hit(Hit::Pad(instance, pad.net.or(net))),
+            Some((pad, net)) => self.select_hit(self.pad_hit(instance, pad, net)),
             None => self.set_selection(Some(instance), None, net),
         }
     }
@@ -2518,6 +2611,10 @@ impl PcbEditor {
             Hit::Pad(instance, net) => self.set_selection(Some(instance), None, net),
             Hit::Via(id, net) => self.select_via(id, Some(net)),
             Hit::Track(id, net) => self.set_selection(None, Some(id), Some(net)),
+            Hit::Tie(instance, group) => {
+                self.set_selection(Some(instance), None, None);
+                self.tie_group = Some(group);
+            }
             Hit::Part(instance) => self.set_selection(Some(instance), None, None),
             Hit::Fill(id, net) => self.select_fill(id, net),
             Hit::Nothing => self.set_selection(None, None, None),
@@ -2819,8 +2916,11 @@ impl PcbEditor {
 
     /// Whether a pad is selected or on the highlighted net.
     fn pad_chosen(&self, placed: &PlacedPad) -> bool {
-        self.is_selected(placed.instance)
-            || (placed.net.is_some() && self.highlighted == placed.net)
+        (self.is_selected(placed.instance)
+            && (self.instance != Some(placed.instance)
+                || self.tie_group.is_none()
+                || self.board_ties.group_of_pad(placed.instance, placed.pad.id) == self.tie_group))
+            || placed.net.is_some_and(|n| self.net_is_highlighted(n))
     }
 
     /// The pads through every layer, in the active layer's colour (the
@@ -2899,6 +2999,36 @@ impl PcbEditor {
         let ink = BoardInk::get();
         let plain = ink.on_board(colors.copper_layer(layer), shade);
         let selected = ink.on_board(colors.selected, shade);
+        for bridge in self
+            .layout_copper
+            .bridges
+            .iter()
+            .filter(|b| b.layer == layer)
+        {
+            let group_selected = self.tie_selected(bridge.instance, bridge.group);
+            let lit = self.highlighted.filter(|n| bridge.nets.contains(n));
+            let chosen = group_selected || lit.is_some();
+            if !chosen_only || chosen {
+                let mut moved = view;
+                moved.view.origin +=
+                    view.screen(self.drag_delta(bridge.instance)) - view.screen([0.0, 0.0]);
+                let (base, stripes) = if group_selected {
+                    (selected, ink.on_board(colors.selected, shade * 0.55))
+                } else if let Some(net) = lit {
+                    if bridge.nets.first() == Some(&net) {
+                        (selected, plain)
+                    } else {
+                        (plain, selected)
+                    }
+                } else {
+                    (
+                        plain,
+                        ink.on_board(colors.copper_layer(layer), shade * 0.55),
+                    )
+                };
+                bridge.mesh.paint_bridge(painter, moved, base, stripes);
+            }
+        }
         for track in project
             .tracks
             .iter()
@@ -2906,7 +3036,7 @@ impl PcbEditor {
         {
             let chosen = self.track == Some(track.id)
                 || self.group.tracks.contains(&track.id)
-                || self.highlighted == Some(track.net);
+                || self.net_is_highlighted(track.net);
             if chosen_only && !chosen {
                 continue;
             }
@@ -2918,6 +3048,39 @@ impl PcbEditor {
                 if chosen { selected } else { plain },
                 Stroke::NONE,
             ));
+        }
+    }
+
+    fn paint_tie_points(
+        &self,
+        painter: &egui::Painter,
+        screen: impl Fn(Point, CopperLayer) -> Option<Pos2>,
+    ) {
+        let stroke = Stroke::new(1.5, crate::palette::board().selected);
+        for row in self.board_ties.rows().iter().filter(|r| {
+            self.tie_selected(r.tie.instance, r.tie.group)
+                || self
+                    .highlighted
+                    .is_some_and(|n| r.tie.ends.values().any(|net| *net == Some(n)))
+        }) {
+            let points = row
+                .joins
+                .iter()
+                .map(|j| (j.at, j.layer))
+                .chain(row.anchors.values().flat_map(|a| a.points.iter().copied()));
+            for (point, layer) in points {
+                if !self.seen().copper_layer(layer) {
+                    continue;
+                }
+                if let Some(pos) = screen(point, layer) {
+                    let r = 4.0;
+                    painter.circle_stroke(pos, r, stroke);
+                    if row.tie.state == sparksmith_core::library::tie::JumperState::Open {
+                        let delta = egui::vec2(r, -r);
+                        painter.line_segment([pos - delta, pos + delta], stroke);
+                    }
+                }
+            }
         }
     }
 
@@ -2937,7 +3100,7 @@ impl PcbEditor {
             }
             let selected = self.via == Some(via.id)
                 || self.group.vias.contains(&via.id)
-                || self.highlighted == Some(via.net);
+                || self.net_is_highlighted(via.net);
             let joins = |l: CopperLayer| seen.copper_layer(l) && via.on(l, &self.stack);
             let shown = if joins(self.layer) {
                 self.layer

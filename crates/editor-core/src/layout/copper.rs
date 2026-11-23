@@ -729,6 +729,51 @@ pub(super) fn scan(bounds: &[Option<Bounds>], near: &Bounds, reach: f64, out: &m
     );
 }
 
+/// Shared by single-net copper and multi-net footprint bridges.
+pub(super) fn edge_finding(
+    edges: &BoardEdges,
+    limits: &BoardRules<'_>,
+    ring: &CopperRing,
+    kind: CopperObject,
+    net: Option<Id>,
+    object: ObjectRef,
+    label: impl FnOnce() -> String,
+) -> Option<Finding> {
+    let edge = limits.clearance(kind, net, CopperObject::BoardEdge, None);
+    match edges.verdict(ring, edge) {
+        EdgeVerdict::Clear => None,
+        EdgeVerdict::Outside => Some(Finding::new(
+            "board.outside_outline",
+            format!("{} extends beyond board outline", label()),
+            vec![object],
+        )),
+        EdgeVerdict::Inside(kind) => Some(Finding::new(
+            "board.outside_outline",
+            format!(
+                "{} extends into {}",
+                label(),
+                super::board_edge::EdgeLoopKind::Cutout(kind).describe()
+            ),
+            vec![object],
+        )),
+        EdgeVerdict::TooClose { gap, near } => {
+            let need = limits.clearance_need(kind, net, CopperObject::BoardEdge, None);
+            Some(Finding::new(
+                "board.edge_clearance",
+                format!(
+                    "{} is {} mm from {}; {}",
+                    crate::library::names::capitalised(&label()),
+                    mm_against(gap, need.mm),
+                    near.describe(),
+                    need.text()
+                ),
+                vec![object],
+            )
+            .requiring(need.at_most(gap)))
+        }
+    }
+}
+
 /// One state's clearance check: its shapes, rules, reach and edges.
 struct ClearanceCx<'a> {
     project: &'a Project,
@@ -765,42 +810,15 @@ impl<'a> ClearanceCx<'a> {
         let Some(a) = self.shapes.get(i) else {
             return;
         };
-        let limits = &self.limits;
-        let edge = limits.clearance(a.kind, a.net(), CopperObject::BoardEdge, None);
-        match self.edges.verdict(a.ring, edge) {
-            EdgeVerdict::Clear => {}
-            EdgeVerdict::Outside => issues.push(Finding::new(
-                "board.outside_outline",
-                format!("{} extends beyond board outline", self.label(a)),
-                vec![a.object],
-            )),
-            EdgeVerdict::Inside(kind) => issues.push(Finding::new(
-                "board.outside_outline",
-                format!(
-                    "{} extends into {}",
-                    self.label(a),
-                    super::board_edge::EdgeLoopKind::Cutout(kind).describe()
-                ),
-                vec![a.object],
-            )),
-            EdgeVerdict::TooClose { gap, near } => {
-                let need = limits.clearance_need(a.kind, a.net(), CopperObject::BoardEdge, None);
-                issues.push(
-                    Finding::new(
-                        "board.edge_clearance",
-                        format!(
-                            "{} is {} mm from {}; {}",
-                            crate::library::names::capitalised(&self.label(a)),
-                            mm_against(gap, need.mm),
-                            near.describe(),
-                            need.text()
-                        ),
-                        vec![a.object],
-                    )
-                    .requiring(need.at_most(gap)),
-                );
-            }
-        }
+        issues.extend(edge_finding(
+            &self.edges,
+            &self.limits,
+            a.ring,
+            a.kind,
+            a.net(),
+            a.object,
+            || self.label(a),
+        ));
     }
 
     /// Shape `i` against each later shape of `near` (ascending): the pairs

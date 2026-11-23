@@ -264,7 +264,7 @@ impl Session {
         let mut reply = result?;
         // A command that took a full snapshot itself still answers compactly.
         if let Some(object) = reply.as_object_mut() {
-            for key in ["project", "drafts", "erc", "board_checks"] {
+            for key in ["project", "netlist", "drafts", "erc", "board_checks"] {
                 object.remove(key);
             }
         }
@@ -293,6 +293,10 @@ impl Session {
     /// compact reply a summary.
     pub(super) fn inspect(&self, params: InspectParams) -> Result<Value> {
         if let Some(at) = params.at {
+            if at == "/netlist" {
+                let netlist = sparksmith_core::instances::ties::Netlist::of(self.engine.project());
+                return Ok(json!({"revision":self.engine.revision(),"at":at,"value":netlist}));
+            }
             let snapshot = self.snapshot();
             let value = snapshot
                 .pointer(&at)

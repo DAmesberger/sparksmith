@@ -612,3 +612,123 @@ fn a_pending_pin_review_survives_paste_and_import_reuse() -> Result<()> {
     kept.assert_kept(&holder, "a differently reviewed copy");
     Ok(())
 }
+
+fn kelvin_draft(engine: &mut Engine, extra_pin: bool) -> Result<Fixture> {
+    use crate::library::tie::{TieForm, TieSpec};
+    use crate::library::{Definition, PackageModel};
+    let mut spec = Spec {
+        name: "Sense contact",
+        terminals: vec![(1, "Sense", passive()), (2, "Force", passive())],
+        units: vec![(1, "A", vec![(1, [-4., 0.]), (2, [4., 0.])])],
+        physical: true,
+        package: vec![],
+        mapping: vec![],
+    };
+    if extra_pin {
+        spec.terminals.push((3, "Auxiliary input", input()));
+        spec.units[0].2.push((3, [4., 4.]));
+    }
+    let f = draft(engine, &spec)?;
+    rewrite(engine, f.package, |d| {
+        if let Definition::Package(p) = d {
+            p.model = PackageModel::NoBody;
+        }
+    })?;
+    rewrite(engine, f.component, |d| {
+        if let Definition::Component(c) = d {
+            c.assembly = TieForm::Copper.assembly();
+            c.ties = vec![TieSpec {
+                id: crate::ids::TieId(1),
+                ends: vec![TerminalId(1), TerminalId(2)],
+                form: TieForm::Copper,
+            }];
+        }
+    })?;
+    Ok(f)
+}
+
+#[test]
+fn landless_binding_waives_mappings_only_for_its_declared_tie_ends() -> Result<()> {
+    let mut engine = Engine::default();
+    let draft = kelvin_draft(&mut engine, true)?;
+    let Err(error) = publish(&mut engine, draft.all()) else {
+        return Err(Error::Invalid(
+            "published an unmapped auxiliary terminal".into(),
+        ));
+    };
+    let description = format!("{error:?}");
+    assert!(description.contains("Auxiliary input"), "{description}");
+    Ok(())
+}
+
+#[test]
+fn cross_project_paste_remaps_only_kelvin_anchors_with_copied_targets() -> Result<()> {
+    use crate::ids::{PadId, TieId};
+    use crate::library::tie::Anchor;
+    let mut source = Engine::profiled()?;
+    let f = kelvin_draft(&mut source, false)?;
+    publish(&mut source, f.all())?;
+    let (owner, _) = place(&mut source, &f, "NT1", 1, [12., 12.])?;
+    let probe = component(&mut source, &probe("Probe", passive()))?;
+    let (target, _) = place(&mut source, &probe, "TP1", 1, [26., 12.])?;
+    sync_onto_board(&mut source)?;
+    apply(
+        &mut source,
+        Operation::Instance(crate::InstanceCommand::SetAnchor {
+            group: None,
+            instance: owner,
+            end: TerminalId(1),
+            anchor: Some(Anchor {
+                instance: target,
+                pad: PadId(1),
+            }),
+        }),
+    )?;
+    // The destination is an independent document seeded with the same
+    // ids, including an unrelated instance that collides with the old target.
+    let mut dest = Engine::from_file(source.to_file())?;
+    let anchor_of = |engine: &Engine, id| {
+        engine
+            .project()
+            .instance(id)?
+            .ties
+            .get(&TieId(1))?
+            .anchors
+            .get(&TerminalId(1))
+            .copied()
+    };
+    let clip = copied(
+        &source,
+        vec![
+            ClipObject::Instance { id: owner },
+            ClipObject::Instance { id: target },
+        ],
+    )?;
+    let report = pasted(&mut dest, clip, [0., 24.])?;
+    let [tie, probe] = report.symbols.as_slice() else {
+        return Err(Error::Invalid("two pasted symbols".into()));
+    };
+    assert_ne!(probe.instance, target);
+    assert_eq!(
+        anchor_of(&dest, tie.instance),
+        Some(Anchor {
+            instance: probe.instance,
+            pad: PadId(1)
+        })
+    );
+    assert_eq!(
+        anchor_of(&dest, owner),
+        Some(Anchor {
+            instance: target,
+            pad: PadId(1)
+        })
+    );
+    let clip = copied(&source, vec![ClipObject::Instance { id: owner }])?;
+    let report = pasted(&mut dest, clip, [24., 24.])?;
+    let [only] = report.symbols.as_slice() else {
+        return Err(Error::Invalid("one pasted symbol".into()));
+    };
+    assert_eq!(anchor_of(&dest, only.instance), None);
+    Engine::from_file(dest.to_file())?;
+    Ok(())
+}

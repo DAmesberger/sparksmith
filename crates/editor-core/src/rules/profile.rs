@@ -296,6 +296,8 @@ impl RuleEntry {
 #[serde(try_from = "ProfileData", into = "ProfileData")]
 #[schemars(with = "ProfileData")]
 pub struct RuleProfile {
+    /// Optional current table supplied with this profile.
+    pub current_table: Option<super::current::CurrentTable>,
     /// Stable identity in the profile library (a slug).
     pub id: String,
     /// Shown name ("JLCPCB 2-layer").
@@ -344,6 +346,7 @@ impl RuleProfile {
             )));
         }
         let mut profile = Self {
+            current_table: None,
             id: id.into(),
             name: name.into(),
             fabricator: None,
@@ -778,6 +781,9 @@ impl RuleProfile {
     /// Text bounds, the source's publisher and date, then the resolved
     /// rules' bounds.
     pub fn validate(&self) -> Result<()> {
+        if let Some(t) = &self.current_table {
+            t.validate()?;
+        }
         let s = &self.source;
         let short = [
             &self.id,
@@ -884,6 +890,8 @@ pub struct ProfileFile {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProfileData {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_table: Option<super::current::CurrentTable>,
     pub id: String,
     pub name: String,
     /// The fabricator record's id (`fabricators/<id>.json`); left out, the
@@ -1020,6 +1028,7 @@ impl From<RuleProfile> for ProfileData {
             })
             .collect();
         Self {
+            current_table: p.current_table,
             id: p.id,
             name: p.name,
             fabricator: p.fabricator,
@@ -1099,6 +1108,7 @@ impl TryFrom<ProfileData> for RuleProfile {
         // The rules without options first: they must be valid on their
         // own; then the options, their cases and the stored choices.
         let mut profile = Self::new(&data.id, &data.name, data.source, data.drill_files, entries)?;
+        profile.current_table = data.current_table;
         profile.boards = data.boards;
         profile.fabricator = data.fabricator;
         profile.validate()?;

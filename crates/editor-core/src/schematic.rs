@@ -1829,14 +1829,86 @@ pub fn placed_unit_in(
             .physical
             .map(|p| (&p.binding.definition, &p.package.definition)),
     };
-    Ok(draw(
+    let mut placed = draw(
         symbol,
         unit,
         &resolved.component.definition,
         occurrence_transform(item),
         &resolution,
         Some(occurrence),
-    ))
+    );
+    for spec in &resolved.component.definition.ties {
+        let Some(usage) = instance.ties.get(&spec.id) else {
+            continue;
+        };
+        use crate::library::tie::{TieForm, TiePurpose};
+        let text = |at, text, h| PlacedText {
+            graphic: None,
+            text,
+            at,
+            height: VALUE_TEXT_HEIGHT_MM,
+            rotation_deg: 0.0,
+            justify: Justify {
+                h,
+                v: VAlign::Bottom,
+            },
+            mirrored: false,
+            line_spacing: TEXT_LINE_SPACING,
+        };
+        for pin in &placed.pins {
+            if spec.ends.contains(&pin.terminal)
+                && let Some(net) = project.net_of(crate::ids::Endpoint {
+                    instance: instance.id,
+                    terminal: pin.terminal,
+                })
+            {
+                let out = pin.outward();
+                placed.fields.push(text(
+                    [
+                        pin.end[0] + out[0] * FIELD_GAP_MM,
+                        pin.end[1] + FIELD_GAP_MM,
+                    ],
+                    net.name.clone(),
+                    if out[0] < 0.0 {
+                        HAlign::Right
+                    } else {
+                        HAlign::Left
+                    },
+                ));
+            }
+        }
+        let purpose = match usage.purpose {
+            TiePurpose::StarGround => "★",
+            TiePurpose::KelvinSense => "⇉",
+            TiePurpose::ShieldBond => "Shield",
+            TiePurpose::SupplyJoin => "Supply",
+            TiePurpose::None => "",
+        };
+        let state = if matches!(spec.form, TieForm::SolderJumper { .. }) {
+            if instances::variants::population(instance, project.variants.active()).is_populated() {
+                "●─● Closed"
+            } else {
+                "○╱ ○ Open"
+            }
+        } else {
+            ""
+        };
+        let label = [purpose, state]
+            .into_iter()
+            .filter(|v| !v.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !label.is_empty()
+            && let Some(b) = placed.bounds(TextMetric::default())
+        {
+            placed.fields.push(text(
+                [b.center()[0], b.max[1] + FIELD_GAP_MM],
+                label,
+                HAlign::Center,
+            ));
+        }
+    }
+    Ok(placed)
 }
 
 /// A unit of a definition being authored, as the Component editor shows it.

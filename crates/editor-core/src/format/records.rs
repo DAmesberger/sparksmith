@@ -111,6 +111,7 @@ pub const INSTANCES: Collection = Collection {
         "population",
         "bom_excluded",
         "placement_excluded",
+        "ties",
     ]),
     numbers: Numbers::FloatsAllowed,
 };

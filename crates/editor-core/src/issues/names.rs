@@ -10,7 +10,7 @@ use crate::model::Project;
 use std::collections::BTreeMap;
 
 pub(super) struct Names<'a> {
-    project: &'a Project,
+    pub(super) project: &'a Project,
     drafts: &'a Drafts,
     pads: BTreeMap<(Id, PadId), String>,
 }
