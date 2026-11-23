@@ -476,6 +476,59 @@ fn a_layout_pick_on_r5s_body_trace_is_the_reference_a_3d_pick_makes() -> Fallibl
     Ok(())
 }
 
+/// A real pointer click on the last cached body trace opens the chooser
+/// with that face first, even after 4,096 earlier faces in the package.
+#[test]
+fn a_pointer_hit_past_4096_faces_keeps_the_nearest_and_its_parallel_neighbor() -> Fallible {
+    use sparksmith_core::model::dimension::{BodyName, FaceName, ModelFaceRef};
+    let _serial = serial();
+    let engine = Engine::demo()?;
+    let r1 = part(engine.project(), "R1")?;
+    let package = model::package_of(engine.project(), r1).ok_or("R1 package")?;
+    let placement = engine.project().placement_of(r1).ok_or("R1 placed")?;
+    let transform = view::part_transform(placement);
+    let mut h = Harness::new(engine)?;
+    h.arm()?;
+    let at = h.screen(transform.apply([2.0, 0.0]))?;
+    let mm_per_point = 1.0 / f64::from(at.distance(h.screen(transform.apply([3.0, 0.0]))?));
+    let face = |n: usize, body: &str, a: [f64; 2], b: [f64; 2]| BodyFace {
+        face: ModelFaceRef {
+            body: BodyName(body.into()),
+            face: FaceName(format!("Face {n}")),
+            pick: [a[0], a[1], 0.0],
+        },
+        at: [a[0], a[1], 0.0],
+        trace: FeatureGeometry::Line { a, b },
+        z: [0.0, 1.0],
+    };
+    let mut faces: Vec<_> = (0..4094)
+        .map(|n| {
+            let y = 30.0 + n as f64 / 1000.0;
+            face(n, "Distant", [0.0, y], [1.0, y])
+        })
+        .collect();
+    faces.push(face(
+        4094,
+        "Crossing",
+        [1.0, mm_per_point],
+        [3.0, mm_per_point],
+    ));
+    let nearby = 2.0 + 3.0 * mm_per_point;
+    faces.push(face(4095, "Parallel", [nearby, -1.0], [nearby, 1.0]));
+    faces.push(face(4096, "Last", [2.0, -1.0], [2.0, 1.0]));
+    h.app.pcb.set_listed_body_faces(package, faces);
+    h.click(at);
+    let rows = h
+        .app
+        .pcb
+        .dimension_chooser()
+        .ok_or("expected the stacked-face chooser")?;
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert!(rows[0].0.ends_with("(Last)"), "{rows:?}");
+    assert!(rows[1].0.ends_with("(Parallel)"), "{rows:?}");
+    Ok(())
+}
+
 /// J1's shell back face and its insulator's back face lie in one plane,
 /// so their traces are one line: a click there offers both by name and
 /// body. The insulator's row picks the insulator's face; Esc on an open
