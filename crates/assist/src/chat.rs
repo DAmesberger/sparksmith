@@ -214,7 +214,8 @@ pub struct Use {
     /// Prompt plus output tokens, every request counted.
     pub tokens: u64,
     pub seconds: f64,
-    /// The tokens as the provider reported them: uncached, cache written,
+    pub usage_estimated: bool,
+    /// Accounted tokens: uncached, cache written,
     /// cache read and output.
     pub reported: crate::usage::Usage,
 }
@@ -301,6 +302,7 @@ pub fn turn(
             .saturating_add(tally.usage.output_tokens),
         seconds: started.elapsed().as_secs_f64(),
         reported: tally.usage,
+        usage_estimated: tally.usage_estimated,
     };
     if let Err(error) = config.check() {
         return Outcome {

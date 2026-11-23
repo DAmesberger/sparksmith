@@ -195,6 +195,7 @@ impl Driver<'_> {
             }
         };
         self.tally.usage.add(&reply.usage);
+        self.tally.usage_estimated |= reply.usage_estimated;
         (self.events)(Event::Response {
             n,
             stop_reason: reply.stop.label(),
@@ -249,6 +250,7 @@ fn meter(tally: &Tally, budget: &Budget, started: Instant) -> Meter {
             limit: budget.max_duration.as_secs().div_ceil(60),
         },
         reported: tally.usage,
+        usage_estimated: tally.usage_estimated,
     }
 }
 

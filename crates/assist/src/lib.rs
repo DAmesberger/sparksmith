@@ -176,7 +176,8 @@ pub struct Meter {
     pub output_tokens: Gauge,
     pub tokens: Gauge,
     pub minutes: Gauge,
-    /// The tokens as the provider reported them: uncached, cache written,
+    pub usage_estimated: bool,
+    /// Accounted tokens: uncached, cache written,
     /// cache read and output.
     pub reported: crate::usage::Usage,
 }

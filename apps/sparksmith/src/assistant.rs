@@ -847,7 +847,15 @@ impl Assistant {
             }
             if self.conversation.state == State::Running {
                 let usage = &self.conversation.usage;
-                kit::note(ui, &usage_line(usage.requests, usage.tokens, usage.seconds));
+                kit::note(
+                    ui,
+                    &usage_line(
+                        usage.requests,
+                        usage.tokens,
+                        usage.seconds,
+                        usage.usage_estimated,
+                    ),
+                );
             }
         });
     }
@@ -874,19 +882,20 @@ fn composer_height(ui: &Ui, chips: bool) -> f32 {
 }
 
 /// "3 requests · 12 k tokens · 14 s".
-pub fn usage_line(requests: u32, tokens: u64, seconds: f64) -> String {
+pub fn usage_line(requests: u32, tokens: u64, seconds: f64, estimated: bool) -> String {
     let tokens = if tokens >= 10_000 {
         format!("{} k tokens", tokens / 1_000)
     } else {
         format!("{tokens} tokens")
     };
+    let estimate = if estimated { " (estimated)" } else { "" };
     let time = if seconds >= 90.0 {
         format!("{:.0} min", seconds / 60.0)
     } else {
         format!("{seconds:.0} s")
     };
     format!(
-        "{} · {tokens} · {time}",
+        "{} · {tokens}{estimate} · {time}",
         kit::counted(requests as usize, "request", "requests")
     )
 }
@@ -1230,7 +1239,12 @@ fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, last: bool, actions: &mut
         }
         kit::note(
             ui,
-            &usage_line(card.usage.requests, card.usage.tokens, card.usage.seconds),
+            &usage_line(
+                card.usage.requests,
+                card.usage.tokens,
+                card.usage.seconds,
+                card.usage.usage_estimated,
+            ),
         );
         for line in &card.spend {
             kit::note(ui, line);
@@ -1279,9 +1293,16 @@ mod tests {
 
     #[test]
     fn the_usage_line_counts_requests_tokens_and_time() {
-        assert_eq!(usage_line(1, 950, 4.2), "1 request · 950 tokens · 4 s");
         assert_eq!(
-            usage_line(3, 61_400, 360.0),
+            usage_line(1, 950, 4.2, true),
+            "1 request · 950 tokens (estimated) · 4 s"
+        );
+        assert_eq!(
+            usage_line(1, 950, 4.2, false),
+            "1 request · 950 tokens · 4 s"
+        );
+        assert_eq!(
+            usage_line(3, 61_400, 360.0, false),
             "3 requests · 61 k tokens · 6 min"
         );
     }
