@@ -69,10 +69,11 @@ pub fn card(
                             .map(|n| p.net_name(*n))
                             .collect::<Vec<_>>()
                             .join(" ↔ ");
+                        let group = r.tie.label(p);
                         let title = if nets.is_empty() {
-                            r.tie.designator.clone()
+                            group
                         } else {
-                            format!("{} · {nets}", r.tie.designator)
+                            format!("{group} · {nets}")
                         };
                         (r.tie.group, title)
                     })
