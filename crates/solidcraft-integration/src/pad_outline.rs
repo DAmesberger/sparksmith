@@ -8,13 +8,6 @@ use sparksmith_core::Point;
 use sparksmith_core::geometry::Shape;
 use sparksmith_core::library::{Hole, HoleShape, Outline, PadShape, Segment};
 
-/// Plated barrel wall: copper plated onto a drilled hole's wall, 25 µm,
-/// IPC-6012's least average hole-wall copper for class 3 (class 2 asks
-/// for 20 µm). Neither the stackup nor the fab profile records a plating
-/// thickness, so the 3D view draws this one. A hole's size is its finished
-/// size (the open bore); the barrel grows outward from it, so the hole
-/// is drilled larger by the wall on every side.
-pub const PLATING_MM: f64 = 0.025;
 /// Chord tolerance of flattened display outlines (the core's display
 /// tolerance for pad arcs).
 pub const FLATTEN_TOLERANCE_MM: f64 = sparksmith_core::library::PAD_ARC_TOLERANCE_MM;
@@ -388,13 +381,13 @@ pub fn bore(hole: &Hole) -> Option<Contour> {
 
 /// The drilled wall of a hole: a plated hole is drilled larger than its
 /// finished size by the barrel wall, an unplated one at its size.
-pub fn drilled(hole: &Hole) -> Option<Contour> {
-    hole_contour(hole, if hole.plated { PLATING_MM } else { 0.0 })
+pub fn drilled(hole: &Hole, wall_mm: f64) -> Option<Contour> {
+    hole_contour(hole, if hole.plated { wall_mm } else { 0.0 })
 }
 
 /// The drilled radius of a plated hole of `finished` diameter (a via's).
-pub fn plated_drill_radius(finished: f64) -> f64 {
-    finished / 2.0 + PLATING_MM
+pub fn plated_drill_radius(finished: f64, wall_mm: f64) -> f64 {
+    finished / 2.0 + wall_mm
 }
 
 /// The solder-mask opening of a pad in the pad frame, or `None` when the
@@ -700,8 +693,8 @@ mod tests {
             Some(Contour::Circle { radius, .. }) if (radius - 0.5).abs() < 1e-12
         ));
         assert!(matches!(
-            drilled(&round),
-            Some(Contour::Circle { radius, .. }) if (radius - (0.5 + PLATING_MM)).abs() < 1e-12
+            drilled(&round, 0.025),
+            Some(Contour::Circle { radius, .. }) if (radius - 0.525).abs() < 1e-12
         ));
         Ok(())
     }

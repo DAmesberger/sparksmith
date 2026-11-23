@@ -337,6 +337,7 @@ impl StackupDraft {
             })
             .collect();
         self.stackup = Stackup {
+            barrel_plating: self.stackup.barrel_plating.clone(),
             mask_top: self.stackup.mask_top,
             mask_bottom: self.stackup.mask_bottom,
             mask_um: self.stackup.mask_um,

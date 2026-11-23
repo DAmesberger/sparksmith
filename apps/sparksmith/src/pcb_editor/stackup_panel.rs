@@ -181,6 +181,25 @@ fn body(ui: &mut Ui, setup: &mut StackupSetup, carried: &[CopperLayer]) {
             kit::number_text((setup.draft.stackup.thickness_mm() * 1000.0).round() / 1000.0)
         ),
     );
+    if let Some(plating) = &mut setup.draft.stackup.barrel_plating {
+        use sparksmith_core::units::{MAX_COORD_NM, Nm};
+        let mut um = plating.wall_nm.to_mm_f64() * 1000.0;
+        if kit::number_row(
+            ui,
+            "Plated hole wall",
+            &mut um,
+            "µm",
+            0.001..=MAX_COORD_NM as f64 / 1000.0,
+        ) && let Ok(wall) = Nm::from_mm_f64_rounded(um / 1000.0)
+            && wall != plating.wall_nm
+        {
+            plating.wall_nm = wall;
+            plating.source.clear();
+            plating.assumed = true;
+        }
+        kit::text_row(ui, "Wall source", &mut plating.source);
+        kit::check_row(ui, "Assumed wall", &mut plating.assumed);
+    }
     if let Some(row) = table(ui, &setup.draft, setup.selected) {
         setup.selected = Some(row);
     }

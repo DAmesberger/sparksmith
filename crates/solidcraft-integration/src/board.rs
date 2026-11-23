@@ -1500,11 +1500,12 @@ pub struct Laminate {
     pub through: Vec<crate::pad_outline::Contour>,
 }
 
-pub fn laminate(project: &sparksmith_core::Project) -> Option<Laminate> {
+pub fn laminate(project: &sparksmith_core::Project) -> Result<Option<Laminate>> {
     use crate::pad_outline::Contour;
     if project.board_shape.is_rectangle() {
-        return None;
+        return Ok(None);
     }
+    let wall_mm = project.stackup.plating()?.wall_nm.to_mm_f64();
     let board = project.board();
     let mut through: Vec<Contour> = board
         .cutouts
@@ -1516,15 +1517,15 @@ pub fn laminate(project: &sparksmith_core::Project) -> Option<Laminate> {
     through.extend(board.holes.iter().map(|h| Contour::Circle {
         center: h.at,
         radius: if h.plated {
-            crate::pad_outline::plated_drill_radius(h.drill)
+            crate::pad_outline::plated_drill_radius(h.drill, wall_mm)
         } else {
             h.drill / 2.0
         },
     }));
-    Some(Laminate {
+    Ok(Some(Laminate {
         outline: Contour::Outline(board.outer.clone()),
         through,
-    })
+    }))
 }
 
 #[cfg(test)]

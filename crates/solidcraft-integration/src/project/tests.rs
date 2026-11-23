@@ -1524,7 +1524,7 @@ fn every_pad_shape_is_exact_native_copper_in_its_placed_frame() -> Result<()> {
                 }
                 // The hole's 0.6 mm is its finished size: open to it, with
                 // the barrel outside it in a hole drilled wider.
-                let wall = on_board(pad, [0.2 + 0.3 + pad_outline::PLATING_MM / 2.0, 0.0]);
+                let wall = on_board(pad, [0.2 + 0.3 + 0.025 / 2.0, 0.0]);
                 assert!(inside(&bodies, wall, 0.8), "barrel");
                 let finished = on_board(pad, [0.2 + 0.3 - 0.005, 0.0]);
                 assert!(
@@ -1577,7 +1577,7 @@ fn every_pad_shape_is_exact_native_copper_in_its_placed_frame() -> Result<()> {
     let full = 60.0 * 40.0 * T;
     // The plated hole is drilled wider than its finished 0.6 mm by the
     // barrel's wall; the bare hole at its size.
-    let plated = 0.3 + pad_outline::PLATING_MM;
+    let plated = 0.3 + 0.025;
     let drilled = 2.0 * std::f64::consts::PI * (plated.powi(2) + 0.5f64.powi(2)) * T;
     let volume: f64 = substrate.iter().map(|g| g.volume()).sum();
     assert!((volume - (full - drilled)).abs() < 2e-3, "{volume}");
@@ -2894,5 +2894,95 @@ fn bridge_group_and_both_nets_survive_the_live_and_exact_board() -> Result<()> {
             );
         }
     }
+    Ok(())
+}
+
+/// Set a physical wall independently of the tool diameters requested by
+/// the fab. The washer, via, pad and laminate all use the same 40 µm wall.
+#[test]
+fn the_stackup_sets_the_barrel_wall_independently_of_drill_allowance() -> Result<()> {
+    let _context = crate::looks::test_context()?.enter();
+    let mut project = with_washer(four_layer_shaped()?);
+    project.stackup.barrel_plating = Some(sparksmith_core::model::BarrelPlating {
+        wall_nm: nm(0.040),
+        source: "Original test coupon section".into(),
+        assumed: false,
+    });
+    let profile = project
+        .rules
+        .profile
+        .as_mut()
+        .ok_or_else(|| Error::Verification("missing profile".into()))?;
+    profile.drill_files = sparksmith_core::rules::profile::DrillFiles::Drilled {
+        pth_allowance: 0.1,
+        source: "Test drill process".into(),
+    };
+    let drills = sparksmith_core::fabrication::excellon::files(
+        &project,
+        &Default::default(),
+        &Default::default(),
+        "fixture",
+    )
+    .map_err(|e| Error::Verification(e.to_string()))?;
+    let file = drills
+        .iter()
+        .find(|f| f.name == "fixture-plated.drl")
+        .ok_or_else(|| Error::Verification("missing plated drill file".into()))?;
+    assert!(String::from_utf8_lossy(&file.bytes).lines().any(|line| {
+        line.starts_with('T')
+            && line
+                .split_once('C')
+                .is_some_and(|(_, size)| size == "3.100")
+    }));
+    let plan = plan::of(&project)?;
+    let mut measured = [0; 3];
+    for body in plan.bodies() {
+        let kind = match body.source {
+            plan::Origin::Washer { layer: None, .. } => 0,
+            plan::Origin::Via {
+                part: plan::ViaPart::Barrel,
+                ..
+            } => 1,
+            plan::Origin::Pad {
+                part: plan::PadPart::Barrel(_),
+                ..
+            } => 2,
+            _ => continue,
+        };
+        let [
+            Contour::Circle { radius: wall, .. },
+            Contour::Circle { radius: bore, .. },
+        ] = body.loops.as_slice()
+        else {
+            return Err(Error::Verification(format!(
+                "expected round barrel on {}",
+                body.name
+            )));
+        };
+        near(wall - bore, 0.040);
+        measured[kind] += 1;
+    }
+    assert!(measured.into_iter().all(|n| n > 0));
+    // The via is at (16,4), with a 0.30 mm finished bore. Its barrel fills
+    // the hole of radius 0.19 in the top dielectric.
+    let slab = plan
+        .laminate
+        .first()
+        .ok_or_else(|| Error::Verification("missing slab".into()))?;
+    assert!(
+        slab.loops
+            .iter()
+            .any(|c| matches!(c, Contour::Circle { center, radius }
+        if *center == [16.0,4.0] && (radius - 0.19).abs() < 1e-9))
+    );
+    let model = build(&project)?;
+    let native = model
+        .native()
+        .ok_or_else(|| Error::Verification("missing native model".into()))?;
+    let metadata = &native.session().doc.metadata.0;
+    assert_eq!(
+        metadata.get("org.sparksmith.electronics.barrel_plating"),
+        Some(&serde_json::to_value(&project.stackup.barrel_plating)?)
+    );
     Ok(())
 }

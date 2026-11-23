@@ -897,6 +897,7 @@ struct PlacedPad<'a> {
     placed: layout::PlacedPad,
     placement: &'a Placement,
     designator: &'a str,
+    wall_mm: f64,
     /// The board's effective mask expansion, which a pad's inherited mask
     /// rule takes ([`layout::PlacedPad::mask_expansion`]).
     mask_expansion: f64,
@@ -957,10 +958,14 @@ impl PlacedPad<'_> {
     /// Drilled holes, pad frame: the pad's hole and its vias.
     fn drills(&self) -> Vec<Contour> {
         let pad = self.pad();
-        let mut out: Vec<Contour> = pad.hole.iter().filter_map(pad_outline::drilled).collect();
+        let mut out: Vec<Contour> = pad
+            .hole
+            .iter()
+            .filter_map(|hole| pad_outline::drilled(hole, self.wall_mm))
+            .collect();
         out.extend(pad.vias.iter().map(|v| Contour::Circle {
             center: v.at(),
-            radius: pad_outline::plated_drill_radius(v.drill()),
+            radius: pad_outline::plated_drill_radius(v.drill(), self.wall_mm),
         }));
         out
     }
@@ -984,8 +989,10 @@ impl PlacedPad<'_> {
         let pad = self.pad();
         let mut out = Vec::new();
         if let Some(hole) = pad.hole.filter(|h| h.plated)
-            && let (Some(drill), Some(bore)) =
-                (pad_outline::drilled(&hole), pad_outline::bore(&hole))
+            && let (Some(drill), Some(bore)) = (
+                pad_outline::drilled(&hole, self.wall_mm),
+                pad_outline::bore(&hole),
+            )
         {
             out.push([drill, bore]);
         }
@@ -995,7 +1002,7 @@ impl PlacedPad<'_> {
                 out.push([
                     Contour::Circle {
                         center: via.at(),
-                        radius: pad_outline::plated_drill_radius(via.drill()),
+                        radius: pad_outline::plated_drill_radius(via.drill(), self.wall_mm),
                     },
                     Contour::Circle {
                         center: via.at(),
@@ -1008,9 +1015,19 @@ impl PlacedPad<'_> {
     }
 }
 
+/// The radial thickness of finished hole-wall copper in the board model.
+fn barrel_wall_mm(project: &Project) -> Result<f64> {
+    project
+        .stackup
+        .plating()
+        .map(|plating| plating.wall_nm.to_mm_f64())
+        .map_err(|error| Error::Invalid(error.to_string()))
+}
+
 /// Every footprint pad of every placement, with or without a net or
 /// terminal: they are all copper (or holes) on the board.
 fn placed_pads(project: &Project) -> Result<Vec<PlacedPad<'_>>> {
+    let wall_mm = barrel_wall_mm(project)?;
     let placed = layout::placed_pads(project);
     // Each placed part once, by instance: a lookup per pad, not a scan.
     let mut parts = std::collections::HashMap::new();
@@ -1034,6 +1051,7 @@ fn placed_pads(project: &Project) -> Result<Vec<PlacedPad<'_>>> {
             let designator = instance.designator.as_str();
             let origin = placed.transform.apply(placed.pad.position());
             Ok(PlacedPad {
+                wall_mm,
                 placed,
                 placement,
                 designator,
@@ -1265,6 +1283,10 @@ fn inner_base(stackup: &Stackup, layer: CopperLayer) -> Result<String> {
 fn stackup_params(b: &mut Builder, project: &Project) -> Result<()> {
     let stackup = &project.stackup;
     stackup.check().map_err(|e| Error::Invalid(e.to_string()))?;
+    b.native.set_metadata(
+        "org.sparksmith.electronics.barrel_plating",
+        serde_json::to_value(&stackup.barrel_plating)?,
+    )?;
     b.param("board_width", project.board_size[0], "mm")?;
     b.param("board_depth", project.board_size[1], "mm")?;
     if let [only] = stackup.dielectrics.as_slice() {

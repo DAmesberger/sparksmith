@@ -315,7 +315,7 @@ fn cutouts_slots_and_mounting_holes_solve_and_build_in_3d() -> Fallible<()> {
     assert_eq!(engine.project().board().into_owned(), kept);
 
     // The laminate is the outline with its cutouts, slot and hole cut.
-    let laminate = laminate(engine.project()).ok_or("laminate")?;
+    let laminate = laminate(engine.project())?.ok_or("laminate")?;
     assert_eq!(laminate.through.len(), 3);
     let substrate = |project: &sparksmith_core::Project| -> Fallible<f64> {
         let model = crate::project::build(project)?;
