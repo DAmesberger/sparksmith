@@ -217,8 +217,6 @@ impl LinkedDesign {
 
 // Slice B4: reading a linked design the board is linked to, and the dry run.
 
-/// Linked design bodies whose faces a dry run compares, at most.
-const MAX_DRY_RUN_BODIES: usize = 512;
 /// How far (mm) a face's centroid may move and still count as unmoved.
 const MOVED_MM: f64 = 1e-6;
 
@@ -778,19 +776,15 @@ impl LinkedDesign {
 
     /// The faces of every linked design body that is not the board's, by
     /// persistent name, with their centroid and area.
-    fn own_faces(&mut self, link: &BoardLink) -> Result<BTreeMap<String, Face>> {
+    fn own_faces(&mut self, link: &BoardLink) -> Result<BTreeMap<(String, String), Face>> {
         let state = self.native.world_state()?;
-        let names: Vec<String> = state
-            .bodies
-            .iter()
-            .filter(|b| b.component != link.component && !b.body.is_mesh())
-            .map(|b| b.name.clone())
-            .take(MAX_DRY_RUN_BODIES)
-            .collect();
         let mut out = BTreeMap::new();
-        for name in names {
-            for face in self.faces(&name)? {
-                out.insert(face.name.clone(), face);
+        for body in &state.bodies {
+            if body.component == link.component || body.body.is_mesh() {
+                continue;
+            }
+            for face in self.faces(&body.name)? {
+                out.insert((body.name.clone(), face.name.clone()), face);
             }
         }
         Ok(out)
@@ -920,7 +914,7 @@ impl LinkedDesign {
         // shift still says how far the feature went.
         let mut shifted: BTreeMap<u64, ([f64; 3], bool)> = BTreeMap::new();
         for (name, a) in &before {
-            let (Some(b), Some(feature)) = (after.get(name), feature_of(name)) else {
+            let (Some(b), Some(feature)) = (after.get(name), feature_of(&name.1)) else {
                 continue;
             };
             let d = [
