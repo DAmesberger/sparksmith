@@ -590,7 +590,7 @@ impl App {
             Some(issues::Request::Help { code, fix }) => {
                 self.help.pending_context = false;
                 let fix = fix.filter(|_| self.issues.has_current_report(&self.engine));
-                self.help.finding(&code, self.engine.report_key(), fix);
+                self.help.finding(code, self.engine.report_key(), fix);
             }
             Some(issues::Request::Fix(fix)) => self.fix(ctx, fix),
             None => {}

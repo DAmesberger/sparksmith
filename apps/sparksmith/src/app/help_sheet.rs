@@ -17,25 +17,34 @@ use sparksmith_ui::ui_kit;
 pub(super) const PALETTE_PREFIX: &str = "help:";
 const PAGE_SIZE: usize = 12;
 
-pub(super) fn palette_rows(index: &Index, text: &str) -> Vec<PaletteRow> {
-    if text.trim().is_empty() {
-        return vec![];
+/// The input changes much less often than egui repaints. Keep the ids
+/// for precisely this library context and search text across repaints.
+#[derive(Default)]
+struct Matches {
+    library: std::sync::Weak<sparksmith_core::library::standards::Context>,
+    query: String,
+    ids: Vec<HelpId>,
+}
+
+impl Matches {
+    fn ids(
+        &mut self,
+        context: &std::sync::Arc<sparksmith_core::library::standards::Context>,
+        index: &Index,
+        query: &str,
+    ) -> &[HelpId] {
+        let library = std::sync::Arc::downgrade(context);
+        if !self.library.ptr_eq(&library) || self.query != query {
+            self.library = library;
+            query.clone_into(&mut self.query);
+            self.ids = help::search(index, query, &[], usize::MAX)
+                .into_iter()
+                .filter(visible)
+                .map(|e| e.id.clone())
+                .collect();
+        }
+        &self.ids
     }
-    let q = text.trim().strip_prefix("help:").unwrap_or(text).trim();
-    help::search(index, q, &[], usize::MAX)
-        .into_iter()
-        .filter(visible)
-        .take(PAGE_SIZE)
-        .map(|e| PaletteRow {
-            id: format!("{PALETTE_PREFIX}{}", e.id),
-            title: e.title.clone(),
-            icon: "list",
-            detail: e.summary.clone(),
-            shortcut: None,
-            enabled: true,
-            recent: false,
-        })
-        .collect()
 }
 
 #[derive(Clone, PartialEq, Eq, Default)]
@@ -45,10 +54,11 @@ enum Location {
     Topic(HelpId),
 }
 
-#[derive(Clone, PartialEq, Eq, Default)]
+#[derive(Clone, Default)]
 struct Page {
     location: Location,
     query: String,
+    fix: Option<(ReportKey, Fix)>,
 }
 
 #[derive(Default)]
@@ -61,19 +71,55 @@ pub(super) struct HelpSheet {
     focus: bool,
     selected: usize,
     navigation: kit::SearchKeys,
+    matches: Matches,
     shown: usize,
-    fix: Option<(HelpId, ReportKey, Fix)>,
     unit: Option<LengthUnit>,
     media: media::Images,
 }
 
 impl HelpSheet {
+    pub(super) fn palette_rows(&mut self, engine: &Engine, text: &str) -> Vec<PaletteRow> {
+        if text.trim().is_empty() {
+            return vec![];
+        }
+        let Some(context) = engine.context() else {
+            return vec![];
+        };
+        let Ok(index) = context.help() else {
+            return vec![];
+        };
+        let q = text
+            .trim()
+            .strip_prefix(PALETTE_PREFIX)
+            .unwrap_or(text)
+            .trim();
+        self.matches
+            .ids(context, index, q)
+            .iter()
+            .take(PAGE_SIZE)
+            .filter_map(|id| index.get(id))
+            .map(|e| PaletteRow {
+                id: format!("{PALETTE_PREFIX}{}", e.id),
+                title: e.title.clone(),
+                icon: "list",
+                detail: e.summary.clone(),
+                shortcut: None,
+                enabled: true,
+                recent: false,
+            })
+            .collect()
+    }
+
     pub(super) fn close(&mut self) {
         self.open = false;
-        self.fix = None;
+        self.page.fix = None;
     }
     fn visit(&mut self, page: Page) {
-        if self.page != page {
+        if self.page.location != page.location
+            || self.page.query != page.query
+            || self.page.fix.is_some()
+            || page.fix.is_some()
+        {
             if self.back.len() >= 128 {
                 self.back.remove(0);
             }
@@ -88,7 +134,7 @@ impl HelpSheet {
         if let Ok(id) = topic.parse::<HelpId>() {
             self.visit(Page {
                 location: Location::Topic(id),
-                query: String::new(),
+                ..Page::default()
             });
         }
         self.focus = true;
@@ -117,11 +163,14 @@ impl HelpSheet {
             self.open_topic("panel/keyboard-shortcuts");
         }
     }
-    pub(super) fn finding(&mut self, code: &str, key: ReportKey, fix: Option<Fix>) {
+    pub(super) fn finding(
+        &mut self,
+        code: sparksmith_core::diagnostics::FindingCode,
+        key: ReportKey,
+        fix: Option<Fix>,
+    ) {
         self.open_topic(&format!("finding/{code}"));
-        if let Location::Topic(id) = &self.page.location {
-            self.fix = fix.map(|fix| (id.clone(), key, fix));
-        }
+        self.page.fix = fix.map(|fix| (key, fix));
     }
     fn previous(&mut self) {
         if let Some(page) = self.back.pop() {
@@ -168,25 +217,32 @@ impl HelpSheet {
                 self.close();
             }
         });
+        let shortcut_page = matches!(&self.page.location, Location::Topic(id) if id.as_str() == "panel/keyboard-shortcuts");
+        let hint = if shortcut_page {
+            "Filter by name or key"
+        } else {
+            "Search help"
+        };
         let field_id = Id::unique("help-search");
         let mut query = self.page.query.clone();
         let field = kit::search_field(
             ui,
             field_id,
             &mut query,
-            "Search help",
+            hint,
             false,
             std::mem::take(&mut self.focus),
             256,
         );
-        field.widget_info(|| egui::WidgetInfo::labeled(egui::Role::TextInput, true, "Search help"));
+        field.widget_info(|| egui::WidgetInfo::labeled(egui::Role::TextInput, true, hint));
         if field.changed() {
-            if matches!(self.page.location, Location::Search) {
+            if shortcut_page || matches!(self.page.location, Location::Search) {
                 self.page.query = query;
             } else {
                 self.visit(Page {
                     location: Location::Search,
                     query,
+                    fix: None,
                 });
             }
             self.shown = PAGE_SIZE;
@@ -216,7 +272,7 @@ impl HelpSheet {
             ))
             .auto_shrink([false, false])
             .show(ui, |ui| match self.page.location.clone() {
-                Location::Search => self.results(ui, index, field.has_focus()),
+                Location::Search => self.results(ui, context, index, field.has_focus()),
                 Location::Topic(id) => {
                     let Some(entry) = index.get(&id) else {
                         kit::refusal_wrapped(
@@ -237,10 +293,9 @@ impl HelpSheet {
                         self.open_topic(to.as_str());
                     }
                     if id.as_str() == "panel/keyboard-shortcuts" {
-                        shortcuts(ui, index, registry, active);
+                        shortcuts(ui, index, registry, active, &self.page.query);
                     }
-                    if let Some((at, key, fix)) = &self.fix
-                        && *at == id
+                    if let Some((key, fix)) = &self.page.fix
                         && *key == engine.report_key()
                         && kit::primary(ui, fix.label(), true).clicked()
                     {
@@ -251,11 +306,14 @@ impl HelpSheet {
         clicked_fix
     }
 
-    fn results(&mut self, ui: &mut Ui, index: &Index, typing: bool) {
-        let hits: Vec<_> = help::search(index, &self.page.query, &[], usize::MAX)
-            .into_iter()
-            .filter(visible)
-            .collect();
+    fn results(
+        &mut self,
+        ui: &mut Ui,
+        context: &std::sync::Arc<sparksmith_core::library::standards::Context>,
+        index: &Index,
+        typing: bool,
+    ) {
+        let hits = self.matches.ids(context, index, &self.page.query);
         if hits.is_empty() {
             kit::note(ui, "No help topics match.");
             return;
@@ -263,7 +321,10 @@ impl HelpSheet {
         // Keep the search rank inside each kind. The keyboard follows the
         // same grouped order as the visible links.
         let limit = self.shown.max(PAGE_SIZE).min(hits.len());
-        let mut rows = hits[..limit].to_vec();
+        let mut rows: Vec<_> = hits[..limit]
+            .iter()
+            .filter_map(|id| index.get(id))
+            .collect();
         rows.sort_by_key(|e| e.id.kind());
         let keys = typing.then(|| std::mem::take(&mut self.navigation));
         if let Some(keys) = &keys {
@@ -284,6 +345,9 @@ impl HelpSheet {
             let response = ui
                 .selectable_label(typing && self.selected == i, &entry.title)
                 .on_hover_text(&entry.summary);
+            ui.ctx().accesskit_node_builder(response.id, |node| {
+                node.set_role(egui::accesskit::Role::Link)
+            });
             if response.clicked() || (keys.as_ref().is_some_and(|k| k.enter) && self.selected == i)
             {
                 picked = Some(entry.id.clone());
@@ -361,13 +425,12 @@ fn inlines(
     });
 }
 
-fn shortcuts(ui: &mut Ui, index: &Index, registry: &Registry, active: &[Context]) {
+fn shortcuts(ui: &mut Ui, index: &Index, registry: &Registry, active: &[Context], query: &str) {
     kit::note(ui, crate::reveal::hint_line());
-    let id = Id::unique("shortcuts-filter");
-    let mut query = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_default();
-    kit::filter_field(ui, id, &mut query, "Filter by name or key", false, 128);
-    let groups = shortcut_sheet::groups(index, registry, &query, active);
-    ui.data_mut(|d| d.insert_temp(id, query));
+    let groups = shortcut_sheet::groups(index, registry, query, active);
+    if groups.is_empty() {
+        kit::note(ui, "No shortcut matches.");
+    }
     for group in groups {
         let label = if group.here {
             format!("{} · here", group.context.label())
@@ -491,19 +554,35 @@ fn topic(
             }
             heading(ui, "Fix");
             ui.label(fix);
-            let profile = engine.project().rules.profile.as_ref();
-            let rule: Option<HelpId> = rule_key
-                .as_deref()
-                .and_then(|key| format!("rule/{}/{key}", profile?.id).parse().ok());
-            if let Some(id) = rule
-                .as_ref()
-                .or(checks.as_ref())
-                .filter(|id| index.contains_key(*id))
+            if let Some(profile) = &engine.project().rules.profile
+                && let Some(key) = rule_key
+                    .as_deref()
+                    .and_then(sparksmith_core::rules::RuleKey::from_name)
+                && let Some((_, row)) = profile.active(key)
             {
-                topic_link(ui, index, id, &mut target);
-                if let Some(Facts::Rule { source, .. }) = index.get(id).map(|e| &e.facts) {
-                    source_link(ui, &source.document, &source.url);
+                heading(ui, &profile.name);
+                let value = key.get(profile.rules());
+                match value {
+                    sparksmith_core::rules::RuleValue::Length(mm) => {
+                        quantity(ui, &key.label(), &mm.into(), "mm", unit)
+                    }
+                    other => {
+                        kit::value_row(ui, &key.label(), &crate::pcb_editor::rule_text(key, other))
+                    }
                 }
+                if !row.is_empty() {
+                    ui.label(row);
+                }
+                source_link(ui, &profile.source.document, &profile.source.url);
+                let id = format!("rule/{}/{}", profile.id, key.name())
+                    .parse::<HelpId>()
+                    .ok();
+                if let Some(id) = id.filter(|id| index.contains_key(id)) {
+                    topic_link(ui, index, &id, &mut target);
+                }
+            }
+            if let Some(id) = checks {
+                topic_link(ui, index, id, &mut target);
             }
             for id in fixed_by {
                 topic_link(ui, index, id, &mut target);
@@ -564,9 +643,12 @@ fn topic(
             class,
             schema_digest,
             examples,
-            ..
+            entry_kind,
         } => {
             kit::value_row(ui, "Module", module);
+            if let Some(kind) = entry_kind.and_then(|kind| serde_json::to_value(kind).ok()) {
+                kit::value_row(ui, "Kind", &display(&kind));
+            }
             kit::value_row(ui, "Class", class.name());
             kit::value_row(ui, "Schema", schema_digest);
             for call in examples {
@@ -751,11 +833,21 @@ impl App {
             .filter(|(at, _, _)| *at == pass);
         let mut controls = vec![];
         crate::reveal::copy_targets(ctx, &mut controls);
+        let focused = ctx
+            .memory(|m| m.focused())
+            .and_then(|id| ctx.read_response(id));
         let command = ctx
             .pointer_hover_pos()
-            .and_then(|at| controls.iter().rev().find(|(_, rect)| rect.contains(at)))
-            .and_then(|(target, _)| {
-                super::key_reveal::command_of(&self.registry, self.workspace, *target)
+            .into_iter()
+            .chain(focused.map(|r| r.rect.center()))
+            .find_map(|at| {
+                controls
+                    .iter()
+                    .rev()
+                    .find(|(_, rect)| rect.contains(at))
+                    .and_then(|(target, _)| {
+                        super::key_reveal::command_of(&self.registry, self.workspace, *target)
+                    })
             })
             .map(|c| format!("command/{}", c.id));
         let id = clicked
@@ -779,7 +871,7 @@ impl App {
         } else if let Some((code, fix)) =
             self.issues.selection_help(&self.engine, &self.selection())
         {
-            self.help.finding(&code, self.engine.report_key(), fix);
+            self.help.finding(code, self.engine.report_key(), fix);
         } else if self.workspace == crate::shell::Workspace::Pcb && self.pcb.is_3d() {
             self.help.open_topic("panel/model-3d");
         } else {

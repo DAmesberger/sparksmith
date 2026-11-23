@@ -1947,13 +1947,13 @@ pub(crate) fn sheet_rows(
     registry: &crate::commands::Registry,
     filter: &str,
     active: &[crate::commands::Context],
-) -> Vec<(String, String)> {
-    let entries = registry.help_entries().expect("standard command ids");
+) -> Result<Vec<(String, String)>, String> {
+    let entries = registry.help_entries()?;
     let index = entries.into_iter().map(|e| (e.id.clone(), e)).collect();
-    shortcut_sheet::groups(&index, registry, filter, active)
+    Ok(shortcut_sheet::groups(&index, registry, filter, active)
         .into_iter()
         .flat_map(|g| g.rows)
-        .collect()
+        .collect())
 }
 
 #[cfg(test)]

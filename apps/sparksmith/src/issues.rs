@@ -367,7 +367,7 @@ pub enum Request {
     },
     Fix(Fix),
     Help {
-        code: String,
+        code: sparksmith_core::diagnostics::FindingCode,
         fix: Option<Fix>,
     },
 }
@@ -664,7 +664,7 @@ impl Surface {
         &self,
         engine: &Engine,
         selection: &[ObjectRef],
-    ) -> Option<(String, Option<Fix>)> {
+    ) -> Option<(sparksmith_core::diagnostics::FindingCode, Option<Fix>)> {
         if selection.is_empty() {
             return None;
         }
@@ -675,7 +675,7 @@ impl Surface {
             .iter()
             .find(|row| row.objects().any(|object| selection.contains(object)))?;
         Some((
-            row.finding.code.to_string(),
+            row.finding.code,
             self.has_current_report(engine).then(|| fix(row)).flatten(),
         ))
     }
@@ -1146,7 +1146,7 @@ impl Surface {
                         None
                     }
                     RowAction::Help => Some(Request::Help {
-                        code: issue.finding.code.to_string(),
+                        code: issue.finding.code,
                         fix: fix(issue),
                     }),
                     RowAction::Fix => fix(issue).map(Request::Fix),

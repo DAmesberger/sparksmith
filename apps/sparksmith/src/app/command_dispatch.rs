@@ -520,9 +520,7 @@ impl App {
                 .collect();
             rows.extend(super::workflow_host::workflow_rows(&workflows, query));
             rows.extend(recent_rows(&projects, query));
-            if let Some(index) = self.engine.context().and_then(|c| c.help().ok()) {
-                rows.extend(super::help_sheet::palette_rows(index, query));
-            }
+            rows.extend(self.help.palette_rows(&self.engine, query));
             rows
         });
         if let Some(PaletteEvent::Run(id)) = &event

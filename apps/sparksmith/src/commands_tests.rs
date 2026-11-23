@@ -321,7 +321,7 @@ fn a_rebinding_reaches_lookup_display_and_the_sheet() -> Result<(), String> {
     let command = registry.get("route.width-next").ok_or("width")?;
     assert_eq!(registry.shortcut(command).as_deref(), Some("Q"));
     assert!(registry.is_custom("route.width-next"));
-    let sheet = crate::app::sheet_rows(&registry, "next track width", &active);
+    let sheet = crate::app::sheet_rows(&registry, "next track width", &active)?;
     assert_eq!(sheet, vec![("Next track width".to_owned(), "Q".to_owned())]);
     registry.reset("route.width-next");
     assert_eq!(
@@ -718,9 +718,9 @@ fn menu_rows_show_one_key_of_a_command_with_two() -> Result<(), String> {
 /// The shortcuts sheet has one row per name in a context: the palette's
 /// two keys share it (N7).
 #[test]
-fn the_shortcut_sheet_lists_a_name_once_with_all_its_keys() {
+fn the_shortcut_sheet_lists_a_name_once_with_all_its_keys() -> Result<(), String> {
     let registry = Registry::standard();
-    let rows = crate::app::sheet_rows(&registry, "Command palette", &[Context::Global]);
+    let rows = crate::app::sheet_rows(&registry, "Command palette", &[Context::Global])?;
     let shown: Vec<_> = rows
         .iter()
         .filter(|(n, _)| n == "Command palette")
@@ -732,6 +732,7 @@ fn the_shortcut_sheet_lists_a_name_once_with_all_its_keys() {
     );
     assert_eq!(shown.len(), 1, "{rows:?}");
     assert_eq!(shown[0].1, both);
+    Ok(())
 }
 
 /// The row for every desktop command, including gesture-only keys, comes
@@ -759,7 +760,7 @@ fn help_registry_matches_shipped_commands() -> Result<(), Box<dyn std::error::Er
     let mut data = serde_json::to_string_pretty(&entries)?;
     data.push('\n');
     if std::env::var_os("SPARKSMITH_UPDATE_HELP").as_deref() == Some(std::ffi::OsStr::new("1")) {
-        std::fs::write(&path, &data)?;
+        sparksmith_io::persistence::atomic_write(&path, data.as_bytes())?;
     }
     let shipped = std::fs::read_to_string(path)?;
     assert_eq!(serde_json::from_str::<Vec<HelpEntry>>(&shipped)?, entries);
