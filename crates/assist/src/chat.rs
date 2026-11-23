@@ -355,7 +355,7 @@ pub fn turn(
                     cancel,
                     events,
                 }
-                .send(request, prompt, false)
+                .send_chat(*request, prompt, context, false)
                 .ok()
                 .filter(|received| received.terminal.is_none())
                 .map(|received| received.reply)
@@ -444,7 +444,7 @@ pub fn turn(
             cancel,
             events,
         })
-        .send(&request, prompt, true)
+        .send_chat(request, prompt, context, true)
         {
             Ok(received) => received,
             Err(stop) => break stop.into(),
@@ -453,6 +453,7 @@ pub fn turn(
             break stop.into();
         }
         let n = received.n;
+        let limit = received.output_limit;
         let reply = received.reply;
         if reply.stop == StopReason::Stopped || cancel.load(Ordering::Relaxed) {
             // Stopped while the reply arrived: it is never used.

@@ -714,3 +714,66 @@ fn chat_and_mcp_share_one_copy_of_the_method() -> Fallible {
     assert!(sparksmith_automation::mcp::instructions(true)?.starts_with(&method));
     Ok(())
 }
+
+#[test]
+fn summary_and_chat_fit_the_counted_prompt_in_the_declared_context() -> Fallible {
+    struct Counted {
+        input: u64,
+        counted: Vec<bool>,
+        sent: Vec<(bool, u32)>,
+    }
+    impl ModelBackend for Counted {
+        fn label(&self) -> String {
+            "offline counter".into()
+        }
+        fn count_prompt_tokens(&mut self, req: &ModelRequest<'_>) -> Result<Option<u64>> {
+            self.counted.push(req.tools.is_empty());
+            Ok(Some(self.input))
+        }
+        fn send(&mut self, req: &ModelRequest<'_>) -> Result<ModelReply> {
+            self.sent
+                .push((req.tools.is_empty(), req.max_output_tokens));
+            Ok(text("Finished"))
+        }
+    }
+    let mut config = config()?;
+    config.profile.capabilities.context_tokens = 4096;
+    config.profile.output.per_request = 2048;
+    config.policy.trigger = 0.10;
+    config.policy.target = 0.05;
+    for (input, run) in [(3500, true), (4096, false)] {
+        let mut model = Counted {
+            input,
+            counted: Vec::new(),
+            sent: Vec::new(),
+        };
+        let mut tools = Recorder {
+            calls: vec![],
+            answer: |_, _| Value::Null,
+        };
+        let result = turn(
+            &config,
+            &mut model,
+            &mut summary_history(),
+            vec![Part::text("Next")],
+            &mut tools,
+            &mut |_| {},
+            &AtomicBool::new(false),
+        );
+        assert_eq!(model.counted, [true, false], "summary then chat");
+        if run {
+            assert_eq!(model.sent, [(true, 596), (false, 596)]);
+            assert_eq!(result.end, End::Answered);
+        } else {
+            assert!(model.sent.is_empty());
+            assert!(matches!(
+                result.end,
+                End::Limit {
+                    hit: Hit::Tokens,
+                    ..
+                }
+            ));
+        }
+    }
+    Ok(())
+}

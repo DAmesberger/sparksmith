@@ -43,6 +43,7 @@ pub(crate) struct Received {
     pub reply: ModelReply,
     pub n: u32,
     pub seconds: f64,
+    pub output_limit: u32,
     /// Preserve completed accounting, but do not use a reply received after a limit.
     pub terminal: Option<Stopped>,
 }
@@ -79,6 +80,34 @@ impl Driver<'_> {
             ));
         }
         Ok(Allowance { output, duration })
+    }
+
+    /// Count the final chat prompt, including private summary requests,
+    /// after the history and tool definitions for this dispatch are known.
+    pub fn send_chat(
+        &mut self,
+        mut request: ModelRequest<'_>,
+        estimate: u64,
+        context: u64,
+        visible: bool,
+    ) -> std::result::Result<Received, Stopped> {
+        self.allowance()?;
+        let prompt = self
+            .backend
+            .count_prompt_tokens(&request)
+            .ok()
+            .flatten()
+            .unwrap_or(estimate);
+        request.fit_output(context, prompt);
+        if request.max_output_tokens == 0 {
+            return Err(Stopped::Limit(
+                Hit::Tokens,
+                format!(
+                    "The prompt needs about {prompt} tokens and leaves no room to answer in the model's {context}-token context."
+                ),
+            ));
+        }
+        self.send(&request, prompt, visible)
     }
 
     /// Recheck after prompt preparation/counting, immediately before the
@@ -191,6 +220,7 @@ impl Driver<'_> {
             reply,
             n,
             seconds,
+            output_limit: request.max_output_tokens,
             terminal,
         })
     }

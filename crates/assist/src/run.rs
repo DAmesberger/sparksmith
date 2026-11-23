@@ -706,7 +706,7 @@ pub(crate) fn converse(
                 profile.capabilities.context_tokens, profile.model
             ));
         }
-        request.max_output_tokens = u32::try_from(room.min(u64::from(limit))).unwrap_or(limit);
+        request.fit_output(profile.capabilities.context_tokens, prompt_tokens);
         let requested = u64::from(request.max_output_tokens);
         let received = match (crate::request::Driver {
             backend,
