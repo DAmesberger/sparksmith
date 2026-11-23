@@ -2755,8 +2755,8 @@ fn dielectric_sum(stackup: &Stackup, range: std::ops::Range<usize>) -> String {
 
 /// The laminate's slabs ([`plan::BoardPlan::laminate`]), each extruded
 /// with its holes: the saved bodies are disjoint and the laminate's mass
-/// is physical, without a Boolean, so a board of thousands of vias is
-/// built in time linear in their number. A rectangular board's outline
+/// is physical. The native extrusion builds the drilled profile directly.
+/// A rectangular board's outline
 /// follows `board_width` and `board_depth`; a sketched board's is its
 /// solved outline ([`crate::board::laminate`]), and it does not follow
 /// those parameters. The holes sit where the board's copper is now (they

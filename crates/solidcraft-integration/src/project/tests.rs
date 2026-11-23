@@ -717,6 +717,42 @@ fn via_build_profile() -> Result<()> {
     Ok(())
 }
 
+/// Isolate the exact substrate stage sampled by the native export review.
+/// Run the small case first so its measurements survive a large-case timeout.
+#[test]
+#[ignore = "benchmark"]
+fn four_layer_exact_slab_profile() -> Result<()> {
+    let _scope = native_scale_context()?;
+    for (added, total_vias, tracks) in [(100, 121, 108), (10_000, 10_021, 258)] {
+        let project = via_board(added)?;
+        assert_eq!(project.vias.len(), total_vias);
+        assert_eq!(project.tracks.len(), tracks);
+        let board = plan::of(&project)?;
+        assert_eq!(board.laminate.len(), 5);
+
+        let mut builder = Builder::new("Laminate timing", &SourceCache::default())?;
+        builder.native.defer_evaluation()?;
+        stackup_params(&mut builder, &project)?;
+        builder.native.component("PCB substrate", true)?;
+        for slab in &board.laminate {
+            eprintln!(
+                "{total_vias} vias, {tracks} tracks: starting {}, {} contours",
+                slab.name,
+                slab.loops.len()
+            );
+            let start = std::time::Instant::now();
+            laminate(&mut builder, &project, std::slice::from_ref(slab))?;
+            eprintln!("{} built in {:?}", slab.name, start.elapsed());
+            assert_eq!(builder.bodies.get(&slab.name), Some(&BodyKind::Substrate));
+        }
+        eprintln!("Evaluating {total_vias}-via laminate");
+        let start = std::time::Instant::now();
+        builder.native.evaluate_deferred()?;
+        eprintln!("Laminate evaluated in {:?}", start.elapsed());
+    }
+    Ok(())
+}
+
 /// Every body's surface is exactly the look the native file stores, as
 /// Solidcraft's own product-scene extraction reads it.
 fn looks_match_the_native_file(model: &NativeModel) -> Result<()> {
