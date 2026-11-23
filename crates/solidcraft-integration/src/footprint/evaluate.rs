@@ -693,7 +693,7 @@ fn expand(
 
 fn arc_of(sk: &Sketch, c: usize, a: usize, b: usize) -> Outcome<Shape> {
     let (Some(pc), Some(pa), Some(pb)) = (sk.point(c), sk.point(a), sk.point(b)) else {
-        return Err(problem(BAD, "an arc names a missing point"));
+        return Err(problem(FindingCode::FootprintGraphic, "an arc names a missing point"));
     };
     let start = (pa.y - pc.y).atan2(pa.x - pc.x).to_degrees();
     let end = (pb.y - pc.y).atan2(pb.x - pc.x).to_degrees();

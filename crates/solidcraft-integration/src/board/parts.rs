@@ -32,7 +32,7 @@ use solidcraft_engine::sketch::{
 use sparksmith_core::diagnostics::{Finding, ObjectRef, Result};
 use sparksmith_core::ids::Id;
 use sparksmith_core::layout::dimensions::{
-    FeatureGeometry, PartFreedom, PartPose, PartsRequest, PartsSolution, REFERENCE_LOST,
+    FeatureGeometry, PartFreedom, PartPose, PartsRequest, PartsSolution,
 };
 use sparksmith_core::library::footprint_source::{
     DimKind, DimValue, GeomConstraint, SketchRef, SolveStatus,
