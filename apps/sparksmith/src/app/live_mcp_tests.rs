@@ -9,6 +9,9 @@ use serde_json::{Value, json};
 use sparksmith_automation::live::{self, Client, ClientToken};
 use sparksmith_ui::fonts;
 
+#[path = "live_mcp_selection_tests.rs"]
+mod selection;
+
 type Fallible<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 /// No token or discovery files: the test never touches the user's folders.
@@ -260,7 +263,18 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
     let dir = tempfile::tempdir_in(std::env::temp_dir())?;
     let path = dir.path().join("board.solidcraft");
     let export = json!({"entry": "project.export_native",
-        "params": {"path": path.display().to_string()}});
+        "params": {"path": path.display().to_string(), "tier": "full", "write_anyway": true}});
+    let sparksmith_core::QueryResult::Preflight(report) = h
+        .app
+        .engine
+        .query(sparksmith_core::Query::Preflight { profile: None })?
+    else {
+        return Err("expected the demo board's preflight report".into());
+    };
+    assert!(
+        report.warnings > 0,
+        "the export card must review a real warning"
+    );
 
     let mut client = h.client()?;
     let sent = export.clone();
@@ -273,6 +287,85 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
     assert_eq!(h.app.live_held(), Some("project.export_native"));
+    let output = h.frame_output(Vec::new());
+    let labels: Vec<&str> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(t) => Some(t.galley.job.text.as_str()),
+            _ => None,
+        })
+        .collect();
+    let revision_label = revision.to_string();
+    let summary = crate::pcb_editor::report_summary(&report);
+    assert!(summary.contains("warning"), "{summary}");
+    for text in [
+        "Board revision",
+        revision_label.as_str(),
+        "Geometry tier",
+        "Full",
+        "Write even if geometry differs",
+        "Preflight",
+        summary.as_str(),
+    ] {
+        assert!(
+            labels.contains(&text),
+            "missing {text} on the approval card"
+        );
+    }
+    let finding = report.items.first().ok_or("preflight finding")?;
+    assert!(
+        labels.contains(&finding.title.as_str()),
+        "missing {}",
+        finding.title
+    );
+    let warning = report
+        .items
+        .iter()
+        .find(|item| {
+            item.severity == sparksmith_core::issues::Severity::Warning && item.waiver.is_none()
+        })
+        .ok_or("a warning to review")?;
+    let position = |output: &egui::FullOutput, text: &str| {
+        output.shapes.iter().find_map(|shape| match &shape.shape {
+            egui::Shape::Text(t)
+                if t.galley.job.text == text && shape.clip_rect.contains(t.pos) =>
+            {
+                Some(t.pos)
+            }
+            _ => None,
+        })
+    };
+    let over_table =
+        position(&output, &finding.title).ok_or("a visible preflight row")? + egui::vec2(2.0, 2.0);
+    let mut visible = output;
+    // Scroll the card's report if errors precede the first warning.
+    for _ in 0..report.items.len() {
+        if position(&visible, &warning.title).is_some() {
+            break;
+        }
+        visible = h.frame_output(vec![
+            egui::Event::PointerMoved(over_table),
+            egui::Event::MouseWheel {
+                source: egui::MouseWheelSource::Unknown,
+                unit: egui::MouseWheelUnit::Line,
+                delta: egui::vec2(0.0, -2.0),
+                modifiers: egui::Modifiers::NONE,
+                phase: egui::TouchPhase::Move,
+            },
+        ]);
+    }
+    let row = position(&visible, &warning.title).ok_or("the warning title")?;
+    assert!(
+        visible
+            .shapes
+            .iter()
+            .any(|shape| matches!(&shape.shape, egui::Shape::Text(t)
+                if t.galley.job.text == "Warning" && t.pos.y == row.y && t.pos.x < row.x
+            )),
+        "the card must label the warning on its own row"
+    );
+    assert!(!path.exists());
     // Meanwhile another change is refused: the window waits for an answer.
     let waiting = h.call(live::CALL, h.add_via(revision))?;
     assert_eq!(code(&waiting), "live.busy", "{waiting}");
@@ -293,6 +386,8 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
     h.app.live_answer(true);
     let allowed = asked.join().map_err(|_| "client thread")??;
     assert_eq!(allowed["ok"], true, "{allowed}");
+    assert_eq!(allowed["result"]["tier"], "full", "{allowed}");
+    assert_eq!(allowed["result"]["revision"], revision, "{allowed}");
     assert!(path.exists());
     Ok(())
 }
@@ -502,5 +597,29 @@ fn an_assistant_steers_the_window_and_the_project_stays() -> Fallible {
     // One undo takes back the via: the view calls added no step.
     h.app.history(false);
     assert_eq!(h.app.engine.document(), &before);
+    Ok(())
+}
+
+#[test]
+fn a_connection_dialog_holds_the_live_edit_until_closed() -> Fallible {
+    let mut h = Harness::new()?;
+    let revision = h.app.engine.revision();
+    let before = h.app.engine.document().clone();
+    h.app.live.toggle_window();
+    h.frame(Vec::new());
+    assert!(h.app.live.is_open());
+    let batch = json!({"entry":"project.apply_all", "expected_revision":revision, "params":{
+        "operations": [{"editor":"Layout", "operation":{"command":"layout.add_via",
+            "params":h.add_via(revision)["params"]}}]
+    }});
+    assert_eq!(code(&h.call(live::CALL, batch.clone())?), "live.busy");
+    assert_eq!(h.app.engine.document(), &before);
+    assert_eq!(
+        h.call(live::REVISION, json!({}))?["result"]["revision"],
+        revision
+    );
+    h.app.live.close();
+    assert_eq!(h.call(live::CALL, batch)?["ok"], true);
+    assert_eq!(h.app.engine.revision(), revision + 1);
     Ok(())
 }

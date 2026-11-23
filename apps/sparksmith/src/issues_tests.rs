@@ -208,6 +208,7 @@ fn a_refused_query_is_not_counted_and_blockers_elsewhere_are_named() {
     assert_eq!(
         Summary::from_report(&report),
         Summary::Counted {
+            checking: false,
             counts,
             elsewhere: Some("2 blocking in Component".into()),
         }

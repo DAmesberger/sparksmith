@@ -92,7 +92,7 @@ pub struct QueryArgs {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunArgs {
-    /// The handle from the last reply.
+    /// Target handle if several are open.
     #[serde(default)]
     pub project: Option<String>,
     pub name: String,
@@ -118,7 +118,7 @@ impl From<QueryArgs> for RunArgs {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ApplyArgs {
-    /// The handle from the last reply.
+    /// Target handle if several are open.
     #[serde(default)]
     pub project: Option<String>,
     pub expected_revision: u64,

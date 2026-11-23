@@ -254,7 +254,7 @@
                   "type": "array"
                 },
                 "project": {
-                  "description": "The handle from the last reply.",
+                  "description": "Target handle if several are open.",
                   "type": "string"
                 }
               },
@@ -288,7 +288,7 @@
                   "type": "object"
                 },
                 "project": {
-                  "description": "The handle from the last reply.",
+                  "description": "Target handle if several are open.",
                   "type": "string"
                 }
               },
@@ -906,7 +906,7 @@
                   "type": "array"
                 },
                 "project": {
-                  "description": "The handle from the last reply.",
+                  "description": "Target handle if several are open.",
                   "type": "string"
                 }
               },
@@ -940,7 +940,7 @@
                   "type": "object"
                 },
                 "project": {
-                  "description": "The handle from the last reply.",
+                  "description": "Target handle if several are open.",
                   "type": "string"
                 }
               },

@@ -176,6 +176,12 @@ pub struct ModelRequest<'a> {
 }
 
 impl ModelRequest<'_> {
+    /// Keep the output reservation within the context left by the prompt.
+    pub(crate) fn fit_output(&mut self, context: u64, prompt: u64) {
+        let room = u32::try_from(context.saturating_sub(prompt)).unwrap_or(u32::MAX);
+        self.max_output_tokens = self.max_output_tokens.min(room);
+    }
+
     /// The UTF-8 size of tool definitions, system text and message history.
     pub fn prompt_bytes(&self) -> Result<usize> {
         Ok(serde_json::to_vec(self.tools)?

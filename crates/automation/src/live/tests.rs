@@ -184,6 +184,13 @@ fn the_window_decides_files_and_asks() -> Fallible {
     };
     assert_eq!(admitted.class(), Class::Ask);
     assert_eq!(question.command, "project.export_native");
+    let review = admitted.native_export().ok_or("native export snapshot")?;
+    assert_eq!(review.revision(), revision);
+    assert_eq!(
+        review.params().tier,
+        sparksmith_core::model::interface::Tier::Mechanical
+    );
+    assert!(!review.params().write_anyway);
 
     let never = envelope(
         "library.favourite",
@@ -219,6 +226,50 @@ fn the_window_decides_files_and_asks() -> Fallible {
         return Err("the revision was not answered".into());
     };
     assert_eq!(now["result"]["revision"], revision);
+    Ok(())
+}
+
+/// A person approved an export of the first board. A second open copy at
+/// the same revision, an edit, and a change to the preflight inputs each
+/// invalidate that decision before a destination can be created.
+#[test]
+fn a_native_export_approval_is_bound_to_the_reviewed_board() -> Fallible {
+    let dir = tempfile::tempdir_in(std::env::temp_dir())?;
+    let path = dir.path().join("reviewed.solidcraft");
+    let mut original = Session::new(Engine::demo()?);
+    let export = envelope(
+        "project.export_native",
+        json!({"path": path, "tier": "full", "write_anyway": true}),
+        None,
+    );
+    let Verdict::Ask(approved, _) = decide(&original, None, &export) else {
+        return Err("native export did not ask for approval".into());
+    };
+    let mut other = Session::new(Engine::demo()?);
+    assert_eq!(other.engine().revision(), original.engine().revision());
+    let mut window = crate::view::Fake::idle();
+    let reply = run(&mut other, &approved, &mut window);
+    assert_eq!(code(&reply), "live.stale_approval", "{reply}");
+    assert!(!path.exists());
+
+    let settings = *original.engine().check_settings();
+    original
+        .engine_mut()
+        .set_check_settings(sparksmith_core::layout::CheckSettings {
+            impedance_tolerance: Some(7.0),
+        })?;
+    let reply = run(&mut original, &approved, &mut window);
+    assert_eq!(code(&reply), "live.stale_approval", "{reply}");
+    assert!(!path.exists());
+    original.engine_mut().set_check_settings(settings)?;
+    let via = add_via(&original, original.engine().revision());
+    let Verdict::Run(edit) = decide(&original, None, &via) else {
+        return Err("could not edit the reviewed board".into());
+    };
+    assert_eq!(run(&mut original, &edit, &mut window)["ok"], true);
+    let reply = run(&mut original, &approved, &mut window);
+    assert_eq!(code(&reply), "live.stale_approval", "{reply}");
+    assert!(!path.exists());
     Ok(())
 }
 

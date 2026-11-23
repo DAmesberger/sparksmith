@@ -171,6 +171,25 @@ fn settled_replies_count_the_bytes_their_json_strings_send() -> Fallible {
 }
 
 #[test]
+fn rehearsal_status_survives_clearing_its_reply() {
+    let input = json!({"expected_revision":2, "operations":[{"op":"layout.add_via"}]});
+    let reply = json!({"dry_run":true, "revision":2, "changes":{"added":{"vias":[40]}}});
+    let mut history = vec![
+        calls(&[("plan", "apply", input)]),
+        results(&[("plan", reply.to_string())]),
+    ];
+    for _ in 0..2 {
+        let kept = record(&history);
+        assert!(kept.contains("Rehearsed"), "{kept}");
+        assert!(
+            !kept.contains("Committed") && !kept.contains("→ done"),
+            "{kept}"
+        );
+        clear_before(&mut history, 2, |_| true);
+    }
+}
+
+#[test]
 fn condensing_keeps_the_ids_of_edits_and_the_person_s_words_and_drops_listings() -> Fallible {
     let place =
         json!({"expected_revision": 3, "operations": [{"op": "component.place", "params": {}}]});

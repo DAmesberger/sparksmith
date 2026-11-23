@@ -321,9 +321,9 @@
   {"name":"help.search","class":"read","schema":"1f140fc7181dbb28","reply":"f7f7e63bc0e93cab","fields":[["kinds","74f398496713266b"],["limit","726129b43889f18b"],["text","f186891b5656c9ae"]],"required":["text"]},
   {"name":"help.topic","class":"read","schema":"882ef413e4e63145","reply":"eb980ca8cbe31c9e","fields":[["budget_bytes","726129b43889f18b"],["id","f186891b5656c9ae"],["offset","1f26cc0dcb9ea317"],["sections","9418e0cfb25d3cd0"]],"required":["id"]}
  ]},
- {"id": "view", "version": "1.4", "digest": "sha256:68c2ad49ffdfc5fbd8407531031c1926ab857e09ea9a2d68ca942b3255689eab", "entries": [
+ {"id": "view", "version": "1.5", "digest": "sha256:4296ce81bc918f70a1bfe97d3a295cd5b77c7e47a2de01459953566c783a8d7a", "entries": [
   {"name":"view.context","class":"read","schema":"2c692f52f8c0092b","reply":"d70c489db4058ef7","fields":[],"required":[]},
   {"name":"view.open","class":"show","schema":"f138f09bd022744a","reply":"d70c489db4058ef7","fields":[["definition","6fcbdbe3a9c678cf"],["sheet","3b67158582ea34e4"],["view","c6274c58684e265b"],["workspace","145314089e5b05c0"]],"required":["workspace"]},
-  {"name":"view.select","class":"show","schema":"74fda399933448fc","reply":"babf0408cc29f087","fields":[["designators","4becd9a3f6ae1227"],["ids","6d2acba515ad7076"],["objects","30082e1094ad81ae"]],"required":[]}
+  {"name":"view.select","class":"show","schema":"74fda399933448fc","reply":"0b7fa8a760147c6a","fields":[["designators","4becd9a3f6ae1227"],["ids","6d2acba515ad7076"],["objects","30082e1094ad81ae"]],"required":[]}
  ]}
 ]}

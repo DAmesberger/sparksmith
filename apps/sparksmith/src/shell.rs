@@ -168,6 +168,7 @@ pub enum RibbonEvent {
 /// workspace's counts and is lit while the Issues card is expanded.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct IssuesToggle {
+    pub checking: bool,
     /// `None` while the issues cannot be counted.
     pub counts: Option<sparksmith_core::issues::IssueCounts>,
     pub expanded: bool,
@@ -620,11 +621,19 @@ fn issues_toggle(ui: &mut Ui, slot: Rect, toggle: &IssuesToggle) -> bool {
     ui.painter().text(
         pos2(rect.center().x, rect.top() + 32.0),
         Align2::CENTER_TOP,
-        "Issues",
+        if toggle.checking {
+            crate::issues::CHECKING_CHANGES
+        } else {
+            "Issues"
+        },
         font,
         ink,
     );
-    let label = format!("Issues: {words}");
+    let label = if toggle.checking {
+        format!("Issues: {words} · {}", crate::issues::CHECKING_CHANGES)
+    } else {
+        format!("Issues: {words}")
+    };
     response.widget_info(|| {
         egui::WidgetInfo::selected(egui::Role::Button, true, toggle.expanded, &label)
     });

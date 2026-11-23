@@ -434,6 +434,14 @@ impl PartEditor {
         self.pad_drag = None;
     }
 
+    /// A different project owns the window. Drop its predecessor's generator
+    /// choices and pending workers, including the start page's create action.
+    pub fn discard_generator_requests(&mut self) {
+        self.gallery = Default::default();
+        self.gallery.set_shelf(&self.shelf);
+        self.start = Default::default();
+    }
+
     /// The operation committing a finished edit, if any. Call once per frame
     /// after the editor's widgets ran.
     fn commit_inner(&mut self, ctx: &egui::Context, engine: &Engine) -> Option<Operation> {
@@ -920,7 +928,7 @@ impl PartEditor {
             "pad-fiducial" => self.add_pad(footprint_geometry::NewPad::Fiducial),
             "remove-pad" => self.remove_pad(),
             "remove-terminal" => self.remove_selected(),
-            footprint_template_picker::TOOL => self.open_template_picker(),
+            footprint_template_picker::TOOL => self.open_template_picker(engine),
             "publish" => return self.publish(engine),
             _ => {}
         }

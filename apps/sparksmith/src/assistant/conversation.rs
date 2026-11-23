@@ -195,6 +195,7 @@ pub struct Conversation {
     pub usage: Use,
     /// The tokens of every turn that ended, as the provider reported them.
     pub spent: Usage,
+    pub spent_estimated: bool,
     /// The person's limits the turn running was given, if they set any.
     pub limits: Option<Limits>,
     /// The reply and reasoning items the current request's deltas grow.
@@ -210,6 +211,7 @@ impl Default for Conversation {
             state: State::Idle,
             usage: Use::default(),
             spent: Usage::default(),
+            spent_estimated: false,
             limits: None,
             reply_at: None,
             reasoning_at: None,
@@ -279,6 +281,7 @@ impl Conversation {
                     tokens: meter.tokens.used,
                     seconds: meter.minutes.used as f64 * 60.0,
                     reported: meter.reported,
+                    usage_estimated: meter.usage_estimated,
                 };
             }
             Event::Condensed(condensed) => self.push(Item::Condensed {
@@ -403,7 +406,13 @@ impl Conversation {
     pub fn ended(&mut self, mut summary: TurnSummary, end: &chat::End) {
         let turn = summary.usage.reported;
         self.spent.add(&turn);
-        summary.spend = spend_lines(&turn, &self.spent);
+        self.spent_estimated |= summary.usage.usage_estimated;
+        summary.spend = spend_lines(
+            &turn,
+            &self.spent,
+            summary.usage.usage_estimated,
+            self.spent_estimated,
+        );
         if let chat::End::Limit { hit, .. } = end {
             summary.limit = Some(LimitStop {
                 which: limit_words(*hit, self.limits.as_ref()),
@@ -486,10 +495,20 @@ fn use_words(usage: &Usage) -> String {
 }
 
 /// The card's lines for a turn's and the conversation's tokens.
-pub fn spend_lines(turn: &Usage, conversation: &Usage) -> Vec<String> {
+pub fn spend_lines(
+    turn: &Usage,
+    conversation: &Usage,
+    turn_estimated: bool,
+    conversation_estimated: bool,
+) -> Vec<String> {
+    let label = |estimated| if estimated { " (estimated)" } else { "" };
     vec![
-        format!("This turn: {}", use_words(turn)),
-        format!("This conversation: {}", use_words(conversation)),
+        format!("This turn: {}{}", use_words(turn), label(turn_estimated)),
+        format!(
+            "This conversation: {}{}",
+            use_words(conversation),
+            label(conversation_estimated)
+        ),
     ]
 }
 

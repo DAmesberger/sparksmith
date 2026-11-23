@@ -96,6 +96,9 @@ pub(crate) struct Contents {
     pub file: EditorFile,
     /// The `recovery.json` bytes of a recovery snapshot.
     pub recovery: Option<Vec<u8>>,
+    /// A recovery listing sees these exact metadata and document bytes. The
+    /// document names every asset by its content hash.
+    pub recovery_identity: Option<ContentHash>,
     /// Bytes decompressed while reading.
     pub read_bytes: u64,
 }
@@ -104,7 +107,7 @@ pub(crate) fn read(path: &Path, role: Role, load: Load) -> Result<Contents> {
     read_file(File::open(path)?, role, load)
 }
 
-fn read_file(mut file: File, role: Role, load: Load) -> Result<Contents> {
+pub(crate) fn read_file(mut file: File, role: Role, load: Load) -> Result<Contents> {
     let length = file.metadata()?.len();
     if length > CONTAINER_MAX_BYTES {
         return Err(Error::TooLarge(format!(
@@ -254,8 +257,17 @@ fn read_file(mut file: File, role: Role, load: Load) -> Result<Contents> {
         crate::generated::verify(&file)?;
         admit(&file, CONTAINER_MAX_DOCUMENT_BYTES)?;
     }
+    let recovery_identity = recovery.as_deref().map(|metadata| {
+        use sha2::{Digest, Sha256};
+        let mut hash = Sha256::new();
+        hash.update((metadata.len() as u64).to_le_bytes());
+        hash.update(metadata);
+        hash.update(&document);
+        ContentHash(hash.finalize().into())
+    });
     Ok(Contents {
         file,
+        recovery_identity,
         recovery,
         read_bytes,
     })

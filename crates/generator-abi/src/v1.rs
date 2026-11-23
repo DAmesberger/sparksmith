@@ -348,6 +348,7 @@ pub enum ParamType {
         max_chars: u32,
     },
     /// A decimal string of a standard quantity kind, e.g. `voltage` in `V`.
+    /// Values and inclusive bounds use plain ASCII decimal notation with an optional sign.
     Quantity {
         kind: String,
         unit: String,

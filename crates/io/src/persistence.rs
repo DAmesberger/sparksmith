@@ -134,12 +134,20 @@ pub fn save_project(
     expected: Option<DiskIdentity>,
 ) -> Result<DiskIdentity> {
     check_project_path(path)?;
-    container::save_container(path, file, expected)
+    // Stage and publish beside the linked file, including across volumes.
+    // A dangling link cannot safely identify an existing save destination.
+    let target = match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_symlink() => path.canonicalize()?,
+        Ok(_) => path.to_owned(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => path.to_owned(),
+        Err(error) => return Err(error.into()),
+    };
+    container::save_container(&target, file, expected)
 }
 
 /// The SHA-256 of `file`'s bytes, read from its start (bounded by the
 /// container's size limit); the file is left at its start.
-fn identity_of(file: &mut File) -> Result<DiskIdentity> {
+pub(crate) fn identity_of(file: &mut File) -> Result<DiskIdentity> {
     use sha2::{Digest, Sha256};
     use std::io::Seek;
     file.rewind()?;
@@ -234,8 +242,19 @@ fn still_at(file: &File, path: &Path) -> Result<bool> {
     }
 }
 
-/// Elsewhere the check is the identity comparison alone.
-#[cfg(not(unix))]
+/// Compare file identity while both Windows handles remain open. The path
+/// can name a replacement even while another writer holds the old handle.
+#[cfg(windows)]
+fn still_at(file: &File, path: &Path) -> Result<bool> {
+    let locked = same_file::Handle::from_file(file.try_clone()?)?;
+    match same_file::Handle::from_path(path) {
+        Ok(named) => Ok(locked == named),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 fn still_at(_file: &File, path: &Path) -> Result<bool> {
     Ok(path.exists())
 }

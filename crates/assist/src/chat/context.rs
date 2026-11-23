@@ -259,8 +259,105 @@ fn kept_from(history: &[Message], keep_rounds: usize) -> usize {
     0
 }
 
-/// The call that made each reply, as "verb {input}", by call id.
-fn calls_by_id(history: &[Message]) -> std::collections::HashMap<String, String> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Effect {
+    Rehearsed,
+    Committed,
+    Performed,
+    Unconfirmed,
+}
+
+impl Effect {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Rehearsed => "Rehearsed",
+            Self::Committed => "Committed",
+            Self::Performed => "Performed",
+            Self::Unconfirmed => "No change confirmed",
+        }
+    }
+}
+
+fn revision(value: &Value) -> Option<u64> {
+    value.as_u64().or_else(|| value.as_str()?.parse().ok())
+}
+
+#[derive(Clone, Copy)]
+struct Intent {
+    edit_or_action: bool,
+    dry_run: bool,
+    expected: Option<u64>,
+    asked: bool,
+}
+
+impl Intent {
+    fn new(verb: &str, input: &Value) -> Self {
+        Self {
+            edit_or_action: matches!(verb, "apply" | "act"),
+            dry_run: input["dry_run"] == true,
+            expected: revision(&input["expected_revision"]),
+            asked: verb == "show"
+                && matches!(input["name"].as_str(), Some("assist.ask" | "assist.offer")),
+        }
+    }
+
+    fn effect(self, result: &Value) -> Effect {
+        if self.dry_run || result["dry_run"] == true {
+            return Effect::Rehearsed;
+        }
+        if self.asked {
+            return Effect::Performed;
+        }
+        if !self.edit_or_action {
+            return Effect::Unconfirmed;
+        }
+        let changes = &result["changes"];
+        let changed_objects = ["added", "removed", "changed"].iter().any(|key| {
+            changes[*key].as_object().is_some_and(|map| {
+                map.values()
+                    .any(|ids| ids.as_array().is_some_and(|list| !list.is_empty()))
+            })
+        });
+        if changed_objects
+            || changes["fields"]
+                .as_array()
+                .is_some_and(|fields| !fields.is_empty())
+            || self
+                .expected
+                .zip(revision(&result["revision"]))
+                .is_some_and(|(before, after)| after > before)
+        {
+            Effect::Committed
+        } else if result["saved_path"].is_string()
+            || result["exported_path"].is_string()
+            || result["records_written"]
+                .as_u64()
+                .is_some_and(|count| count > 0)
+            || (result["output"].is_string()
+                && result["files"]
+                    .as_array()
+                    .is_some_and(|files| !files.is_empty()))
+        {
+            Effect::Performed
+        } else {
+            Effect::Unconfirmed
+        }
+    }
+}
+
+pub(super) fn made_progress(verb: &str, input: &Value, result: &Value) -> bool {
+    matches!(
+        Intent::new(verb, input).effect(result),
+        Effect::Committed | Effect::Performed
+    )
+}
+
+struct RecordedCall {
+    label: String,
+    intent: Intent,
+}
+
+fn calls_by_id(history: &[Message]) -> std::collections::HashMap<String, RecordedCall> {
     let mut calls = std::collections::HashMap::new();
     for message in history {
         for part in &message.content {
@@ -268,53 +365,35 @@ fn calls_by_id(history: &[Message]) -> std::collections::HashMap<String, String>
                 id, name, input, ..
             } = part
             {
-                let mut input = input.to_string();
-                if input.len() > 240 {
-                    let mut end = 240;
-                    while !input.is_char_boundary(end) {
-                        end -= 1;
-                    }
-                    input.truncate(end);
-                    input.push('…');
-                }
-                calls.insert(id.clone(), format!("{name} {input}"));
+                calls.insert(
+                    id.clone(),
+                    RecordedCall {
+                        label: format!("{name} {}", clip(input.to_string(), 240)),
+                        intent: Intent::new(name, input),
+                    },
+                );
             }
         }
     }
     calls
 }
 
-/// What stands in for a cleared reply: the call that made it, and for an
-/// edit the ids and names its reply gave, so nothing built is forgotten.
-fn stub(call: Option<&String>, reply: &str) -> String {
-    let chars = reply.len();
-    let kept = call
-        .filter(|call| is_edit(call))
-        .and_then(|_| serde_json::from_str::<Value>(reply).ok())
-        .map(|reply| {
-            let mut facts = Vec::new();
-            facts_of(&reply, 0, &mut facts);
-            facts
-        })
-        .filter(|facts| !facts.is_empty())
-        .map(|facts| format!(" {KEPT} {}.", facts.join(", ")))
-        .unwrap_or_default();
-    match call {
-        Some(call) => format!(
-            "{STUB}: the reply to {call} ({chars} characters) was read and cleared to save context.{kept} Call it again if you need it.]"
-        ),
-        None => format!(
-            "{STUB}: a reply of {chars} characters was read and cleared to save context. Call it again if you need it.]"
-        ),
-    }
-}
-
-/// Before the ids a cleared edit's stub keeps.
 const KEPT: &str = "It gave:";
 
-/// Whether a call ("verb {input}") is an edit or an action.
-fn is_edit(call: &str) -> bool {
-    matches!(call.split(' ').next(), Some("apply" | "act"))
+fn stub(call: Option<&RecordedCall>, reply: &str) -> String {
+    let chars = reply.len();
+    let mut kept = String::new();
+    if let Some(call) = call.filter(|c| c.intent.edit_or_action) {
+        let value = serde_json::from_str(reply).unwrap_or(Value::Null);
+        let effect = call.intent.effect(&value);
+        let mut facts = Vec::new();
+        facts_of(&value, 0, &mut facts);
+        kept = format!(" {}. {KEPT} {}.", effect.label(), facts.join(", "));
+    }
+    let label = call.map_or("a call", |c| c.label.as_str());
+    format!(
+        "{STUB}: the reply to {label} ({chars} characters) was read and cleared to save context.{kept} Call it again if you need it.]"
+    )
 }
 
 /// Clear the replies before `from` that `clear` picks; how many, and the
@@ -495,28 +574,46 @@ pub fn record(history: &[Message]) -> String {
                     let Some(call) = calls.get(call_id) else {
                         continue;
                     };
-                    if !is_edit(call) {
+                    if !call.intent.edit_or_action {
                         continue;
                     }
-                    let facts = if text.starts_with(STUB) {
-                        text.split_once(KEPT)
-                            .and_then(|(_, rest)| rest.split_once(". Call it again"))
-                            .map(|(facts, _)| facts.trim().to_owned())
-                            .unwrap_or_default()
+                    let (effect, facts) = if text.starts_with(STUB) {
+                        let (effect, _) = text.split_once(KEPT).unwrap_or(("", ""));
+                        let effect = [Effect::Committed, Effect::Performed, Effect::Rehearsed]
+                            .into_iter()
+                            .find(|e| {
+                                effect
+                                    .trim_end()
+                                    .strip_suffix('.')
+                                    .is_some_and(|s| s.ends_with(e.label()))
+                            })
+                            .unwrap_or(Effect::Unconfirmed);
+                        (
+                            effect,
+                            text.split_once(KEPT)
+                                .and_then(|(_, rest)| rest.split_once(". Call it again"))
+                                .map(|(facts, _)| facts.trim().to_owned())
+                                .unwrap_or_default(),
+                        )
                     } else if let Ok(reply) = serde_json::from_str::<Value>(text) {
                         if let Some(r) = reply.get("revision") {
                             revision = Some(r.to_string());
                         }
                         let mut facts = Vec::new();
                         facts_of(&reply, 0, &mut facts);
-                        facts.join(", ")
+                        (call.intent.effect(&reply), facts.join(", "))
                     } else {
+                        (call.intent.effect(&Value::Null), String::new())
+                    };
+                    let detail = if facts.is_empty() {
                         String::new()
+                    } else {
+                        format!(" → {facts}")
                     };
                     made.push(format!(
-                        "{} → {}",
-                        clip(call.clone(), 160),
-                        if facts.is_empty() { "done" } else { &facts }
+                        "{} · {}{detail}",
+                        effect.label(),
+                        clip(call.label.clone(), 160)
                     ));
                 }
                 _ => {}
@@ -533,7 +630,7 @@ pub fn record(history: &[Message]) -> String {
     for line in &asked {
         out.push_str(&format!("\n* {line}"));
     }
-    out.push_str("\nEdits made (call → ids and names in its reply):");
+    out.push_str("\nEarlier edit and action calls:");
     for line in &made {
         out.push_str(&format!("\n- {line}"));
     }

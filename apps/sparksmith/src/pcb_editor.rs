@@ -83,6 +83,7 @@ mod interface_tests;
 mod pick_tests;
 mod placement_card;
 mod production;
+pub(crate) use production::report_summary;
 #[cfg(test)]
 pub(crate) mod raster_tests;
 mod route_card;
@@ -3686,6 +3687,11 @@ fn bounds_of(editor: &PcbEditor, project: &Project, refs: &[ObjectRef]) -> Optio
                     );
                 }
             }
+            ObjectRef::Fill { id } => {
+                if let Some(fill) = project.fill(id) {
+                    points.extend(fill_paint::outline_ring(&fill.outline));
+                }
+            }
             ObjectRef::Via { id } => {
                 if let Some(([x, y], r)) = editor.layout_copper.via_extent(id) {
                     points.extend([[x - r, y - r], [x + r, y + r]]);
@@ -3750,25 +3756,40 @@ fn frame_view(rect: Rect, board: Point, bounds: [Point; 2], from_bottom: bool) -
 }
 
 impl crate::issues::Locate for PcbEditor {
-    /// Select every part `refs` names (else its track, else its net), the
-    /// first one inspected, and frame all of them on the next Layout
+    /// Select the parts and copper in `refs` and frame them on the next Layout
     /// frame; the board ref frames the whole board. Selection and camera
     /// only: the tool, document and geometry stay as they are.
     fn locate(&mut self, engine: &Engine, refs: &[ObjectRef]) -> bool {
         self.sync(engine);
         let project = engine.project();
-        // A finding on a via (and no part or track) selects the via and
-        // its net and frames it.
-        let via = refs.iter().find_map(|o| match o {
-            ObjectRef::Via { id } => project.vias.iter().find(|v| v.id == *id),
-            _ => None,
-        });
-        let track = refs.iter().any(|o| matches!(o, ObjectRef::Track { .. }));
-        if let Some(via) = via
-            && located_parts(refs).next().is_none()
-            && !track
-        {
-            self.select_via(via.id, Some(via.net));
+        let mut group = Group::default();
+        for object in refs {
+            match *object {
+                ObjectRef::Track { id } if project.tracks.iter().any(|t| t.id == id) => {
+                    group.tracks.insert(id);
+                }
+                ObjectRef::Via { id } if project.via(id).is_some() => {
+                    group.vias.insert(id);
+                }
+                ObjectRef::Fill { id } if project.fill(id).is_some() => {
+                    group.fills.insert(id);
+                }
+                _ => {}
+            }
+        }
+        // The same mixed board selection as a box selection or a 3D pick.
+        if !group.is_empty() {
+            group
+                .parts
+                .extend(located_parts(refs).filter(|id| project.instance(*id).is_some()));
+            self.set_group(group, project);
+            if let Some(net) = refs.iter().find_map(|o| match *o {
+                ObjectRef::Net { id } if project.net(id).is_some() => Some(id),
+                _ => None,
+            }) {
+                self.net = Some(net);
+                self.highlighted = Some(net);
+            }
             self.frame_request = bounds_of(self, project, refs);
             return true;
         }
@@ -3814,25 +3835,6 @@ impl crate::issues::Locate for PcbEditor {
             return false;
         }
         self.set_selection(instance, track, net);
-        // A finding on several tracks and vias (a dangling stub) selects
-        // them all, so one Delete removes them in one undo step.
-        let mut copper = Group::default();
-        for o in refs {
-            match o {
-                ObjectRef::Track { id } if project.tracks.iter().any(|t| t.id == *id) => {
-                    copper.tracks.insert(*id);
-                }
-                ObjectRef::Via { id } if project.vias.iter().any(|v| v.id == *id) => {
-                    copper.vias.insert(*id);
-                }
-                _ => {}
-            }
-        }
-        if instance.is_none() && copper.len() > 1 {
-            self.set_group(copper, project);
-            self.net = net;
-            self.highlighted = net;
-        }
         if instance.is_some() {
             let mut seen: BTreeSet<Id> = instance.into_iter().collect();
             self.also = located_parts(refs)

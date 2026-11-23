@@ -8,12 +8,21 @@ fn own(store: &RecoveryStore) -> Result<&Path> {
         .ok_or_else(|| Error::Invalid("no snapshot written".into()))
 }
 
+fn listed(directory: &Path, path: &Path) -> Result<Snapshot> {
+    list(directory)?
+        .entries
+        .into_iter()
+        .find(|e| e.snapshot.path().file_name() == path.file_name())
+        .map(|e| e.snapshot)
+        .ok_or_else(|| Error::Invalid("snapshot not listed".into()))
+}
+
 /// A session that never wrote a snapshot leaves no file at all, so one
 /// that ends without cleaning up (a crash, a kill) leaves nothing empty.
 #[test]
 fn a_session_without_a_snapshot_leaves_no_file() -> Result<()> {
     let directory = tempfile::tempdir()?;
-    let store = RecoveryStore::new(directory.path())?;
+    let mut store = RecoveryStore::new(directory.path())?;
     assert!(store.path().is_none());
     store.remove_own()?;
     drop(store);
@@ -30,13 +39,15 @@ fn independent_sessions_survive_drop_and_restore_project_plus_unfinished_draft()
     let plain = engine.to_file();
     crate::persistence::tests::unfinished(&mut engine)?;
     let document = engine.to_file();
-    let first = RecoveryStore::new(directory.path())?;
-    let second = RecoveryStore::new(directory.path())?;
+    let mut first = RecoveryStore::new(directory.path())?;
+    let mut second = RecoveryStore::new(directory.path())?;
     first.write(&document, Some(&original))?;
     second.write(&plain, None)?;
     assert_ne!(first.path(), second.path());
     let path = own(&first)?.to_path_buf();
+    let second_path = own(&second)?.to_owned();
     drop(first);
+    drop(second);
     let entries = list(directory.path())?.entries;
     assert_eq!(entries.len(), 2);
     let record = read(&path)?;
@@ -49,9 +60,9 @@ fn independent_sessions_survive_drop_and_restore_project_plus_unfinished_draft()
         std::fs::read(&original)?,
         b"original is never overwritten by recovery"
     );
-    second.remove_own()?;
+    remove_entry(directory.path(), &listed(directory.path(), &second_path)?)?;
     assert_eq!(list(directory.path())?.entries.len(), 1);
-    remove_entry(directory.path(), &path)?;
+    remove_entry(directory.path(), &listed(directory.path(), &path)?)?;
     assert!(list(directory.path())?.entries.is_empty());
     Ok(())
 }
@@ -64,7 +75,7 @@ fn snapshots_stay_owner_only() -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     let mode = |p: &Path| -> Result<u32> { Ok(std::fs::metadata(p)?.permissions().mode() & 0o777) };
     let directory = tempfile::tempdir()?;
-    let store = RecoveryStore::new(directory.path())?;
+    let mut store = RecoveryStore::new(directory.path())?;
     store.write(&Engine::demo()?.to_file(), None)?;
     assert_eq!(mode(own(&store)?)?, 0o600);
     std::fs::set_permissions(own(&store)?, std::fs::Permissions::from_mode(0o644))?;
@@ -76,7 +87,7 @@ fn snapshots_stay_owner_only() -> Result<()> {
 #[test]
 fn invalid_recovery_write_preserves_previous_valid_snapshot() -> Result<()> {
     let directory = tempfile::tempdir()?;
-    let store = RecoveryStore::new(directory.path())?;
+    let mut store = RecoveryStore::new(directory.path())?;
     let file = Engine::demo()?.to_file();
     store.write(&file, None)?;
     let before = std::fs::read(own(&store)?)?;
@@ -87,6 +98,7 @@ fn invalid_recovery_write_preserves_previous_valid_snapshot() -> Result<()> {
     store.remove_own()?;
     store.remove_own()?;
     store.write(&Engine::demo()?.to_file(), None)?;
+    drop(store);
     assert_eq!(list(directory.path())?.entries.len(), 1);
     Ok(())
 }
@@ -94,8 +106,9 @@ fn invalid_recovery_write_preserves_previous_valid_snapshot() -> Result<()> {
 #[test]
 fn corrupted_or_newer_records_do_not_hide_other_recoveries() -> Result<()> {
     let directory = tempfile::tempdir()?;
-    let valid = RecoveryStore::new(directory.path())?;
+    let mut valid = RecoveryStore::new(directory.path())?;
     valid.write(&Engine::demo()?.to_file(), None)?;
+    drop(valid);
     let broken = directory.path().join("session-broken.sparksmith-recovery");
     std::fs::write(&broken, b"broken")?;
     let newer = directory.path().join("session-newer.sparksmith-recovery");
@@ -120,7 +133,7 @@ fn corrupted_or_newer_records_do_not_hide_other_recoveries() -> Result<()> {
         assert!(entry.saved_unix_ms > 0);
     }
     assert!(read(&newer).is_err());
-    remove_entry(directory.path(), &broken)?;
+    remove_entry(directory.path(), &listed(directory.path(), &broken)?)?;
     assert_eq!(list(directory.path())?.entries.len(), 2);
     Ok(())
 }
@@ -131,17 +144,20 @@ fn discard_is_limited_to_direct_regular_session_files() -> Result<()> {
     let outside = tempfile::tempdir()?;
     let other = outside.path().join("session-outside.sparksmith-recovery");
     std::fs::write(&other, b"preserve")?;
-    assert!(remove_entry(directory.path(), &other).is_err());
+    let mut chosen = listed(outside.path(), &other)?;
+    assert!(remove_entry(directory.path(), &chosen).is_err());
     let ordinary = directory.path().join("project.sparksmith");
     std::fs::write(&ordinary, b"preserve")?;
-    assert!(remove_entry(directory.path(), &ordinary).is_err());
+    chosen.path = ordinary.clone();
+    assert!(remove_entry(directory.path(), &chosen).is_err());
     assert!(other.exists());
     assert!(ordinary.exists());
     #[cfg(unix)]
     {
         let link = directory.path().join("session-link.sparksmith-recovery");
         std::os::unix::fs::symlink(&other, &link)?;
-        assert!(remove_entry(directory.path(), &link).is_err());
+        chosen.path = link.clone();
+        assert!(remove_entry(directory.path(), &chosen).is_err());
         assert!(read(&link).is_err());
         assert!(list(directory.path())?.entries.is_empty());
         assert!(other.exists());
@@ -156,11 +172,13 @@ fn discard_is_limited_to_direct_regular_session_files() -> Result<()> {
 fn snapshots_carry_assets_in_the_container_and_listing_skips_them() -> Result<()> {
     use crate::persistence::container::tests::{noise, packed, with_assets};
     let directory = tempfile::tempdir()?;
-    let store = RecoveryStore::new(directory.path())?;
+    let mut store = RecoveryStore::new(directory.path())?;
     let asset = packed(noise(3 * 1024 * 1024, 11), "model/step");
     let document = with_assets(vec![asset.clone()])?;
     store.write(&document, None)?;
-    let path = own(&store)?;
+    let owned_path = own(&store)?.to_owned();
+    let path = owned_path.as_path();
+    drop(store);
     assert_eq!(read(path)?.document, document);
     let entries = list(directory.path())?.entries;
     assert_eq!(entries.len(), 1);
@@ -196,7 +214,7 @@ fn snapshots_carry_assets_in_the_container_and_listing_skips_them() -> Result<()
 #[test]
 fn sessions_past_the_limit_are_named_for_discard_not_fatal() -> Result<()> {
     let directory = tempfile::tempdir()?;
-    let store = RecoveryStore::new(directory.path())?;
+    let mut store = RecoveryStore::new(directory.path())?;
     store.write(&Engine::demo()?.to_file(), None)?;
     let first = own(&store)?.to_path_buf();
     let base = std::time::SystemTime::now() - std::time::Duration::from_secs(100_000);
@@ -211,15 +229,18 @@ fn sessions_past_the_limit_are_named_for_discard_not_fatal() -> Result<()> {
             .set_modified(time)?;
         paths.push(path);
     }
-    remove_entry(directory.path(), &first)?;
+    store.remove_own()?;
     let listing = list(directory.path())?;
     assert_eq!(listing.entries.len(), MAX_ENTRIES);
-    assert_eq!(listing.older, vec![paths[1].clone(), paths[0].clone()]);
+    assert_eq!(
+        listing.older.iter().map(Snapshot::path).collect::<Vec<_>>(),
+        [paths[1].as_path(), paths[0].as_path()]
+    );
     assert!(
         listing
             .entries
             .iter()
-            .all(|e| !listing.older.contains(&e.path))
+            .all(|e| !listing.older.contains(&e.snapshot))
     );
     for path in &listing.older {
         remove_entry(directory.path(), path)?;
@@ -227,5 +248,90 @@ fn sessions_past_the_limit_are_named_for_discard_not_fatal() -> Result<()> {
     let again = list(directory.path())?;
     assert_eq!(again.entries.len(), MAX_ENTRIES);
     assert!(again.older.is_empty());
+    Ok(())
+}
+
+/// Two editors sharing a recovery directory keep independent leases. A new
+/// editor can only restore work after its writer has stopped.
+#[test]
+fn two_recovery_clients_leave_live_projects_with_their_writers() -> Result<()> {
+    let directory = tempfile::tempdir()?;
+    let mut board_a = Engine::demo()?.to_file();
+    let mut board_b = board_a.clone();
+    board_a.project.name = "First project".into();
+    board_b.project.name = "Second project".into();
+    let mut first = RecoveryStore::new(directory.path())?;
+    first.write(&board_a, None)?;
+    let mut second = RecoveryStore::new(directory.path())?;
+    assert!(list(directory.path())?.entries.is_empty());
+    second.write(&board_b, None)?;
+    // Even a client handed a path and current file metadata cannot bypass
+    // the owner's lock.
+    let live_path = own(&first)?.to_owned();
+    let live = Snapshot::observe(live_path.clone(), &regular(&live_path)?, vec![])?;
+    for refusal in [
+        restore(directory.path(), &live).err(),
+        remove_entry(directory.path(), &live).err(),
+    ] {
+        assert!(refusal.is_some_and(|e| e.to_string().contains("Another editor")));
+    }
+    board_a.project.name = "First project revised".into();
+    first.write(&board_a, None)?;
+    assert!(list(directory.path())?.entries.is_empty());
+
+    drop(first);
+    let candidates = list(directory.path())?;
+    assert_eq!(candidates.entries.len(), 1);
+    let candidate = &candidates.entries[0].snapshot;
+    let (record, restored) = restore(directory.path(), candidate)?;
+    assert_eq!(record.document, board_a);
+    remove_entry(directory.path(), &restored)?;
+    assert!(list(directory.path())?.entries.is_empty());
+    drop(second);
+    let candidates = list(directory.path())?;
+    assert_eq!(candidates.entries.len(), 1);
+    assert_eq!(
+        restore(directory.path(), &candidates.entries[0].snapshot)?
+            .0
+            .document,
+        board_b
+    );
+    Ok(())
+}
+
+/// A listing, a restored copy awaiting cleanup, and an explicit discard
+/// must all refer to the same version, even if the path is reused.
+#[test]
+fn a_replaced_snapshot_survives_a_stale_restore_and_cleanup() -> Result<()> {
+    let directory = tempfile::tempdir()?;
+    let first = Engine::demo()?.to_file();
+    let mut second = first.clone();
+    second.project.name = "Second project".into();
+    let mut writer = RecoveryStore::new(directory.path())?;
+    writer.write(&first, None)?;
+    let path = own(&writer)?.to_owned();
+    drop(writer);
+    let entry = list(directory.path())?.entries.remove(0);
+    let (record, restored) = restore(directory.path(), &entry.snapshot)?;
+    assert_eq!(record.document, first);
+
+    let mut other = RecoveryStore::new(directory.path())?;
+    other.write(&second, None)?;
+    // Preserve the listed time as well: a timestamp alone does not identify
+    // the project the person selected.
+    let source_time = std::fs::metadata(&path)?.modified()?;
+    std::fs::copy(own(&other)?, &path)?;
+    File::options()
+        .write(true)
+        .open(&path)?
+        .set_modified(source_time)?;
+    assert!(restore(directory.path(), &entry.snapshot).is_err());
+    assert!(remove_entry(directory.path(), &entry.snapshot).is_err());
+    assert!(remove_entry(directory.path(), &restored).is_err());
+    let current = list(directory.path())?.entries.remove(0);
+    let (record, restored) = restore(directory.path(), &current.snapshot)?;
+    assert_eq!(record.document, second);
+    remove_entry(directory.path(), &restored)?;
+    assert!(own(&other)?.is_file());
     Ok(())
 }

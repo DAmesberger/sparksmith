@@ -63,7 +63,7 @@ impl PartEditor {
             });
         });
         if change {
-            self.open_template_picker();
+            self.open_template_picker(engine);
         }
         source
     }

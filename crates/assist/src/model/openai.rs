@@ -536,25 +536,19 @@ pub fn parse_reply(
     }
     content.extend(calls);
     let usage = &response["usage"];
-    let reported = usage["prompt_tokens"].is_u64() || usage["completion_tokens"].is_u64();
-    let usage = if reported {
-        let prompt = usage["prompt_tokens"].as_u64().unwrap_or(0);
-        let cached = usage["prompt_tokens_details"]["cached_tokens"]
-            .as_u64()
-            .unwrap_or(0)
-            .min(prompt);
-        Usage {
-            input_tokens: prompt - cached,
-            output_tokens: usage["completion_tokens"].as_u64().unwrap_or(0),
-            cache_write_tokens: 0,
-            cache_read_tokens: cached,
-        }
-    } else {
-        Usage {
-            input_tokens: estimated_tokens(prompt_chars),
-            output_tokens: crate::usage::estimated_output_tokens(&content),
-            ..Usage::default()
-        }
+    let prompt = usage["prompt_tokens"].as_u64();
+    let output = usage["completion_tokens"].as_u64();
+    let usage_estimated = prompt.is_none() || output.is_none();
+    let cached = usage["prompt_tokens_details"]["cached_tokens"]
+        .as_u64()
+        .unwrap_or(0);
+    let prompt = prompt.unwrap_or_else(|| estimated_tokens(prompt_chars).max(cached));
+    let cached = cached.min(prompt);
+    let usage = Usage {
+        input_tokens: prompt - cached,
+        output_tokens: output.unwrap_or_else(|| crate::usage::estimated_output_tokens(&content)),
+        cache_write_tokens: 0,
+        cache_read_tokens: cached,
     };
     Ok(ModelReply {
         model: response["model"]
@@ -564,7 +558,7 @@ pub fn parse_reply(
         content,
         stop,
         usage,
-        usage_estimated: !reported,
+        usage_estimated,
     })
 }
 
@@ -1003,6 +997,24 @@ mod tests {
         assert!(got.usage_estimated);
         assert_eq!(got.usage.input_tokens, 1_334, "4 000 prompt bytes");
         assert_eq!(got.usage.output_tokens, 3, "8 reply bytes");
+        Ok(())
+    }
+
+    #[test]
+    fn partial_usage_estimates_only_the_missing_side() -> Result<()> {
+        for (usage, input, output) in [
+            (json!({"completion_tokens": 8}), 1334, 8),
+            (json!({"prompt_tokens": 0}), 0, 3),
+            (json!({"completion_tokens": 0}), 1334, 0),
+        ] {
+            let got = parse(&json!({"choices": [{"message": {"content": "12345678"},
+                "finish_reason": "stop"}], "usage": usage}))?;
+            assert!(got.usage_estimated);
+            assert_eq!(
+                (got.usage.input_tokens, got.usage.output_tokens),
+                (input, output)
+            );
+        }
         Ok(())
     }
 

@@ -718,6 +718,7 @@ impl App {
                 self.sources.used(key);
                 self.workspace = Workspace::Schematic;
                 self.sources.read_bundle(
+                    &self.engine,
                     pick,
                     BundlePurpose::Place(sparksmith_core::library::import::OtherRevision::default()),
                 );

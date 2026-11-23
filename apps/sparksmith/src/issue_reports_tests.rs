@@ -96,6 +96,32 @@ fn the_worker_report_is_applied_only_to_its_own_state() -> Fallible {
     Ok(())
 }
 
+/// Keep the previous counts readable and explicitly stale for the whole worker interval.
+#[test]
+fn visible_counts_mark_the_previous_revision_until_its_replacement_arrives() -> Fallible {
+    use crate::{issues::Surface, shell::Workspace};
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let mut engine = Engine::showcase()?;
+    let reports = SharedReports::default();
+    let mut issues = Surface::with_reports(reports.clone());
+    let first = issues.summary(&engine, Workspace::Pcb);
+    assert!(first.counts().is_some() && !first.checking_changes());
+    let (updates, done) = mpsc::channel();
+    let (jobs, _requests) = mpsc::channel();
+    reports.0.borrow_mut().worker = Some(Worker { jobs, done });
+    let tented = engine.project().vias.first().ok_or("a via")?.tented;
+    tent_first_via(&mut engine, !tented)?;
+    let pending = issues.summary(&engine, Workspace::Pcb);
+    assert_eq!(pending.counts(), first.counts());
+    assert!(pending.checking_changes());
+    assert!(issues.ribbon_toggle(&engine, Workspace::Pcb).checking);
+    assert!(!issues.has_current_report(&engine));
+    updates.send((engine.report_key(), compute(&engine)))?;
+    assert!(!issues.summary(&engine, Workspace::Pcb).checking_changes());
+    assert!(issues.has_current_report(&engine));
+    Ok(())
+}
+
 /// A result the worker sends for an older state is dropped on receipt.
 #[test]
 fn a_stale_result_is_dropped() -> Fallible {

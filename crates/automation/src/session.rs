@@ -1073,7 +1073,7 @@ impl Request {
             entry!(
                 ViewSelect,
                 "Select and frame objects in the window by id; never the document, no undo step.",
-                "Replace the window's selection with the objects named (ids: parts, tracks, vias, fills, keepouts, wires; objects: any finding's object, such as a net, pad or sheet) and frame them, in the shown workspace when it shows them, else in one that does. No revision, no undo step, no rebuild. Refused while the person is busy in the window (live.busy).",
+                "Replace the window's selection with the objects named (ids: parts, tracks, vias, fills, keepouts, wires; objects: any finding's object, such as a net, pad or sheet) and frame them, in the shown workspace when it shows them, else in one that does. selection is what view.context shows after the request, selected counts distinct requested objects present, and unselected lists those the workspace did not select. No revision, no undo step, no rebuild. Refused while the person is busy in the window (live.busy).",
             ),
             entry!(
                 ViewOpen,

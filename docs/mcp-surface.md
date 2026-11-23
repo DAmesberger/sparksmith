@@ -453,7 +453,7 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - The server's starting session gets one. `act project.new` and `act project.open {path}` run on a new session through the gate, and on success add it as another project with its own handle. Nothing is replaced, and with a `project` argument they are refused (`project.opens_new`).
   - At most 16 projects (`project.limit`), held until the process exits.
   - A successful project call adds its string handle as `project` when the entry has no field of that name. An existing field keeps its value, including a verbose document snapshot and the project part-file list.
-  - A call that leaves `project` out goes to the current project: the one last opened (`project.new`, `project.open`) or named by a call. The reply names it in `project`, and an edit still needs that project's `expected_revision`, so a call meant for another is refused as stale rather than applied. A handle no project has gives `project.unknown`.
+  - When one project is open, its handle is optional. With several projects open, edits and actions on an existing project require its handle or return `project.ambiguous`. Queries may still read the last project opened or named. Pass the handle returned by the read and its `expected_revision` for an edit. An unknown handle gives `project.unknown`.
   - New projects start from `Session::default()`, or from the host's factory (`Server::with_new_projects`, for P9's library sources).
   - The desk publishes every project's revision (`watch` of handle → revision) for P6.
 - **Core** (`sparksmith-core`):

@@ -718,9 +718,15 @@ pub fn description(d: &Description) -> Result<(), Failure> {
     if d.scopes().is_empty() {
         return Err(bad("The generator offers no scope.".into()));
     }
-    let keys = unique("parameter", d.params().iter().map(|p| p.key.as_str()))
+    unique("parameter", d.params().iter().map(|p| p.key.as_str()))
         .map_err(|f| bad(f.to_string()))?;
     for param in d.params() {
+        if !sparksmith_generator_abi::params::valid_quantity_bounds(&param.ty) {
+            return Err(bad(format!(
+                "Parameter {} has an invalid decimal range.",
+                param.key
+            )));
+        }
         if !crate::params::fits(&param.ty, &param.default) {
             return Err(bad(format!(
                 "The default of parameter \"{}\" does not fit its type.",
@@ -738,11 +744,19 @@ pub fn description(d: &Description) -> Result<(), Failure> {
     }
     unique("preset", d.presets().iter().map(|p| p.key.as_str())).map_err(|f| bad(f.to_string()))?;
     for preset in d.presets() {
-        if let Some(unknown) = preset.params.keys().find(|k| !keys.contains(k.as_str())) {
-            return Err(bad(format!(
-                "Preset \"{}\" sets \"{unknown}\", which is not a parameter.",
-                preset.key
-            )));
+        for (key, value) in &preset.params {
+            let Some(param) = d.params().iter().find(|param| &param.key == key) else {
+                return Err(bad(format!(
+                    "Preset \"{}\" sets \"{key}\", which is not a parameter.",
+                    preset.key
+                )));
+            };
+            if !crate::params::fits(&param.ty, value) {
+                return Err(bad(format!(
+                    "Preset \"{}\" gives parameter \"{key}\" a value outside its type or range.",
+                    preset.key
+                )));
+            }
         }
     }
     Ok(())
@@ -907,6 +921,40 @@ mod tests {
             .err()
             .map(|f| f.to_string())
             .unwrap_or_default()
+    }
+
+    #[test]
+    fn quantity_defaults_and_presets_must_fit_at_installation() {
+        use sparksmith_generator_abi::v1::{Basis, Param, ParamType, ParamValue, Preset};
+        let mut d = fixture();
+        d.capabilities[0].params.push(Param {
+            key: "volts".into(),
+            label: "Voltage".into(),
+            help: None,
+            group: None,
+            context: None,
+            ty: ParamType::Quantity {
+                kind: "voltage".into(),
+                unit: "V".into(),
+                min: Some("1".into()),
+                max: Some("5".into()),
+            },
+            default: ParamValue::Text("200".into()),
+        });
+        assert!(refusal(&d).contains("volts"));
+        d.capabilities[0].params[0].default = ParamValue::Text("3".into());
+        assert!(description(&d).is_ok());
+        d.capabilities[0].presets.push(Preset {
+            key: "sample".into(),
+            name: "Sample".into(),
+            aliases: vec![],
+            description: String::new(),
+            citation: None,
+            basis: Basis::Estimated,
+            note: None,
+            params: [("volts".into(), ParamValue::Text("abc".into()))].into(),
+        });
+        assert!(refusal(&d).contains("sample"));
     }
 
     #[test]

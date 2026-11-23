@@ -14,6 +14,9 @@
 //! The shape (a socket worker handing requests to the UI thread, refusals
 //! while the editor is held, opt-in from Help) follows tangency-labs/pcbcraft
 //! (MIT OR Apache-2.0); see ATTRIBUTION.md. The channel is Solidcraft's.
+#[path = "live_export_review.rs"]
+mod export_review;
+
 use super::App;
 use crate::kit::{self, severity::Level, toast::ToastAction};
 use sparksmith_automation::live::{self, Admitted, ControlRequest, Endpoint, Verdict};
@@ -42,6 +45,7 @@ struct Held {
     request: ControlRequest,
     admitted: Admitted,
     question: Question,
+    preflight: Option<export_review::Preflight>,
 }
 
 /// Where the endpoint listens and keeps its token, and whether requests see
@@ -215,6 +219,8 @@ impl App {
             "The window is waiting for the person to answer another assistant request"
         } else if self.files.busy() || self.files.prompting() {
             "A file operation or file question is open in the window"
+        } else if self.open_system_windows().contains(&true) {
+            "A system window is open over the editor"
         } else if ctx.egui_wants_keyboard_input() && !composing {
             "The person is editing text in a field"
         } else if ctx.dragged_id().is_some() || ctx.input(|i| i.pointer.any_down()) {
@@ -256,7 +262,11 @@ impl App {
                 }
                 Verdict::Run(admitted) => self.run_live(request, &admitted, busy),
                 Verdict::Ask(admitted, question) => {
+                    let preflight = admitted.native_export().map(|review| {
+                        export_review::Preflight::start(std::sync::Arc::clone(review), ctx)
+                    });
                     self.live.held = Some(Held {
+                        preflight,
                         request,
                         admitted,
                         question,
@@ -406,7 +416,7 @@ impl App {
     /// A held request: Allow runs it (if the project has not moved), Deny
     /// tells the assistant so.
     fn live_question(&mut self, ctx: &egui::Context) {
-        let Some(held) = &self.live.held else {
+        let Some(held) = &mut self.live.held else {
             return;
         };
         let question = &held.question;
@@ -421,12 +431,24 @@ impl App {
             for path in &question.paths {
                 kit::value_row(ui, "Path", path);
             }
+            if let (Some(preflight), Some(review)) =
+                (&mut held.preflight, held.admitted.native_export())
+            {
+                preflight.show(ui, review);
+            }
+            let checked = held
+                .preflight
+                .as_ref()
+                .is_none_or(export_review::Preflight::finished);
             kit::note(ui, &question.why);
             kit::actions(ui, |ui| {
                 if ui_kit::button(ui, "Deny", Button::Enabled(true)).clicked() {
                     answer = Some(false);
                 }
-                if kit::primary(ui, "Allow", true).clicked() {
+                if kit::primary(ui, "Allow", checked)
+                    .on_disabled_hover_text("Waiting for the board check")
+                    .clicked()
+                {
                     answer = Some(true);
                 }
             });
@@ -460,7 +482,15 @@ impl App {
     /// The command a held request waits on.
     #[cfg(test)]
     fn live_held(&self) -> Option<&str> {
-        self.live.held.as_ref().map(|h| h.question.command.as_str())
+        self.live
+            .held
+            .as_ref()
+            .filter(|held| {
+                held.preflight
+                    .as_ref()
+                    .is_none_or(export_review::Preflight::finished)
+            })
+            .map(|held| held.question.command.as_str())
     }
 
     /// The application bar's pill while live MCP is on: it names whether an

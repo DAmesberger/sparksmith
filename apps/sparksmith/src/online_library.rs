@@ -9,6 +9,7 @@
 //! Downloading part data needs a free account: Settings › Libraries signs
 //! in with a code the person confirms in the browser, polled on the
 //! worker's own thread, and signs out ([`OnlineLibrary::sign_in`]).
+use crate::document_version::DocumentVersion;
 use crate::library_sources::{BundlePurpose, FolderPick, ReadBundle};
 use sparksmith_assist::registry::account::{self, DeviceCode, Known};
 use sparksmith_assist::registry::{
@@ -106,7 +107,7 @@ impl Drop for OnlineLibrary {
 /// One configured, turned-on registry.
 pub struct OnlineLibrary {
     worker: RegistryWorker,
-    tickets: BTreeMap<u64, (FolderPick, BundlePurpose)>,
+    tickets: BTreeMap<u64, (FolderPick, BundlePurpose, DocumentVersion)>,
     next: u64,
     status: OnlineStatus,
     attempt: Option<Attempt>,
@@ -280,14 +281,14 @@ impl OnlineLibrary {
 
     /// Fetch a registry root's bundle for `purpose`; it comes back from
     /// [`Self::receive`] as a [`ReadBundle`].
-    pub fn bundle(&mut self, pick: FolderPick, purpose: BundlePurpose) {
+    pub fn bundle(&mut self, pick: FolderPick, purpose: BundlePurpose, version: DocumentVersion) {
         self.next = self.next.wrapping_add(1);
         let root = SourceRevision {
             lineage: pick.lineage,
             revision: pick.revision,
         };
         self.worker.bundle(self.next, pick.library, root);
-        self.tickets.insert(self.next, (pick, purpose));
+        self.tickets.insert(self.next, (pick, purpose, version));
     }
 
     /// What arrived: the newest palette search and finished bundle reads.
@@ -307,9 +308,10 @@ impl OnlineLibrary {
                     result,
                 }),
                 RegistryEvent::Bundle { ticket, result, .. } => {
-                    if let Some((pick, purpose)) = self.tickets.remove(&ticket) {
+                    if let Some((pick, purpose, version)) = self.tickets.remove(&ticket) {
                         let name = pick.name.clone();
                         bundles.push(ReadBundle {
+                            version,
                             pick,
                             purpose,
                             result: result.map_err(|e| format!("Fetching {name} failed: {e}")),

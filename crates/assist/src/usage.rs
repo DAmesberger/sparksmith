@@ -61,6 +61,7 @@ impl Usage {
 #[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
 pub struct Tally {
     pub usage: Usage,
+    pub usage_estimated: bool,
     pub requests: u32,
 }
 

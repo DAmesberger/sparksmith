@@ -87,7 +87,12 @@ fn the_window_selects_and_opens_without_a_revision() -> Fallible {
         call("view.select", json!({"ids": [id]})),
     )
     .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(selected, json!({"selected": 1, "workspace": "pcb"}));
+    assert_eq!(
+        selected,
+        json!({"selected": 1, "workspace": "pcb", "selection": [
+            {"kind": "instance", "id": id, "name": designator}
+        ], "unselected": []})
+    );
     assert_eq!(window.selection, vec![ObjectRef::Instance { id }]);
 
     let opened = run(

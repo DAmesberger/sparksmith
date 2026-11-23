@@ -188,11 +188,11 @@ impl PartEditor {
     /// working set's package draft. One `library.package_from_generator`
     /// gives the package, footprint and model the generator's; a footprint
     /// with pads is replaced in the same atomic step.
-    pub(super) fn open_template_picker(&mut self) {
+    pub(super) fn open_template_picker(&mut self, engine: &Engine) {
         if let Some(set) = &self.draft {
             self.template_picker.close_assign();
             self.gallery
-                .open_package(set.ids.package, set.footprint.pads.len(), String::new());
+                .open_package(engine, set.ids.package, set.ids.footprint, String::new());
         }
     }
 

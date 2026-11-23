@@ -610,16 +610,20 @@ impl super::App {
         }
     }
 
-    /// One system window at a time, the newest; Esc closes it unless a
-    /// key is being recorded in Settings.
-    pub(super) fn system_windows(&mut self, ctx: &egui::Context) {
-        let now = [
+    pub(super) fn open_system_windows(&self) -> [bool; 5] {
+        [
             self.messages_open,
             self.help.open,
             self.settings_window.is_open(),
             self.live.is_open(),
             self.import_report.is_open(),
-        ];
+        ]
+    }
+
+    /// One system window at a time, the newest; Esc closes it unless a
+    /// key is being recorded in Settings.
+    pub(super) fn system_windows(&mut self, ctx: &egui::Context) {
+        let now = self.open_system_windows();
         let escape = now.contains(&true)
             && !self.palette.is_open()
             && !self.settings_window.is_recording()

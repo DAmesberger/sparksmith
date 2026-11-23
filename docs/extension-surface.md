@@ -211,7 +211,7 @@ The `view` module is the window's. Its entries are declared beside `Request` (`c
 | Entry | Class | Params | Answers |
 |---|---|---|---|
 | `view.context` | read | `{}` | `{revision, workspace, view?, sheet?, selection}`: `component`, `schematic` or `pcb`; the PCB's `layout` or `3d`; the sheet `{id, name}`; the selection as objects (`{kind, id, name?}`, a designator or net name) |
-| `view.select` | show | `{ids?, objects?}`: project object ids (parts, tracks, vias, fills, keepouts, wires) and any finding's object | `{selected, workspace}`. Replaces the selection and frames it, in the shown workspace when it shows the objects, else in one that does |
+| `view.select` | show | `{ids?, objects?}`: project object ids (parts, tracks, vias, fills, keepouts, wires) and any finding's object | `{selected, workspace, selection, unselected}`. Frames the selection. `selection` is the same named object list as `view.context`. `selected` counts the distinct requested objects it contains. `unselected` identifies requested objects absent from that workspace’s selection. |
 | `view.open` | show | `{workspace, view?, sheet?, definition?}`: the PCB's view, the schematic's sheet, a component draft for the Component editor | what `view.context` answers, after |
 
 - **`WindowHost`** (`sparksmith_automation::WindowHost`): `busy`, `context`, `select`, `open`, each given the engine the call runs on. The host hands it to the front door in `CallCx::window`. A host without one (the CLI, headless MCP, JSON lines) answers every `view` entry with `host.unavailable`, before the gate.

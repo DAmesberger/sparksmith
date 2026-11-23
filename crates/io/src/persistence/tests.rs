@@ -131,6 +131,32 @@ fn invalid_files_are_refused_without_side_effects() -> Result<()> {
     Ok(())
 }
 
+/// Both writers opened the original before the first rename. The second
+/// writer must retry with the named file before it compares content hashes.
+#[cfg(any(windows, unix))]
+#[test]
+fn a_writer_holding_the_original_handle_detects_the_other_writers_rename() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("shared.sparksmith");
+    let original = Engine::demo()?.to_file();
+    let disk = save_project(&path, &original, None)?;
+    let first = File::open(&path)?;
+    let second = File::open(&path)?;
+    assert!(still_at(&first, &path)? && still_at(&second, &path)?);
+    let mut edited = original.clone();
+    edited.project.name = "First writer".into();
+    save_project(&path, &edited, Some(disk))?;
+    second.lock()?;
+    assert!(!still_at(&second, &path)?);
+    drop(second);
+    let Err(Error::Conflict(conflict)) = save_project(&path, &original, Some(disk)) else {
+        return Err(Error::Invalid("expected a preserved conflict copy".into()));
+    };
+    assert_eq!(read_project(&path)?, edited);
+    assert_eq!(read_project(&conflict.kept)?, original);
+    Ok(())
+}
+
 #[test]
 fn failed_saves_preserve_existing_target_and_leave_no_temporary_file() -> Result<()> {
     let dir = tempfile::tempdir()?;
@@ -444,7 +470,7 @@ fn a_project_that_opens_from_a_compact_file_saves_and_recovers() -> Result<()> {
     let saved = dir.path().join("saved.sparksmith");
     write_project(&saved, &read)?;
     assert_eq!(read_project(&saved)?, read);
-    let store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
+    let mut store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
     store.write(&read, Some(&opened))?;
     let snapshot = store
         .path()
@@ -492,7 +518,7 @@ fn a_project_authored_past_the_old_cap_saves_and_recovers() -> Result<()> {
     let saved = dir.path().join("authored.sparksmith");
     write_project(&saved, &file)?;
     assert_eq!(Engine::from_file(read_project(&saved)?)?.to_file(), file);
-    let store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
+    let mut store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
     store.write(&file, None)?;
     let snapshot = store
         .path()
@@ -670,6 +696,46 @@ fn concurrent_saves_of_one_opened_file_replace_it_once() -> Result<()> {
         };
         assert_eq!(&read_project(&path)?, winner);
         assert_eq!(&read_project(&kept.kept)?, loser);
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn saving_through_absolute_and_relative_links_keeps_the_link_and_both_writers() -> Result<()> {
+    for relative in [true, false] {
+        let dir = tempfile::tempdir()?;
+        let boards = dir.path().join("boards");
+        std::fs::create_dir(&boards)?;
+        let target = boards.join("board.sparksmith");
+        let alias = dir.path().join("alias.sparksmith");
+        let link = if relative {
+            PathBuf::from("boards/board.sparksmith")
+        } else {
+            target.clone()
+        };
+        let mut file = Engine::demo()?.to_file();
+        write_project(&target, &file)?;
+        std::os::unix::fs::symlink(&link, &alias)?;
+        let (_, original) = open_project(&alias)?;
+        file.project.name = "First edit".into();
+        let saved = save_project(&alias, &file, Some(original))?;
+        assert_eq!(std::fs::read_link(&alias)?, link);
+        assert_eq!(open_project(&target)?, (file.clone(), saved));
+        file.project.name = "Concurrent edit".into();
+        write_project(&target, &file)?;
+        let mut mine = file.clone();
+        mine.project.name = "Local edit".into();
+        let Err(Error::Conflict(conflict)) = save_project(&alias, &mine, Some(saved)) else {
+            return Err(Error::Invalid("expected a competing edit".into()));
+        };
+        assert_eq!(std::fs::read_link(&alias)?, link);
+        assert_eq!(read_project(&alias)?, file);
+        assert_eq!(read_project(&conflict.kept)?, mine);
+        assert_eq!(
+            conflict.kept.parent(),
+            Some(boards.canonicalize()?.as_path())
+        );
     }
     Ok(())
 }

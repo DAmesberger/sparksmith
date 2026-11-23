@@ -441,3 +441,70 @@ fn list_lengths_read_in_mm_under_whole_group_captions() -> TestResult {
     }
     Ok(())
 }
+
+#[test]
+fn a_package_edit_during_generation_requires_a_fresh_replacement() -> TestResult {
+    use sparksmith_core::library::{Definition, DraftEdit};
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _entered = context.enter();
+    let ctx = self::context();
+    let mut engine = Engine::demo()?;
+    engine.set_generators(sparksmith_automation::session::generators::fixture_runtime());
+    let footprint = engine
+        .drafts()
+        .items
+        .iter()
+        .find(|draft| matches!(draft.definition, Definition::Footprint(_)))
+        .cloned()
+        .ok_or("footprint draft")?;
+    let Definition::Footprint(mut body) = footprint.definition else {
+        return Err("expected a footprint".into());
+    };
+    let package = body.package.id;
+    assert!(body.pads.len() >= 2);
+    let mut gallery = GeneratorGallery::default();
+    gallery.set_shelf(&test_shelf());
+    gallery.open_package(&engine, package, footprint.id, "resistor 0603".into());
+    frame(&ctx, &mut gallery, &engine, vec![]);
+    gallery.submit(&ctx, &engine);
+    assert!(gallery.open.as_ref().is_some_and(|o| o.making.is_some()));
+
+    body.pads.pop();
+    let remaining = body.pads.len();
+    apply(
+        &mut engine,
+        Operation::Library(LibraryCommand::Edit {
+            edits: vec![DraftEdit {
+                id: footprint.id,
+                meta: footprint.meta,
+                definition: Definition::Footprint(body),
+            }],
+        }),
+    )?;
+    let edited = engine.document().clone();
+    let revision = engine.revision();
+    // Enter in the frame that first learns of the edit cannot approve it.
+    let (_, stale) = frame(&ctx, &mut gallery, &engine, vec![enter()]);
+    assert!(stale.is_none());
+    assert!(gallery.open.as_ref().is_some_and(|o| o.making.is_none()));
+    assert_eq!(
+        gallery.scope(),
+        Some(&Scope::Package {
+            draft: package,
+            pads: remaining
+        })
+    );
+    assert_eq!(engine.document(), &edited);
+    assert_eq!(engine.revision(), revision);
+    // An explicit retry from the refreshed preview uses the edited draft.
+    gallery.submit(&ctx, &engine);
+    let replacement = made(&ctx, &mut gallery, &engine)?;
+    assert!(
+        matches!(&replacement, Operation::Library(LibraryCommand::PackageFromGenerator(p))
+        if p.draft == package && p.replace)
+    );
+    apply(&mut engine, replacement)?;
+    engine.undo()?;
+    assert_eq!(engine.document(), &edited);
+    Ok(())
+}

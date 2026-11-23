@@ -194,6 +194,37 @@ fn corrupt_or_other_format_manifests_are_rejected() -> Result<()> {
 }
 
 #[test]
+fn capacity_counts_only_new_immutable_paths() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let folder = create_folder(dir.path(), "Bench")?;
+    let record = |r| field(7, r, "Field");
+    let path = |r| {
+        dir.path()
+            .join(record_path(SourceLineageId(7), Revision(r)))
+    };
+    let seed = bundle(&folder, vec![record(1)], vec![]);
+    write_bundle(&folder, &seed)?;
+    for r in 2..=19_995 {
+        std::fs::write(path(r), pretty(&record(r))?)?;
+    }
+    let mixed = bundle(&folder, [1, 2, 3, 4, 5, 19_996].map(record).into(), vec![]);
+    let report = write_bundle(&folder, &mixed)?;
+    assert_eq!((report.unchanged.len(), report.written.len()), (5, 1));
+    for r in 19_997..=20_000 {
+        std::fs::write(path(r), pretty(&record(r))?)?;
+    }
+    assert_eq!(read_records(&folder)?.len(), 20_000);
+    let repeated = write_bundle(&folder, &mixed)?;
+    assert_eq!((repeated.unchanged.len(), repeated.written.len()), (6, 0));
+    assert!(matches!(
+        write_bundle(&folder, &bundle(&folder, vec![record(20_001)], vec![])),
+        Err(Error::TooLarge(_))
+    ));
+    assert!(!path(20_001).exists());
+    Ok(())
+}
+
+#[test]
 fn bundles_write_one_pretty_file_per_revision_and_read_back() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let folder = create_folder(dir.path(), "Bench")?;

@@ -94,7 +94,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "view",
-        (1, 4),
+        (1, 5),
         "View",
         "What the window shows: workspace, sheet, 2D or 3D, and the selection.",
     ),

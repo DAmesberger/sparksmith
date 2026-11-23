@@ -214,7 +214,8 @@ pub struct Use {
     /// Prompt plus output tokens, every request counted.
     pub tokens: u64,
     pub seconds: f64,
-    /// The tokens as the provider reported them: uncached, cache written,
+    pub usage_estimated: bool,
+    /// Accounted tokens: uncached, cache written,
     /// cache read and output.
     pub reported: crate::usage::Usage,
 }
@@ -301,6 +302,7 @@ pub fn turn(
             .saturating_add(tally.usage.output_tokens),
         seconds: started.elapsed().as_secs_f64(),
         reported: tally.usage,
+        usage_estimated: tally.usage_estimated,
     };
     if let Err(error) = config.check() {
         return Outcome {
@@ -355,7 +357,7 @@ pub fn turn(
                     cancel,
                     events,
                 }
-                .send(request, prompt, false)
+                .send_chat(*request, prompt, context, false)
                 .ok()
                 .filter(|received| received.terminal.is_none())
                 .map(|received| received.reply)
@@ -444,7 +446,7 @@ pub fn turn(
             cancel,
             events,
         })
-        .send(&request, prompt, true)
+        .send_chat(request, prompt, context, true)
         {
             Ok(received) => received,
             Err(stop) => break stop.into(),
@@ -453,6 +455,7 @@ pub fn turn(
             break stop.into();
         }
         let n = received.n;
+        let limit = received.output_limit;
         let reply = received.reply;
         if reply.stop == StopReason::Stopped || cancel.load(Ordering::Relaxed) {
             // Stopped while the reply arrived: it is never used.
@@ -538,11 +541,7 @@ pub fn turn(
             }));
             let answer = tools.call(&name, &input);
             let ok = answer["ok"] == true;
-            // An edit, an action or a question the person answered moves
-            // the turn on.
-            let asked = name == crate::verbs::SHOW
-                && matches!(input["name"].as_str(), Some("assist.ask" | "assist.offer"));
-            if ok && (asked || matches!(name.as_str(), crate::verbs::APPLY | crate::verbs::ACT)) {
+            if ok && context::made_progress(&name, &input, &answer["result"]) {
                 changed_at = usage(&tally).tokens;
             }
             let mut body = if ok {

@@ -365,6 +365,7 @@ fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> F
             "query",
             json!({"name":"project.issues"}),
         )]),
+        calls(vec![call("plan", "apply", json!({"dry_run":true}))]),
         calls(vec![call("edit", "apply", json!({"operations":[]}))]),
         calls(vec![call(
             "read2",
@@ -375,7 +376,13 @@ fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> F
     ]);
     let mut tools = Recorder {
         calls: Vec::new(),
-        answer: |_: &str, _: &Value| ok(json!({})),
+        answer: |verb: &str, input: &Value| {
+            if verb == "apply" {
+                ok(json!({"dry_run":input["dry_run"],"changes":{"fields":["board"]}}))
+            } else {
+                ok(json!({}))
+            }
+        },
     };
     let mut nudges = Vec::new();
     let mut history = Vec::new();
@@ -393,7 +400,7 @@ fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> F
         &AtomicBool::new(false),
     );
     assert_eq!(outcome.end, End::Answered);
-    assert_eq!(nudges, [110, 110]);
+    assert_eq!(nudges, [110, 110, 110]);
     let nudged_after: Vec<_> = history
         .iter()
         .filter_map(|message| {
@@ -411,7 +418,7 @@ fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> F
             }
         })
         .collect();
-    assert_eq!(nudged_after, ["read", "read2"]);
+    assert_eq!(nudged_after, ["read", "plan", "read2"]);
     Ok(())
 }
 
@@ -712,5 +719,68 @@ fn chat_and_mcp_share_one_copy_of_the_method() -> Fallible {
     assert_eq!(chat.system.matches(&method).count(), 1);
     assert_eq!(sparksmith_automation::mcp::instructions(false)?, method);
     assert!(sparksmith_automation::mcp::instructions(true)?.starts_with(&method));
+    Ok(())
+}
+
+#[test]
+fn summary_and_chat_fit_the_counted_prompt_in_the_declared_context() -> Fallible {
+    struct Counted {
+        input: u64,
+        counted: Vec<bool>,
+        sent: Vec<(bool, u32)>,
+    }
+    impl ModelBackend for Counted {
+        fn label(&self) -> String {
+            "offline counter".into()
+        }
+        fn count_prompt_tokens(&mut self, req: &ModelRequest<'_>) -> Result<Option<u64>> {
+            self.counted.push(req.tools.is_empty());
+            Ok(Some(self.input))
+        }
+        fn send(&mut self, req: &ModelRequest<'_>) -> Result<ModelReply> {
+            self.sent
+                .push((req.tools.is_empty(), req.max_output_tokens));
+            Ok(text("Finished"))
+        }
+    }
+    let mut config = config()?;
+    config.profile.capabilities.context_tokens = 4096;
+    config.profile.output.per_request = 2048;
+    config.policy.trigger = 0.10;
+    config.policy.target = 0.05;
+    for (input, run) in [(3500, true), (4096, false)] {
+        let mut model = Counted {
+            input,
+            counted: Vec::new(),
+            sent: Vec::new(),
+        };
+        let mut tools = Recorder {
+            calls: vec![],
+            answer: |_, _| Value::Null,
+        };
+        let result = turn(
+            &config,
+            &mut model,
+            &mut summary_history(),
+            vec![Part::text("Next")],
+            &mut tools,
+            &mut |_| {},
+            &AtomicBool::new(false),
+        );
+        assert_eq!(model.counted, [true, false], "summary then chat");
+        if run {
+            assert_eq!(model.sent, [(true, 596), (false, 596)]);
+            assert_eq!(result.end, End::Answered);
+        } else {
+            assert!(model.sent.is_empty());
+            assert!(matches!(
+                result.end,
+                End::Limit {
+                    hit: Hit::Tokens,
+                    ..
+                }
+            ));
+        }
+    }
     Ok(())
 }
