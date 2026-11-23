@@ -237,4 +237,4 @@ Two engines in one process with different contexts answer the same request each 
 
 A material library is kept for the rest of the program once loaded, since built models keep references into it: a host makes one context at startup, not one per request.
 
-Not moved in S2b: the compiled-in starter rows (a parse cache of tables built into the program, the same for every engine), and two caches of shipped files that do not differ between engines of one host: the new-project defaults (`sparksmith_io::new_project::shipped`) and the shipped part files (`session::shipped_parts::builtin_parts`).
+Not moved in S2b: two caches of shipped files that do not differ between engines of one host: the new-project defaults (`sparksmith_io::new_project::shipped`) and the shipped part files (`session::shipped_parts::builtin_parts`).
