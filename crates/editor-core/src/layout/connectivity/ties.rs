@@ -324,7 +324,7 @@ impl CopperGraph {
                             "tie.kelvin_off_anchor",
                             format!(
                                 "{} sense copper meets the other net away from its anchor land.",
-                                t.designator
+                                t.label(project)
                             ),
                             t.objects([x, y]),
                         ));
@@ -356,14 +356,14 @@ impl CopperGraph {
                         at[1],
                         copper(x, a),
                         copper(y, b),
-                        t.designator
+                        t.label(project)
                     ),
                     t.objects([x, y]),
                 ));
                 if t.purpose == crate::library::tie::TiePurpose::StarGround {
                     self.tie_findings.push(Finding::new(
                         "tie.star_points",
-                        format!("{} has an additional copper join.", t.designator),
+                        format!("{} has an additional copper join.", t.label(project)),
                         t.objects([x, y]),
                     ));
                 }
@@ -463,7 +463,7 @@ impl CopperGraph {
                     "tie.kelvin_off_anchor",
                     format!(
                         "{} needs sense copper joined at its anchor land.",
-                        tie.designator
+                        tie.label(project)
                     ),
                     tie.objects([]),
                 ));

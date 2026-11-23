@@ -154,7 +154,7 @@ impl CopperGraph {
             let Some(need) = current.required_a else {
                 continue;
             };
-            let name = &row.designator;
+            let name = row.label(project);
             let finding = match current.capacity_a {
                 None => Finding::new(
                     "tie.current_unchecked",

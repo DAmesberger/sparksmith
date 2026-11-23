@@ -20,6 +20,18 @@ pub struct TieRow {
 }
 
 impl TieRow {
+    /// The part designator, qualified by its group only when the part has several ties.
+    pub fn label<'a>(&'a self, project: &Project) -> std::borrow::Cow<'a, str> {
+        if project
+            .instance(self.instance)
+            .is_some_and(|i| i.ties.len() > 1)
+        {
+            format!("{} group {}", self.designator, self.group.0).into()
+        } else {
+            self.designator.as_str().into()
+        }
+    }
+
     /// Include one real terminal from the group so issue selection and waivers
     /// distinguish independent joins on a single physical component.
     pub(crate) fn objects(&self, related: impl IntoIterator<Item = ObjectRef>) -> Vec<ObjectRef> {
@@ -109,11 +121,7 @@ pub fn rows(project: &Project) -> Vec<TieRow> {
             result.push(TieRow {
                 group: spec.id,
                 instance: i.id,
-                designator: if c.definition.ties.len() == 1 {
-                    i.designator.clone()
-                } else {
-                    format!("{} group {}", i.designator, spec.id.0)
-                },
+                designator: i.designator.clone(),
                 form: spec.form,
                 purpose: usage.purpose,
                 ends,
@@ -231,7 +239,7 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
                     "tie.same_net",
                     format!(
                         "{} has two ends on {}.",
-                        t.designator,
+                        t.label(project),
                         project.net_name(*net)
                     ),
                     t.objects([ObjectRef::Net { id: *net }]),
@@ -242,7 +250,7 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
         if network.loops.contains(&(t.instance, t.group)) {
             out.push(Finding::new(
                 "tie.loop",
-                format!("{} is on a loop of closed ties.", t.designator),
+                format!("{} is on a loop of closed ties.", t.label(project)),
                 t.objects([]),
             ));
             if t.purpose == TiePurpose::StarGround {
@@ -250,7 +258,7 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
                     "tie.star_points",
                     format!(
                         "{} has another path between its star-ground nets.",
-                        t.designator
+                        t.label(project)
                     ),
                     t.objects([]),
                 ));
@@ -272,7 +280,8 @@ pub fn findings(project: &Project, rows: &[TieRow], network: &Network) -> Vec<Fi
                         "tie.other_bridge",
                         format!(
                             "{} also spans the star-ground nets of {}.",
-                            i.designator, t.designator
+                            i.designator,
+                            t.label(project)
                         ),
                         t.objects([ObjectRef::Instance { id }]),
                     ));

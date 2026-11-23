@@ -43,7 +43,7 @@ A tie is an ordinary component with terminals, a symbol, a package, a footprint 
 
 - `purpose`: star ground, Kelvin sense, shield bond, supply join or none. It lives on the instance because one 0603 tie footprint serves many purposes.
 - `anchors`, used for Kelvin sense only. For each sense end, the pad of *another placed part* where the sense net must meet the anchored net, for example `{ R7, pad 1 }`. A Kelvin tie has no lands of its own: its package has no pads, and its ends sit on the anchor part's lands. It still has a symbol and a designator, and the sense nets are drawn in the schematic.
-- The **current requirement** is the existing standard field *Current*, an instance requirement like any other. A 0 Ω link compares it with its Part's *Rated current* through `instances::rating_findings`. Copper ties and trace jumpers compare it with the bridge's capacity (see Checks).
+- The **current requirement** is the standard *Rated current* field (quantity *Current*), used as an instance requirement. A 0 Ω link compares it with its Part's *Rated current* through `instances::rating_findings`. Copper ties and trace jumpers compare it with the bridge's capacity (see Checks).
 
 The **electrical state** of a solder jumper or 0 Ω link is the instance's **population**, so there is one switch and it already works per variant (`variant.set_population`). For a jumper, the UI shows populated as *Closed* and not populated as *Open*. When a jumper is placed, its default population comes from the type's `default`. A copper tie cannot be "not populated", and that request is refused with the reason. The copper never changes between variants, as [assembly variants](../assembly-variants.md) require: a trace jumper's trace is always fabricated, and *Open* in a variant becomes a "cut JP3" step on the assembly drawing.
 
@@ -79,8 +79,8 @@ All entries go through `Surface::call`. Each edit is one undo step and is refuse
 | Entry | Module | Does |
 | --- | --- | --- |
 | `library.generate` with the `tie` generator | generators | makes a tie part (below) |
-| `tie.set_purpose { instance, purpose }` | schematic | sets the purpose |
-| `tie.set_anchor { instance, end, anchor? }` | layout | anchors a Kelvin sense end on another part's pad, or clears it |
+| `tie.set_purpose { instance, group?, purpose }` | schematic | sets the purpose |
+| `tie.set_anchor { instance, group?, end, anchor? }` | layout | anchors a Kelvin sense end on another part's pad, or clears it |
 | `tie.list` | project | query: every tie with its form, purpose, ends, state in the active variant, join point and current margin |
 | current requirement | existing field command | unchanged |
 | jumper state | `variant.set_population` | unchanged, with jumper wording |
@@ -113,11 +113,11 @@ ERC follows closed ties. A power input on AGND is driven when the tie joins AGND
 
 ## The generator family
 
-A new `tie` generator module, version 1, sits in the **Board features** category. It makes the whole part: component with `tie` and `assembly`, symbol, package, footprint with bridges, binding and model.
+A new `tie` generator module, version 1, sits in the **Board features** category. It makes the whole part: component with `ties` and `assembly`, symbol, package, footprint with bridges, binding and model.
 
 - **Copper tie**: 2 to 8 ends. Pad size, bridge width and length are parameters. Bridge width has no default that pretends to be a rule: the gap comes from the board's fab profile (`project.*` context parameters, G7). No body (`Model::NoBody`).
 - **Solder jumper**: two-pad and three-pad (1-2 or 2-3) layouts, default open or closed, solder or trace bridge. Presets come only from published sources such as fabricators' guidelines, cited in `presets.json`. The closed solder bridge is a part file in the generator's bundle, placed when the jumper is populated.
-- **0 Ω link**: the existing `chip` generator's resistor presets with `tie.form = zero_ohm`. No new geometry.
+- **0 Ω link**: the existing `chip` generator's resistor presets with one `zero_ohm` group. No new geometry.
 - **Kelvin tie**: no lands. Its ends are anchored when placed.
 
 ## Other tools, from their public documentation
