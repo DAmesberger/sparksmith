@@ -807,10 +807,8 @@ impl PcbEditor {
             .filter(|r| self.tie_selected(r.tie.instance, r.tie.group))
             .flat_map(|r| r.tie.ends.values().flatten().copied())
             .collect();
-        crate::ties::Focus {
-            group: self.instance.zip(self.tie_group),
-            nets,
-        }
+        self.board_ties
+            .focus(self.instance.zip(self.tie_group), nets)
     }
     pub fn highlighted_net(&self) -> Option<Id> {
         self.highlighted
@@ -973,7 +971,12 @@ impl PcbEditor {
         }
         self.project_markers(engine);
         if let Some(rows) = self.reports.ties(engine) {
-            self.board_ties.update(rows);
+            self.board_ties.update(
+                rows,
+                self.board_pads
+                    .iter()
+                    .filter_map(|p| Some((p.placed.terminal?, p.placed.pad.id))),
+            );
         }
         let key = (
             engine.revision(),
@@ -2910,7 +2913,9 @@ impl PcbEditor {
     /// Whether a pad is selected or on the highlighted net.
     fn pad_chosen(&self, placed: &PlacedPad) -> bool {
         (self.is_selected(placed.instance)
-            && (self.instance != Some(placed.instance) || self.tie_group.is_none()))
+            && (self.instance != Some(placed.instance)
+                || self.tie_group.is_none()
+                || self.board_ties.group_of_pad(placed.instance, placed.pad.id) == self.tie_group))
             || placed.net.is_some_and(|n| self.net_is_highlighted(n))
     }
 

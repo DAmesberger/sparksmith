@@ -2,10 +2,14 @@
 use crate::issue_reports::SharedReports;
 use crate::kit;
 use sparksmith_core::ids::{TerminalId, TieId};
+use sparksmith_core::layout::connectivity::TieReport;
 use sparksmith_core::library::tie::{JumperState, TieForm, TiePurpose};
 use sparksmith_core::{
-    ComponentInstance, Engine, Id, InstanceCommand, ObjectRef, Operation, Project,
+    ComponentInstance, Endpoint, Engine, Id, InstanceCommand, ObjectRef, Operation, PadId, Project,
 };
+use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
+use std::sync::Arc;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct AnchorPick {
     pub instance: Id,
@@ -13,7 +17,7 @@ pub struct AnchorPick {
     pub end: TerminalId,
 }
 impl AnchorPick {
-    pub fn place(self, land: Id, pad: sparksmith_core::PadId) -> Operation {
+    pub fn place(self, land: Id, pad: PadId) -> Operation {
         Operation::Instance(InstanceCommand::SetAnchor {
             instance: self.instance,
             group: Some(self.group),
@@ -254,19 +258,31 @@ fn anchor_card(
 /// the board's checked tie report arrives. Selection only reads the index.
 #[derive(Default)]
 pub struct BoardTies {
-    rows: std::sync::Arc<[sparksmith_core::layout::connectivity::TieReport]>,
-    nets: std::collections::BTreeMap<Id, Vec<(Id, TieId)>>,
+    rows: Arc<[TieReport]>,
+    nets: BTreeMap<Id, Vec<(Id, TieId)>>,
+    pad_groups: Rc<BTreeMap<(Id, PadId), TieId>>,
 }
 impl BoardTies {
     pub fn update(
         &mut self,
-        rows: std::sync::Arc<[sparksmith_core::layout::connectivity::TieReport]>,
+        rows: Arc<[TieReport]>,
+        pads: impl Iterator<Item = (Endpoint, PadId)>,
     ) {
-        if std::sync::Arc::ptr_eq(&rows, &self.rows) {
+        if Arc::ptr_eq(&rows, &self.rows) {
             return;
         }
         self.nets.clear();
+        let mut groups = BTreeMap::new();
         for row in rows.iter() {
+            for end in row.tie.ends.keys() {
+                groups.insert(
+                    Endpoint {
+                        instance: row.tie.instance,
+                        terminal: *end,
+                    },
+                    row.tie.group,
+                );
+            }
             for net in row.tie.ends.values().flatten() {
                 self.nets
                     .entry(*net)
@@ -274,20 +290,37 @@ impl BoardTies {
                     .push((row.tie.instance, row.tie.group));
             }
         }
+        let pad_groups = Rc::make_mut(&mut self.pad_groups);
+        pad_groups.clear();
+        if !groups.is_empty() {
+            pad_groups
+                .extend(pads.filter_map(|(ep, pad)| Some(((ep.instance, pad), *groups.get(&ep)?))));
+        }
         self.rows = rows;
+    }
+    pub fn group_of_pad(&self, instance: Id, pad: PadId) -> Option<TieId> {
+        self.pad_groups.get(&(instance, pad)).copied()
+    }
+    pub fn focus(&self, group: Option<(Id, TieId)>, nets: BTreeSet<Id>) -> Focus {
+        Focus {
+            group,
+            nets,
+            pad_groups: self.pad_groups.clone(),
+        }
     }
     pub fn net_groups(&self, net: Id) -> &[(Id, TieId)] {
         self.nets.get(&net).map_or(&[], Vec::as_slice)
     }
-    pub fn rows(&self) -> &[sparksmith_core::layout::connectivity::TieReport] {
+    pub fn rows(&self) -> &[TieReport] {
         &self.rows
     }
 }
 
 #[derive(Default)]
 pub struct Focus {
-    pub group: Option<(Id, TieId)>,
-    pub nets: std::collections::BTreeSet<Id>,
+    group: Option<(Id, TieId)>,
+    pub nets: BTreeSet<Id>,
+    pad_groups: Rc<BTreeMap<(Id, PadId), TieId>>,
 }
 impl Focus {
     /// When inspecting one group of a package, its sibling bridges and
@@ -302,6 +335,8 @@ impl Focus {
         if let Some(tie) = &source.tie {
             return tie.group == group;
         }
-        source.pad.is_none() || source.net.is_some_and(|net| self.nets.contains(&net))
+        source
+            .pad
+            .is_none_or(|pad| self.pad_groups.get(&(instance, pad)) == Some(&group))
     }
 }

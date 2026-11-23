@@ -689,7 +689,24 @@ fn selecting_a_group_lights_its_nets_for_each_form() {
         current: Default::default(),
     })
     .collect::<Vec<_>>();
-    editor.board_ties.update(rows.into());
+    let pads = (2..8).map(|n| {
+        (
+            Endpoint {
+                instance: 13,
+                terminal: TerminalId(n),
+            },
+            sparksmith_core::PadId(n),
+        )
+    });
+    editor.board_ties.update(rows.into(), pads);
+    for n in 2..8 {
+        assert_eq!(
+            editor
+                .board_ties
+                .group_of_pad(13, sparksmith_core::PadId(n)),
+            Some(TieId(n / 2))
+        );
+    }
     for g in 1..=3 {
         editor.select_hit(Hit::Tie(13, TieId(g)));
         let expected: BTreeSet<Id> = [u64::from(g * 2), u64::from(g * 2 + 1)].into();
