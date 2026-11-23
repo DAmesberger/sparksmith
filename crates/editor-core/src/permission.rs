@@ -34,7 +34,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "schematic",
-        (1, 9),
+        (1, 10),
         "Schematic",
         "Sheets, symbols, wires, labels, placed components and their pins.",
     ),

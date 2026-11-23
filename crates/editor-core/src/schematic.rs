@@ -520,7 +520,7 @@ declare_entries!(SchematicCommand in schematic {
     ReorderSheet "sheet.reorder" Edit "Reorder sheets",
     DeleteSheet "sheet.delete" Edit "Delete a sheet",
     PlaceSheetSymbol "sheet_symbol.place" Edit "Place a sheet symbol" [returns(sheet_symbol_placed)],
-    RenameSheetSymbol "sheet_symbol.rename" Edit "Rename a sheet symbol" [since(2, 0)],
+    RenameSheetSymbol "sheet_symbol.rename" Edit "Rename a sheet symbol" [since(1, 10)],
     MoveSheetSymbol "sheet_symbol.move" Edit "Move a sheet symbol",
     ResizeSheetSymbol "sheet_symbol.resize" Edit "Resize a sheet symbol",
     SetSheetChild "sheet_symbol.set_child" Edit "Set a sheet symbol's sheet",
