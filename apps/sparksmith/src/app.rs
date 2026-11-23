@@ -77,7 +77,10 @@ impl Drop for SheetWork {
 
 impl SheetWork {
     fn message(ctx: &egui::Context, message: &str) -> String {
-        crate::keys::shown(ctx,"schematic.cancel").map_or_else(|| message.to_owned(),|key| format!("{message} Press {key} to cancel."))
+        crate::keys::shown(ctx, "schematic.cancel").map_or_else(
+            || message.to_owned(),
+            |key| format!("{message} Press {key} to cancel."),
+        )
     }
 }
 
@@ -434,7 +437,7 @@ impl App {
             if self.sheet_work.is_some() {
                 self.say(
                     Level::Info,
-                    SheetWork::message(ctx,"A sheet is being expanded."),
+                    SheetWork::message(ctx, "A sheet is being expanded."),
                 );
                 return;
             }
@@ -464,7 +467,7 @@ impl App {
                         result,
                         origin,
                     });
-                    self.say(Level::Info, SheetWork::message(ctx,"Expanding sheet."));
+                    self.say(Level::Info, SheetWork::message(ctx, "Expanding sheet."));
                 }
                 Err(error) => self.say(
                     Level::Error,
