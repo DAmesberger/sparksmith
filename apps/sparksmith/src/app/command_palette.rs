@@ -15,7 +15,7 @@ use sparksmith_ui::theme::Tokens;
 const RECENT: usize = 12;
 /// The longest query, in bytes.
 const MAX_QUERY: usize = 256;
-/// Rows shown at once; the rest are counted.
+/// Rows shown at once across commands and help topics; the rest are counted.
 const MAX_ROWS: usize = 60;
 const KEYS: &str = "↑↓ move   Enter run   Esc close";
 
@@ -42,10 +42,14 @@ pub(crate) enum PaletteEvent {
 /// context (a command with two keys, such as the palette's own, shows
 /// once), and in each group (Recent, Commands) the commands that run here
 /// before those that do not, which show dimmed with why. The ranking is
-/// otherwise kept.
-pub(crate) fn arrange(rows: &mut Vec<PaletteRow>, empty_query: bool) {
+/// otherwise kept. Matching help topics have their own group and reserve
+/// space even when commands fill the list. Returns the omitted row count.
+pub(crate) fn arrange(rows: &mut Vec<PaletteRow>, empty_query: bool) -> usize {
     let mut seen = std::collections::BTreeSet::new();
-    rows.retain(|r| seen.insert((r.title.clone(), r.detail.clone())));
+    rows.retain(|r| {
+        r.id.starts_with(super::help_sheet::PALETTE_PREFIX)
+            || seen.insert((r.title.clone(), r.detail.clone()))
+    });
     rows.sort_by_key(|r| {
         (
             r.id.starts_with(super::help_sheet::PALETTE_PREFIX),
@@ -53,6 +57,16 @@ pub(crate) fn arrange(rows: &mut Vec<PaletteRow>, empty_query: bool) {
             !r.enabled,
         )
     });
+    let omitted = rows.len().saturating_sub(MAX_ROWS);
+    if omitted > 0 {
+        let first_topic =
+            rows.partition_point(|r| !r.id.starts_with(super::help_sheet::PALETTE_PREFIX));
+        let topics = rows.len() - first_topic;
+        let keep_commands = MAX_ROWS.saturating_sub(topics).max(1).min(first_topic);
+        rows.drain(keep_commands..first_topic);
+        rows.truncate(MAX_ROWS);
+    }
+    omitted
 }
 
 #[derive(Default)]
@@ -102,7 +116,7 @@ impl CommandPalette {
     /// Move the highlight one enabled row down or up, wrapping, and keep
     /// it on an enabled row when the rows change.
     fn navigate(&mut self, rows: &[PaletteRow], up: bool, down: bool) {
-        let len = rows.len().min(MAX_ROWS);
+        let len = rows.len();
         if len == 0 {
             self.highlighted = 0;
             return;
@@ -162,7 +176,7 @@ impl CommandPalette {
                 self.highlighted = 0;
             }
             rows = rank(&self.query);
-            arrange(&mut rows, self.query.trim().is_empty());
+            let omitted = arrange(&mut rows, self.query.trim().is_empty());
             self.navigate(&rows, keys.up, keys.down);
             if self.query.trim().is_empty() {
                 kit::search_message(ui, crate::reveal::hint_line(), false);
@@ -179,7 +193,7 @@ impl CommandPalette {
                 .show(ui, |ui| {
                     let empty = self.query.trim().is_empty();
                     let mut group = None;
-                    for (index, row) in rows.iter().take(MAX_ROWS).enumerate() {
+                    for (index, row) in rows.iter().enumerate() {
                         let recent = empty && row.recent;
                         let group_name = if row.id.starts_with(super::help_sheet::PALETTE_PREFIX) {
                             "Help"
@@ -191,7 +205,6 @@ impl CommandPalette {
                         if group != Some(group_name) {
                             let count = rows
                                 .iter()
-                                .take(MAX_ROWS)
                                 .filter(|r| {
                                     (empty && r.recent) == recent
                                         && r.id.starts_with(super::help_sheet::PALETTE_PREFIX)
@@ -221,13 +234,10 @@ impl CommandPalette {
                             picked = Some(index);
                         }
                     }
-                    if rows.len() > MAX_ROWS {
+                    if omitted > 0 {
                         kit::search_message(
                             ui,
-                            &format!(
-                                "{} more: refine the search to see them",
-                                rows.len() - MAX_ROWS
-                            ),
+                            &format!("{omitted} more: refine the search to see them"),
                             false,
                         );
                     }

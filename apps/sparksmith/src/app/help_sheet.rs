@@ -299,6 +299,11 @@ impl HelpSheet {
                         );
                         return;
                     };
+                    heading(ui, &entry.title);
+                    ui.label(&entry.summary);
+                    if id.as_str() == "panel/keyboard-shortcuts" {
+                        shortcuts(ui, index, registry, active, &self.page.query);
+                    }
                     if let Some(to) = topic(
                         ui,
                         entry,
@@ -309,9 +314,6 @@ impl HelpSheet {
                         &mut self.media,
                     ) {
                         self.open_topic(to.as_str());
-                    }
-                    if id.as_str() == "panel/keyboard-shortcuts" {
-                        shortcuts(ui, index, registry, active, &self.page.query);
                     }
                     if let Some((key, fix)) = &self.page.fix
                         && *key == engine.report_key()
@@ -364,7 +366,8 @@ impl HelpSheet {
                 .selectable_label(typing && self.selected == i, &entry.title)
                 .on_hover_text(&entry.summary);
             ui.ctx().accesskit_node_builder(response.id, |node| {
-                node.set_role(egui::accesskit::Role::Link)
+                node.set_role(egui::accesskit::Role::Link);
+                node.set_label(entry.title.as_str());
             });
             if response.clicked() || (keys.as_ref().is_some_and(|k| k.enter) && self.selected == i)
             {
@@ -406,8 +409,10 @@ fn kind_label(kind: HelpKind) -> &'static str {
 
 fn heading(ui: &mut Ui, text: &str) {
     let r = ui.heading(text);
-    ui.ctx()
-        .accesskit_node_builder(r.id, |node| node.set_role(egui::accesskit::Role::Heading));
+    ui.ctx().accesskit_node_builder(r.id, |node| {
+        node.set_role(egui::accesskit::Role::Heading);
+        node.set_label(text);
+    });
 }
 
 fn topic_link(ui: &mut Ui, index: &Index, id: &HelpId, target: &mut Option<HelpId>) {
@@ -520,8 +525,6 @@ fn topic(
     media: &mut media::Images,
 ) -> Option<HelpId> {
     let mut target = None;
-    heading(ui, &entry.title);
-    ui.label(&entry.summary);
     match &entry.facts {
         Facts::Command {
             context, reaches, ..

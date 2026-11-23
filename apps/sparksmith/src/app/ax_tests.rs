@@ -1099,6 +1099,36 @@ fn help_history_uses_the_focused_readers_effective_keys() -> Fallible {
     Ok(())
 }
 
+/// A help result in the command palette opens the same searchable shortcuts
+/// sheet as the menu command. The row uses the currently bound key.
+#[test]
+fn palette_help_result_opens_effective_shortcuts() -> Fallible {
+    let mut ax = Ax::new(Workspace::Pcb)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    std::sync::Arc::make_mut(&mut ax.app.registry).rebind(
+        "route.width-next",
+        Some(crate::commands::Chord::key(Key::Q)),
+    )?;
+    crate::keys::publish(&ax.ctx, &ax.app.registry);
+    ax.app.run_command(&ax.ctx, "app.palette");
+    ax.settle();
+    ax.type_text("help:panel/keyboard-shortcuts");
+    ax.key(Key::Enter);
+    ax.settle();
+    assert!(ax.has(Role::Heading, "Keyboard shortcuts"), "{}", ax.dump());
+    ax.type_text("Next track width");
+    ax.settle();
+    assert!(
+        ax.texts.iter().any(|t| t == "Next track width"),
+        "{}",
+        ax.dump()
+    );
+    assert!(ax.texts.iter().any(|t| t == "Q"), "{}", ax.dump());
+    Ok(())
+}
+
 #[test]
 fn settings_question_opens_the_source_of_the_default() -> Fallible {
     let mut ax = Ax::new(Workspace::Pcb)?;

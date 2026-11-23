@@ -177,3 +177,20 @@ fn duplicates_go_and_unavailable_commands_follow_the_available_ones() {
     let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
     assert_eq!(ids, ["undo", "save", "route"]);
 }
+
+/// A broad query still has a Help group after the command matches fill the list.
+/// A topic with the same title and summary as a command stays in its own group.
+#[test]
+fn a_full_command_list_leaves_room_for_matching_help() {
+    let mut rows: Vec<_> = (0..MAX_ROWS + 3)
+        .map(|n| row(&format!("tool-{n}"), true))
+        .collect();
+    let mut topic = row("help:panel/help", true);
+    topic.title.clone_from(&rows[0].title);
+    rows.push(topic);
+    let omitted = arrange(&mut rows, false);
+    assert_eq!(omitted, 4);
+    assert_eq!(rows.len(), MAX_ROWS);
+    assert_eq!(rows[0].id, "tool-0");
+    assert_eq!(rows[MAX_ROWS - 1].id, "help:panel/help");
+}
