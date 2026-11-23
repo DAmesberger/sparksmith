@@ -139,6 +139,9 @@ fn typed_ties_in_released_copper_paste_cut_steps_and_assembly_csvs() -> Fallible
     let (jp2, _) = place(&mut engine, &solder, "JP2", 1, [60., 30.])?;
     let chip = tie_part(&mut engine, "Jumper resistor", TieForm::ZeroOhm)?;
     let (link, _) = place(&mut engine, &chip, "R1", 1, [20., 30.])?;
+    // The other resistor stays populated, so the open variant still emits
+    // a placement CSV with a real row and a top stencil with real apertures.
+    place(&mut engine, &chip, "R2", 1, [80., 30.])?;
     for (pin, name) in [(1, "SIG,RET"), (2, "GND")] {
         connect(&mut engine, ep(nt, pin), ep(link, pin))?;
         let net = net_of(&engine, ep(nt, pin))?;
@@ -210,6 +213,7 @@ fn typed_ties_in_released_copper_paste_cut_steps_and_assembly_csvs() -> Fallible
         );
         let positions = text(set, "-pos-top.csv")?;
         let bought = text(set, "-bom.csv")?;
+        assert!(positions.contains("R2") && bought.contains("R2"));
         for name in ["NT1", "JP1", "JP2"] {
             assert!(!positions.contains(name) && !bought.contains(name));
         }
