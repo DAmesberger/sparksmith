@@ -1044,6 +1044,15 @@ fn generated_footprint_replays_the_mask_expansion_of_its_original_board() -> Tes
     );
 
     set_expansion(&mut editor, 0.02)?;
+    // Opening refills stale fills (the expansion is in their key), so the
+    // saved board is refilled first to compare like with like.
+    let revision = editor.engine().revision();
+    editor.engine_mut().apply(
+        revision,
+        Operation::Fill(sparksmith_core::layout::fill::FillCommand::Refill {
+            target: sparksmith_core::layout::fill::RefillTarget::Stale,
+        }),
+    )?;
     let path = temp.path().join("captured.sparksmith");
     let saved = call(&mut editor, "project.save", json!({"path": path}));
     assert_eq!(saved["ok"], true, "{saved}");

@@ -34,7 +34,9 @@ fn the_preset_is_the_defaults() {
     let description = description();
     assert_eq!(description.presets().len(), 1);
     for preset in description.presets() {
-        for param in description.params() {
+        // A project-context parameter (the board's mask expansion) comes
+        // from the board, never from a preset.
+        for param in description.params().iter().filter(|p| p.context.is_none()) {
             assert_eq!(
                 preset.params.get(&param.key),
                 Some(&param.default),

@@ -4476,6 +4476,15 @@
             "description": "The feature's name in SolidCraft (\"USB opening\").",
             "type": "string"
           },
+          "feature_id": {
+            "description": "Native feature identity when the effect identifies an operation.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "message": {
             "description": "The sentence the user reads.",
             "type": "string"

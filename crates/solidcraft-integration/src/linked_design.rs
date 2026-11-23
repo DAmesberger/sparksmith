@@ -890,9 +890,16 @@ impl LinkedDesign {
             }
         };
         let mut reported = BTreeSet::new();
-        for note in new_feature_errors(before_errors, self.feature_errors()) {
+        let notes = new_feature_errors(before_errors, self.feature_errors());
+        let failing: BTreeSet<u64> = notes.iter().map(|n| n.feature_id).collect();
+        for note in notes {
             reported.insert(note.feature_id);
             let sketch = self.source_sketch(note.feature_id);
+            // An operation failing with its own source sketch is that
+            // sketch's failure, named once.
+            if sketch != note.feature_id && failing.contains(&sketch) {
+                continue;
+            }
             let used = uses.iter().find(|u| {
                 u.via != UseKind::Joint
                     && (u.feature_id == note.feature_id || u.feature_id == sketch)

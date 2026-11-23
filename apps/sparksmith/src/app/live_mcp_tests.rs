@@ -328,8 +328,14 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
         .ok_or("a warning to review")?;
     let position = |output: &egui::FullOutput, text: &str| {
         output.shapes.iter().find_map(|shape| match &shape.shape {
+            // Drawn where its clip shows some of it: a cell's text starts
+            // on the cell's own edge.
             egui::Shape::Text(t)
-                if t.galley.job.text == text && shape.clip_rect.contains(t.pos) =>
+                if t.galley.job.text == text
+                    && shape
+                        .clip_rect
+                        .intersect(egui::Rect::from_min_size(t.pos, t.galley.size()))
+                        .is_positive() =>
             {
                 Some(t.pos)
             }

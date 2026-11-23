@@ -1,9 +1,9 @@
 {
-  "model_request_bytes": 59965,
-  "estimated_prompt_tokens": 18916,
-  "visible_reply_bytes": 3189,
+  "model_request_bytes": 60074,
+  "estimated_prompt_tokens": 18951,
+  "visible_reply_bytes": 3182,
   "saved_path": {
-    "visible": 145,
-    "prompt": 149
+    "visible": 138,
+    "prompt": 142
   }
 }
