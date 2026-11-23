@@ -817,3 +817,78 @@ fn a_substitute_is_resolved_only_after_review_and_within_its_requirements() -> R
     assert_eq!(unresolved_r1(engine)?, [unmet]);
     Ok(())
 }
+
+#[test]
+fn substitute_preserves_typed_tie_groups_on_the_matched_lands() -> Result<()> {
+    use crate::ids::{TerminalId, TieId};
+    use crate::library::tie::{TieForm, TieSpec};
+    let mut engine = Engine::default();
+    let mut make = |name: &str, ends: [u32; 2], link: bool| -> Result<(Fixture, PartRef)> {
+        let [a, b] = ends;
+        let f = draft(
+            &mut engine,
+            &Spec {
+                name,
+                terminals: vec![(a, "A", passive()), (b, "B", passive())],
+                units: vec![(1, "A", vec![(a, [-4., 0.]), (b, [4., 0.])])],
+                package: vec![(1, "1"), (2, "2")],
+                mapping: vec![(1, a), (2, b)],
+                physical: true,
+            },
+        )?;
+        if link {
+            rewrite(&mut engine, f.component, |d| {
+                if let Definition::Component(c) = d {
+                    c.ties = vec![TieSpec {
+                        id: TieId(a),
+                        ends: ends.map(TerminalId).to_vec(),
+                        form: TieForm::ZeroOhm,
+                    }];
+                }
+            })?;
+        }
+        publish(&mut engine, f.all())?;
+        let p = publish_part(
+            &mut engine,
+            part(name, f.r1(), BindingRef::new(f.binding, Revision::FIRST)),
+        )?;
+        Ok((f, p))
+    };
+    let (passive, ordinary_part) = make("Resistor control", [1, 2], false)?;
+    let (link, zero_part) = make("Jumper resistor", [1, 2], true)?;
+    let (_, compatible) = make("Compatible jumper", [27, 11], true)?;
+    let (regular, _) = place(&mut engine, &passive, "R1", 1, [12., 12.])?;
+    let (jumper, _) = place(&mut engine, &link, "R2", 1, [26., 12.])?;
+    let alt = add(&mut engine, "Alternate")?;
+    for (instance, part) in [(regular, zero_part), (jumper, ordinary_part)] {
+        let before = Snapshot::of(&engine);
+        let result = variant(
+            &mut engine,
+            VariantCommand::SetPart {
+                instance,
+                variant: alt,
+                part: Some(part),
+            },
+        );
+        assert!(matches!(result, Err(Error::Conflict(_))));
+        before.assert_kept(&engine, "changing the typed join on the same lands");
+    }
+    variant(
+        &mut engine,
+        VariantCommand::SetPart {
+            instance: jumper,
+            variant: alt,
+            part: Some(compatible),
+        },
+    )?;
+    assert_eq!(
+        engine
+            .project()
+            .variants
+            .get(alt)
+            .and_then(|v| v.overrides.get(&jumper))
+            .and_then(|o| o.part),
+        Some(compatible)
+    );
+    Ok(())
+}

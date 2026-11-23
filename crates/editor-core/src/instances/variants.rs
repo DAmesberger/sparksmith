@@ -256,7 +256,8 @@ pub fn substitute_fit<'a>(
     r: PartRef,
 ) -> Result<PhysicalView<'a>> {
     let name = &instance.designator;
-    let own = resolve(library, instance)?.physical.ok_or_else(|| {
+    let resolved = resolve(library, instance)?;
+    let own = resolved.physical.ok_or_else(|| {
         Error::Conflict(format!(
             "{name} has no footprint, so no other part can be fitted on it."
         ))
@@ -275,16 +276,16 @@ pub fn substitute_fit<'a>(
                 "{mpn}'s component is missing from the project library."
             ))
         })?;
-    let own_form = library
-        .component(instance.component)
-        .and_then(|c| c.definition.ties.first())
-        .map(|s| s.form);
-    let candidate_form = component.definition.ties.first().map(|s| s.form);
-    if own_form.is_some()
-        && (own_form != Some(crate::library::tie::TieForm::ZeroOhm) || candidate_form != own_form)
+    if resolved
+        .component
+        .definition
+        .ties
+        .iter()
+        .chain(&component.definition.ties)
+        .any(|tie| tie.form != crate::library::tie::TieForm::ZeroOhm)
     {
         return Err(Error::Conflict(format!(
-            "{mpn} cannot substitute for the tie form of {name}."
+            "{mpn} cannot substitute for {name}: only bought parts can be substituted."
         )));
     }
     if component
@@ -332,12 +333,21 @@ pub fn substitute_fit<'a>(
         footprint,
         package,
     };
-    let ours = pad_groups(&own, target, &own_order(target));
+    let ours = pad_groups(
+        &own,
+        &resolved.component.definition.ties,
+        &own_order(target),
+    );
     let theirs = pad_groups(
         &view,
-        &footprint.definition,
+        &component.definition.ties,
         &matched_order(target, &footprint.definition),
     );
+    if ours.as_ref().map(|g| &g.ties) != theirs.as_ref().map(|g| &g.ties) || ours.is_none() {
+        return Err(Error::Conflict(format!(
+            "{mpn} does not fit {name}: it changes the tie form or the lands joined by a tie."
+        )));
+    }
     if ours != theirs {
         return Err(Error::Conflict(format!(
             "{mpn} does not fit {name}: its pins join or split {name}'s pads differently, \
@@ -403,22 +413,46 @@ fn matched_order(target: &FootprintDefinition, other: &FootprintDefinition) -> V
 /// position of the first pad of its terminal.
 fn pad_groups(
     physical: &PhysicalView<'_>,
-    footprint: &FootprintDefinition,
+    ties: &[crate::library::tie::TieSpec],
     order: &[usize],
-) -> Vec<Option<usize>> {
+) -> Option<PadGroups> {
     let mut first: BTreeMap<TerminalId, usize> = BTreeMap::new();
-    order
+    let terminals = order
         .iter()
         .enumerate()
         .map(|(position, index)| {
-            let terminal = footprint
+            let terminal = physical
+                .footprint
+                .definition
                 .pads
                 .get(*index)
                 .and_then(|p| p.terminal)
                 .and_then(|t| physical.binding.definition.terminal_of(t))?;
             Some(*first.entry(terminal).or_insert(position))
         })
-        .collect()
+        .collect();
+    let mut by_lands = BTreeMap::new();
+    for tie in ties {
+        let mut ends: Vec<_> = tie
+            .ends
+            .iter()
+            .map(|terminal| first.get(terminal).copied())
+            .collect::<Option<_>>()?;
+        ends.sort_unstable();
+        by_lands.insert(ends, tie.form);
+    }
+    Some(PadGroups {
+        terminals,
+        ties: by_lands,
+    })
+}
+
+#[derive(PartialEq)]
+struct PadGroups {
+    terminals: Vec<Option<usize>>,
+    /// Component-local ids differ between Parts. Compare each tie by the
+    /// lands its ends map to under the binding, and by its electrical form.
+    ties: BTreeMap<Vec<usize>, crate::library::tie::TieForm>,
 }
 
 /// Every Part of the project library that fits `instance`'s footprint
