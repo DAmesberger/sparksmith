@@ -28,6 +28,7 @@ type Linked = (PathBuf, ContentHash);
 /// linked design file's identity and bytes. Anything else about the
 /// request may differ; any of these differing refuses the publish.
 fn publish_token(
+    project: &sparksmith_core::model::Project,
     revision: u64,
     tier: Tier,
     candidate: ContentHash,
@@ -36,7 +37,22 @@ fn publish_token(
     linked: Option<&Linked>,
 ) -> Result<String> {
     use sha2::{Digest, Sha256};
+    // Packed assets already carry their content hashes. Bind them by those
+    // hashes without encoding their potentially large bodies as base64.
+    let mut document = project.clone();
+    for asset in &mut document.library.assets {
+        asset.data = Default::default();
+    }
+    let mut contents = Sha256::new();
+    serde_json::to_writer(&mut contents, &document)?;
+    if tier == Tier::Full {
+        // Computed copper is exported but omitted from the persisted project.
+        for fill in project.fills.iter() {
+            serde_json::to_writer(&mut contents, &fill.computed)?;
+        }
+    }
     let bound = json!({
+        "project": ContentHash(contents.finalize().into()),
         "revision": revision,
         "tier": tier,
         "candidate": candidate,
@@ -156,6 +172,7 @@ impl Session {
             None => None,
         };
         preview.token = Some(publish_token(
+            &project,
             self.engine.revision(),
             preview.tier,
             preview.hash,
@@ -224,6 +241,7 @@ impl Session {
         let source = project.interface.source_id.unwrap_or_default();
         let candidate = publish::candidate(project, params.tier, source)?;
         let now = publish_token(
+            project,
             self.engine.revision(),
             params.tier,
             candidate.hash,
