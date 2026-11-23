@@ -511,11 +511,25 @@ fn placed_body_follows_the_package_body_not_the_designator() -> Result<()> {
     Ok(())
 }
 
+fn native_scale_context() -> Result<sparksmith_core::library::standards::Scope> {
+    Ok(crate::looks::test_context()?.enter())
+}
+
+#[test]
+fn native_scale_fixture_has_shipped_materials_and_a_four_layer_stack() -> Result<()> {
+    let _scope = native_scale_context()?;
+    crate::looks::get()?;
+    let board = via_board(1)?;
+    assert_eq!(board.stackup.layers().len(), 4);
+    Ok(())
+}
+
 /// Build timings for docs/editor-evidence.md:
 /// `cargo test --profile ci -p sparksmith-solidcraft build_timings -- --ignored --nocapture`.
 #[test]
 #[ignore = "benchmark"]
 fn build_timings() -> Result<()> {
+    let _scope = native_scale_context()?;
     let demo = Engine::demo()
         .map_err(|error| Error::Verification(error.to_string()))?
         .project()
@@ -676,6 +690,7 @@ fn with_tracks(count: usize, total: usize) -> Result<Project> {
 #[test]
 #[ignore = "benchmark"]
 fn via_build_profile() -> Result<()> {
+    let _scope = native_scale_context()?;
     let count = std::env::var("SPARKSMITH_VIAS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -1923,6 +1938,7 @@ fn a_cancelled_build_stops_and_an_uncancelled_one_completes() -> Result<()> {
 #[test]
 #[ignore = "builds a 10,000-via board"]
 fn ten_thousand_vias_and_many_tracks_survive_reopening() -> Result<()> {
+    let _scope = native_scale_context()?;
     let mut project = via_board(10_000)?;
     let net = project.nets[0].id;
     let columns = 64;
