@@ -3,6 +3,7 @@
 use crate::kit;
 use sparksmith_automation::live::NativeExportReview;
 use sparksmith_core::fabrication::PreflightReport;
+use sparksmith_core::issues::Severity;
 use std::sync::{Arc, mpsc};
 
 type Checked = Result<PreflightReport, String>;
@@ -63,20 +64,34 @@ impl Preflight {
                 if !report.items.is_empty() {
                     kit::table(
                         ui,
-                        &[kit::TableColumn {
-                            title: "Findings",
-                            weight: 1.0,
-                        }],
+                        &[
+                            kit::TableColumn {
+                                title: "Status",
+                                weight: 1.0,
+                            },
+                            kit::TableColumn {
+                                title: "Finding",
+                                weight: 4.0,
+                            },
+                        ],
                         report.items.len(),
-                        |ui, row, _| {
+                        |ui, row, column| {
                             let Some(item) = report.items.get(row) else {
                                 return;
                             };
-                            if item.waiver.is_some() {
-                                kit::summary_row(ui, &format!("Waived · {}", item.title), None);
+                            let text = if column != 0 {
+                                &item.title
+                            } else if item.waiver.is_some() {
+                                "Waived"
                             } else {
-                                kit::summary_row(ui, &item.title, None);
-                            }
+                                match item.severity {
+                                    Severity::Error => "Error",
+                                    Severity::Warning => "Warning",
+                                    Severity::ToDo => "To do",
+                                    Severity::Info => "Note",
+                                }
+                            };
+                            kit::summary_row(ui, text, None);
                         },
                         None,
                     );

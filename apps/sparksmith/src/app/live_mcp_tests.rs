@@ -319,6 +319,52 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
         "missing {}",
         finding.title
     );
+    let warning = report
+        .items
+        .iter()
+        .find(|item| {
+            item.severity == sparksmith_core::issues::Severity::Warning && item.waiver.is_none()
+        })
+        .ok_or("a warning to review")?;
+    let position = |output: &egui::FullOutput, text: &str| {
+        output.shapes.iter().find_map(|shape| match &shape.shape {
+            egui::Shape::Text(t)
+                if t.galley.job.text == text && shape.clip_rect.contains(t.pos) =>
+            {
+                Some(t.pos)
+            }
+            _ => None,
+        })
+    };
+    let over_table =
+        position(&output, &finding.title).ok_or("a visible preflight row")? + egui::vec2(2.0, 2.0);
+    let mut visible = output;
+    // Scroll the card's report if errors precede the first warning.
+    for _ in 0..report.items.len() {
+        if position(&visible, &warning.title).is_some() {
+            break;
+        }
+        visible = h.frame_output(vec![
+            egui::Event::PointerMoved(over_table),
+            egui::Event::MouseWheel {
+                source: egui::MouseWheelSource::Unknown,
+                unit: egui::MouseWheelUnit::Line,
+                delta: egui::vec2(0.0, -2.0),
+                modifiers: egui::Modifiers::NONE,
+                phase: egui::TouchPhase::Move,
+            },
+        ]);
+    }
+    let row = position(&visible, &warning.title).ok_or("the warning title")?;
+    assert!(
+        visible
+            .shapes
+            .iter()
+            .any(|shape| matches!(&shape.shape, egui::Shape::Text(t)
+                if t.galley.job.text == "Warning" && t.pos.y == row.y && t.pos.x < row.x
+            )),
+        "the card must label the warning on its own row"
+    );
     assert!(!path.exists());
     // Meanwhile another change is refused: the window waits for an answer.
     let waiting = h.call(live::CALL, h.add_via(revision))?;
