@@ -1811,9 +1811,6 @@ impl LibrarySources {
         }
         let close = ui_kit::Window::new(id, "library", "Library sources").show_body(ctx, |ui| {
             body(ui, |ui| {
-                if let Some(problem) = &self.problem {
-                    kit::status(ui, problem, Tone::Error);
-                }
                 if self.sources.is_empty() {
                     kit::status(
                         ui,
@@ -1846,10 +1843,9 @@ impl LibrarySources {
                                     kit::value_row(ui, "Status", "loading…");
                                 }
                                 _ => {
-                                    kit::status(
+                                    kit::warning_row(
                                         ui,
                                         &format!("Not searchable: {}", source.secondary()),
-                                        Tone::Warning,
                                     );
                                 }
                             }
@@ -1887,6 +1883,9 @@ impl LibrarySources {
                         .as_ref()
                         .map_or_else(String::new, |p| p.display().to_string()),
                 );
+                if let Some(problem) = &self.problem {
+                    kit::refusal_wrapped(ui, problem);
+                }
                 kit::rule(ui);
                 kit::actions(ui, |ui| {
                     if kit::primary(ui, "Add folder…", !self.picking).clicked() {
@@ -1940,10 +1939,9 @@ impl LibrarySources {
                         &format!("{} · {}", promote.name, promote.component.revision),
                     );
                     if writable.is_empty() {
-                        kit::status(
+                        kit::warning_row(
                             ui,
                             "No library source accepts writes. Add a library folder and allow promoting to it.",
-                            Tone::Warning,
                         );
                         kit::actions(ui, |ui| {
                             sources = ui_kit::button(ui, "Library sources…", Button::Normal)
@@ -1956,8 +1954,7 @@ impl LibrarySources {
                             .collect();
                         kit::choice_row(ui, "Library", &mut promote.target, &options);
                     }
-                    match &promote.plan {
-                        Some((_, _, Ok(plan))) => {
+                    if let Some((_, _, Ok(plan))) = &promote.plan {
                             let records = plan.bundle.records.len();
                             let new = plan.origins.len();
                             kit::value_row(
@@ -2000,17 +1997,14 @@ impl LibrarySources {
                                 ui,
                                 "Each revision is written once as its own file; a file already in the library with equal content is kept. The project records where each revision went, as one undo step.",
                             );
-                        }
-                        Some((_, _, Err(error))) => {
-                            kit::status(ui, error, Tone::Error);
-                        }
-                        None => {}
                     }
                     if promote.writing.is_some() {
                         kit::status(ui, "Writing to the library…", Tone::Note);
                     }
-                    if let Some(error) = &promote.error {
-                        kit::status(ui, error, Tone::Error);
+                    if let Some(error) = promote.error.as_deref().or_else(|| {
+                        promote.plan.as_ref().and_then(|(_, _, result)| result.as_ref().err().map(String::as_str))
+                    }) {
+                        kit::refusal_wrapped(ui, error);
                     }
                     kit::rule(ui);
                     let ready = promote.writing.is_none()

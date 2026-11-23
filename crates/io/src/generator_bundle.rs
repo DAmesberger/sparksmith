@@ -114,6 +114,23 @@ impl ShippedLibrary {
         Ok(names)
     }
 
+    /// Sorted bundle names and their content revisions. A manifest names all
+    /// module and part bytes by hash, so the index need not load those bytes
+    /// to check whether it can reuse previously evaluated presets.
+    pub fn generator_revisions(&self) -> Result<Vec<(String, ContentHash)>> {
+        self.generators()?
+            .into_iter()
+            .map(|name| {
+                let bytes = self.read(
+                    Shelf::Generators,
+                    &format!("{name}/{MANIFEST}"),
+                    MANIFEST_BYTES,
+                )?;
+                Ok((name, asset_hash(&bytes)))
+            })
+            .collect()
+    }
+
     /// The shipped generator bundle `name`, each file checked against the
     /// manifest. A missing bundle names the folder it was looked for in; a
     /// missing or changed file of the bundle is named.

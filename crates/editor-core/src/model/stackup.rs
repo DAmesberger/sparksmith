@@ -179,6 +179,33 @@ impl GlassDk {
     }
 }
 
+/// Nominal radial thickness of the copper on a finished plated hole, and
+/// the measurement or published figure supporting it. An assumed value is
+/// carried with the design until the stackup specifies a confirmed one.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct BarrelPlating {
+    pub wall_nm: Nm,
+    pub source: String,
+    pub assumed: bool,
+}
+
+impl BarrelPlating {
+    fn check(&self) -> Result<()> {
+        if self.wall_nm <= Nm::ZERO
+            || self.source.trim().is_empty()
+            || self.source.len() > crate::rules::MAX_PROFILE_NOTES
+            || self.source.chars().any(char::is_control)
+        {
+            return Err(Error::Invalid(
+                "The nominal plated hole wall needs a positive thickness and a printable source."
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// The board's stackup. `copper` lists foils top to bottom; `dielectrics[i]`
 /// lies between `copper[i]` and `copper[i + 1]`.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -186,6 +213,10 @@ impl GlassDk {
 pub struct Stackup {
     pub copper: Vec<CopperFoil>,
     pub dielectrics: Vec<Dielectric>,
+    /// A stackup edit may omit the wall to keep the current one. A saved
+    /// board always carries its value and source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub barrel_plating: Option<BarrelPlating>,
     pub mask_top: bool,
     pub mask_bottom: bool,
     /// Soldermask thickness over copper in µm, on every side with mask;
@@ -243,6 +274,7 @@ pub struct StackupPresets {
     pub name: String,
     /// Copper foil of every preset layer and added layer, µm.
     pub copper_um: f64,
+    pub barrel_plating: BarrelPlating,
     /// Soldermask over copper, µm.
     pub mask_um: f64,
     /// Soldermask over bare laminate, µm.
@@ -271,6 +303,7 @@ impl StackupPresets {
     /// The values' own rules: every thickness within the stackup ranges,
     /// glass steps given and every Dk estimate within [`DK_RANGE`].
     pub fn check(&self) -> Result<()> {
+        self.barrel_plating.check()?;
         let mm = |v: f64| v.is_finite() && v > 0.0 && v <= *DIELECTRIC_MM_RANGE.end();
         let ok = COPPER_UM_RANGE.contains(&self.copper_um)
             && MASK_UM_RANGE.contains(&self.mask_um)
@@ -383,6 +416,7 @@ impl StackupPresets {
         let stackup = Stackup {
             copper: vec![self.foil(); count],
             dielectrics,
+            barrel_plating: Some(self.barrel_plating.clone()),
             mask_top: true,
             mask_bottom: true,
             mask_um: self.mask_um,
@@ -418,6 +452,7 @@ impl Default for Stackup {
         Self::preset(MIN_COPPER_LAYERS).unwrap_or_else(|_| Stackup {
             copper: Vec::new(),
             dielectrics: Vec::new(),
+            barrel_plating: None,
             mask_top: false,
             mask_bottom: false,
             mask_um: 0.0,
@@ -447,6 +482,9 @@ impl Stackup {
     /// This stackup with what a request left out (mask thicknesses of 0,
     /// no Dk estimates) taken from `current`, the board's stackup.
     pub fn keeping_unstated(mut self, current: &Stackup) -> Self {
+        if self.barrel_plating.is_none() {
+            self.barrel_plating.clone_from(&current.barrel_plating);
+        }
         if self.mask_um == 0.0 {
             self.mask_um = current.mask_um;
         }
@@ -591,6 +629,16 @@ impl Stackup {
         Some((base, base + dielectric.thickness_mm))
     }
 
+    /// The nominal physical wall saved on the board, independent of the
+    /// process allowance in the fabrication profile's drill file settings.
+    pub fn plating(&self) -> Result<&BarrelPlating> {
+        let plating = self.barrel_plating.as_ref().ok_or_else(|| {
+            Error::Invalid("The stackup is missing its nominal plated hole wall and source.".into())
+        })?;
+        plating.check()?;
+        Ok(plating)
+    }
+
     /// The stackup rules: an even number of copper layers from
     /// [`MIN_COPPER_LAYERS`] to [`MAX_COPPER_LAYERS`], exactly one
     /// dielectric between neighbouring foils, finite thicknesses within
@@ -598,6 +646,7 @@ impl Stackup {
     /// within [`MASK_UM_RANGE`].
     pub fn check(&self) -> Result<()> {
         check_count(self.copper.len())?;
+        self.plating()?;
         if self.dielectrics.len() + 1 != self.copper.len() {
             return Err(Error::Invalid(
                 "a stackup has one dielectric between each pair of copper layers".into(),

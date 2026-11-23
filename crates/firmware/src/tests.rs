@@ -178,14 +178,16 @@ fn the_zephyr_overlay_enables_peripherals_and_lists_plain_gpios() -> Fallible<()
         "    pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;",
         "    pinctrl-names = \"default\";",
         "    zephyr,user {",
-        "        led-status-gpios = <&gpioa 5 (GPIO_ACTIVE_HIGH)>;",
-        "        button-gpios = <&gpioa 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;",
+        "        led-status-gpios = <&gpioa 5 (SPARKSMITH_LED_STATUS_POLARITY)>;",
+        "        button-gpios = <&gpioa 6 (SPARKSMITH_BUTTON_POLARITY | GPIO_PULL_UP)>;",
     ] {
         assert!(
             text.lines().any(|l| l == line),
             "missing {line:?} in\n{text}"
         );
     }
+    assert!(text.contains("Set each polarity to GPIO_ACTIVE_LOW or GPIO_ACTIVE_HIGH"));
+    assert!(!text.contains("#define SPARKSMITH_LED_STATUS_POLARITY"));
     assert_eq!(
         text.matches('{').count(),
         text.matches('}').count(),

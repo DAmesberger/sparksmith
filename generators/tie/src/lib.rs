@@ -127,13 +127,18 @@ fn describe() -> Description {
     params.extend(
         chip.params()
             .iter()
-            .filter(|p| matches!(p.key.as_str(), "resistor_style" | "land_gap_min"))
+            .filter(|p| {
+                matches!(
+                    p.key.as_str(),
+                    "resistor_style" | "land_gap_min" | BOARD_MASK_EXPANSION
+                )
+            })
             .cloned(),
     );
     Description {
         abi: ABI,
         id: "tie".into(),
-        version: 1,
+        version: 2,
         title: "Net ties and jumpers".into(),
         licence: "MIT OR Apache-2.0".into(),
         deterministic: true,
@@ -174,7 +179,7 @@ fn zero_ohm(size: &str, request: &Request) -> Result<Generation, Vec<Problem>> {
         .map(|p| (p.key.clone(), p.default.clone()))
         .collect();
     params.extend(p.params.clone());
-    for key in ["resistor_style", "land_gap_min"] {
+    for key in ["resistor_style", "land_gap_min", BOARD_MASK_EXPANSION] {
         if let Some(value) = request.params.get(key) {
             params.insert(key.into(), value.clone());
         }

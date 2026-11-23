@@ -19,10 +19,58 @@ const MAX_PATH: usize = 4095;
 pub struct ModelFileParams {
     pub path: sparksmith_core::permission::FilePath,
     pub format: ModelFormat,
-    /// The frame to report bounds in; the format's default frame (glTF:
-    /// metres, Y up; STEP and `.solidcraft`: as stated, Z up) when absent.
+    /// Bounds frame, defaulting to the format's frame.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frame: Option<SourceFrameParams>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warning_page: Option<WarningPage>,
+}
+
+/// Omit the page to return all inspection warnings.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WarningPage {
+    /// Zero-based warning index.
+    #[serde(default)]
+    pub offset: usize,
+    /// Maximum warning count on this page.
+    pub limit: Option<usize>,
+}
+
+/// The inspected geometry and coverage of the requested warning page.
+#[derive(Serialize, JsonSchema)]
+pub(super) struct InspectedFile {
+    #[serde(flatten)]
+    inspection: inspect::ModelInspection,
+    warning_total: usize,
+    warnings_omitted: usize,
+}
+
+impl InspectedFile {
+    fn page(
+        mut inspection: inspect::ModelInspection,
+        offset: usize,
+        limit: Option<usize>,
+    ) -> Result<Self> {
+        let warning_total = inspection.warnings.len();
+        if offset > warning_total {
+            return Err(invalid(format!(
+                "model.asset: warning offset {offset} exceeds {warning_total}"
+            )));
+        }
+        let count = (warning_total - offset).min(limit.unwrap_or(usize::MAX));
+        inspection.warnings = inspection
+            .warnings
+            .into_iter()
+            .skip(offset)
+            .take(count)
+            .collect();
+        Ok(Self {
+            inspection,
+            warning_total,
+            warnings_omitted: warning_total - count,
+        })
+    }
 }
 
 /// The file extensions each format accepts.
@@ -62,7 +110,12 @@ impl Session {
             Some(frame) => inspect::inspect_in(&bytes, params.format, &SourceFrame::from(*frame))?,
             None => inspect::inspect(&bytes, params.format)?,
         };
-        Ok(serde_json::to_value(inspection)?)
+        let page = params.warning_page.unwrap_or_default();
+        Ok(serde_json::to_value(InspectedFile::page(
+            inspection,
+            page.offset,
+            page.limit,
+        )?)?)
     }
 }
 
@@ -143,6 +196,8 @@ mod tests {
             "params": {"path": path.to_string_lossy(), "format": "gltf"}}));
         assert_eq!(reply["ok"], true, "{reply}");
         let result = &reply["result"];
+        assert_eq!(result["warning_total"], 0);
+        assert_eq!(result["warnings_omitted"], 0);
         assert_eq!(result["bodies"][0]["key"], "Assembly");
         assert_eq!(result["materials"][0]["name"], "Grey");
         let hi = &result["bounds_mm"][1];
@@ -157,8 +212,34 @@ mod tests {
                 "frame": {"unit_mm": 1000.0, "up": "z", "origin_offset": [0.0, 0.0, 0.0]}}}));
         let hi = &reply["result"]["bounds_mm"][1];
         assert!(near(&hi[1], 1.0) && near(&hi[2], 1.5), "{reply}");
+        let page = session.dispatch(json!({"command": "library.inspect_model_file",
+            "params": {"path": path.to_string_lossy(), "format": "gltf",
+                "warning_page": {"offset": 0, "limit": 0}}}));
+        assert_eq!(page["ok"], true, "{page}");
+        assert_eq!(page["result"]["warning_total"], result["warning_total"]);
         let after = session.dispatch(json!({"command": "project.inspect"}));
         assert_eq!(before, after, "inspection is not a document change");
+        Ok(())
+    }
+
+    #[test]
+    fn warning_pages_cover_the_sixteenth_and_seventeenth_feature() -> Fallible<()> {
+        let mut inspection = inspect::inspect(&one_box_glb(), ModelFormat::Gltf)?;
+        inspection.warnings = (1..=17)
+            .map(|i| format!("Wall {i}: missing width"))
+            .collect();
+        let all = InspectedFile::page(inspection.clone(), 0, None)?;
+        assert_eq!((all.warning_total, all.warnings_omitted), (17, 0));
+        let first = InspectedFile::page(inspection.clone(), 0, Some(16))?;
+        let last = InspectedFile::page(inspection.clone(), 16, Some(16))?;
+        assert_eq!((first.warning_total, first.warnings_omitted), (17, 1));
+        assert_eq!((last.warning_total, last.warnings_omitted), (17, 16));
+        assert_eq!(
+            first.inspection.warnings.last(),
+            Some(&inspection.warnings[15])
+        );
+        assert_eq!(last.inspection.warnings, inspection.warnings[16..]);
+        assert!(InspectedFile::page(inspection, 18, None).is_err());
         Ok(())
     }
 

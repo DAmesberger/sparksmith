@@ -216,6 +216,7 @@ pub struct Wizard {
     pub bodies: Vec<BodyChoice>,
     pub selected: usize,
     pub show_all: bool,
+    show_all_warnings: bool,
     pub marking_on_top: bool,
     pub meta: Metadata,
 }
@@ -262,6 +263,7 @@ impl Wizard {
             bodies,
             selected: 0,
             show_all: false,
+            show_all_warnings: false,
             marking_on_top: false,
             meta: Metadata {
                 name,
@@ -1106,7 +1108,7 @@ fn steps(
     action
 }
 
-fn file_rows(ui: &mut Ui, wizard: &Wizard) {
+fn file_rows(ui: &mut Ui, wizard: &mut Wizard) {
     kit::value_row(ui, "File", &wizard.file_name);
     kit::value_row(
         ui,
@@ -1125,12 +1127,23 @@ fn file_rows(ui: &mut Ui, wizard: &Wizard) {
         &wizard.inspection.materials.len().to_string(),
     );
     kit::value_row(ui, "Source bounds", &size_line(wizard.inspection.bounds_mm));
-    if wizard.inspection.has_textures {
-        kit::hint(
-            ui,
-            "Textures are not shown yet",
-            "The model shows its material colours and finishes; image textures arrive later",
-        );
+    let warnings = &wizard.inspection.warnings;
+    if !warnings.is_empty() {
+        kit::value_row(ui, "Warnings", &warnings.len().to_string());
+        let max = if wizard.show_all_warnings {
+            warnings.len()
+        } else {
+            kit::LIST_MAX_ROWS
+        };
+        if kit::list_frame(ui, warnings.len(), max, |ui, index| {
+            if let Some(warning) = warnings.get(index) {
+                kit::warning_row(ui, warning);
+            }
+        })
+        .show_all
+        {
+            wizard.show_all_warnings = true;
+        }
     }
 }
 
@@ -2084,6 +2097,22 @@ mod tests {
                 format,
                 seen,
             ))
+        }
+
+        #[test]
+        fn the_file_step_can_show_the_seventeenth_feature_warning() -> TestResult {
+            let mut h = Harness::new()?;
+            let mut wizard = super::wizard();
+            wizard.inspection.warnings = (1..=17)
+                .map(|i| format!("Wall {i}: missing width"))
+                .collect();
+            h.editor.model_import.open(wizard);
+            let before = h.texts();
+            assert!(before.iter().any(|s| s == "8 of 17"));
+            assert!(!before.iter().any(|s| s == "Wall 17: missing width"));
+            h.click("Show all ›")?;
+            assert!(h.texts().iter().any(|s| s == "Wall 17: missing width"));
+            Ok(())
         }
 
         /// Frames until the wizard sends an operation or settles (the lead

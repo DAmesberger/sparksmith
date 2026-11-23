@@ -2,42 +2,42 @@
  "cases": [
   {
    "name": "DIP-8 300 mil, component",
-   "request": {"abi": 1, "scope": "component", "params": {"construction": "dip", "pins": 8, "lead_pitch": 2540000, "lead_diameter": 460000, "lead_below": 3300000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 9270000, "body_width": 6350000, "body_height": 3300000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "construction": "dip", "pins": 8, "lead_pitch": 2540000, "lead_diameter": 460000, "lead_below": 3300000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 9270000, "body_width": 6350000, "body_height": 3300000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
    "result": "9f880b7ccdee6bfda6fb81d49194de302249edfe40271add11ac9fdd621c0bf2"
   },
   {
    "name": "DIP-8 300 mil, package",
-   "request": {"abi": 1, "scope": "package", "params": {"construction": "dip", "pins": 8, "lead_pitch": 2540000, "lead_diameter": 460000, "lead_below": 3300000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 9270000, "body_width": 6350000, "body_height": 3300000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "construction": "dip", "pins": 8, "lead_pitch": 2540000, "lead_diameter": 460000, "lead_below": 3300000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 9270000, "body_width": 6350000, "body_height": 3300000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
    "result": "ae2c3e759b1f079ed1af06a4f7614c07c465d7f4534fd6dbb9d4bc153c8e21cd"
   },
   {
    "name": "DIP-40 600 mil (two-digit pins), component",
-   "request": {"abi": 1, "scope": "component", "params": {"construction": "dip", "pins": 40, "lead_pitch": 2540000, "lead_diameter": 460000, "lead_below": 3300000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 15240000, "body_length": 52070000, "body_width": 13970000, "body_height": 3810000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "construction": "dip", "pins": 40, "lead_pitch": 2540000, "lead_diameter": 460000, "lead_below": 3300000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 15240000, "body_length": 52070000, "body_width": 13970000, "body_height": 3810000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
    "result": "3df97378703f7a581fd71b39916d710c743b52faf410387d2656adff7affed58"
   },
   {
    "name": "TO-92 formed (three leads, formed file), component",
-   "request": {"abi": 1, "scope": "component", "params": {"construction": "to", "pins": 3, "lead_pitch": 2540000, "lead_diameter": 450000, "lead_below": 3000000, "body_pitch": 1270000, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 4800000, "body_width": 3800000, "body_height": 4800000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "construction": "to", "pins": 3, "lead_pitch": 2540000, "lead_diameter": 450000, "lead_below": 3000000, "body_pitch": 1270000, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 4800000, "body_width": 3800000, "body_height": 4800000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
    "result": "5a9b9dd9d4c533fd1adab5b3b5cda22c152a9858a968ad8e535b12cd9fbb0297"
   },
   {
    "name": "TO-220-5 (straight pattern), package",
-   "request": {"abi": 1, "scope": "package", "params": {"construction": "to", "pins": 5, "lead_pitch": 1700000, "lead_diameter": 600000, "lead_below": 3500000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 10000000, "body_width": 4500000, "body_height": 15500000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "construction": "to", "pins": 5, "lead_pitch": 1700000, "lead_diameter": 600000, "lead_below": 3500000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 10000000, "body_width": 4500000, "body_height": 15500000, "body_diameter": 2500000, "symbol": "box", "resistor_style": "iec", "marking_height": 0}},
    "result": "5c5d5b7a973b1994a13aacc97f37a4f262a28510d784bf9f7c8976a7f9739f87"
   },
   {
    "name": "Axial DO-35 (diode: K and A, pin-1 dot), component",
-   "request": {"abi": 1, "scope": "component", "params": {"construction": "axial", "pins": 2, "lead_pitch": 7620000, "lead_diameter": 500000, "lead_below": 3000000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 4250000, "body_width": 6350000, "body_height": 3300000, "body_diameter": 1900000, "symbol": "diode", "resistor_style": "iec", "marking_height": 0}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "construction": "axial", "pins": 2, "lead_pitch": 7620000, "lead_diameter": 500000, "lead_below": 3000000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 4250000, "body_width": 6350000, "body_height": 3300000, "body_diameter": 1900000, "symbol": "diode", "resistor_style": "iec", "marking_height": 0}},
    "result": "b7ac9cdcd71263619a443d1a37133af29f18e01d585b8b50b2f6cec3f45028f8"
   },
   {
    "name": "Axial resistor, US zigzag, component",
-   "request": {"abi": 1, "scope": "component", "params": {"construction": "axial", "pins": 2, "lead_pitch": 10160000, "lead_diameter": 600000, "lead_below": 3000000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 6500000, "body_width": 6350000, "body_height": 3300000, "body_diameter": 2500000, "symbol": "resistor", "resistor_style": "us", "marking_height": 0}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "construction": "axial", "pins": 2, "lead_pitch": 10160000, "lead_diameter": 600000, "lead_below": 3000000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 6500000, "body_width": 6350000, "body_height": 3300000, "body_diameter": 2500000, "symbol": "resistor", "resistor_style": "us", "marking_height": 0}},
    "result": "f53838481c0105099cc0acac49910d5d7d25321e1f6769843dcc15f777b69043"
   },
   {
    "name": "Radial Ø5 × 11 (polarised capacitor arc), component",
-   "request": {"abi": 1, "scope": "component", "params": {"construction": "radial", "pins": 2, "lead_pitch": 2000000, "lead_diameter": 500000, "lead_below": 3000000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 9270000, "body_width": 6350000, "body_height": 11000000, "body_diameter": 5000000, "symbol": "polarised_capacitor", "resistor_style": "iec", "marking_height": 0}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "construction": "radial", "pins": 2, "lead_pitch": 2000000, "lead_diameter": 500000, "lead_below": 3000000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 9270000, "body_width": 6350000, "body_height": 11000000, "body_diameter": 5000000, "symbol": "polarised_capacitor", "resistor_style": "iec", "marking_height": 0}},
    "result": "8c223016eafee799dbbbf8a5cd2cefed205326a1f6819b9a2283494ac3702c82"
   }
  ],

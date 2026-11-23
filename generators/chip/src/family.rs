@@ -30,7 +30,7 @@ const LAND_EXTRA_WIDTH_NM: i64 = 200_000;
 /// (`marking_height`).
 /// 7: the SDK's pin table (`pin_table`) and part numbers
 /// (`part_numbers`).
-const VERSION: u32 = 8;
+const VERSION: u32 = 9;
 
 /// The longest chip left unmarked by the size rule: 0402 (1.0 mm) and
 /// smaller chips carry no value code, as the chip-resistor data sheet the
@@ -215,6 +215,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         m
     };
     let mut params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         enumeration("part", "Part", &parts, "resistor", "part"),
         length("length", "Body length", 200_000, 8 * MM, 1_600_000, "body"),
         length("width", "Body width", 100_000, 6 * MM, 800_000, "body"),
@@ -619,6 +620,7 @@ fn terminals(part: Part) -> Vec<Terminal> {
 pub(crate) fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let d = dims(&args)?;
     let zero_ohm = args.text("part").map_err(|p| vec![p])? == "zero_ohm";
     let (x, size, estimated) = lands(&args, &d)?;
@@ -626,7 +628,7 @@ pub(crate) fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let body = Box2::centred([0, 0], [d.length, d.width]);
     let courtyard = land::courtyard(&pads, Some(body)).unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, body, mask_expansion);
     silk.push(land::silk_designator(body, top));
     if d.part == Part::Led
         && let Some(first) = pads.first()
@@ -638,7 +640,7 @@ pub(crate) fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 center: [
                     first.at[0]
                         - half
-                        - land::DEFAULT_MASK_NM
+                        - mask_expansion
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],

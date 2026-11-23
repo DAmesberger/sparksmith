@@ -82,11 +82,23 @@ pub fn board_file(source: &Path) -> Result<PathBuf, String> {
 /// Import the KiCad project at `source` into a new project, on the fab
 /// profile `profile` names (else the user's default).
 pub fn import(source: &Path, profile: Option<&str>) -> Result<KicadImport, String> {
-    import_with(
-        source,
-        profile,
-        Some(crate::session::generators::batch_runtime),
-    )
+    ImportCatalog::default().import(source, profile)
+}
+
+/// Preset matching for successive imports on one host. Completed or
+/// interrupted work may be reused while the generator manifests match.
+#[derive(Default)]
+pub struct ImportCatalog(crate::kicad_models::presets::Presets);
+
+impl ImportCatalog {
+    pub fn import(&mut self, source: &Path, profile: Option<&str>) -> Result<KicadImport, String> {
+        import_with(
+            source,
+            profile,
+            Some(crate::session::generators::batch_runtime),
+            &mut self.0,
+        )
+    }
 }
 
 /// The generator runtime an import's models are made with, for its deadline.
@@ -104,6 +116,7 @@ pub fn import_in_fixture_pool(source: &Path, profile: Option<&str>) -> Result<Ki
         source,
         profile,
         Some(crate::session::generators::fixture_batch_runtime),
+        &mut Default::default(),
     )
 }
 
@@ -112,13 +125,14 @@ pub fn import_in_fixture_pool(source: &Path, profile: Option<&str>) -> Result<Ki
 /// copper with.
 #[cfg(test)]
 pub(crate) fn import_source_lands(source: &Path) -> Result<KicadImport, String> {
-    import_with(source, None, None)
+    import_with(source, None, None, &mut Default::default())
 }
 
 fn import_with(
     source: &Path,
     profile: Option<&str>,
     runtime: Option<Runtime>,
+    presets: &mut crate::kicad_models::presets::Presets,
 ) -> Result<KicadImport, String> {
     let board = board_file(source)?;
     let size = |path: &Path| std::fs::metadata(path).map(|m| m.len());
@@ -142,7 +156,11 @@ fn import_with(
         sparksmith_io::rule_profiles::for_new_board_from_env(profile).map_err(|e| e.to_string())?;
     let mut models = runtime
         .map(|runtime| {
-            crate::kicad_models::Models::new(board.parent().unwrap_or(Path::new(".")), runtime)
+            crate::kicad_models::Models::new(
+                board.parent().unwrap_or(Path::new(".")),
+                runtime,
+                presets,
+            )
         })
         .transpose()?;
     let imported = sparksmith_kicad::import::import_with_models(

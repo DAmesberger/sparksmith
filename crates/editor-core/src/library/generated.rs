@@ -163,6 +163,12 @@ fn context_value(
         "project.land.chip_gap_min" => land(|l| l.chip_gap_min),
         "project.land.gull_wing_width_extra" => land(|l| l.gull_wing_width_extra),
         "project.land.exposed_pad_clearance" => land(|l| l.exposed_pad_clearance),
+        "project.mask.expansion" => {
+            let rules = rules.land_estimators().ok()?;
+            crate::units::Nm::from_mm_f64_rounded(rules.mask.expansion)
+                .ok()
+                .map(|nm| v1::ParamValue::Int(nm.get()))
+        }
         "project.mask.web_min" => {
             let rules = rules.land_estimators().ok()?;
             crate::units::Nm::from_mm_f64_rounded(rules.mask.web_min)
@@ -197,7 +203,10 @@ pub fn completed(
             continue;
         }
         if let Some(value) = context_value(rules, drafts, param)
-            && sparksmith_generator_abi::params::fits(&param.ty, &value)
+            && (matches!(
+                param.context.as_deref(),
+                Some("project.mask.expansion" | "project.mask.web_min")
+            ) || sparksmith_generator_abi::params::fits(&param.ty, &value))
         {
             given.insert(param.key.clone(), value);
         }
@@ -834,12 +843,26 @@ pub fn expansion_hash(definitions: &[(DefinitionRef, Definition)]) -> Result<Con
 /// with every new key added.
 pub fn expand_at(
     generation: &v1::Generation,
+    request: &v1::Request,
     refs: expand::Refs,
     expansion: &[DefinitionRef],
     model: PackageModel,
     ids: &expand::KeyIds,
 ) -> Result<(Vec<(DefinitionRef, Definition)>, expand::KeyIds)> {
-    let (made, ids) = expand::definitions(generation, refs, model, ids)?;
+    let (mut made, ids) = expand::definitions(generation, refs, model, ids)?;
+    if let Some(value) = request.params.get(v1::BOARD_MASK_EXPANSION) {
+        let v1::ParamValue::Int(nm) = value else {
+            return Err(Error::Invalid(
+                "generated.expansion: the footprint mask expansion must be a length in nm".into(),
+            ));
+        };
+        let expansion = crate::units::Nm::new(*nm)?;
+        for (_, definition) in &mut made {
+            if let Definition::Footprint(footprint) = definition {
+                footprint.defaults.mask_expansion_nm = expansion;
+            }
+        }
+    }
     if made.len() != expansion.len() {
         return Err(Error::Invalid(
             "generated.expansion: the generation makes a different set of definitions".into(),
@@ -936,6 +959,7 @@ pub fn compare(library: &Library, check: &Check<'_>, generated: &Generated) -> R
     })?;
     let (expected, ids) = expand_at(
         &generated.generation,
+        &check.request,
         refs,
         &part.expansion,
         model,

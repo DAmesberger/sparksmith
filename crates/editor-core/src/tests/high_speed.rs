@@ -1407,3 +1407,57 @@ fn the_production_check_warns_on_open_pair_copper_and_skew() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn shallow_diverging_tracks_couple_only_within_the_gap_band_in_either_direction() -> Result<()> {
+    let engine = Engine::showcase()?;
+    let mut project = engine.project().clone();
+    let nets: Vec<_> = project
+        .nets
+        .iter()
+        .filter(|n| n.terminals.len() > 1)
+        .map(|n| n.id)
+        .collect();
+    let pair = crate::rules::signal::DiffPair {
+        id: DiffPairId(1),
+        name: "D".into(),
+        positive: nets[0],
+        negative: nets[1],
+        endpoints: None,
+    };
+    let layer = CopperLayer::Top;
+    let (width, gap) = layout::impedance::pair_width_gap(&project, pair.positive, layer);
+    assert!((width - 0.300).abs() < 1e-9 && (gap - 0.200).abs() < 1e-9);
+    assert!((layout::length::gap_tolerance(&project, pair.positive, gap) - 0.020).abs() < 1e-9);
+    project.tracks.clear();
+    for (net, start, end) in [
+        (pair.positive, [2., 5.], [32., 5.]),
+        (pair.negative, [2., 5.5], [32., 5.95]),
+    ] {
+        let id = project.allocate()?;
+        project.tracks.push(crate::Track {
+            id,
+            net,
+            start,
+            end,
+            width,
+            layer,
+            locked: false,
+        });
+    }
+    for reverse in [None, Some(1), Some(0), Some(1)] {
+        if let Some(i) = reverse {
+            let t = &mut project.tracks[i];
+            std::mem::swap(&mut t.start, &mut t.end);
+        }
+        let c = layout::length::coupling(&project, &pair);
+        let fraction = 0.020 / 0.450;
+        assert!((c.coupled[0] - 30. * fraction).abs() < 1e-8);
+        assert!((c.coupled[1] - 30_f64.hypot(0.45) * fraction).abs() < 1e-8);
+        let mut gaps: Vec<_> = c.coupled_runs.iter().map(|sample| sample.4).collect();
+        gaps.sort_by(f64::total_cmp);
+        assert_eq!(gaps.len(), 2);
+        assert!((gaps[0] - 0.200).abs() < 1e-8 && (gaps[1] - 0.220).abs() < 1e-8);
+    }
+    Ok(())
+}

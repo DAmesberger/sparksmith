@@ -397,6 +397,34 @@ fn run(module: &PackedAsset, request: &Request) -> std::result::Result<Generated
 }
 
 #[test]
+fn an_old_module_cannot_reuse_an_inherited_land_pattern_at_another_mask_expansion() -> TestResult {
+    use crate::rules::{RuleKey, RuleValue, RulesCommand};
+    let mut engine = Engine::showcase()?;
+    engine.set_generators(Arc::new(StandIn));
+    generate(
+        &mut engine,
+        request(MODULE, GeneratorScope::Component, 1_600_000),
+    )?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::SetOverride {
+            key: RuleKey::MaskExpansion,
+            value: RuleValue::Length(0.12),
+        }),
+    )?;
+    let before = engine.to_file();
+    let mut embedded = request(MODULE, GeneratorScope::Component, 1_600_000);
+    embedded.module.data = None;
+    let refused = generate(&mut engine, embedded);
+    assert!(
+        matches!(refused, Err(Error::Invalid(ref m)) if m.contains("generated.mask_expansion_unsupported")),
+        "{refused:?}"
+    );
+    assert_eq!(engine.to_file(), before);
+    Ok(())
+}
+
+#[test]
 fn a_part_is_published_embedded_and_recorded_in_one_step() -> TestResult {
     let mut engine = engine();
     let report = generate(

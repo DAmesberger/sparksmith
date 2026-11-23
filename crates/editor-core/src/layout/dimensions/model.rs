@@ -130,9 +130,6 @@ pub struct FacesRequest<'a> {
     pub frame: Transform3,
 }
 
-/// The most faces [`body_faces`] gives for one part.
-pub const MAX_BODY_FACES: usize = 4096;
-
 /// One face of a part's 3D model with a trace in the board plane: a face
 /// square to the board (a line), or a vertical hole or boss (its centre).
 #[derive(Clone, Debug, PartialEq)]
@@ -165,9 +162,8 @@ pub fn package_of(project: &Project, placement: Id) -> Option<PackageRef> {
 
 /// The faces of `placement`'s 3D model with a trace in the board plane
 /// (§5.4), in the part frame, by the host: what a 2D view draws of a
-/// part's body and picks as the 3D view picks a face. At most
-/// [`MAX_BODY_FACES`]. A model without faces (glTF) is refused as a pick
-/// is.
+/// part's body and picks as the 3D view picks a face. All finite traces
+/// are included. A model without faces (glTF) is refused as a pick is.
 pub fn body_faces(
     project: &Project,
     evaluator: &dyn BoardShapeEvaluator,
@@ -186,7 +182,6 @@ pub fn body_faces(
                 .chain(&f.face.pick)
                 .all(|v| v.is_finite())
     });
-    faces.truncate(MAX_BODY_FACES);
     Ok(BodyFaces {
         package: source.package,
         faces,

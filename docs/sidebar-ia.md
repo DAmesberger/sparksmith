@@ -199,7 +199,7 @@ Glyphs are drawn by `kit::severity_glyph`, never typed.
 - a `rule.code:` prefix;
 - Debug shapes such as `Some(…)`, `Id(3)` or `Name { field: … }`.
 
-Its tests pin the rewrite table of the design (`issues/tests.rs`). C1 runs it over every row of the demo and of the broken-draft and board fixtures in `issues/tests/fixtures.rs` (not yet one fixture per finding code), and over the refusal texts listed there; it also flags code quoting, snake-case API names and designator-dot-pin text (`R1.2`). K3 runs it over the refusal wording (`refusal.rs`). K4 extends `cargo xtask ui-forms` so feature modules show `Error`/`Warning` text only through `kit::field_error` or `kit::refusal`.
+Its tests pin the rewrite table of the design (`issues/tests.rs`). C1 runs it over every row of the demo and of the broken-draft and board fixtures in `issues/tests/fixtures.rs` (not yet one fixture per finding code), and over the refusal texts listed there; it also flags code quoting, snake-case API names and designator-dot-pin text (`R1.2`). K3 runs it over the refusal wording (`refusal.rs`). K4 extends `cargo xtask ui-forms` so feature modules use a field error for invalid input, a refusal for a failed action and `kit::warning_row` for a nonblocking diagnostic beside the affected field or preview. The gate permits zero raw problem-tone messages in feature modules.
 
 ## Contract (slice S0)
 

@@ -41,7 +41,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`).
 /// 3: the SDK's pin table (`pin_table`) and part numbers
 /// (`part_numbers`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// A microSD card's eight contacts, by number: their signal names.
 const SIGNALS: [&str; 8] = [
@@ -113,6 +113,7 @@ fn description() -> Description {
 
 fn description_with(presets: Vec<Preset>) -> Description {
     let mut params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         len(
             "pitch",
             "Contact pitch",
@@ -615,6 +616,7 @@ fn model(d: &Dims) -> v1::Model {
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let d = dims(&args)?;
     let pads = pads(&d);
     let body = Box2 {
@@ -623,7 +625,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     };
     let courtyard = land::courtyard(&pads, Some(body)).unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, body, mask_expansion);
     silk.push(land::silk_designator(body, top));
     silk.push(v1::Graphic {
         key: "pin1".into(),
@@ -631,7 +633,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             center: [
                 d.contact_x(1),
                 -half(d.land[1])
-                    - land::DEFAULT_MASK_NM
+                    - mask_expansion
                     - land::SILK_PAD_CLEARANCE_NM
                     - 2 * PIN_ONE_DOT_RADIUS_NM,
             ],

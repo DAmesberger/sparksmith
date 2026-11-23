@@ -10,7 +10,7 @@
 //! Lands are estimated (an original rule of thumb, not a land-pattern
 //! standard), as the host's no-lead template did: each perimeter land is
 //! 0.05 mm wider than its terminal, but never so wide that neighbours at
-//! the pitch lose the least mask web (`mask_web` plus the default mask
+//! the pitch lose the least mask web (`mask_web` plus the inherited mask
 //! opening on both sides), and never narrower than the terminal; it is the
 //! terminal's length + 0.4 mm long, centred on the terminal. With an
 //! exposed pad, every perimeter land's heel is pulled back so it keeps
@@ -49,7 +49,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// the `sawn-terminals` part file); 8 gives the TI and Sensirion presets
 /// their datasheets' pin tables (`pin_table`) and the TI and ADI presets
 /// their ordering codes (`part_numbers`).
-const VERSION: u32 = 8;
+const VERSION: u32 = 9;
 
 /// Most terminals on one side: the part files' looks are assigned up to
 /// this count.
@@ -154,6 +154,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     );
     clearance.context = Some("project.land.exposed_pad_clearance".into());
     let mut params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         Param {
             key: "sides".into(),
             label: "Terminal sides".into(),
@@ -534,6 +535,7 @@ struct Dims {
     terminal_width: i64,
     pad: Option<Point2>,
     mask_web: i64,
+    mask_expansion: i64,
     pad_clearance: i64,
     /// How far the terminals' outer ends lie in from the body edge.
     pullback: i64,
@@ -589,9 +591,9 @@ impl Dims {
     }
 
     /// The least copper gap between two lands: the mask web plus the
-    /// default mask opening on both sides.
+    /// captured mask expansion on both sides.
     fn copper_gap(&self) -> i64 {
-        self.mask_web + 2 * land::DEFAULT_MASK_NM
+        (self.mask_web + 2 * self.mask_expansion).max(0)
     }
 }
 
@@ -600,7 +602,7 @@ fn centred(i: i64, n: i64, pitch: i64) -> i64 {
     div_round((2 * i - (n - 1)) * pitch, 2).unwrap_or(0)
 }
 
-fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
+fn dims(args: &Args<'_>, estimate_lands: bool) -> Result<Dims, Vec<Problem>> {
     let one = |p: Problem| vec![p];
     let four = args.text("sides").map_err(one)? == "four";
     let pad = if args.flag("exposed_pad").map_err(one)? {
@@ -625,6 +627,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         terminal_width: args.int("terminal_width").map_err(one)?,
         pad,
         mask_web: args.int("mask_web").map_err(one)?,
+        mask_expansion: args.int(v1::BOARD_MASK_EXPANSION).map_err(one)?,
         pad_clearance: args.int("pad_clearance").map_err(one)?,
         pullback: args.int("pullback").map_err(one)?,
         construction: match args.text("construction").map_err(one)? {
@@ -746,6 +749,19 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
                 mm(pw),
                 mm(inner[0]),
                 mm(inner[1])
+            ),
+        );
+    }
+    if estimate_lands && d.land_width == 0 && tw < d.pitch && (d.n > 1 || d.m > 1) {
+        rule(
+            tw + d.copper_gap() <= d.pitch,
+            "mask_web",
+            format!(
+                "At {} mm pitch a {} mm terminal cannot keep a {} mm mask web with {} mm mask expansion per side. Give a verified land width or choose compatible mask rules.",
+                mm(d.pitch),
+                mm(tw),
+                mm(d.mask_web),
+                mm(d.mask_expansion)
             ),
         );
     }
@@ -1113,18 +1129,18 @@ pub(crate) fn marking(args: &Args<'_>) -> Result<Option<v1::Marking>, Problem> {
     let codes = sparksmith_generator_sdk::marking::codes(args)?;
     Ok(sparksmith_generator_sdk::marking::of(args, false)?.map(|m| v1::Marking { codes, ..m }))
 }
-fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
+fn generate(request: &Request, estimate_lands: bool) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
     if explicit::given(&args)? {
         return explicit::generate(request, &args);
     }
-    let d = dims(&args)?;
+    let d = dims(&args, estimate_lands)?;
     let pads = pads(&d);
     let body = d.body();
     let courtyard = land::courtyard(&pads, Some(body)).unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, body, d.mask_expansion);
     silk.push(land::silk_designator(body, top));
     if pads.len() > 2
         && let Some(first) = pads.first()
@@ -1136,7 +1152,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 center: [
                     first.at[0]
                         - div_round(width, 2).unwrap_or(0)
-                        - land::DEFAULT_MASK_NM
+                        - d.mask_expansion
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],
@@ -1246,7 +1262,11 @@ impl Generator for NoLead {
     }
 
     fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
-        generate(request)
+        generate(request, true)
+    }
+
+    fn generate_for_given_lands(request: &Request) -> Result<Generation, Vec<Problem>> {
+        generate(request, false)
     }
 }
 

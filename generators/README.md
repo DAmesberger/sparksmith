@@ -4,6 +4,8 @@ A generator is a plugin of the one plugin ABI ([extension ABI §2.6](../docs/des
 
 Status: slices GP0, GP1 and GP2. A part can be made from a module through the command engine (`library.generate`, `library.generate_part`); the project embeds the module and checks the part against it on every open; the module names one of its bundle's `.solidcraft` part files and its values as the 3D model, which the host evaluates through Solidcraft like any part file ([generator plugins](../docs/generator-plugins.md)). The catalog, the gallery and the part editor do not use modules yet (GP5, GP7); the in-code templates stay until GP5. ABI 1 is open to change until the first release.
 
+The stand-alone estimate for inherited pad mask expansion is in `standalone-mask-expansion-nm.json`, in nanometres per side. Its 50 µm value preserves the original Sparksmith footprint prototype and its measured generator fixtures. A board profile supplies its own sourced value through `project.mask.expansion`. The standard parameter `board_mask_expansion_nm` records that value with the part for offline regeneration.
+
 ## Layout
 
 | Path | What |

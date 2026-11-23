@@ -206,10 +206,10 @@ fn body_ink() -> Color32 {
 
 impl PcbEditor {
     /// The body faces of `instance`'s package revision, once listed.
-    fn faces_of(&self, project: &Project, instance: Id) -> Option<Arc<Vec<BodyFace>>> {
+    fn faces_of(&self, project: &Project, instance: Id) -> Option<&[BodyFace]> {
         let package = model::package_of(project, instance)?;
         match self.dims.layout.listed(package)? {
-            Some(Ok(faces)) => Some(Arc::clone(faces)),
+            Some(Ok(faces)) => Some(faces.as_slice()),
             _ => None,
         }
     }
@@ -272,98 +272,102 @@ impl PcbEditor {
         })
     }
 
-    /// Body faces of `instance` in the board, with the face.
-    fn board_faces(&self, project: &Project, instance: Id) -> Vec<(BodyFace, FeatureGeometry)> {
+    /// Install the result of a synthetic host listing for pointer-event tests.
+    #[cfg(test)]
+    pub(crate) fn set_listed_body_faces(&mut self, package: PackageRef, faces: Vec<BodyFace>) {
+        self.dims.layout.bodies.retain(|(p, _)| *p != package);
+        self.dims
+            .layout
+            .bodies
+            .push((package, Some(Ok(Arc::new(faces)))));
+    }
+
+    /// Visit the cached faces in placement order; only their board-plane
+    /// coordinates change while drawing or looking for a pointer hit.
+    fn visit_board_faces(
+        &self,
+        project: &Project,
+        instance: Id,
+        mut visit: impl FnMut(&BodyFace, FeatureGeometry),
+    ) {
         let (Some(faces), Some(placement)) = (
             self.faces_of(project, instance),
             project.placement_of(instance),
         ) else {
-            return Vec::new();
+            return;
         };
-        let mut placed = placement.clone();
+        let mut to_board = view::part_transform(placement);
         let delta = self.drag_delta(instance);
-        placed.position = [placed.position[0] + delta[0], placed.position[1] + delta[1]];
-        let to_board = view::part_transform(&placed);
-        faces
-            .iter()
-            .map(|f| (f.clone(), view::transformed(f.trace, &to_board)))
-            .collect()
+        to_board.translate = [
+            to_board.translate[0] + delta[0],
+            to_board.translate[1] + delta[1],
+        ];
+        for face in faces {
+            visit(face, view::transformed(face.trace, &to_board));
+        }
     }
 
     /// What a click at `p` (screen) would pick with the tool.
     fn found_at(&self, project: &Project, view: &BoardView, p: Pos2) -> Option<Found> {
         let reach = EDGE_REACH_PT;
-        let nearest = |items: Vec<(f32, Found)>| {
+        fn nearest(items: impl Iterator<Item = (f32, Found)>, reach: f32) -> Option<Found> {
             items
-                .into_iter()
                 .filter(|(d, _)| *d <= reach)
                 .min_by(|a, b| a.0.total_cmp(&b.0))
                 .map(|(_, f)| f)
-        };
+        }
         // An origin: a point, the smallest target, first.
-        let origins = project
-            .placements
-            .iter()
-            .map(|pl| {
-                let at = pl.position;
-                let feature = FeatureRef::Origin {
-                    target: ConstraintTarget::Placement(pl.instance),
-                };
-                (
-                    view.screen(at).distance(p),
-                    Found::Feature(feature, FeatureGeometry::Point { at }),
-                )
-            })
-            .collect();
-        if let Some(found) = nearest(origins) {
+        let origins = project.placements.iter().map(|pl| {
+            let at = pl.position;
+            let feature = FeatureRef::Origin {
+                target: ConstraintTarget::Placement(pl.instance),
+            };
+            (
+                view.screen(at).distance(p),
+                Found::Feature(feature, FeatureGeometry::Point { at }),
+            )
+        });
+        if let Some(found) = nearest(origins, reach) {
             return Some(found);
         }
         // Body traces, and those stacked with the nearest.
-        let mut hits: Vec<FaceHit> = project
-            .placements
-            .iter()
-            .flat_map(|pl| {
-                self.board_faces(project, pl.instance)
-                    .into_iter()
-                    .map(move |(face, board)| (pl.instance, face, board))
-            })
-            .filter_map(|(instance, face, board)| {
+        let mut hits = Vec::new();
+        for pl in &project.placements {
+            self.visit_board_faces(project, pl.instance, |face, board| {
                 let distance = screen_distance(view, &board, p);
-                (distance <= reach).then_some(FaceHit {
-                    instance,
-                    face,
-                    board,
-                    distance,
-                })
-            })
-            .collect();
+                if distance <= reach {
+                    hits.push(FaceHit {
+                        instance: pl.instance,
+                        face: face.clone(),
+                        board,
+                        distance,
+                    });
+                }
+            });
+        }
         hits.sort_by(|a, b| a.distance.total_cmp(&b.distance));
-        if let Some(first) = hits.first().cloned() {
-            hits.retain(|h| stacked(&first.board, &h.board));
+        if let Some(first) = hits.first().map(|h| h.board) {
+            hits.retain(|h| stacked(&first, &h.board));
             return Some(Found::Faces(hits));
         }
         // Courtyard sides.
-        let sides = project
-            .placements
-            .iter()
-            .flat_map(|pl| {
-                [BoxSide::Left, BoxSide::Right, BoxSide::Bottom, BoxSide::Top]
-                    .into_iter()
-                    .filter_map(move |side| {
-                        let feature = FeatureRef::Courtyard {
-                            placement: pl.instance,
-                            side: Some(side),
-                        };
-                        let local = features::geometry(project, &feature).ok()?;
-                        let board = view::transformed(local, &view::part_transform(pl));
-                        Some((
-                            screen_distance(view, &board, p),
-                            Found::Feature(feature, board),
-                        ))
-                    })
-            })
-            .collect();
-        if let Some(found) = nearest(sides) {
+        let sides = project.placements.iter().flat_map(|pl| {
+            [BoxSide::Left, BoxSide::Right, BoxSide::Bottom, BoxSide::Top]
+                .into_iter()
+                .filter_map(move |side| {
+                    let feature = FeatureRef::Courtyard {
+                        placement: pl.instance,
+                        side: Some(side),
+                    };
+                    let local = features::geometry(project, &feature).ok()?;
+                    let board = view::transformed(local, &view::part_transform(pl));
+                    Some((
+                        screen_distance(view, &board, p),
+                        Found::Feature(feature, board),
+                    ))
+                })
+        });
+        if let Some(found) = nearest(sides, reach) {
             return Some(found);
         }
         // A pad, from inside it: its centre.
@@ -551,14 +555,12 @@ impl PcbEditor {
         self.request_bodies(ui.ctx(), engine, &parts);
         let ink = Stroke::new(1.0, body_ink());
         for &part in &parts {
-            for (_, board) in self.board_faces(project, part) {
-                match board {
-                    FeatureGeometry::Point { at } => {
-                        painter.circle_stroke(view.screen(at), 2.5, ink);
-                    }
-                    ref g => trace_reference(painter, view, g, 0.0, ink),
+            self.visit_board_faces(project, part, |_, board| match board {
+                FeatureGeometry::Point { at } => {
+                    painter.circle_stroke(view.screen(at), 2.5, ink);
                 }
-            }
+                ref g => trace_reference(painter, view, g, 0.0, ink),
+            });
         }
         // The tool's hover: the trace or feature a click picks, named.
         let choosing = self.dims.layout.choosing.is_some();
@@ -594,7 +596,7 @@ impl PcbEditor {
     /// The chooser over stacked traces: one row per face, by name and
     /// body, with how high it reaches; a row picks it.
     fn chooser(&mut self, ui: &mut Ui, project: &Project) {
-        let Some(chooser) = self.dims.layout.choosing.clone() else {
+        let Some(chooser) = self.dims.layout.choosing.as_mut() else {
             return;
         };
         let t = Tokens::get();
@@ -647,13 +649,11 @@ impl PcbEditor {
                     }
                 });
             });
-        if let Some(c) = &mut self.dims.layout.choosing {
-            c.rows = rows;
-        }
+        chooser.rows = rows;
         if let Some(i) = chosen
+            && let Some(chooser) = self.dims.layout.choosing.take()
             && let Some(choice) = chooser.choices.get(i)
         {
-            self.dims.layout.choosing = None;
             let picked = self.pick_face(project, choice.instance, &choice.face, true);
             self.take_pick(Some(picked));
         }

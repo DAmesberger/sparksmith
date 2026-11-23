@@ -306,14 +306,13 @@ impl CopperGraph {
                 }
             }
         }
-        let outlines = self.tracks.len() + self.vias.len();
         for (index, pad) in self.pads.iter().enumerate() {
             if pad.net != net {
                 continue;
             }
             let lands: Vec<usize> = self
-                .lands
-                .get(outlines + index)
+                .pad_lands
+                .get(index)
                 .cloned()
                 .into_iter()
                 .flatten()
@@ -350,7 +349,11 @@ impl CopperGraph {
     fn enter_land(&self, element: usize, local: &HashMap<usize, usize>, view: &mut NetPaths) {
         let centre = match self.element_kind(element) {
             Some(ElementKind::Via { index }) => self.vias.get(index).map(|v| v.position),
-            Some(ElementKind::Pad { index }) => self.pads.get(index).map(|p| p.position),
+            Some(ElementKind::Pad { index }) => self
+                .elements
+                .get(element)
+                .and_then(|e| e.barrel_centre)
+                .or_else(|| self.pads.get(index).map(|p| p.position)),
             _ => None,
         };
         let (Some(centre), Some(&land)) = (centre, local.get(&self.vertices_of(element).start))

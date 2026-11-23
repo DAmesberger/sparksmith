@@ -97,3 +97,32 @@ fn a_many_layer_stackup_names_and_places_every_layer() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn a_stackup_records_the_wall_source_and_refuses_a_missing_physical_model() -> Result<()> {
+    let mut stackup = Stackup::preset(4)?;
+    let assumed = stackup.plating()?;
+    assert!(assumed.assumed);
+    assert_eq!(assumed.wall_nm.get(), 25_000);
+    assert!(assumed.source.contains("IPC-6012"));
+    let measured = BarrelPlating {
+        wall_nm: Nm::new(36_000)?,
+        source: "Original test coupon section".into(),
+        assumed: false,
+    };
+    stackup.barrel_plating = Some(measured.clone());
+    let snapshot = serde_json::to_value(&stackup).map_err(|e| Error::Invalid(e.to_string()))?;
+    assert_eq!(snapshot["barrel_plating"]["wall_nm"], 36_000);
+    let reopened: Stackup =
+        serde_json::from_value(snapshot).map_err(|e| Error::Invalid(e.to_string()))?;
+    assert_eq!(reopened.plating()?, &measured);
+    stackup.barrel_plating = None;
+    assert!(stackup.check().is_err());
+    assert_eq!(stackup.keeping_unstated(&reopened).plating()?, &measured);
+    let mut unsupported = reopened;
+    if let Some(plating) = &mut unsupported.barrel_plating {
+        plating.source.clear();
+    }
+    assert!(unsupported.check().is_err());
+    Ok(())
+}

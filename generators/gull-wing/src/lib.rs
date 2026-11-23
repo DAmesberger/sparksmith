@@ -40,7 +40,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// text at the height its preset gives (`marking_height`).
 /// 5: the SDK's pin table (`pin_table`) and part numbers
 /// (`part_numbers`).
-const VERSION: u32 = 5;
+const VERSION: u32 = 6;
 
 /// Most leads on one side: the part files' lead looks are named up to
 /// this count, and four sides of it are the core's 512 leads of a form.
@@ -164,6 +164,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     let mut span_x = length("span_x", "Lead span across x", 0, 0, "leads");
     span_x.help = Some("Four sides only: tip to tip across the short sides; 0 for two.".into());
     let mut params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         sides,
         count("leads", "Leads per long side", 1, 4),
         short,
@@ -613,6 +614,7 @@ fn name(d: &Dims) -> String {
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let d = dims(&args)?;
     let pads = pads(&d);
     let outline = d.outline();
@@ -622,7 +624,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         .map(|p| p[1])
         .max()
         .unwrap_or(outline.max[1]);
-    let mut silk = land::silk_outline(&pads, outline, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, outline, mask_expansion);
     silk.push(land::silk_designator(outline, top));
     if d.leads() > 2
         && let Some(first) = pads.first()
@@ -634,7 +636,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 center: [
                     first.at[0]
                         - half
-                        - land::DEFAULT_MASK_NM
+                        - mask_expansion
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],

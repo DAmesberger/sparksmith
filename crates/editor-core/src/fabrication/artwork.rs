@@ -2,7 +2,8 @@
 //! and paste per side, legend per side and the board profile.
 //!
 //! - **Copper** (`Copper,Ln,Top|Inr|Bot`, positive). Computed fill copper
-//!   first, largest region first: each region dark, its holes clear, so a
+//!   is unioned per net before plotting. The largest outer ring is drawn
+//!   first, each region dark and its holes clear, so a
 //!   later (smaller) region inside a hole survives and nothing drawn after
 //!   the fills is ever erased. Then tracks (round aperture draws, so the
 //!   ends are exactly round), vias, board mounting-hole rings and pads.
@@ -35,7 +36,9 @@ use crate::layout::{self, PlacedPad};
 use crate::layout::{BoardDrawing, PlacedItem};
 use crate::library::{CHECK_CHORD_MM, Outline, PadKind, PadShape, PasteRule, Segment};
 use crate::model::board::{CutoutKind, arc_geometry};
+use crate::model::fill::FilledRegion;
 use crate::model::{CopperLayer, Layer, Project};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 /// The pen the profile is drawn with, mm (its centre line is the edge).
@@ -265,17 +268,39 @@ fn pad_function(pad: &PlacedPad) -> &'static str {
 fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) -> Result<Vec<u8>> {
     let project = board.project;
     let mut w = Writer::new(attributes);
-    // Fill copper, largest region first (see the module notes).
-    let mut regions: Vec<(f64, usize, Option<Id>, &crate::model::fill::FilledRegion)> = Vec::new();
+    // A hole only removes copper from its own pour. Compose all pours of
+    // a net before drawing any clear objects on the shared layer image.
+    let mut by_net: BTreeMap<Option<Id>, Vec<&[FilledRegion]>> = BTreeMap::new();
     for fill in project.fills.iter().filter(|f| f.layer == layer) {
-        for region in fill.computed.iter().flat_map(|c| c.regions.iter()) {
-            let order = regions.len();
-            regions.push((signed_area2(&region.outer).abs(), order, fill.net, region));
+        if let Some(copper) = &fill.computed
+            && !copper.regions.is_empty()
+        {
+            by_net.entry(fill.net).or_default().push(&copper.regions);
         }
     }
-    regions.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
-    for (_, _, net, region) in &regions {
-        w.object(&[("N", board.net(*net))]);
+    let mut unions = Vec::new();
+    for (net, pours) in by_net {
+        let regions = match pours.as_slice() {
+            [only] => Cow::Borrowed(*only),
+            many => Cow::Owned(layout::fill::copper_union(
+                many.iter().flat_map(|pour| pour.iter()),
+                &[],
+            )),
+        };
+        unions.push((net, regions));
+    }
+    let mut regions: Vec<_> = unions
+        .iter()
+        .flat_map(|(net, regions)| {
+            regions
+                .iter()
+                .map(move |region| (signed_area2(&region.outer).abs(), *net, region))
+        })
+        .collect();
+    // Material nested inside a hole, including another net, is added last.
+    regions.sort_by(|a, b| b.0.total_cmp(&a.0));
+    for (_, net, region) in regions {
+        w.object(&[("N", board.net(net))]);
         w.polarity(true);
         polygon_region(&mut w, Some("Conductor"), &region.outer)?;
         if !region.holes.is_empty() {
@@ -658,28 +683,31 @@ fn land(
         let (start, segs) = outline_path(outline, t);
         return w.region(function, start, &segs);
     }
-    match shape {
-        Shape::Circle { center, radius } => {
-            let d = w.aperture(Aperture::circle(2.0 * radius)?, function);
-            w.flash(d, t.apply(*center))
+    if let Shape::Circle { center, radius } = shape {
+        let d = w.aperture(Aperture::circle(2.0 * radius)?, function);
+        return w.flash(d, t.apply(*center));
+    }
+    if let Shape::Polygon { points, radii } = shape
+        && let Some(size) = box_size(points)
+    {
+        let mut corners = [0.0; 4];
+        for (corner, value) in corners.iter_mut().zip(radii) {
+            *corner = *value;
         }
-        Shape::Polygon { points, radii } if box_size(points).is_some() => {
-            let size = box_size(points).unwrap_or([0.0, 0.0]);
-            let mut r = [0.0; 4];
-            for (k, v) in radii.iter().take(4).enumerate() {
-                r[k] = *v;
-            }
-            let aperture = box_aperture(size, r, t.rotation_deg, t.mirror)?;
+        // The flash macro uses a single fillet radius. Other windows use
+        // the polygon's fitted tangent arcs, including after a side flip.
+        let radius = corners.iter().copied().fold(0.0, f64::max);
+        if radius <= size[0].min(size[1]) / 2.0 && corners.iter().all(|r| *r == 0.0 || *r == radius)
+        {
+            let aperture = box_aperture(size, corners, t.rotation_deg, t.mirror)?;
             let d = w.aperture(aperture, function);
-            w.flash(d, t.translate)
-        }
-        other => {
-            for (start, segs, _) in shape_paths(&other.transformed(t)) {
-                w.region(function, start, &segs)?;
-            }
-            Ok(())
+            return w.flash(d, t.translate);
         }
     }
+    for (start, segs, _) in shape_paths(&shape.transformed(t)) {
+        w.region(function, start, &segs)?;
+    }
+    Ok(())
 }
 
 /// The full size of a box centred on the origin with corners

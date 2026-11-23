@@ -167,8 +167,8 @@ pub struct Coupling {
     /// Parallel stretches closer than the gap: (positive track, negative
     /// track, layer, edge gap, the pair gap there).
     pub too_close: Vec<(Id, Id, CopperLayer, f64, f64)>,
-    /// Coupled stretches: (positive track, negative track, layer, width,
-    /// edge gap), for the impedance check.
+    /// Impedance samples at the minimum and maximum edge gap of each
+    /// coupled stretch (one sample if constant).
     pub coupled_runs: Vec<(Id, Id, CopperLayer, f64, f64)>,
 }
 
@@ -205,21 +205,16 @@ fn covered(mut intervals: Vec<(f64, f64)>) -> f64 {
     total
 }
 
-/// The overlap of `other` projected onto `track`'s axis, as an interval
-/// of distances from `track.start`.
-fn overlap(track: &Track, other: &Track) -> Option<(f64, f64)> {
-    let length = crate::geometry::distance(track.start, track.end);
-    if length < 1e-12 {
-        return None;
+/// Clip distances along a track to where a linearly varying coordinate
+/// lies inside the closed band. Point contacts have no coupled length.
+fn clip_band(span: (f64, f64), origin: f64, slope: f64, low: f64, high: f64) -> Option<(f64, f64)> {
+    if slope == 0.0 {
+        return (low <= origin && origin <= high).then_some(span);
     }
-    let d = [
-        (track.end[0] - track.start[0]) / length,
-        (track.end[1] - track.start[1]) / length,
-    ];
-    let a = dot(sub(other.start, track.start), d);
-    let b = dot(sub(other.end, track.start), d);
-    let (lo, hi) = (a.min(b).max(0.0), a.max(b).min(length));
-    (hi - lo > 1e-9).then_some((lo, hi))
+    let a = (low - origin) / slope;
+    let b = (high - origin) / slope;
+    let clipped = (span.0.max(a.min(b)), span.1.min(a.max(b)));
+    (clipped.1 > clipped.0).then_some(clipped)
 }
 
 /// A pair's coupling with where on each half's tracks it holds.
@@ -285,21 +280,61 @@ fn pair_coupling(project: &Project, pair: &DiffPair) -> PairCoupling {
             if cross(dp, dn).abs() > PARALLEL_SIN {
                 continue;
             }
-            let (Some(on_p), Some(on_n)) = (overlap(p, n), overlap(n, p)) else {
+            // Parameterize the negative segment by its travelled distance.
+            // Its projection along p and signed offset across p are both linear.
+            let delta = sub(n.start, p.start);
+            let x = dot(dp, delta);
+            let dx = dot(dp, dn);
+            let Some(span) = clip_band((0.0, ln), x, dx, 0.0, lp) else {
                 continue;
             };
-            let centre = cross(dp, sub(n.start, p.start)).abs();
-            let edge = centre - (p.width + n.width) / 2.0;
+            let y = cross(dp, delta);
+            let dy = cross(dp, dn);
+            let offset = |s: f64| y + dy * s;
+            let width = (p.width + n.width) / 2.0;
             let gap = gap_on(p.layer);
             let tol = gap_tolerance(project, pair.positive, gap);
-            if (edge - gap).abs() <= tol {
-                intervals[0].entry(p.id).or_default().push(on_p);
-                intervals[1].entry(n.id).or_default().push(on_n);
-                out.coupled_runs
-                    .push((p.id, n.id, p.layer, (p.width + n.width) / 2.0, edge));
-            } else if edge < gap - tol && edge < TOO_CLOSE_GAPS * gap {
+            let (a, b) = (offset(span.0), offset(span.1));
+            let nearest = if a.signum() != b.signum() {
+                0.0
+            } else {
+                a.abs().min(b.abs())
+            };
+            let edge = nearest - width;
+            if edge < gap - tol && edge < TOO_CLOSE_GAPS * gap {
                 out.too_close
                     .push((p.id, n.id, p.layer, edge.max(0.0), gap));
+            }
+            let low = (width + gap - tol).max(0.0);
+            let high = width + gap + tol;
+            let bands = if low == 0.0 {
+                [Some((-high, high)), None]
+            } else {
+                [Some((-high, -low)), Some((low, high))]
+            };
+            for (min, max) in bands.into_iter().flatten() {
+                let Some((lo, hi)) = clip_band(span, y, dy, min, max) else {
+                    continue;
+                };
+                let (u, v) = (x + dx * lo, x + dx * hi);
+                intervals[0]
+                    .entry(p.id)
+                    .or_default()
+                    .push((u.min(v), u.max(v)));
+                intervals[1].entry(n.id).or_default().push((lo, hi));
+                let (a, b) = (offset(lo), offset(hi));
+                let min_gap = if a.signum() != b.signum() {
+                    0.0
+                } else {
+                    a.abs().min(b.abs())
+                };
+                let max_gap = a.abs().max(b.abs());
+                out.coupled_runs
+                    .push((p.id, n.id, p.layer, width, (min_gap - width).max(0.0)));
+                if max_gap > min_gap {
+                    out.coupled_runs
+                        .push((p.id, n.id, p.layer, width, (max_gap - width).max(0.0)));
+                }
             }
         }
     }

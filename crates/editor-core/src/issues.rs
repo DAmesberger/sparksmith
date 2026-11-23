@@ -220,6 +220,7 @@ pub fn report_on(
 /// reference blocks only publishing to the linked design
 /// (docs/architecture/board-interface.md, "Findings").
 pub const NO_WAIVER: &[&str] = &[
+    crate::diagnostics::FindingCode::BoardCheckLimit.as_str(),
     "board.unrouted",
     "board.unplaced",
     layout::dimensions::REFERENCE_LOST,

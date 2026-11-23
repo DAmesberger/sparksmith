@@ -46,6 +46,13 @@ pub trait Generator {
     fn describe() -> Description;
     /// The part body for `request`, or the parameter problems in plain words.
     fn generate(request: &Request) -> Result<Generation, Vec<Problem>>;
+
+    /// Make the part when the SDK will replace its estimated pads with a
+    /// supplied land pattern. Package checks still apply, but a limit
+    /// specific to an unused estimate need not bar the given lands.
+    fn generate_for_given_lands(request: &Request) -> Result<Generation, Vec<Problem>> {
+        Self::generate(request)
+    }
 }
 
 /// The description a module reports: the generator's own with the

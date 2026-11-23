@@ -1403,6 +1403,8 @@ pub struct PasteFlow {
     /// Row keys the person unticked in the preview: applied as
     /// `PinoutAccept::Except`.
     pub rejected: std::collections::BTreeSet<String>,
+    /// The problems list was expanded independently of a preview.
+    pub all_problems: bool,
     /// The preview lists every row, not the first few.
     pub all_rows: bool,
 }

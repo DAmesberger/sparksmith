@@ -34,7 +34,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`).
 /// 3: the SDK's pin table (`pin_table`) and part numbers
 /// (`part_numbers`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// The top outer chamfer and the bore's mouth chamfer (est.), each at most
 /// an eighth of the wall.
@@ -68,6 +68,7 @@ fn description() -> Description {
 fn description_with(presets: Vec<Preset>) -> Description {
     // The defaults are Würth Elektronik's 9774100360R (M3, 10 mm).
     let params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         length(
             "length",
             "Length above the board",

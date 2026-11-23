@@ -234,6 +234,7 @@ pub(crate) fn refuse_needed(
 /// What resolves a finding of `code` instead of a waiver, for the refusal.
 fn instead(code: &str) -> &'static str {
     match code {
+        "board.check_limit" => "the board checks must finish before fabrication",
         "board.unrouted" => "route the connection",
         "board.unplaced" => {
             "place the part (Update PCB); to leave it unassembled, mark it Not fitted in a variant"

@@ -302,15 +302,134 @@ impl CopperGraph {
         })
     }
 
+    /// A partial graph can certify an open if a gap separates pads on either
+    /// axis even after projecting *all* of the net's candidate copper onto
+    /// that axis. Include each known island as one box so verified joints
+    /// through fills, barrels and pads survive projection. The only missing
+    /// joints in the graph scan are between the filed land outlines.
+    fn provably_open_nets(&self) -> BTreeSet<Id> {
+        use crate::geometry::Bounds;
+        let mut bounds = BTreeMap::<(Id, usize), Bounds>::new();
+        for (lands, shape) in self.lands.iter().zip(&self.shapes) {
+            let Some(outline) = shape.bounds else {
+                continue;
+            };
+            for element in lands.clone() {
+                if let (Some(e), Some(i)) = (
+                    self.elements.get(element),
+                    self.island_of(self.vertices_of(element).start),
+                ) {
+                    bounds
+                        .entry((e.net, i))
+                        .and_modify(|b| *b = b.union(outline))
+                        .or_insert(outline);
+                }
+            }
+        }
+        let has_pad: BTreeSet<_> = (0..self.pads.len())
+            .filter_map(|p| self.pad_island(p))
+            .collect();
+        let mut nets = BTreeMap::<Id, Vec<(Bounds, bool)>>::new();
+        for ((net, island), b) in bounds {
+            nets.entry(net)
+                .or_default()
+                .push((b, has_pad.contains(&island)));
+        }
+        nets.into_iter()
+            .filter_map(|(net, mut islands)| {
+                for axis in 0..2 {
+                    islands.sort_unstable_by(|(a, _), (b, _)| a.min[axis].total_cmp(&b.min[axis]));
+                    let mut end = f64::NEG_INFINITY;
+                    let mut pad_in_band = false;
+                    let mut pad_before_band = false;
+                    for &(b, pad) in &islands {
+                        if b.min[axis] > end + super::build::JOIN_REACH_MM {
+                            pad_before_band |= pad_in_band;
+                            pad_in_band = false;
+                        }
+                        pad_in_band |= pad;
+                        if pad_before_band && pad_in_band {
+                            return Some(net);
+                        }
+                        end = end.max(b.max[axis]);
+                    }
+                }
+                None
+            })
+            .collect()
+    }
+
+    /// Report separate pad islands. With incomplete coverage only the nets
+    /// proved open are called unrouted. The others keep per-pad identities
+    /// as connections yet to be verified.
+    fn pad_findings(
+        &self,
+        project: &Project,
+        proven: Option<&BTreeSet<Id>>,
+        out: &mut Vec<Finding>,
+    ) {
+        // Resolve pad labels only for nets with separate pad islands.
+        let labels = std::cell::OnceCell::new();
+        let mut islands: BTreeMap<Id, BTreeSet<usize>> = BTreeMap::new();
+        for (index, pad) in self.pads.iter().enumerate() {
+            if let Some(island) = self.pad_island(index) {
+                islands.entry(pad.net).or_default().insert(island);
+            }
+        }
+        for pad in &self.pads {
+            if islands.get(&pad.net).is_some_and(|i| i.len() > 1) {
+                let label = format!(
+                    "{} pad {}",
+                    project
+                        .instance(pad.instance)
+                        .map(|i| i.designator.as_str())
+                        .unwrap_or("component"),
+                    labels
+                        .get_or_init(|| pad_labels(project))
+                        .get(&(pad.instance, pad.pad))
+                        .cloned()
+                        .unwrap_or_else(|| pad.pad.to_string())
+                );
+                let net = project.net_name(pad.net);
+                let (code, message) = if proven.is_none_or(|nets| nets.contains(&pad.net)) {
+                    (
+                        FindingCode::BoardUnrouted,
+                        format!("Unrouted: {label} ({net})"),
+                    )
+                } else {
+                    (
+                        FindingCode::BoardCheckLimit,
+                        format!(
+                            "Could not verify the connection to {label} ({net}) before the copper check stopped"
+                        ),
+                    )
+                };
+                out.push(Finding::new(
+                    code,
+                    message,
+                    vec![
+                        ObjectRef::Pad {
+                            instance: pad.instance,
+                            pad: pad.pad,
+                        },
+                        ObjectRef::Net { id: pad.net },
+                    ],
+                ));
+            }
+        }
+    }
+
     /// The connectivity findings: `board.unrouted` (one per pad of a net
     /// whose pads lie in more than one island), `board.track_dangling` (one
     /// per stub with tracks, naming its tracks and vias) and
     /// `board.via_dangling` (a via joining nothing, or whose island holds
-    /// no pad, that no stub finding names). A partial graph reports only
-    /// `board.check_limit`.
+    /// no pad, that no stub finding names). A partial graph preserves known
+    /// opens and names the pads whose connectivity remains unverified.
     pub fn findings(&self, project: &Project) -> Vec<Finding> {
         if self.partial {
-            return vec![crate::layout::copper::limit_finding()];
+            let mut out = vec![crate::layout::copper::limit_finding()];
+            self.pad_findings(project, Some(&self.provably_open_nets()), &mut out);
+            return out;
         }
         let mut out = Vec::new();
         out.extend_from_slice(&self.tie_findings);
@@ -333,41 +452,7 @@ impl CopperGraph {
                 ));
             }
         }
-        // Only an unrouted pad is named by its label.
-        let labels = std::cell::OnceCell::new();
-        let mut islands: BTreeMap<Id, BTreeSet<usize>> = BTreeMap::new();
-        for (index, pad) in self.pads.iter().enumerate() {
-            if let Some(island) = self.pad_island(index) {
-                islands.entry(pad.net).or_default().insert(island);
-            }
-        }
-        for pad in &self.pads {
-            if islands.get(&pad.net).is_some_and(|i| i.len() > 1) {
-                let label = format!(
-                    "{} pad {}",
-                    project
-                        .instance(pad.instance)
-                        .map(|i| i.designator.as_str())
-                        .unwrap_or("component"),
-                    labels
-                        .get_or_init(|| pad_labels(project))
-                        .get(&(pad.instance, pad.pad))
-                        .cloned()
-                        .unwrap_or_else(|| pad.pad.to_string())
-                );
-                out.push(Finding::new(
-                    FindingCode::BoardUnrouted,
-                    format!("Unrouted: {label} ({})", project.net_name(pad.net)),
-                    vec![
-                        ObjectRef::Pad {
-                            instance: pad.instance,
-                            pad: pad.pad,
-                        },
-                        ObjectRef::Net { id: pad.net },
-                    ],
-                ));
-            }
-        }
+        self.pad_findings(project, None, &mut out);
         let peeled = self.peel();
         let stubs = self.stubs_of(&peeled);
         let named: BTreeSet<Id> = stubs
@@ -617,9 +702,9 @@ impl CopperGraph {
             .collect();
         let island: Vec<usize> = (0..pads.len())
             .map(|i| {
-                self.pad_lands
-                    .get(i)
-                    .map_or(usize::MAX - i, |e| dsu.find(self.vertices_of(*e).start))
+                self.pad_lands.get(i).map_or(usize::MAX - i, |e| {
+                    dsu.find(self.vertices_of(e.start).start)
+                })
             })
             .collect();
         spanning(&pads, &island)

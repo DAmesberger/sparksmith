@@ -613,7 +613,7 @@ declare_requests! {
     ReviewCheck "library.review_check" Read "Check a datasheet review report" [in library],
     FirmwarePreview "firmware.export_preview" Read "Preview a firmware export" [in fab, link],
     FirmwareExport "firmware.export" Ask "Export firmware pin configuration" [in fab],
-    InspectModelFile "library.inspect_model_file" Ask "Inspect a model file" [in library, link, needs(Solidcraft)],
+    InspectModelFile "library.inspect_model_file" Ask "Inspect a model file" [in library, link, needs(Solidcraft), since(4, 1)],
     SetMarking "library.set_marking" Edit "Set a component marking" [in library, returns(none)],
     SchematicPdf "schematic.export_pdf" Ask "Export the schematic as PDF" [in fab],
     MarkingSurfaces "library.marking_surfaces" Read "List marking surfaces" [in library, link, needs(Solidcraft)],

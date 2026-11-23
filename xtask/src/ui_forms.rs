@@ -7,9 +7,7 @@
 //! inside macro invocations is not.
 //!
 //! Feature modules also show error and warning text only through
-//! `kit::field_error` and `kit::refusal` (docs/sidebar-ia.md, "Enforcement"):
-//! `Tone::Error` and `Tone::Warning` messages are counted per file and may
-//! not exceed [`LEGACY_MESSAGES`], the sites the sidebar slices still migrate.
+//! shared field errors, warning rows and refusals (docs/sidebar-ia.md).
 use crate::{Result, root};
 use std::path::Path;
 use syn::visit::{self, Visit};
@@ -52,17 +50,6 @@ const METHODS: &[&str] = &[
     "radio_value",
 ];
 
-/// Error and warning text sites that predate the sidebar redesign, per file
-/// relative to `apps/sparksmith/src`. Each slice that migrates a file lowers or
-/// removes its entry; no file may gain one.
-const LEGACY_MESSAGES: &[(&str, usize)] = &[
-    ("library_sources.rs", 5),
-    ("part_editor/footprint_template_picker.rs", 2),
-    ("part_editor/model_props.rs", 2),
-    ("schematic_editor/instance_card.rs", 1),
-];
-
-/// Message tones that only `kit::field_error` and `kit::refusal` may show.
 const PROBLEM_TONES: &[&str] = &["Error", "Warning"];
 
 #[derive(Default)]
@@ -133,13 +120,12 @@ fn guard(source: &str) -> std::result::Result<Guard, syn::Error> {
     Ok(guard)
 }
 
-/// The message-rule violation for `file` with problem-tone sites on
-/// `lines`, given its `allowed` legacy count.
-fn message_violation(file: &str, lines: &[usize], allowed: usize) -> Option<String> {
-    (lines.len() > allowed).then(|| {
+/// Report all raw problem-tone sites in a feature module.
+fn message_violation(file: &str, lines: &[usize]) -> Option<String> {
+    (!lines.is_empty()).then(|| {
         let at: Vec<String> = lines.iter().map(usize::to_string).collect();
         format!(
-            "{file}: {} error or warning messages (lines {}), {allowed} allowed; show them with kit::field_error or kit::refusal",
+            "{file}: {} error or warning messages (lines {}), none allowed; use kit::field_error, kit::warning_row or kit::refusal",
             lines.len(),
             at.join(", ")
         )
@@ -151,7 +137,6 @@ pub fn check() -> Result<()> {
     let mut files = Vec::new();
     feature_files(&base, &base, &mut files)?;
     let mut violations = Vec::new();
-    let mut legacy = 0;
     for file in &files {
         let source = std::fs::read_to_string(file)?;
         let found = guard(&source).map_err(|e| format!("{}: cannot parse: {e}", file.display()))?;
@@ -166,16 +151,11 @@ pub fn check() -> Result<()> {
             .unwrap_or(file)
             .to_string_lossy()
             .replace('\\', "/");
-        let allowed = LEGACY_MESSAGES
-            .iter()
-            .find(|(name, _)| *name == relative)
-            .map_or(0, |(_, n)| *n);
-        legacy += found.problems.len().min(allowed);
-        violations.extend(message_violation(&relative, &found.problems, allowed));
+        violations.extend(message_violation(&relative, &found.problems));
     }
     if violations.is_empty() {
         eprintln!(
-            "UI forms: {} feature modules use the card kit; {legacy} legacy error or warning messages remain",
+            "UI forms: {} feature modules use the card kit for controls and diagnostics",
             files.len()
         );
         Ok(())
@@ -212,12 +192,29 @@ mod tests {
     }
 
     #[test]
-    fn error_and_warning_text_is_counted_against_the_legacy_sites() -> Result<(), syn::Error> {
+    fn every_feature_module_uses_the_shared_problem_rows() -> crate::Result<()> {
+        let base = crate::root()?.join("apps/sparksmith/src");
+        let mut files = Vec::new();
+        super::feature_files(&base, &base, &mut files)?;
+        for file in files {
+            let parsed = super::guard(&std::fs::read_to_string(&file)?)?;
+            assert!(
+                parsed.problems.is_empty(),
+                "{} still has raw problem messages at {:?}",
+                file.display(),
+                parsed.problems
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn raw_errors_and_warnings_are_rejected_at_every_site() -> Result<(), syn::Error> {
         let source = "fn f(ui: &mut egui::Ui){ kit::status(ui, \"x\", kit::Tone::Error); kit::status(ui, \"y\", Tone::Warning); kit::status(ui, \"z\", Tone::Dim); }";
         let found = super::guard(source)?;
         assert_eq!(found.problems, vec![1, 1]);
-        assert!(super::message_violation("a.rs", &found.problems, 2).is_none());
-        let over = super::message_violation("a.rs", &found.problems, 1);
+        assert!(super::message_violation("a.rs", &[]).is_none());
+        let over = super::message_violation("a.rs", &found.problems);
         assert!(over.is_some_and(|m| m.contains("kit::field_error")));
         let kit = super::guard(
             "fn f(ui: &mut egui::Ui){ kit::field_error(ui, &r, \"m\", true); kit::refusal(ui, \"m\"); }",

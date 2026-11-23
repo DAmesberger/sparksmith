@@ -35,7 +35,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`).
 /// 4: the SDK's pin table (`pin_table`) and part numbers
 /// (`part_numbers`).
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 /// Estimates: the orientation bevel (at most an eighth of the case), the
 /// top round (a tenth of the height), the sound port (a sixth of the case,
@@ -78,6 +78,7 @@ fn description() -> Description {
 fn description_with(presets: Vec<Preset>) -> Description {
     // The defaults are CUI Devices' CMI-9653S-SMT.
     let params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         length(
             "body_length",
             "Case length (x)",
@@ -344,6 +345,7 @@ fn model(d: &Dims) -> v1::Model {
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let d = dims(&args)?;
     let pads = pads(&d);
     let envelope = d.envelope();
@@ -354,7 +356,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     )
     .unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, body, mask_expansion);
     silk.push(land::silk_designator(body, top));
     if let Some(first) = pads.first() {
         let half = land::pad_box(first).size()[0] / 2;
@@ -364,7 +366,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 center: [
                     first.at[0]
                         - half
-                        - land::DEFAULT_MASK_NM
+                        - mask_expansion
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],

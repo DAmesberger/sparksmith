@@ -76,6 +76,69 @@ fn presets_are_the_starter_rows_and_all_generate() -> Result<(), Vec<Problem>> {
 }
 
 #[test]
+fn row_lands_and_pin_one_ink_use_the_requested_mask_opening() -> Result<(), Vec<Problem>> {
+    let mut params = preset("no-lead-qfn-16-3x3-0.5");
+    for (expansion, width, pin_one_x) in [(70_000, 260_000, -1_450_000), (0, 300_000, -1_400_000)] {
+        params.push(kv("board_mask_expansion_nm", expansion));
+        let g = sdk::generate::<NoLead>(&request(Scope::Package, &params))?;
+        let first = &g.footprint.pads[0];
+        // Pitch 0.5 mm minus two mask expansions and a 0.1 mm web.
+        // At zero expansion the terminal plus its allowance limits the width.
+        assert_eq!(
+            first.shape,
+            PadShape::Rect {
+                size: [width, 650_000]
+            }
+        );
+        assert!(g.footprint.silk.iter().any(|ink| ink.shape
+            == Primitive::Circle {
+                center: [pin_one_x, -1_375_000],
+                radius_nm: 200_000,
+            }));
+        params.pop();
+    }
+    Ok(())
+}
+
+#[test]
+fn an_estimated_row_that_cannot_keep_the_mask_web_is_refused() {
+    // 0.5 mm pitch, 0.25 mm minimum land, 0.1 mm web and 0.1 mm
+    // expansion on both sides would need 0.55 mm of pitch.
+    let result = sdk::generate::<NoLead>(&request(
+        Scope::Package,
+        &[kv("board_mask_expansion_nm", 100_000)],
+    ));
+    assert!(result.is_err_and(|issues| {
+        issues
+            .iter()
+            .any(|p| p.field.as_deref() == Some("mask_web") && p.message.contains("0.5 mm"))
+    }));
+}
+
+#[test]
+fn given_lands_with_explicit_openings_do_not_need_a_feasible_estimated_row()
+-> Result<(), Vec<Problem>> {
+    let mut part = sdk::generate::<NoLead>(&request(Scope::Package, &[]))?;
+    let mut lands = Vec::new();
+    for pad in &mut part.footprint.pads {
+        pad.mask = Opening::Expansion(0);
+        let bytes = sdk::abi::codec::encode(pad).map_err(|_| Vec::new())?;
+        lands.push(ParamValue::Text(
+            String::from_utf8(bytes).map_err(|_| Vec::new())?,
+        ));
+    }
+    let given = sdk::generate::<NoLead>(&request(
+        Scope::Package,
+        &[
+            kv("board_mask_expansion_nm", 100_000),
+            ("land_pattern".into(), ParamValue::List(lands)),
+        ],
+    ))?;
+    assert_eq!(given.footprint.pads, part.footprint.pads);
+    Ok(())
+}
+
+#[test]
 fn qfn16_lands_keep_the_pad_clearance() -> Result<(), Vec<Problem>> {
     // 0.25 mm terminals at 0.5 mm: lands 0.30 mm wide (0.5 − 0.2 mm of
     // copper gap allows it) and 0.8 mm long, centred 1.3 mm out. The heel

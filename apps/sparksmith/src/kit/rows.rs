@@ -2,8 +2,7 @@
 //! bounded lists and tables, summary rows, field errors and refusal rows.
 //!
 //! Slice K4 (docs/sidebar-ia.md, "Contract"). Feature modules show problems
-//! only through [`field_error`] and [`refusal`] (`cargo xtask ui-forms`
-//! counts the remaining `Tone::Error`/`Tone::Warning` text); help is one
+//! through [`field_error`], [`warning_row`] and [`refusal`]; help is one
 //! [`hint`] line, never a paragraph. Adapted from Solidcraft 4f3ac07a
 //! `crates/ui-egui/src/ui_kit/layout.rs` (`summary_row`, `catalog_footer`,
 //! `catalog_footer_with_tip`), `reports.rs` (`list_frame`, `empty_box`'s
@@ -660,6 +659,25 @@ pub fn field_refused(ui: &mut Ui, field: &Response, message: &str) -> Response {
     ui.painter()
         .galley(pos2(left + size + t.space_4, rect.top()), galley, t.error);
     response
+}
+
+/// A nonblocking diagnostic beside the value or preview it concerns.
+pub fn warning_row(ui: &mut Ui, message: &str) -> Response {
+    let t = Tokens::get();
+    ui.horizontal_top(|ui| {
+        let (glyph, _) =
+            ui.allocate_exact_size(vec2(t.font_label, t.control_height), Sense::hover());
+        severity_glyph(ui.painter(), glyph.center(), t.font_label, Level::Warning);
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(message)
+                    .size(t.font_label)
+                    .color(t.warning),
+            )
+            .wrap(),
+        )
+    })
+    .inner
 }
 
 /// A dialog's refusal: the last body row, an error band with one clipped

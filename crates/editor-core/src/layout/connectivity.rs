@@ -84,6 +84,8 @@ pub struct Element {
     pub kind: ElementKind,
     pub net: Id,
     pub layer: CopperLayer,
+    /// World centre when this element is a pad-owned via wall.
+    barrel_centre: Option<crate::geometry::Point>,
     /// The element's vertices: `first..first + count`.
     first: usize,
     count: usize,
@@ -156,8 +158,8 @@ pub struct CopperGraph {
     shapes: Vec<CopperRing>,
     /// The land elements of each via, in layer order.
     via_lands: Vec<std::ops::Range<usize>>,
-    /// The first land element of each pad (its lands are consecutive).
-    pad_lands: Vec<usize>,
+    /// All consecutive elements of each pad, including its barrel walls.
+    pad_lands: Vec<std::ops::Range<usize>>,
     /// The land elements of each outline (consecutive; one for a track).
     lands: Vec<std::ops::Range<usize>>,
     groups: BTreeMap<Id, Group>,
@@ -241,14 +243,8 @@ impl CopperGraph {
             c.pairs = *pairs;
             c.joints = *joints;
         }
-        let nets = self
-            .tracks
-            .iter()
-            .map(|t| t.net)
-            .chain(self.vias.iter().map(|v| v.net))
-            .chain(self.pads.iter().map(|p| p.net));
-        for net in nets {
-            out.entry(net).or_default().shapes += 1;
+        for (net, group) in &self.groups {
+            out.entry(*net).or_default().shapes = group.members.len();
         }
         for e in &self.elements {
             out.entry(e.net).or_default().elements += 1;
@@ -278,7 +274,7 @@ impl CopperGraph {
     /// The island of the pad at `index` in [`Self::pads`].
     pub fn pad_island(&self, index: usize) -> Option<usize> {
         let element = self.pad_lands.get(index)?;
-        self.island_of(self.vertices_of(*element).start)
+        self.island_of(self.vertices_of(element.start).start)
     }
 
     fn neighbours(&self, vertex: usize) -> &[usize] {

@@ -51,3 +51,6 @@ arboard = { version = "3.6", default-features = false, features = ["image-data"]
 
 [build-dependencies]
 toml = "1"
+
+[dev-dependencies]
+tempfile.workspace = true

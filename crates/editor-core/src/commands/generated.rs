@@ -360,6 +360,32 @@ pub(super) fn prepare(
         &request.params,
     )
     .map_err(|f| generated::failure(&f))?;
+    // Older modules built inherited openings against the original
+    // footprint default. Check them before deduplication as well as before
+    // creating a new part. A module with only explicit openings is usable.
+    let rules = &document.project.rules;
+    if rules.profile.is_some() && !wire.params.contains_key(v1::BOARD_MASK_EXPANSION) {
+        let expansion = crate::units::Nm::from_mm_f64_rounded(rules.effective().mask.expansion)?;
+        if expansion != crate::library::MASK_EXPANSION_NM {
+            let output = runtime
+                .generate(&bytes, &wire)
+                .map_err(|f| generated::failure(&f))?;
+            if output
+                .generation
+                .footprint
+                .pads
+                .iter()
+                .any(|pad| pad.mask == v1::Opening::Default)
+            {
+                return Err(Error::Invalid(format!(
+                    "generated.mask_expansion_unsupported: {} version {} makes pads with inherited mask openings but cannot take this board's {} mm expansion. Use a generator that takes the board mask expansion.",
+                    description.title,
+                    description.version,
+                    expansion.to_mm_f64()
+                )));
+            }
+        }
+    }
     Ok(Prepared {
         bytes,
         embed,
@@ -624,6 +650,7 @@ pub(crate) fn generate(
     let model_again = package_model.clone();
     let (mut definitions, key_ids) = generated::expand_at(
         &made.generation,
+        &wire,
         refs,
         &expansion,
         package_model,
@@ -716,6 +743,7 @@ pub(crate) fn generate(
         imported_equal(&project.library, &base_name, |refs, expansion| {
             let (mut again, ids) = generated::expand_at(
                 &made.generation,
+                &wire,
                 refs,
                 expansion,
                 model_again.clone(),

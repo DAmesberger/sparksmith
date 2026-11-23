@@ -39,7 +39,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// polarised capacitor's value by its value code ([`value_code_line`]).
 /// 6: the SDK's pin table (`pin_table`) and part numbers
 /// (`part_numbers`).
-const VERSION: u32 = 6;
+const VERSION: u32 = 7;
 
 /// A moulded polarised (tantalum) capacitor's value code as marking data:
 /// the capacitance in picofarads as the three-digit code and the rated
@@ -216,6 +216,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     let leads: Vec<(&str, &str)> = Form::ALL.iter().map(|(_, k, l)| (*k, *l)).collect();
     // The defaults are the SOD-123 starter row.
     let mut params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         enumeration("part", "Part", &parts, "diode", "part"),
         enumeration("lead", "Terminals", &leads, "flat", "body"),
         length("body_length", "Body length", 200 * UM, 20 * MM, 2_700_000),
@@ -756,13 +757,14 @@ fn model(d: &Dims) -> v1::Model {
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let d = dims(&args)?;
     let pads = pads(&d);
     let envelope = d.envelope();
     let body = Box2::centred([0, 0], [envelope[0], envelope[1]]);
     let courtyard = land::courtyard(&pads, Some(body)).unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, body, mask_expansion);
     silk.push(land::silk_designator(body, top));
     if let Some(first) = pads.first() {
         // Pin 1 (the cathode or the + terminal) is always marked.
@@ -773,7 +775,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 center: [
                     first.at[0]
                         - half
-                        - land::DEFAULT_MASK_NM
+                        - mask_expansion
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],

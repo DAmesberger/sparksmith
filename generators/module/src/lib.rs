@@ -67,7 +67,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// identifier and the Data Matrix; 8: the ESP32 presets' pin tables
 /// (`pin_table`), names and kinds from Espressif's pin definitions, and
 /// their ordering codes (`part_numbers`).
-const VERSION: u32 = 8;
+const VERSION: u32 = 9;
 
 /// The shield can's label: an artwork template (the generator's data)
 /// laid out as Espressif's shield-can laser-marking artwork for the
@@ -478,6 +478,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     ground_rotation.help =
         Some("Counter-clockwise about the array's centre, a multiple of 45°.".into());
     let params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         length(
             "width",
             "Module width (x)",
@@ -1847,12 +1848,13 @@ fn leads_first(d: &Dims) -> Point2 {
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let d = dims(&args, request)?;
     let pads = pads(&d);
     let body = Box2::centred([0, 0], [d.width, d.length]);
     let courtyard = land::courtyard(&pads, Some(body)).unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, body, mask_expansion);
     silk.push(land::silk_designator(body, top));
     if pads.len() > 2
         && let Some(first) = pads.first()
@@ -1864,7 +1866,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 center: [
                     first.at[0]
                         - div_round(width, 2).unwrap_or(0)
-                        - land::DEFAULT_MASK_NM
+                        - mask_expansion
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],

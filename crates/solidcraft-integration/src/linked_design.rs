@@ -127,7 +127,12 @@ impl LinkedDesign {
     pub fn faces(&mut self, body: &str) -> Result<Vec<Face>> {
         let reply = self.native.call("model.faces", json!({"body": body}))?;
         let mut out = Vec::new();
-        for face in reply["faces"].as_array().into_iter().flatten() {
+        let faces = reply["faces"].as_array().ok_or_else(|| {
+            Error::Verification(format!(
+                "The model reader returned no face list for ‘{body}’."
+            ))
+        })?;
+        for face in faces {
             let (Some(name), Some(point), Some(centroid)) = (
                 face["name"].as_str(),
                 vec3(&face["point"]),
@@ -217,8 +222,6 @@ impl LinkedDesign {
 
 // Slice B4: reading a linked design the board is linked to, and the dry run.
 
-/// Linked design bodies whose faces a dry run compares, at most.
-const MAX_DRY_RUN_BODIES: usize = 512;
 /// How far (mm) a face's centroid may move and still count as unmoved.
 const MOVED_MM: f64 = 1e-6;
 
@@ -776,24 +779,26 @@ impl LinkedDesign {
             .collect()
     }
 
-    /// The faces of every linked design body that is not the board's, by
-    /// persistent name, with their centroid and area.
-    fn own_faces(&mut self, link: &BoardLink) -> Result<BTreeMap<String, Face>> {
+    /// Process one eligible local body at a time. Face names persist within
+    /// their body. A read failure must identify the body before publication.
+    fn visit_own_faces(
+        &mut self,
+        link: &BoardLink,
+        mut visit: impl FnMut(&str, Vec<Face>),
+    ) -> Result<()> {
         let state = self.native.world_state()?;
-        let names: Vec<String> = state
-            .bodies
-            .iter()
-            .filter(|b| b.component != link.component && !b.body.is_mesh())
-            .map(|b| b.name.clone())
-            .take(MAX_DRY_RUN_BODIES)
-            .collect();
-        let mut out = BTreeMap::new();
-        for name in names {
-            for face in self.faces(&name)? {
-                out.insert(face.name.clone(), face);
+        for body in &state.bodies {
+            if body.component != link.component && !body.body.is_mesh() {
+                let faces = self.faces(&body.name).map_err(|error| {
+                    Error::Verification(format!(
+                        "Could not compare faces of ‘{}’. {error}",
+                        body.name
+                    ))
+                })?;
+                visit(&body.name, faces);
             }
         }
-        Ok(out)
+        Ok(())
     }
 
     fn feature_name(&self, id: u64) -> Option<String> {
@@ -843,7 +848,14 @@ impl LinkedDesign {
             .into_iter()
             .map(|e| e.feature)
             .collect();
-        let before = self.own_faces(link)?;
+        let mut before = BTreeMap::new();
+        self.visit_own_faces(link, |body, faces| {
+            let geometry: BTreeMap<_, _> = faces
+                .into_iter()
+                .map(|f| (f.name, (f.centroid, f.normal)))
+                .collect();
+            before.insert(body.to_owned(), geometry);
+        })?;
         let relinked = self.native.call(
             "component.relink",
             json!({"component": link.component, "path": design}),
@@ -913,33 +925,38 @@ impl LinkedDesign {
                 .message,
             });
         }
-        let after = self.own_faces(link)?;
         // A feature moved when one of its faces left its plane (or, not
         // being a plane, moved at all); a face that only slid within its
         // plane (a wall face around a moved hole) does not count, but its
         // shift still says how far the feature went.
         let mut shifted: BTreeMap<u64, ([f64; 3], bool)> = BTreeMap::new();
-        for (name, a) in &before {
-            let (Some(b), Some(feature)) = (after.get(name), feature_of(name)) else {
-                continue;
+        self.visit_own_faces(link, |body, faces| {
+            let Some(previous) = before.remove(body) else {
+                return;
             };
-            let d = [
-                b.centroid[0] - a.centroid[0],
-                b.centroid[1] - a.centroid[1],
-                b.centroid[2] - a.centroid[2],
-            ];
-            if d.iter().all(|v| v.abs() <= MOVED_MM) {
-                continue;
+            for face in faces {
+                let (Some((center, normal)), Some(feature)) =
+                    (previous.get(&face.name), feature_of(&face.name))
+                else {
+                    continue;
+                };
+                let d = [
+                    face.centroid[0] - center[0],
+                    face.centroid[1] - center[1],
+                    face.centroid[2] - center[2],
+                ];
+                if d.iter().all(|v| v.abs() <= MOVED_MM) {
+                    continue;
+                }
+                let left = normal
+                    .is_none_or(|n| (n[0] * d[0] + n[1] * d[1] + n[2] * d[2]).abs() > MOVED_MM);
+                let entry = shifted.entry(feature).or_insert((d, false));
+                if d.iter().map(|v| v.abs()).sum::<f64>() > entry.0.iter().map(|v| v.abs()).sum() {
+                    entry.0 = d;
+                }
+                entry.1 |= left;
             }
-            let left = a
-                .normal
-                .is_none_or(|n| (n[0] * d[0] + n[1] * d[1] + n[2] * d[2]).abs() > MOVED_MM);
-            let entry = shifted.entry(feature).or_insert((d, false));
-            if d.iter().map(|v| v.abs()).sum::<f64>() > entry.0.iter().map(|v| v.abs()).sum() {
-                entry.0 = d;
-            }
-            entry.1 |= left;
-        }
+        })?;
         let moved: BTreeMap<u64, [f64; 3]> = shifted
             .into_iter()
             .filter(|(_, (_, left))| *left)

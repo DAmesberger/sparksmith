@@ -386,6 +386,69 @@ fn a_linked_design_follows_a_moved_part() -> Fallible {
     Ok(())
 }
 
+#[test]
+fn dry_run_reports_movement_on_the_513th_assembly_body() -> Fallible {
+    use crate::native::{BoxBody, Native, files};
+    let dir = tempfile::tempdir()?;
+    let board_path = dir.path().join("published.solidcraft");
+    let candidate_path = dir.path().join("candidate.solidcraft");
+    let assembly_path = dir.path().join("assembly.solidcraft");
+    let mut engine = engine()?;
+    let part = placed(&engine, 0)?;
+    let published = publish(&mut engine, Tier::Interface, &board_path)?;
+    let mut native = Native::new("Assembly")?;
+    native.defer_evaluation()?;
+    for i in 0..512 {
+        native.solid_box(BoxBody {
+            name: &format!("Fixed {i:03}"),
+            corner: [(2 * i).into(), 100.into(), 0.into()],
+            size: [1.into(), 1.into(), 1.into()],
+        })?;
+    }
+    native.evaluate_deferred()?;
+    let path = assembly_path.to_str().ok_or("assembly path")?;
+    native.save_new(files::test_file(path))?;
+    let (mut assembly, _) = LinkedDesign::open(path)?;
+    assembly.link(board_path.to_str().ok_or("board path")?, "Board")?;
+    let link = assembly.board_link(dir.path(), &board_path)?;
+    let token = format!("i{part}.opening");
+    let front = assembly
+        .faces(&token)?
+        .into_iter()
+        .find(|f| f.normal.is_some_and(|n| n[1] < -0.99))
+        .ok_or("front of opening")?;
+    assembly.projected(
+        "Z moving opening",
+        [
+            [0.0, front.point[1] - 1.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        &token,
+        front.point,
+        2.0,
+        Operation::New,
+    )?;
+    move_by(&mut engine, part, [2.0, 0.0])?;
+    let next = publish(&mut engine, Tier::Interface, &candidate_path)?;
+    let effects = assembly.dry_run(
+        &link,
+        candidate_path.to_str().ok_or("candidate path")?,
+        &published,
+        &next,
+    )?;
+    assert!(
+        effects.iter().any(|e| e.feature == "Z moving opening"
+            && e.effect == sparksmith_core::interface::EffectKind::Moves),
+        "{effects:?}"
+    );
+    assert!(
+        !effects.iter().any(|e| e.feature.starts_with("Fixed ")),
+        "{effects:?}"
+    );
+    Ok(())
+}
+
 /// The bottom side height, published: a part moved to the bottom gives it
 /// a height, and its body in the design lies under the board outline (its
 /// side faces' centroids within the board's x–y box), from the bottom

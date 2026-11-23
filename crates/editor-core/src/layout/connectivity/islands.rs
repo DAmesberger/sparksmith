@@ -41,7 +41,7 @@ impl CopperGraph {
             }
         }
         for (pad, element) in self.pad_lands.iter().enumerate() {
-            if let Some(slot) = island(*element).and_then(|i| out.get_mut(i)) {
+            if let Some(slot) = island(element.start).and_then(|i| out.get_mut(i)) {
                 slot.pads.push(pad);
             }
         }
@@ -52,8 +52,7 @@ impl CopperGraph {
     /// [`Self::pads`] directly, on any of its lands, in document order.
     pub fn copper_at_pad(&self, index: usize) -> (Vec<Id>, Vec<Id>) {
         let (mut tracks, mut vias): (Vec<usize>, Vec<usize>) = (Vec::new(), Vec::new());
-        // Outlines run tracks, vias, then pads.
-        let Some(lands) = self.lands.get(self.tracks.len() + self.vias.len() + index) else {
+        let Some(lands) = self.pad_lands.get(index) else {
             return (Vec::new(), Vec::new());
         };
         for land in lands.clone() {

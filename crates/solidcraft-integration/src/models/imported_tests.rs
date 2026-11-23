@@ -583,6 +583,38 @@ fn solidcraft_designs_are_inspected_but_not_built() -> Result<()> {
 }
 
 #[test]
+fn native_inspection_names_every_failing_feature_after_sixteen() -> Result<()> {
+    let mut native = Native::new("Inspection")?;
+    native.parameter("wall_width", "2 mm")?;
+    native.solid_box(BoxBody {
+        name: "Valid body",
+        corner: [0.into(), 0.into(), 0.into()],
+        size: [1.into(), 1.into(), 1.into()],
+    })?;
+    for i in 1..=17 {
+        native.solid_box(BoxBody {
+            name: &format!("Wall {i}"),
+            corner: [(3 * i).into(), 0.into(), 0.into()],
+            size: ["wall_width".into(), 2.into(), 1.into()],
+        })?;
+    }
+    let mut document = (*native.session().doc).clone();
+    document.params.retain(|p| p.name != "wall_width");
+    let bytes = solidcraft_engine::io::write_design(&document)
+        .map_err(|e| Error::Invalid(e.to_string()))?;
+    let seen = inspect::inspect(&bytes, ModelFormat::Solidcraft)?;
+    assert_eq!(seen.warnings.len(), 17, "{:?}", seen.warnings);
+    for i in 1..=17 {
+        assert!(
+            seen.warnings
+                .iter()
+                .any(|s| s.starts_with(&format!("Wall {i}:")))
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn malformed_files_refuse() {
     for (format, bytes) in [
         (ModelFormat::Gltf, b"glTF\x02\x00\x00\x00".to_vec()),

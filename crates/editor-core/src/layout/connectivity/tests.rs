@@ -431,6 +431,30 @@ fn a_partial_graph_reports_the_check_limit_once() -> Result<()> {
     Ok(())
 }
 
+/// A route scanned after the dense region may already join the pads. Name
+/// the two unverified pads without telling the designer they need rerouting.
+#[test]
+fn a_partial_graph_identifies_pads_whose_route_is_unverified() -> Result<()> {
+    let mut project = fixture()?;
+    for _ in 0..90 {
+        track(&mut project, [25.0, 15.0], [30.0, 15.0], top())?;
+    }
+    track(&mut project, R1_2, R2_1, top())?;
+    let graph = CopperGraph::of(&project);
+    assert!(!graph.complete());
+    let findings = graph.findings(&project);
+    assert!(codes(&findings, "board.unrouted").is_empty());
+    let pads: Vec<_> = findings
+        .iter()
+        .filter(|f| f.code == "board.check_limit")
+        .flat_map(|f| &f.objects)
+        .filter(|o| matches!(o, ObjectRef::Pad { .. }))
+        .collect();
+    assert_eq!(pads.len(), 2, "{findings:?}");
+    assert_ne!(pads[0], pads[1]);
+    Ok(())
+}
+
 /// The engine builds the graph once per revision and drops it with the
 /// revision.
 #[test]
@@ -597,5 +621,93 @@ fn a_via_land_overlapping_an_island_joins_it() -> Result<()> {
         "{}",
         dead.message
     );
+    Ok(())
+}
+
+#[test]
+fn thermal_pad_barrels_connect_a_bottom_route_only_at_the_drilled_rings() -> Result<()> {
+    let mut project = fixture()?;
+    let footprint = &mut project
+        .library
+        .footprints
+        .first_mut()
+        .ok_or_else(|| Error::NotFound("footprint".into()))?
+        .definition;
+    for pad in &mut footprint.pads {
+        let id = crate::library::ApertureId(footprint.next_local);
+        footprint.next_local += 1;
+        pad.vias.push(crate::library::PadVia {
+            id,
+            at: pt([0., 0.]),
+            drill_nm: crate::tests::support::nm(0.2),
+        });
+    }
+    let layer = CopperLayer::Bottom;
+    let graph = CopperGraph::of(&project);
+    assert!(
+        graph.islands_at(R1_2, layer, SHARED).is_empty(),
+        "finished bore"
+    );
+    assert_eq!(
+        graph.islands_at([10.915, 10.0], layer, SHARED).len(),
+        1,
+        "25 µm plated wall"
+    );
+    assert!(
+        graph.islands_at([11.2, 10.0], layer, SHARED).is_empty(),
+        "one-sided land"
+    );
+    let id = track(&mut project, R1_2, R2_1, layer)?;
+    let graph = CopperGraph::of(&project);
+    assert!(graph.airwires().is_empty());
+    assert!(codes(&graph.findings(&project), "board.unrouted").is_empty());
+    for (i, _) in graph
+        .pads()
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.net == SHARED)
+    {
+        assert_eq!(graph.copper_at_pad(i).0, [id]);
+    }
+    let route = project
+        .tracks
+        .iter_mut()
+        .find(|t| t.id == id)
+        .ok_or_else(|| Error::NotFound("route".into()))?;
+    route.start[1] += 0.35;
+    route.end[1] += 0.35;
+    assert_eq!(CopperGraph::of(&project).airwires().len(), 1);
+    project.tracks.clear();
+    // A bottom plane along y=10.11 contacts the walls but misses both bores.
+    let fill = project.allocate()?;
+    let outline = rect(10., 10.11, 25., 11.);
+    let region = crate::model::fill::FilledRegion {
+        outer: outline.flatten(0.001),
+        holes: vec![],
+    };
+    project.fills.push(Fill::from_spec(
+        fill,
+        FillSpec {
+            region: crate::model::fill::FillRegion::Drawn,
+            name: String::new(),
+            net: Some(SHARED),
+            layer,
+            outline,
+            priority: 0,
+            settings: Default::default(),
+        },
+    ));
+    let key = layout::fill::inputs_key(&project, fill)?;
+    project
+        .fills
+        .last_mut()
+        .ok_or_else(|| Error::NotFound("plane".into()))?
+        .computed = Some(crate::model::fill::FilledCopper {
+        key,
+        regions: vec![region],
+        removed_islands: 0,
+        removed_spokes: vec![],
+    });
+    assert!(CopperGraph::of(&project).airwires().is_empty());
     Ok(())
 }

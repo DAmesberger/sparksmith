@@ -7377,6 +7377,7 @@ dependencies = [
  "solidcraft-viewport-egui",
  "solidcraft-viewport-gpu",
  "sparksmith-core",
+ "tempfile",
  "tiny-skia",
  "toml 1.1.8+spec-1.1.0",
  "ttf-parser",

@@ -2,27 +2,27 @@
  "cases": [
   {
    "name": "FTSH 2x5 1.27 mm (FTSH-105-01-S-DV), component",
-   "request": {"abi": 1, "scope": "component", "params": {"positions": 5, "pitch": 1270000, "row_pitch": 1270000, "alignment": "none", "body_trim": 0, "body_width": 3430000, "body_height": 2510000, "standoff": 410000, "post_side": 410000, "post_height": 3050000, "tail_span": 5800000, "land_width": 740000, "land_length": 2790000, "land_span": 6860000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 635000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "positions": 5, "pitch": 1270000, "row_pitch": 1270000, "alignment": "none", "body_trim": 0, "body_width": 3430000, "body_height": 2510000, "standoff": 410000, "post_side": 410000, "post_height": 3050000, "tail_span": 5800000, "land_width": 740000, "land_length": 2790000, "land_span": 6860000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 635000}},
    "result": "0b09022ee33f23b37f3848973007be616cece0068d00192de9ec003d6c392469"
   },
   {
    "name": "FTSH 2x13 1.27 mm, package",
-   "request": {"abi": 1, "scope": "package", "params": {"positions": 13, "pitch": 1270000, "row_pitch": 1270000, "alignment": "none", "body_trim": 0, "body_width": 3430000, "body_height": 2510000, "standoff": 410000, "post_side": 410000, "post_height": 3050000, "tail_span": 5800000, "land_width": 740000, "land_length": 2790000, "land_span": 6860000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 635000}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "positions": 13, "pitch": 1270000, "row_pitch": 1270000, "alignment": "none", "body_trim": 0, "body_width": 3430000, "body_height": 2510000, "standoff": 410000, "post_side": 410000, "post_height": 3050000, "tail_span": 5800000, "land_width": 740000, "land_length": 2790000, "land_span": 6860000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 635000}},
    "result": "be3b1440cd158375ef6876d2e8dead0493acc5dc2acb1a19c17908f0edd05520"
   },
   {
    "name": "TSM 2x4 -03 with alignment pins (TSM-104-03-L-DV-A), component",
-   "request": {"abi": 1, "scope": "component", "params": {"positions": 4, "pitch": 2540000, "row_pitch": 2540000, "alignment": "pins", "body_trim": 0, "body_width": 5080000, "body_height": 2540000, "standoff": 1270000, "post_side": 640000, "post_height": 10670000, "tail_span": 7440000, "land_width": 1020000, "land_length": 2790000, "land_span": 7690000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 1270000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "positions": 4, "pitch": 2540000, "row_pitch": 2540000, "alignment": "pins", "body_trim": 0, "body_width": 5080000, "body_height": 2540000, "standoff": 1270000, "post_side": 640000, "post_height": 10670000, "tail_span": 7440000, "land_width": 1020000, "land_length": 2790000, "land_span": 7690000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 1270000}},
    "result": "0f04db83254ebbd301d3cea457bfa5421f35231c53cef788a608deb310847438"
   },
   {
    "name": "TSM 2x8 -03 with alignment pins (TSM-108-03-L-DV-A), package",
-   "request": {"abi": 1, "scope": "package", "params": {"positions": 8, "pitch": 2540000, "row_pitch": 2540000, "alignment": "pins", "body_trim": 0, "body_width": 5080000, "body_height": 2540000, "standoff": 1270000, "post_side": 640000, "post_height": 10670000, "tail_span": 7440000, "land_width": 1020000, "land_length": 2790000, "land_span": 7690000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 1270000}},
+   "request": {"abi": 1, "scope": "package", "params": {"board_mask_expansion_nm": 50000, "positions": 8, "pitch": 2540000, "row_pitch": 2540000, "alignment": "pins", "body_trim": 0, "body_width": 5080000, "body_height": 2540000, "standoff": 1270000, "post_side": 640000, "post_height": 10670000, "tail_span": 7440000, "land_width": 1020000, "land_length": 2790000, "land_span": 7690000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 1270000}},
    "result": "daee5e1af597fc8e32ee63bb5402bd87630501d516474cd9bb901c9f587b1b8c"
   },
   {
    "name": "TSM 2x20 -01 (two-digit pins), component",
-   "request": {"abi": 1, "scope": "component", "params": {"positions": 20, "pitch": 2540000, "row_pitch": 2540000, "alignment": "none", "body_trim": 0, "body_width": 5080000, "body_height": 2540000, "standoff": 1270000, "post_side": 640000, "post_height": 5840000, "tail_span": 7700000, "land_width": 1020000, "land_length": 2790000, "land_span": 7950000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 1270000}},
+   "request": {"abi": 1, "scope": "component", "params": {"board_mask_expansion_nm": 50000, "positions": 20, "pitch": 2540000, "row_pitch": 2540000, "alignment": "none", "body_trim": 0, "body_width": 5080000, "body_height": 2540000, "standoff": 1270000, "post_side": 640000, "post_height": 5840000, "tail_span": 7700000, "land_width": 1020000, "land_length": 2790000, "land_span": 7950000, "peg_diameter": 1600000, "peg_tip": 1210000, "peg_length": 2540000, "peg_inset": 1270000}},
    "result": "5247e1476fee3998b796fd95fd85f744947a77acd01f70141ee0ce8d4dd4dca2"
   }
  ],

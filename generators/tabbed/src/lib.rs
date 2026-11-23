@@ -49,7 +49,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`): 5 sets the marking
 /// text at the height its preset gives (`marking_height`); 6 gives the
 /// WS2812B preset its pin table (`pin_table`).
-const VERSION: u32 = 6;
+const VERSION: u32 = 7;
 
 /// Most leads on one side, and most grid positions between neighbours.
 pub const MAX_LEADS_PER_SIDE: i64 = 16;
@@ -168,6 +168,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     // The defaults: an original SOT-23-3 in round numbers, from no drawing
     // (the host's typical tabbed form).
     let mut params = vec![
+        land::mask_expansion_param(include!("../../standalone-mask-expansion-nm.json")),
         count("leads_s", "Leads on the −y side", 1, MAX_LEADS_PER_SIDE, 2),
         count("leads_n", "Leads on the +y side", 0, MAX_LEADS_PER_SIDE, 1),
         count("step_s", "Grid positions between −y leads", 1, MAX_STEP, 2),
@@ -962,13 +963,14 @@ fn name(d: &Dims) -> String {
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    let mask_expansion = args.int(v1::BOARD_MASK_EXPANSION).map_err(|p| vec![p])?;
     let d = dims(&args)?;
     let pads = pads(&d);
     let [length, width, height] = d.envelope();
     let body = Box2::centred([0, 0], [length, width]);
     let courtyard = land::courtyard(&pads, Some(body)).unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
-    let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
+    let mut silk = land::silk_outline(&pads, body, mask_expansion);
     silk.push(land::silk_designator(body, top));
     // More than two terminals always: the pin-1 dot.
     if let Some(first) = pads.first() {
@@ -979,7 +981,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 center: [
                     first.at[0]
                         - half
-                        - land::DEFAULT_MASK_NM
+                        - mask_expansion
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],

@@ -446,6 +446,7 @@ fn bridges(project: &Project) -> Result<Vec<PlanBody>> {
 /// its mounting hole, which the drill inventory plates, and a ring on
 /// every copper layer round it ([`WasherPlan`]).
 fn washers(project: &Project) -> Result<Vec<WasherPlan>> {
+    let wall_mm = super::barrel_wall_mm(project)?;
     // Each washer's outline, by its hole.
     let rings: std::collections::BTreeMap<BoardFeatureId, (Point, f64)> =
         sparksmith_core::layout::physical::washers(project)
@@ -466,7 +467,7 @@ fn washers(project: &Project) -> Result<Vec<WasherPlan>> {
         .map(|h| {
             let (hole, center) = (h.id, h.at);
             let bore = h.drill / 2.0;
-            let drilled = pad_outline::plated_drill_radius(h.drill);
+            let drilled = pad_outline::plated_drill_radius(h.drill, wall_mm);
             let circle = |radius| Contour::Circle { center, radius };
             let mut bodies = vec![PlanBody::new(
                 format!("washer_{}_barrel", hole.0),
@@ -765,6 +766,7 @@ fn tracks(project: &Project) -> Result<Vec<TrackPlan>> {
 /// laminate's foil level leaves for them. A via without a bore (no drill)
 /// has neither barrel nor outer rings.
 fn vias(project: &Project) -> Result<Vec<ViaPlan>> {
+    let wall_mm = super::barrel_wall_mm(project)?;
     let layers = project.stackup.layers();
     let circle = |radius| Contour::Circle {
         center: [0.0, 0.0],
@@ -775,7 +777,7 @@ fn vias(project: &Project) -> Result<Vec<ViaPlan>> {
         .iter()
         .map(|via| {
             let name = format!("via_{}_{}", mm_slug(via.drill), mm_slug(via.diameter));
-            let drill = pad_outline::plated_drill_radius(via.drill);
+            let drill = pad_outline::plated_drill_radius(via.drill, wall_mm);
             let bore = via.drill / 2.0;
             let ring = via.diameter / 2.0;
             let frame = Frame {
@@ -851,6 +853,7 @@ fn laminate(
     pads: &[PlacedPad<'_>],
     copper: &BoardPlan,
 ) -> Result<Vec<PlanBody>> {
+    let wall_mm = super::barrel_wall_mm(project)?;
     let fills = &copper.fills;
     let stackup = &project.stackup;
     let pad_drills: Vec<Contour> = pads
@@ -859,9 +862,9 @@ fn laminate(
         .collect();
     let via_drills = project.vias.iter().map(|via| Contour::Circle {
         center: via.position,
-        radius: pad_outline::plated_drill_radius(via.drill),
+        radius: pad_outline::plated_drill_radius(via.drill, wall_mm),
     });
-    let shaped = crate::board::laminate(project);
+    let shaped = crate::board::laminate(project).map_err(|e| Error::Invalid(e.to_string()))?;
     let through: Vec<Contour> = shaped
         .as_ref()
         .map(|l| l.through.clone())

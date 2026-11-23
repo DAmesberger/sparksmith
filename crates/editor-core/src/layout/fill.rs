@@ -651,11 +651,11 @@ fn as_region(region: &crate::model::fill::FilledRegion) -> geom::Region {
 /// orientation): disjoint regions, each an outer boundary
 /// (counter-clockwise) and its holes. Each region keeps its holes as
 /// holes; overlapping copper is one region.
-pub fn copper_union(
-    regions: &[crate::model::fill::FilledRegion],
+pub fn copper_union<'a>(
+    regions: impl IntoIterator<Item = &'a crate::model::fill::FilledRegion>,
     rings: &[Vec<crate::geometry::Point>],
 ) -> Vec<crate::model::fill::FilledRegion> {
-    let mut all: Vec<geom::Region> = Vec::with_capacity(regions.len() + rings.len());
+    let mut all = Vec::new();
     for region in regions {
         let Some(outer) = geom::ccw(region.outer.clone()) else {
             continue;

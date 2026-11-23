@@ -108,7 +108,7 @@ A server whose state is "the one current project" would therefore mix up convers
 
 | Tool | Class | Annotations | What it does |
 |---|---|---|---|
-| `find {text, kind?, limit?}` | read | `readOnlyHint`, `idempotentHint`, closed world | Searches the catalog (§3.3) by what an entry does. Each hit carries `name`, `kind` (query, operation, action), `class`, a one-line summary and a link to `sparksmith://catalog/{name}` |
+| `find {text, kind?, limit?, offset?}` | read | `readOnlyHint`, `idempotentHint`, closed world | Searches the catalog (§3.3) by what an entry does. Each hit carries `name`, `kind` (query, operation, action), `class`, a one-line summary and a link to `sparksmith://catalog/{name}` |
 | `describe {name, def?}` | read | same | Returns one entry's exact input schema, an example and related skills, from the same bytes as the catalog resource. `guide:<topic>` returns the matching offline help topic |
 | `query {project?, name, params}` | read | same | Every read: `project.inspect`, `project.issues`, `library.search`, `functions.suggest`, the pin report, the BOM, **and dry runs**. Changes nothing |
 | `apply {project?, expected_revision, operations: [...], dry_run?}` | edit | `readOnlyHint: false`, `destructiveHint: false` (undoable), closed world | Typed document operations, including undo and redo, applied atomically as one undo step. `dry_run` returns the impact without changing anything. Operations whose impact the person owns go through review (§3.5) |
@@ -425,8 +425,8 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - `apply`'s `op` is a plain string ("operation name; find it with `find`, get its schema with `describe`"), by the founder's answer to Q3. The server still resolves it strictly through the catalog (`catalog::resolve`, then `discovery::call` into the core's operation type), so there is no second list of names.
   - An unknown name is refused before anything runs with `catalog.unknown`, whose error carries `closest`: at most 3 names of the kind asked, by Levenshtein distance over the whole name or its part after the last dot, nearest first and then in catalog order, and within a third of the name's length (at least 2). The message names them too (`did you mean layout.set_board_size?`). `query`, `act` and `describe` give the same suggestions. No other tool embedded a name enum.
   - **Budget test:** the five tools measure 2,986 bytes (6,026 with the enum), against 6,037 bytes (1,404 tokens at the instructions' 4.3 bytes per token).
-- **`find {text, kind?, limit?}`** scores catalog name, title and summary words (3, 2 and 1 per word, with endings ignored) and returns hits best first, then in catalog order. An exact name ranks first.
-  - Each hit carries `name`, `kind`, `class`, `title` and `summary`. When hits are cut, `more` counts the rest.
+- **`find {text, kind?, limit?, offset?}`** scores catalog name, title and summary words (3, 2 and 1 per word, with endings ignored) and returns hits best first, then in catalog order. An exact name ranks first.
+  - Each hit carries `name`, `kind`, `class`, `title` and `summary`. When a page has more matches, `more` counts the rest. Pass `next_offset` as `offset` with the same text and kind to continue.
   - Limits: text up to 200 characters; `limit` 1–50 (default 10). Never-class entries are not found.
   - `find` reads the static M2 metadata, not a project, so it does not go through the desk.
 - **`describe {name, def?, detail?}`** runs `project.schema` through the gate. The default `input` detail includes the input schema, its paged definitions, the call, the class, the person step and the declared reach. Pass the arguments in `full` to read the full contract.
