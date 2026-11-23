@@ -7,6 +7,7 @@
 //! `examples/esp32-s31-devboard/authoring/rebase.py`).
 use serde_json::{Value, json};
 use sparksmith_automation::Session;
+use sparksmith_io::shipped::{ENV, ShippedLibrary};
 use std::path::Path;
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -15,13 +16,34 @@ const EXAMPLE: &str = "examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith
 
 #[test]
 fn the_committed_dev_board_is_what_its_replay_builds() -> Fallible {
+    let library = ShippedLibrary::for_checkout()?;
+    if std::env::var_os(ENV).is_none_or(|dir| dir.is_empty()) {
+        // Opening a project reads process-wide stackup defaults. Give all
+        // replay requests the same library before any of them can load it.
+        let replay = std::process::Command::new(std::env::current_exe()?)
+            .args([
+                "--exact",
+                "the_committed_dev_board_is_what_its_replay_builds",
+            ])
+            .env(ENV, library.root())
+            .output()?;
+        let stdout = String::from_utf8_lossy(&replay.stdout);
+        assert!(
+            replay.status.success() && stdout.contains("1 passed"),
+            "{stdout}{}",
+            String::from_utf8_lossy(&replay.stderr)
+        );
+        return Ok(());
+    }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let replay = std::fs::read_to_string(
         root.join("examples/esp32-s31-devboard/esp32-s31-devboard.replay.jsonl"),
     )?;
     let dir = tempfile::tempdir()?;
     let saved = dir.path().join("esp32-s31-devboard.sparksmith");
-    let mut session = Session::default();
+    let context = sparksmith_io::standards::context(&library)?;
+    let mut session = Session::fixture(sparksmith_io::new_project::engine(&context)?);
+    session.set_shipped(library);
     let mut saves = 0;
     for (n, line) in replay.lines().enumerate() {
         let mut request: Value = serde_json::from_str(line)?;

@@ -18,7 +18,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 /// How a source's catalog was obtained.
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IndexOrigin {
     /// The per-user index cache matched the folder.
@@ -32,7 +32,7 @@ pub enum IndexOrigin {
 
 /// One configured source as `library.sources` reports it. A source that
 /// cannot be searched stays listed with its reason.
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, PartialEq, schemars::JsonSchema)]
 pub struct SourceInfo {
     pub path: String,
     pub enabled: bool,

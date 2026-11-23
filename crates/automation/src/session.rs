@@ -108,7 +108,7 @@ pub struct SchemaParams {
     /// or a command or tool name. Without it, the index of all of them.
     #[serde(default)]
     pub name: Option<String>,
-    /// One definition `name`'s reply lists under `more_defs`.
+    /// A key listed in `more_defs` or `reply.more_defs`, including its prefix.
     #[serde(default)]
     pub def: Option<String>,
 }
@@ -542,7 +542,23 @@ pub enum Request {
 // A new request chooses its permission class here. `project.apply` and
 // `project.query` take their operation's or query's; a request that names a
 // path needs at least Ask ([`Request::effective_class`]).
-sparksmith_core::declare_entries!(Request in project {
+// Derive the dispatch key for an output contract from the same declaration
+// as its permission, wire name and input variant.
+macro_rules! declare_requests {
+    ($($variant:ident $name:literal $class:ident $title:literal $([$($attr:tt)*])?,)+) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        enum RequestId { $($variant,)+ }
+        impl RequestId {
+            fn named(name: &str) -> Option<Self> {
+                match name { $($name => Some(Self::$variant),)+ _ => None }
+            }
+        }
+        sparksmith_core::declare_entries!(Request in project {
+            $($variant $name $class $title $([$($attr)*])?,)+
+        });
+    };
+}
+declare_requests! {
     Apply "project.apply" Edit "Apply an operation",
     ApplyAll "project.apply_all" Edit "Apply operations as one step",
     Inspect "project.inspect" Read "Inspect the project" [link],
@@ -556,7 +572,7 @@ sparksmith_core::declare_entries!(Request in project {
     PreviewUpdate "project.preview_update" Read "Preview an update" [in library, link],
     ApplyUpdate "project.apply_update" Edit "Apply an update" [in library, review],
     PreviewReplace "project.preview_replace" Read "Preview replacing a part's component" [in library, link, since(3, 8)],
-    ReplaceComponent "project.replace_component" Edit "Replace a part's component" [in library, review, since(3, 8)],
+    ReplaceComponent "project.replace_component" Edit "Replace a part's component" [in library, review, since(3, 8), returns(none)],
     ExportNative "project.export_native" Ask "Export the 3D model" [in model3d, long, needs(Solidcraft)],
     ExportFabrication "project.export_fabrication" Ask "Export fabrication files" [in fab, long, link],
     Sources "library.sources" Read "List library folders" [in library, link, reach(Settings)],
@@ -569,40 +585,40 @@ sparksmith_core::declare_entries!(Request in project {
     Rescan "library.rescan" Read "Rescan library folders" [in library, long, link, reach(Files)],
     Favourite "library.favourite" Never "Mark a favourite" [in library, reach(Settings)],
     Bundle "library.bundle" Read "Read a folder bundle" [in library, link, reach(Files)],
-    ImportFrom "library.import_from_folder" Edit "Import from a folder" [in library, reach(Files)],
-    PlaceFrom "library.place_from_folder" Edit "Place from a folder" [in library, reach(Files)],
-    Publish "library.publish_to_folder" Ask "Publish to a folder" [in library, reach(Files)],
-    ImportFromProject "library.import_from_project" Ask "Import from another project" [in library],
-    ImportSvg "library.import_svg" Ask "Import SVG artwork" [in library],
+    ImportFrom "library.import_from_folder" Edit "Import from a folder" [in library, reach(Files), returns(imported)],
+    PlaceFrom "library.place_from_folder" Edit "Place from a folder" [in library, reach(Files), returns(placed_from)],
+    Publish "library.publish_to_folder" Ask "Publish to a folder" [in library, reach(Files), returns(promoted)],
+    ImportFromProject "library.import_from_project" Ask "Import from another project" [in library, returns(imported)],
+    ImportSvg "library.import_svg" Ask "Import SVG artwork" [in library, returns(graphics_edited)],
     OpenPreview "library.open_preview" Read "Preview a folder entry" [in library, link, reach(Files)],
     PinoutSchema "library.pinout_schema" Read "Pinout document schema" [in library, link],
     ReviewCheck "library.review_check" Read "Check a datasheet review report" [in library],
     FirmwarePreview "firmware.export_preview" Read "Preview a firmware export" [in fab, link],
     FirmwareExport "firmware.export" Ask "Export firmware pin configuration" [in fab],
     InspectModelFile "library.inspect_model_file" Ask "Inspect a model file" [in library, link, needs(Solidcraft)],
-    SetMarking "library.set_marking" Edit "Set a component marking" [in library],
+    SetMarking "library.set_marking" Edit "Set a component marking" [in library, returns(none)],
     SchematicPdf "schematic.export_pdf" Ask "Export the schematic as PDF" [in fab],
     MarkingSurfaces "library.marking_surfaces" Read "List marking surfaces" [in library, link, needs(Solidcraft)],
     CheckPartFile "library.check_part_file" Read "Check a part file" [in model3d, link, needs(Solidcraft)],
-    UsePartFile "library.use_part_file" Edit "Use a part file as the model" [in model3d, link, needs(Solidcraft)],
-    SetPartValues "library.set_part_values" Edit "Set part file values" [in model3d, link, needs(Solidcraft)],
+    UsePartFile "library.use_part_file" Edit "Use a part file as the model" [in model3d, link, needs(Solidcraft), returns(none, draft_created)],
+    SetPartValues "library.set_part_values" Edit "Set part file values" [in model3d, link, needs(Solidcraft), returns(none)],
     PartFiles "library.part_files" Read "List part files" [in model3d, link],
     Generators "library.generators" Read "List generator modules" [in generators],
-    GeneratePart "library.generate_part" Edit "Generate a part" [in generators],
+    GeneratePart "library.generate_part" Edit "Generate a part" [in generators, returns(generated)],
     BodyFit "library.body_fit" Read "Fit a generated body to a part" [in generators, since(1, 5)],
-    MakeBody "library.make_body" Edit "Make a part's 3D body" [in generators, since(1, 5)],
-    PlacePartFile "layout.place_part_file" Edit "Place a part file on the board" [in layout, link, needs(Solidcraft)],
-    SetPartFileValues "layout.set_part_file_values" Edit "Change a placed part file" [in layout, link, needs(Solidcraft)],
+    MakeBody "library.make_body" Edit "Make a part's 3D body" [in generators, since(1, 5), returns(body_replaced)],
+    PlacePartFile "layout.place_part_file" Edit "Place a part file on the board" [in layout, link, needs(Solidcraft), returns(part_placed)],
+    SetPartFileValues "layout.set_part_file_values" Edit "Change a placed part file" [in layout, link, needs(Solidcraft), returns(part_placed)],
     InterfacePreview "interface.publish_preview" Read "Preview publishing the board interface" [in model3d],
-    InterfacePublish "interface.publish" Ask "Publish the board interface" [in model3d],
-    AssemblyFollow "assembly.follow" Ask "Follow assembly geometry" [in model3d],
+    InterfacePublish "interface.publish" Ask "Publish the board interface" [in model3d, returns(none)],
+    AssemblyFollow "assembly.follow" Ask "Follow assembly geometry" [in model3d, returns(none)],
     AssemblyPreview "assembly.preview" Read "Preview a linked design update" [in model3d],
-    AssemblyUpdate "assembly.update" Ask "Update from the linked design" [in model3d],
+    AssemblyUpdate "assembly.update" Ask "Update from the linked design" [in model3d, returns(none)],
     DocumentText "assist.document_text" Read "Read an attached document's text" [in assist, link, effect(World), since(1, 0)],
     DocumentPage "assist.document_page" Read "See a page of an attached document" [in assist, link, effect(World), since(1, 0)],
     PinoutEdit "assist.pinout_edit" Read "Edit a working pinout document" [in assist, effect(World), since(1, 0)],
     WorkingPreview "assist.pinout_preview" Read "Preview a working pinout document" [in assist, long, link, effect(World), since(1, 0)],
-    WorkingApply "assist.pinout_apply" Edit "Apply a working pinout document" [in library, review, since(3, 2)],
+    WorkingApply "assist.pinout_apply" Edit "Apply a working pinout document" [in library, review, since(3, 2), returns(pinout_applied)],
     Workflows "assist.workflows" Read "List workflows" [in assist, effect(World), since(1, 1)],
     StepResult "assist.step_result" Read "Answer a workflow step" [in assist, effect(World), since(1, 1)],
     Offer "assist.offer" Show "Offer a workflow in the chat" [in assist, reach(Window), needs(Window), since(1, 2)],
@@ -612,7 +628,7 @@ sparksmith_core::declare_entries!(Request in project {
     ViewOpen "view.open" Show "Open a workspace or view" [in view, reach(Window), needs(Window), since(1, 0)],
     TurnBegin "project.turn_begin" Read "Begin a turn" [since(6, 2)],
     TurnEnd "project.turn_end" Read "End a turn" [since(6, 2)],
-});
+}
 
 impl Request {
     /// The class the gate acts on: the one listed, or the operation's or
@@ -773,7 +789,7 @@ impl Request {
             entry!(
                 Schema,
                 "Look up one operation, query or command's exact schema and how to send it; without a name, the index.",
-                "The exact JSON schema of one project.apply operation (layout.add_via), project.query query (library.search) or command, with how to send it; large definitions come separately through def. Without a name, the index of all of them with one line each. Not a document change.",
+                "Parameter and successful result schemas for one operation, query or command, with how to send it. Read a deferred definition by passing its listed key in def. Without a name, the index of all of them with one line each. Not a document change.",
             ),
             entry!(
                 Query,
@@ -2259,6 +2275,8 @@ mod preview;
 pub(crate) mod rebase;
 mod replace;
 mod reply;
+mod reply_schema;
+mod schema_walk;
 pub use reply::difference;
 pub mod shipped_parts;
 pub mod surface;

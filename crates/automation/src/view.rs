@@ -129,7 +129,7 @@ pub enum PcbView {
 }
 
 /// What the window shows: `view.context`'s answer, and `view.open`'s.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 pub struct Context {
     /// The project's revision now.
     pub revision: u64,
@@ -145,7 +145,7 @@ pub struct Context {
 }
 
 /// A sheet, with its name.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 pub struct Sheet {
     pub id: SheetId,
     pub name: String,
@@ -153,7 +153,7 @@ pub struct Sheet {
 
 /// One selected object, with the name a person reads (a designator, a net
 /// name) where it has one.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 pub struct Selected {
     #[serde(flatten)]
     pub object: ObjectRef,
@@ -202,7 +202,7 @@ fn name_of(project: &Project, object: &ObjectRef) -> Option<String> {
 }
 
 /// What `view.select` selected.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 pub struct Selection {
     /// Objects named.
     pub selected: usize,

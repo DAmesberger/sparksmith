@@ -107,7 +107,7 @@ pub enum VariantCommand {
 
 // A new command chooses its permission class here.
 declare_entries!(VariantCommand in project {
-    Add "variant.add" Edit "Add an assembly variant" [since(7, 13)],
+    Add "variant.add" Edit "Add an assembly variant" [since(7, 13), returns(variant_added)],
     Rename "variant.rename" Edit "Rename an assembly variant" [since(7, 13)],
     Remove "variant.remove" Edit "Delete an assembly variant" [since(7, 13)],
     SetActive "variant.set_active" Edit "Choose the active assembly variant" [since(7, 13)],

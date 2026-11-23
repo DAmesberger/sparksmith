@@ -102,6 +102,7 @@ These terms mean the same on every net, paired or not:
 | `pair.gap` | Parallel stretches of the halves closer than the pair gap (worst per layer) |
 | `length.mismatch` | A routed group member outside its window |
 | `impedance.mismatch` | A track (single-ended target) or coupled stretch (differential target) outside the tolerance, worst per net and layer; or a target on a layer without a reference plane |
+| `impedance.uncoupled` | A pair with a differential impedance target has routed tracks outside the coupled-line calculation. One warning names the target and the uncoupled track length on each half of the signal path, including pad fan-out. It applies even when the class has no maximum uncoupled length. The coupled stretches still receive their usual impedance check. |
 | `impedance.no_tolerance` | Routed copper with an impedance target whose class states no tolerance while the host has no Settings value |
 
 **Length report** (`layout.length_report`, the High speed card's Lengths section): every routed, paired or grouped net with its length (tracks, vias, total), a half's `path`, target, tolerance and deviation (a half's against its path); every pair's measured halves, how they were measured, their paths' pads, skew and uncoupled length; every group's target, window and worst deviation.

@@ -241,7 +241,47 @@ mod tests {
     use std::path::Path;
 
     fn repository() -> Result<ShippedLibrary> {
-        ShippedLibrary::locate_from(|_| None, std::env::current_exe().ok())
+        ShippedLibrary::for_checkout()
+    }
+
+    #[test]
+    fn repository_library_resolves_to_the_checkout_or_override() -> Result<()> {
+        // Each child gets its own environment, including when tests run in parallel.
+        const EXPECTED: &str = "SPARKSMITH_TEST_EXPECTED_STANDARDS_ROOT";
+        if let Some(expected) = std::env::var_os(EXPECTED) {
+            assert_eq!(
+                repository()?.root().canonicalize()?,
+                Path::new(&expected).canonicalize()?
+            );
+            return Ok(());
+        }
+        let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+        let alternate = tempfile::tempdir()?;
+        std::fs::write(alternate.path().join(crate::shipped::MARKER), "{}")?;
+        for (override_dir, expected) in [
+            (None, checkout.as_path()),
+            (Some(alternate.path()), alternate.path()),
+        ] {
+            let mut child = std::process::Command::new(std::env::current_exe()?);
+            child
+                .args([
+                    "--exact",
+                    "standards::tests::repository_library_resolves_to_the_checkout_or_override",
+                ])
+                .env(EXPECTED, expected)
+                .env_remove(crate::shipped::ENV);
+            if let Some(dir) = override_dir {
+                child.env(crate::shipped::ENV, dir);
+            }
+            let output = child.output()?;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(
+                output.status.success() && stdout.contains("1 passed"),
+                "{stdout}{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        Ok(())
     }
 
     /// A copy of the shipped library's standards in a temporary folder.

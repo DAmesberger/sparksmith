@@ -2,7 +2,9 @@
 //! the transcript's items, folded from the loop's events, and the state
 //! the column's header names. No egui here.
 use serde_json::Value;
-use sparksmith_assist::chat::{self, CallState, Event, Use};
+use sparksmith_assist::chat::{self, CallState, Event, Hit, Use};
+use sparksmith_assist::settings::Limits;
+use sparksmith_assist::usage::Usage;
 
 /// Characters of a call's input or reply shown when its row is expanded.
 pub const MAX_DETAIL_CHARS: usize = 4_000;
@@ -131,6 +133,20 @@ pub struct TurnSummary {
     pub show: Vec<u64>,
     /// How the turn ended, when not with an answer.
     pub end: Option<String>,
+    /// The turn's and the conversation's tokens: one line each.
+    pub spend: Vec<String>,
+    /// The person's limit the turn stopped at, in words, when it stopped
+    /// at one: the card offers Continue.
+    pub limit: Option<LimitStop>,
+}
+
+/// A turn stopped at one of the person's limits.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LimitStop {
+    /// "Your limit of 40 model requests a run".
+    pub which: String,
+    /// The person pressed Continue.
+    pub continued: bool,
 }
 
 /// One item of the transcript.
@@ -162,6 +178,12 @@ pub enum Item {
         line: String,
         record: String,
     },
+    /// Where the harness asked the model to act or ask the person after a
+    /// long read without a change: its line, and the note it sent.
+    Nudged {
+        line: String,
+        note: String,
+    },
 }
 
 /// The transcript, its state and the use of the turn running.
@@ -171,6 +193,10 @@ pub struct Conversation {
     pub state: State,
     /// Use of the turn running so far.
     pub usage: Use,
+    /// The tokens of every turn that ended, as the provider reported them.
+    pub spent: Usage,
+    /// The person's limits the turn running was given, if they set any.
+    pub limits: Option<Limits>,
     /// The reply and reasoning items the current request's deltas grow.
     reply_at: Option<usize>,
     reasoning_at: Option<usize>,
@@ -183,6 +209,8 @@ impl Default for Conversation {
             items: Vec::new(),
             state: State::Idle,
             usage: Use::default(),
+            spent: Usage::default(),
+            limits: None,
             reply_at: None,
             reasoning_at: None,
             next_id: 1,
@@ -250,6 +278,7 @@ impl Conversation {
                     output_tokens: meter.output_tokens.used,
                     tokens: meter.tokens.used,
                     seconds: meter.minutes.used as f64 * 60.0,
+                    reported: meter.reported,
                 };
             }
             Event::Condensed(condensed) => self.push(Item::Condensed {
@@ -257,6 +286,13 @@ impl Conversation {
                 record: condensed.record.unwrap_or_else(|| {
                     "Older tool replies the model had read were cleared; it asks again when it needs them.".into()
                 }),
+            }),
+            Event::Nudged { tokens: read, note } => self.push(Item::Nudged {
+                line: format!(
+                    "Asked the model to make the change or ask you · {} tokens read without a change",
+                    tokens(read)
+                ),
+                note,
             }),
             Event::Response { .. } | Event::Warning(_) => {}
         }
@@ -361,8 +397,19 @@ impl Conversation {
         })
     }
 
-    /// A turn ended: its card, and the state its end leaves.
-    pub fn ended(&mut self, summary: TurnSummary, end: &chat::End) {
+    /// A turn ended: its card, with what the turn and the conversation
+    /// used and the person's limit it stopped at, and the state its end
+    /// leaves.
+    pub fn ended(&mut self, mut summary: TurnSummary, end: &chat::End) {
+        let turn = summary.usage.reported;
+        self.spent.add(&turn);
+        summary.spend = spend_lines(&turn, &self.spent);
+        if let chat::End::Limit { hit, .. } = end {
+            summary.limit = Some(LimitStop {
+                which: limit_words(*hit, self.limits.as_ref()),
+                continued: false,
+            });
+        }
         self.state = match end {
             chat::End::Answered => State::Idle,
             chat::End::Stopped => State::Stopped,
@@ -370,6 +417,112 @@ impl Conversation {
         };
         self.push(Item::Summary(summary));
     }
+
+    /// The id of the last turn's card, which alone offers Continue.
+    pub fn last_summary(&self) -> Option<u64> {
+        self.items.iter().rev().find_map(|item| match item {
+            Item::Summary(card) => Some(card.id),
+            _ => None,
+        })
+    }
+
+    /// The person pressed Continue on card `id`: it is marked. False when
+    /// the card offers no Continue.
+    pub fn continue_from(&mut self, id: u64) -> bool {
+        if self.state.busy() || self.last_summary() != Some(id) {
+            return false;
+        }
+        self.items.iter_mut().rev().any(|item| match item {
+            Item::Summary(card) if card.id == id => card
+                .limit
+                .as_mut()
+                .filter(|l| !l.continued)
+                .is_some_and(|l| {
+                    l.continued = true;
+                    true
+                }),
+            _ => false,
+        })
+    }
+}
+
+/// Tokens in the card's words: "950", "61 k", "1.9 M".
+pub fn tokens(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1} M", n as f64 / 1_000_000.0)
+    } else if n >= 10_000 {
+        format!("{} k", n / 1_000)
+    } else {
+        n.to_string()
+    }
+}
+
+/// One line of use: "61 k in (40 k from the cache, 2 k written to it),
+/// 2100 out". The cache is named only when the provider reported it.
+fn use_words(usage: &Usage) -> String {
+    let mut cache = Vec::new();
+    if usage.cache_read_tokens > 0 {
+        cache.push(format!(
+            "{} from the cache",
+            tokens(usage.cache_read_tokens)
+        ));
+    }
+    if usage.cache_write_tokens > 0 {
+        cache.push(format!(
+            "{} written to it",
+            tokens(usage.cache_write_tokens)
+        ));
+    }
+    let cache = if cache.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", cache.join(", "))
+    };
+    format!(
+        "{} in{cache}, {} out",
+        tokens(usage.prompt()),
+        tokens(usage.output_tokens)
+    )
+}
+
+/// The card's lines for a turn's and the conversation's tokens.
+pub fn spend_lines(turn: &Usage, conversation: &Usage) -> Vec<String> {
+    vec![
+        format!("This turn: {}", use_words(turn)),
+        format!("This conversation: {}", use_words(conversation)),
+    ]
+}
+
+/// Which of the person's limits a turn stopped at, in words.
+pub fn limit_words(hit: Hit, limits: Option<&Limits>) -> String {
+    let Some(limits) = limits else {
+        return "A limit of this turn".into();
+    };
+    match hit {
+        Hit::Requests => format!(
+            "Your limit of {} model requests",
+            group(limits.requests.into())
+        ),
+        Hit::OutputTokens => format!(
+            "Your limit of {} output tokens",
+            group(limits.output_tokens)
+        ),
+        Hit::Tokens => format!("Your limit of {} tokens", group(limits.total_tokens)),
+        Hit::Time => format!("Your limit of {} minutes", limits.minutes),
+    }
+}
+
+/// 400000 as "400 000".
+fn group(v: u64) -> String {
+    let digits = v.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(' ');
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// How a row names a call: the verb and the entries it names.
@@ -544,6 +697,111 @@ mod tests {
         assert_eq!(row.reply, "stale");
         assert!(row.input.contains("expected_revision"));
         Ok(())
+    }
+
+    fn card(id: u64, reported: Usage) -> TurnSummary {
+        TurnSummary {
+            id,
+            label: "AI assistant: x".into(),
+            changes: vec![],
+            others: vec![],
+            issues_new: 0,
+            issues_resolved: 0,
+            new_issues: vec![],
+            usage: Use {
+                reported,
+                ..Use::default()
+            },
+            before: 1,
+            after: 1,
+            steps: 0,
+            show: vec![],
+            end: None,
+            spend: vec![],
+            limit: None,
+        }
+    }
+
+    /// Each card counts the turn's and the conversation's tokens in, from
+    /// and to the cache when reported, and out; no price.
+    #[test]
+    fn a_card_shows_the_turns_and_the_conversations_tokens() -> Result<(), String> {
+        let mut c = Conversation::default();
+        let first = Usage {
+            input_tokens: 5_000,
+            output_tokens: 100,
+            ..Usage::default()
+        };
+        c.ended(card(1, first), &chat::End::Answered);
+        let Some(Item::Summary(only)) = c.items.last() else {
+            return Err(format!("{:?}", c.items));
+        };
+        assert_eq!(
+            only.spend,
+            [
+                "This turn: 5000 in, 100 out",
+                "This conversation: 5000 in, 100 out"
+            ]
+        );
+        let second = Usage {
+            input_tokens: 2_000,
+            cache_write_tokens: 40_000,
+            cache_read_tokens: 60_000,
+            output_tokens: 2_000,
+        };
+        c.ended(card(2, second), &chat::End::Answered);
+        let Some(Item::Summary(last)) = c.items.last() else {
+            return Err(format!("{:?}", c.items));
+        };
+        assert_eq!(
+            last.spend,
+            [
+                "This turn: 102 k in (60 k from the cache, 40 k written to it), 2000 out",
+                "This conversation: 107 k in (60 k from the cache, 40 k written to it), 2100 out",
+            ]
+        );
+        assert!(last.spend.iter().all(|l| !l.contains("USD")));
+        Ok(())
+    }
+
+    /// A stop at the person's limit names it; Continue is offered once, on
+    /// the last card.
+    #[test]
+    fn a_limit_stop_names_the_persons_limit_and_continues_once() {
+        let mut c = Conversation {
+            limits: Some(Limits {
+                requests: 40,
+                output_tokens: 200_000,
+                total_tokens: 4_000_000,
+                minutes: 45,
+            }),
+            ..Conversation::default()
+        };
+        let stop = |hit| chat::End::Limit {
+            hit,
+            why: "numbers".into(),
+        };
+        c.ended(card(1, Usage::default()), &stop(Hit::Requests));
+        let which = |c: &Conversation, id| {
+            c.summary(id)
+                .and_then(|card| card.limit.as_ref())
+                .map(|l| l.which.clone())
+        };
+        assert_eq!(
+            which(&c, 1).as_deref(),
+            Some("Your limit of 40 model requests")
+        );
+        assert!(!c.continue_from(7), "no such card");
+        assert!(c.continue_from(1));
+        assert!(!c.continue_from(1), "Continue is offered once");
+        c.ended(card(2, Usage::default()), &stop(Hit::Tokens));
+        assert_eq!(
+            which(&c, 2).as_deref(),
+            Some("Your limit of 4 000 000 tokens")
+        );
+        c.ended(card(3, Usage::default()), &chat::End::Answered);
+        assert!(!c.continue_from(2), "only the last card continues");
+        assert_eq!(c.summary(3).and_then(|card| card.limit.clone()), None);
     }
 
     #[test]

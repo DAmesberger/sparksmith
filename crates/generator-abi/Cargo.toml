@@ -16,10 +16,13 @@ nfc = ["dep:unicode-normalization"]
 # Host-side request completion (`params::complete`), which the core and the
 # host call. Modules leave it off, so their bytes stay what they were.
 complete = []
+# The automation host describes the generator fields it returns to clients.
+host-schema = ["dep:schemars"]
 
 # no_std + alloc throughout: this crate is compiled into every generator
 # module, so it must not pull in `std` or anything that embeds host paths.
 [dependencies]
+schemars = { workspace = true, optional = true }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 sha2 = { version = "0.10", default-features = false }
 unicode-normalization = { version = "0.1", default-features = false, optional = true }

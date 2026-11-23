@@ -144,6 +144,9 @@ pub enum Event {
     /// The chat condensed what the model is sent (`docs/assistant-panel.md`
     /// §6.5): the divider row. The transcript is unchanged.
     Condensed(chat::context::Condensed),
+    /// The harness sent the model its nudge (`note`) after `tokens` of
+    /// reading with nothing changed; the turn goes on.
+    Nudged { tokens: u64, note: String },
 }
 
 /// Where a tool call is.
@@ -170,6 +173,9 @@ pub struct Meter {
     pub output_tokens: Gauge,
     pub tokens: Gauge,
     pub minutes: Gauge,
+    /// The tokens as the provider reported them: uncached, cache written,
+    /// cache read and output.
+    pub reported: crate::usage::Usage,
 }
 
 /// Why a run stopped.

@@ -97,7 +97,19 @@ pub type Defs = BTreeMap<String, Value>;
 /// How the parameters changed from `old` to `new`, each with the
 /// definitions its references (`#/$defs/<key>`) name.
 pub fn classify(old: &Value, old_defs: &Defs, new: &Value, new_defs: &Defs) -> Outcome {
+    inclusion(old, old_defs, new, new_defs, false)
+}
+
+/// A reply is what a client receives. Every value the new writer can
+/// emit must be readable by an existing consumer. Object readers ignore
+/// additional, unknown fields, and rely on the documented ones.
+pub fn classify_reply(old: &Value, old_defs: &Defs, new: &Value, new_defs: &Defs) -> Outcome {
+    inclusion(new, new_defs, old, old_defs, true)
+}
+
+fn inclusion(old: &Value, old_defs: &Defs, new: &Value, new_defs: &Defs, reply: bool) -> Outcome {
     let mut walk = Walk {
+        reply,
         old_defs,
         new_defs,
         open: HashSet::new(),
@@ -118,6 +130,7 @@ fn label(value: &Value) -> String {
 }
 
 struct Walk<'a> {
+    reply: bool,
     old_defs: &'a Defs,
     new_defs: &'a Defs,
     /// Reference pairs being compared: met again, they are taken as the
@@ -128,6 +141,11 @@ struct Walk<'a> {
 
 fn reference(schema: &Value) -> Option<&str> {
     schema.get("$ref")?.as_str()?.strip_prefix(DEFS)
+}
+
+/// A reference can carry additional constraints in JSON Schema 2020-12.
+fn has_ref_siblings(schema: &Value) -> bool {
+    schema.as_object().is_some_and(|object| object.len() > 1)
 }
 
 /// The variants of a schema that is only a union.
@@ -177,7 +195,24 @@ fn types(schema: &Map<String, Value>) -> Option<BTreeSet<&str>> {
 impl Walk<'_> {
     fn compare(&mut self, old: &Value, new: &Value, path: &str) -> Outcome {
         match (reference(old), reference(new)) {
-            (Some(a), Some(b)) => return self.pair(a.to_owned(), b.to_owned(), path),
+            (Some(a), Some(b)) => {
+                let mut result = self.pair(a.to_owned(), b.to_owned(), path);
+                if has_ref_siblings(old) || has_ref_siblings(new) {
+                    let siblings = |schema: &Value| {
+                        let mut object = schema.as_object().cloned().unwrap_or_default();
+                        object.remove("$ref");
+                        object
+                    };
+                    result.join(self.object(&siblings(old), &siblings(new), path));
+                }
+                return result;
+            }
+            (Some(_), None) if has_ref_siblings(old) => {
+                return Outcome::major(format!("{path}: constrained reference changed form"));
+            }
+            (None, Some(_)) if has_ref_siblings(new) => {
+                return Outcome::major(format!("{path}: constrained reference changed form"));
+            }
             (Some(a), None) => {
                 let resolved = self.old_defs.get(a).cloned().unwrap_or(Value::Null);
                 return self.compare(&resolved, new, path);
@@ -251,7 +286,12 @@ impl Walk<'_> {
                 (true, _) => (0..news.len()).collect(),
                 (false, false) => tagged,
                 (false, true) => {
-                    outcome.join(Outcome::major(format!("{here}: removed")));
+                    let reason = if self.reply {
+                        "new reply variant"
+                    } else {
+                        "removed"
+                    };
+                    outcome.join(Outcome::major(format!("{here}: {reason}")));
                     continue;
                 }
             };
@@ -267,6 +307,9 @@ impl Walk<'_> {
                 Some((j, found)) => {
                     used.insert(j);
                     outcome.join(found);
+                }
+                None if self.reply => {
+                    outcome.join(Outcome::major(format!("{here}: new reply variant")))
                 }
                 None => outcome.join(Outcome::major(format!("{here}: removed"))),
             }
@@ -311,7 +354,7 @@ impl Walk<'_> {
         outcome.join(self.properties(old, new, path));
         outcome.join(self.additional(old, new, path));
         outcome.join(self.items(old, new, path));
-        outcome.join(enum_change(old, new, at));
+        outcome.join(enum_change(old, new, at, self.reply));
         outcome.join(const_change(old, new, at));
         outcome.join(default_change(old, new, at));
         outcome.join(bounds(old, new, at));
@@ -350,6 +393,15 @@ impl Walk<'_> {
         for (name, was) in old_props {
             let here = format!("{path}.{name}");
             match new_props.get(name) {
+                None if self.reply => {
+                    // In reply mode `new` is the previous reader's schema.
+                    // A reader with an explicit restriction on extra keys
+                    // must also accept the newly emitted field's value.
+                    if let Some(extra) = new.get("additionalProperties") {
+                        outcome.join(self.compare(was, extra, &here));
+                    }
+                    outcome.join(Outcome::minor());
+                }
                 None => outcome.join(Outcome::major(format!("{here}: removed"))),
                 Some(now) => {
                     let found = self.compare(was, now, &here);
@@ -358,7 +410,9 @@ impl Walk<'_> {
             }
         }
         for name in new_props.keys().filter(|n| !old_props.contains_key(*n)) {
-            if new_required.contains(name) {
+            if self.reply {
+                outcome.join(Outcome::major(format!("{path}.{name}: no longer returned")));
+            } else if new_required.contains(name) {
                 outcome.join(Outcome::major(format!("{path}.{name}: added as required")));
             } else {
                 outcome.join(Outcome::minor());
@@ -367,7 +421,12 @@ impl Walk<'_> {
         // A new property that is required was named above.
         for name in new_required.difference(&old_required) {
             if old_props.contains_key(name) || !new_props.contains_key(name) {
-                outcome.join(Outcome::major(format!("{path}.{name}: now required")));
+                let reason = if self.reply {
+                    "no longer guaranteed"
+                } else {
+                    "now required"
+                };
+                outcome.join(Outcome::major(format!("{path}.{name}: {reason}")));
             }
         }
         if old_required.difference(&new_required).next().is_some() {
@@ -438,7 +497,12 @@ fn type_change(old: &Map<String, Value>, new: &Map<String, Value>, at: &str) -> 
     }
 }
 
-fn enum_change(old: &Map<String, Value>, new: &Map<String, Value>, at: &str) -> Outcome {
+fn enum_change(
+    old: &Map<String, Value>,
+    new: &Map<String, Value>,
+    at: &str,
+    reply: bool,
+) -> Outcome {
     match (old.get("enum"), new.get("enum")) {
         (None, None) => Outcome::same(),
         (Some(_), None) => Outcome::minor(),
@@ -450,7 +514,12 @@ fn enum_change(old: &Map<String, Value>, new: &Map<String, Value>, at: &str) -> 
                 .map(Value::to_string)
                 .collect();
             if !removed.is_empty() {
-                Outcome::major(format!("{at}: value {} removed", removed.join(", ")))
+                let reason = if reply {
+                    "new reply value"
+                } else {
+                    "removed value"
+                };
+                Outcome::major(format!("{at}: {reason} {}", removed.join(", ")))
             } else if now.len() > was.len() {
                 Outcome::minor()
             } else {
