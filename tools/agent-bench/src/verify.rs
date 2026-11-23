@@ -267,7 +267,7 @@ impl Change {
             let mut expected = original.clone();
             expected.width = self.width_mm;
             require(
-                after.tracks.iter().any(|track| *track == expected),
+                after.tracks.contains(&expected),
                 "track geometry, ID, net, layer or width differs",
             )?;
         }

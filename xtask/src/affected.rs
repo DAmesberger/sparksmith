@@ -22,6 +22,9 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
+/// A structural gate: its check.
+type Gate = fn() -> Result<()>;
+
 /// The shared-data rules, relative to the workspace root.
 const RULES_FILE: &str = "xtask/affected.txt";
 /// A rule's crate list meaning every workspace package.
@@ -440,7 +443,7 @@ pub(crate) fn run_fast(args: &[String]) -> Result<()> {
         return fail(&lines, "format");
     }
 
-    let mut structural: Vec<(&str, fn() -> Result<()>)> = vec![
+    let mut structural: Vec<(&str, Gate)> = vec![
         ("layers", crate::layers::check),
         ("core-modules", crate::core_modules::check),
         ("connectivity", crate::connectivity::check),

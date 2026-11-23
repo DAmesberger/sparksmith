@@ -93,8 +93,8 @@ const EXCEPTIONS: &[(&str, usize, &str)] = &[
     ),
     (
         "pcb_editor/rules_panel.rs",
-        2,
-        "text field: Esc reverts a rule value",
+        3,
+        "text field: Esc reverts a rule value or the tie temperature rise",
     ),
     (
         "pcb_editor/track_card.rs",

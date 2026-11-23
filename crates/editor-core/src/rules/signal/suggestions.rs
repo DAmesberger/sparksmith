@@ -89,9 +89,19 @@ impl PairSuggestion {
     }
 }
 
+/// The data-file format a differential pair catalog states.
+pub const CATALOG_FORMAT: u32 = 1;
+
 impl PairCatalog {
     pub fn check(&self) -> Result<()> {
-        crate::library::standards::check_format(self.format, "differential pair catalog")?;
+        // The catalog states its file format like a standards file; `rules`
+        // may not use `library`, so the check is made here.
+        if self.format != CATALOG_FORMAT {
+            return Err(Error::Unsupported(format!(
+                "differential pair catalog is format {}; this build reads format {CATALOG_FORMAT}",
+                self.format
+            )));
+        }
         let valid = |p: &str, n: &str| name_ok(p) && name_ok(n) && !p.eq_ignore_ascii_case(n);
         let mut endings = BTreeSet::new();
         for [p, n] in &self.endings {

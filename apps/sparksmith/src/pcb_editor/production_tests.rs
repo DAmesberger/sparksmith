@@ -927,7 +927,7 @@ fn a_profile_limited_finding_says_what_it_needs_and_switches_instead_of_waiving(
     }
     let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
     let shown = texts(&output);
-    assert!(shown.iter().any(|t| *t == need.text), "{shown:?}");
+    assert!(shown.contains(&need.text), "{shown:?}");
     {
         // The showcase has other errors too; with only the ones a profile
         // resolves, Export says to fix or switch, never to waive.

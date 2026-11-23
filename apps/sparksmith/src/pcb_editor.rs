@@ -1873,6 +1873,7 @@ impl PcbEditor {
                 if idle {
                     self.set_selection(None, None, None);
                 }
+                self.anchor_pick = None;
                 self.end_route();
                 self.cancel_drag();
                 self.discard_staged();
@@ -1899,7 +1900,8 @@ impl PcbEditor {
         if self.tool == Tool::Route && response.clicked_by(PointerButton::Secondary) {
             self.finish_route();
         }
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) || self.tool != Tool::Select {
+        // Esc away from the board (over it, the cancel above took it).
+        if self.tool != Tool::Select || crate::keys::pressed(ui.ctx(), "pcb.cancel") {
             self.anchor_pick = None;
         }
         kit::tool_cursor(

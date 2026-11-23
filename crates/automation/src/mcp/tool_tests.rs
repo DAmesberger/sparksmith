@@ -1075,7 +1075,7 @@ fn input_descriptions_keep_permissions_and_fit_the_catalog_budget() -> Fallible<
         assert_eq!(input["class"], json!(entry.class), "{name}");
         assert_eq!(
             input.get("asks_with_path"),
-            entry.takes_path.then(|| json!(true)).as_ref(),
+            entry.takes_path.then_some(json!(true)).as_ref(),
             "{name}"
         );
         assert_eq!(input.get("person"), Some(&json!(entry.person)), "{name}");

@@ -275,7 +275,9 @@ impl PcbEditor {
         let project = engine.project();
         let rect = scene.viewport.rect()?;
         self.dimension_frame_start(ui, engine);
-        if self.anchor_pick.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        // Esc drops a Kelvin anchor pick first, through the 3D view's
+        // pick-cancel key.
+        if self.anchor_pick.is_some() && crate::keys::pressed(ui.ctx(), "pcb.dimension-cancel") {
             self.anchor_pick = None;
         }
         let armed = self.tool == Tool::Dimension;
