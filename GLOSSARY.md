@@ -356,7 +356,7 @@ The board's layer build, top to bottom: copper foils and the dielectrics (core o
 
 **Tie**
 
-A component that deliberately joins two to eight distinct nets at a stated place. A copper tie is always closed. A solder jumper or 0 Ω link follows its population in the active assembly variant. Its instance records its purpose, such as a star ground or Kelvin sense contact.
+An intentional join between two to eight distinct nets at a stated place. One component may contain several independent ties. Each has its own terminals, copper bridges and purpose. A copper tie is always closed. A solder jumper or 0 Ω link follows the component’s population in the active assembly variant.
 
 **Copper layer**:
 A named layer of the stackup that carries copper: Top, Inner 1…n or Bottom. Tracks lie on a copper layer; a board side (top or bottom) is the side a part, mask or silkscreen is on, and its outer copper layer is the copper layer of that side.

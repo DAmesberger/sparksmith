@@ -617,3 +617,9 @@ Whether copper touches or joins is decided in one place: `crates/editor-core/src
 - the Route tool (`islands_at`).
 
 Which copper layers a pad has is decided once too: `PadKind::copper()` and `layout::pad_copper_on`. `cargo xtask connectivity` rejects joining code anywhere else. What remains outside the module are clearance tests (different nets against a rule), picking (what lies under the pointer) and polyline bookkeeping (finding a track a step just wrote by its end point). None of them decides connectivity.
+
+## Deliberate joins
+
+A footprint bridge has an owning component, tie group, layer and set of end nets. The graph records the island it reaches on each declared land. The islands retain their separate net identities, lengths and airwires. A Kelvin end uses its named anchor land as its routing destination. The graph records the objects and positions where the sense copper actually touches that land.
+
+`tie.list` reports one row per independent group. On a design with ties, `project.inspect` at `/netlist` returns the distinct nets and their terminals alongside the tie groups and their current assembly states.

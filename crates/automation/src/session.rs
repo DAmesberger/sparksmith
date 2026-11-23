@@ -2107,6 +2107,7 @@ impl Session {
     /// carries the core's `component.check` report, from one staged
     /// `component.check_drafts` query.
     pub fn snapshot(&self) -> Value {
+        let _context = self.engine.enter_context();
         let project = self.engine.project();
         let items = &self.engine.drafts().items;
         let drafts: Vec<Value> = match self.engine.query(Query::CheckDrafts { detail: true }) {
@@ -2130,7 +2131,7 @@ impl Session {
                     .collect()
             }
         };
-        json!({
+        let mut snapshot = json!({
             "revision": self.engine.revision(),
             "project": project,
             "drafts": drafts,
@@ -2141,7 +2142,12 @@ impl Session {
             // `project.issues` (severity, wording, merging, locating).
             "erc": erc::checks(project),
             "board_checks": layout::checks(project, self.engine.check_settings()),
-        })
+        });
+        let ties = sparksmith_core::instances::ties::rows(project);
+        if !ties.is_empty() {
+            snapshot["netlist"] = json!({"nets":project.nets,"ties":ties});
+        }
+        snapshot
     }
 
     /// Parse and run a JSON request as the operator through the front door,

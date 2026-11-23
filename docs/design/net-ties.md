@@ -1,6 +1,6 @@
 # Ties: deliberate joins between nets
 
-Design for founder approval, 22 November 2026, written against `main` at c0a125f8. Documents only: nothing is built. The founder approved planning; building needs his separate go. Hours are agent hours and are estimates.
+The founder approved the 22 November 2026 design and clarified independent tie groups on 23 November. The original baseline was `main` at c0a125f8. Hours are estimates.
 
 Behaviour comes from this project's documents, general electronics practice, public standards and other tools' public documentation. No other tool's code was read.
 
@@ -85,7 +85,7 @@ All entries go through `Surface::call`. Each edit is one undo step and is refuse
 | current requirement | existing field command | unchanged |
 | jumper state | `variant.set_population` | unchanged, with jumper wording |
 
-The new entries and the new optional fields are minor raises: schematic 1.6→1.7, layout 2.4→2.5, project 7.18→7.19, library 3.17→3.18 (definition schemas) and generators 1.9→1.10. These are the versions on `main` today. `cargo xtask surface --update` records them.
+The new entries and optional fields raise the affected module minor versions from the implementation baseline. The surface lock records the resulting versions, including the rules module for the supplied current table. `cargo xtask surface --update` records them.
 
 ## Checks and their sources
 
@@ -103,7 +103,7 @@ The new entries and the new optional fields are minor raises: schematic 1.6→1.
 
 ERC follows closed ties. A power input on AGND is driven when the tie joins AGND to a driven GND. An open jumper passes nothing, so the netlist and ERC follow the active variant. Netlist outputs keep the nets distinct and list the tie with its form, purpose and state.
 
-**Current, by IPC-2152.** Sparksmith ships no guessed values ([no invented limits](../board-rules-and-shape.md#invariants)). The capacity is the bridge's narrowest width times the stackup's copper thickness, read against IPC-2152 data held in a rules data file. That file cites the edition and figure, as fab profiles cite their sources. The allowed temperature rise is a required project setting, because it is the designer's choice. Without both, the check does not run and says so (`tie.current_unchecked`). IPC-2152 is a paid standard, so where its data comes from is decision 8. A short neck carries more current than the long conductors the standard describes, so the check errs on the safe side, and the finding says so.
+**Current, by IPC-2152.** Sparksmith ships no guessed values ([no invented limits](../board-rules-and-shape.md#invariants)). The capacity is the bridge's narrowest width times the stackup's copper thickness, read against an optional current table supplied by the person designing the board or their library. Sparksmith ships no IPC-2152 curve data. That file cites the edition and figure, as fab profiles cite their sources. The allowed temperature rise is a required project setting, because it is the designer's choice. Without both, the check does not run and says so (`tie.current_unchecked`). IPC-2152 is a paid standard, so where its data comes from is decision 8. A short neck carries more current than the long conductors the standard describes, so the check errs on the safe side, and the finding says so.
 
 ## UI, briefly
 
