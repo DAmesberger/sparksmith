@@ -616,6 +616,63 @@ fn saving_an_untitled_project_under_its_file_names_it() -> Fallible {
     Ok(())
 }
 
+/// A save refused because another program has the file open: the project
+/// stays unsaved, the dialog says so with the copy's name, Cancel leaves
+/// the question it answered open, and Try again saves and removes the copy.
+#[test]
+fn a_save_another_program_blocks_is_tried_again() -> Fallible {
+    let mut h = Harness::new()?;
+    let path = h.dir.path().join("blocked.sparksmith");
+    let copy = h.dir.path().join("blocked (unsaved 1).sparksmith");
+    h.files.adopt(&h.engine, Some(path.clone()), None, false)?;
+    h.edit("Blocked")?;
+    sparksmith_io::write_project(&copy, &h.engine.to_file())?;
+    let kept = sparksmith_io::UnsavedCopy {
+        identity: sparksmith_io::open_project(&copy)?.1,
+        path: copy.clone(),
+    };
+    let refuse = |h: &mut Harness| -> Fallible {
+        let ticket = h
+            .files
+            .begin(Kind::Save, Some(Transition::New))
+            .ok_or("no save started")?;
+        let in_use = sparksmith_io::InUse {
+            path: path.clone(),
+            cause: "in use".into(),
+            copy: Some(kept.clone()),
+            copy_problem: None,
+        };
+        h.files.event_sender.send(Event::Written(
+            ticket,
+            path.clone(),
+            Ok(Wrote::InUse(Box::new(in_use))),
+        ))?;
+        Ok(())
+    };
+    refuse(&mut h)?;
+    let painted = h.shown();
+    assert!(
+        painted
+            .iter()
+            .any(|(text, _)| text.contains("blocked (unsaved 1).sparksmith")),
+        "{painted:?}"
+    );
+    assert!(h.files.dirty() && h.files.prompting());
+    h.click("Cancel")?;
+    assert!(h.files.in_use.is_none());
+    assert_eq!(h.files.controller.prompt, Some(Transition::New));
+    h.files.controller.prompt = None;
+
+    refuse(&mut h)?;
+    h.click("Try again")?;
+    h.until("the write", |h| !h.files.busy())?;
+    assert!(h.files.in_use.is_none());
+    assert_eq!(sparksmith_io::read_project(&path)?.project.name, "Blocked");
+    assert!(!copy.exists());
+    assert_eq!(h.files.controller.unsaved, None);
+    Ok(())
+}
+
 /// E2E run 6, finding 4: a save into a folder whose sync the system
 /// refuses (macOS Documents; here a folder that may be written but not
 /// opened) is a save: the project is no longer unsaved, the status says

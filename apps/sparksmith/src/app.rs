@@ -1523,7 +1523,7 @@ impl App {
         let opened = changes.iter().rev().find_map(|c| match c {
             FileChange::Opened { path, .. } => Some(Some(path.clone())),
             FileChange::New { .. } => Some(None),
-            FileChange::Saved { .. } => None,
+            FileChange::Saved { .. } | FileChange::Refused { .. } => None,
         });
         match opened {
             Some(_) if own => self.editors_replaced(),

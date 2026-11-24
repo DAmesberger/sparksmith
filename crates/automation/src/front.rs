@@ -379,10 +379,16 @@ pub fn call_of(request: &Request) -> Result<Call, Box<Error>> {
 pub fn from_diagnostic(diagnostic: Diagnostic) -> Error {
     // The sentence names the window's way to choose one; a caller without
     // a window has this one.
-    let instead = (diagnostic.rule.as_deref() == Some("rules.no_fab_profile")).then(|| {
-        "Choose a fab profile with rules.set_fab_profile, by an id rules.fab_profiles lists."
-            .to_owned()
-    });
+    let instead = match (diagnostic.rule.as_deref(), diagnostic.code.as_str()) {
+        (Some("rules.no_fab_profile"), _) => Some(
+            "Choose a fab profile with rules.set_fab_profile, by an id rules.fab_profiles lists.",
+        ),
+        (_, "file_in_use") => Some(
+            "Have the other program closed and call project.save again, or save to another path. The project is still open and unsaved.",
+        ),
+        _ => None,
+    }
+    .map(str::to_owned);
     Error {
         instead,
         code: diagnostic.code,

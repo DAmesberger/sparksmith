@@ -7,8 +7,10 @@
 //! on the file itself. `std::fs::rename` replaces atomically, and where the
 //! volume can (NTFS) also a file others have open shared for deletion, as
 //! every Sparksmith reader does. Where it cannot, or a program shares
-//! nothing (a virus scanner, a backup), the step is tried again for a
-//! moment; after that the old file stays as it was.
+//! nothing (a virus scanner, a backup), the step is tried again at once, a
+//! few times; then the save is refused ([`Error::InUse`]) and the old file
+//! stays as it was.
+use super::InUse;
 use crate::{Error, Result};
 use std::fs::{File, OpenOptions};
 use std::os::windows::fs::OpenOptionsExt;
@@ -24,9 +26,13 @@ const ERROR_LOCK_VIOLATION: i32 = 33;
 const ERROR_DELETE_PENDING: i32 = 303;
 const ERROR_USER_MAPPED_FILE: i32 = 1224;
 
-/// The pauses between tries of a step another program is in the way of:
-/// scanners and indexers hold a file for milliseconds. About 1.6 s in all.
-const PAUSES_MS: [u64; 10] = [1, 2, 5, 10, 20, 50, 100, 200, 400, 800];
+/// Tries of a step another program is in the way of, one right after the
+/// other: the second and third cover a virus scanner's moment with a file
+/// just written. There is no waiting; the person is told and tries again.
+const TRIES: usize = 3;
+
+/// How often a save looks whether the save before it has ended.
+const POLL: Duration = Duration::from_millis(10);
 
 /// Whether `error` is another program having the file open, as far as its
 /// code tells: a file that may not be written answers access denied too.
@@ -43,13 +49,11 @@ fn in_use(error: &std::io::Error) -> bool {
     )
 }
 
-/// Run `step`, again after each pause while the file is in use.
+/// Run `step`, up to [`TRIES`] times while the file is in use.
 pub(super) fn retrying<T>(mut step: impl FnMut() -> Result<T>) -> Result<T> {
-    for pause in PAUSES_MS {
+    for _ in 1..TRIES {
         match step() {
-            Err(Error::Io(error)) if in_use(&error) => {
-                std::thread::sleep(Duration::from_millis(pause));
-            }
+            Err(Error::Io(error)) if in_use(&error) => std::thread::yield_now(),
             done => return done,
         }
     }
@@ -85,7 +89,9 @@ impl SaveLock {
             match opened {
                 Ok(file) => return Ok(Self { _file: file }),
                 // Another save of this file: it ends with its writer.
-                Err(Error::Io(error)) if error.raw_os_error() == Some(ERROR_SHARING_VIOLATION) => {}
+                Err(Error::Io(error)) if error.raw_os_error() == Some(ERROR_SHARING_VIOLATION) => {
+                    std::thread::sleep(POLL);
+                }
                 Err(error) => return Err(error),
             }
         }
@@ -114,35 +120,22 @@ impl Staged {
     }
 }
 
-/// `error` kept the file at `path` from being replaced. The file is as it
-/// was; what was to replace it is kept beside it, when it can be.
-pub(super) fn not_replaced(staged: Staged, path: &Path, error: Error) -> Error {
-    let Error::Io(cause) = &error else {
-        return error;
-    };
-    if !in_use(cause) {
-        return error;
+/// What kept the file at `path` from being replaced, which is as it was.
+pub(super) fn refused(path: &Path, error: Error) -> Error {
+    match error {
+        Error::Io(cause) if in_use(&cause) => Error::InUse(Box::new(InUse {
+            path: path.to_path_buf(),
+            cause: cause.to_string(),
+            copy: None,
+            copy_problem: None,
+        })),
+        other => other,
     }
-    let kept = match super::beside(staged.into_temp_path(), path, "unsaved") {
-        Ok(kept) => format!(
-            "This version is in {}.",
-            kept.file_name().unwrap_or_default().to_string_lossy()
-        ),
-        Err(_) => "This version was not written.".to_owned(),
-    };
-    Error::Io(std::io::Error::new(
-        cause.kind(),
-        format!(
-            "{} was not replaced: another program has it open, or it may not be written ({cause}). \
-             It is as it was. {kept} Close the other program and save again, or use Save As.",
-            path.display()
-        ),
-    ))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::{open_project, read_project, save_project, write_project};
+    use super::super::{open_project, save_document, save_project, write_project};
     use super::*;
     use sparksmith_core::Engine;
 
@@ -176,43 +169,38 @@ mod tests {
     }
 
     /// A program that shares its file for reading only keeps it from being
-    /// replaced: the old file stays, this version is kept beside it, the
-    /// message says what to do, and the next save goes through.
+    /// replaced: the save is refused, the old file stays, this version is
+    /// in the document's one copy, and the next save goes through and
+    /// removes the copy.
     #[test]
     fn a_file_held_by_another_program_stays_and_this_version_is_kept() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let path = dir.path().join("board.sparksmith");
-        let old = Engine::demo()?.to_file();
-        write_project(&path, &old)?;
-        let (_, opened) = open_project(&path)?;
+        let engine = Engine::demo()?;
+        let saved = save_document(&path, engine.document(), None, "", None)?;
+        let before = std::fs::read(&path)?;
         let holder = OpenOptions::new()
             .read(true)
             .share_mode(FILE_SHARE_READ)
             .open(&path)?;
-        let mut new = old.clone();
-        new.project.name = "Second save".into();
-        let Err(error) = save_project(&path, &new, Some(opened)) else {
-            return Err(Error::Invalid("the held file was replaced".into()));
-        };
-        let message = error.to_string();
-        assert!(
-            message.contains("It is as it was") && message.contains("Save As"),
-            "{message}"
-        );
-        assert!(
-            message.contains("board (unsaved 1).sparksmith"),
-            "{message}"
-        );
-        assert_eq!(read_project(&path)?, old);
-        let kept = dir.path().join("board (unsaved 1).sparksmith");
-        assert_eq!(read_project(&kept)?, new);
+        let document = &saved.document;
+        let mut copy = None;
+        for _ in 0..2 {
+            let again = save_document(&path, document, Some(saved.identity), "", copy.as_ref());
+            let Err(Error::InUse(in_use)) = again else {
+                return Err(Error::Invalid(format!("{again:?}")));
+            };
+            assert_eq!(in_use.copy_problem, None);
+            copy = in_use.copy;
+            assert_eq!(std::fs::read(&path)?, before);
+            assert_eq!(
+                files(dir.path())?,
+                ["board (unsaved 1).sparksmith", "board.sparksmith"]
+            );
+        }
         drop(holder);
-        save_project(&path, &new, Some(opened))?;
-        assert_eq!(read_project(&path)?, new);
-        assert_eq!(
-            files(dir.path())?,
-            ["board (unsaved 1).sparksmith", "board.sparksmith"]
-        );
+        save_document(&path, document, Some(saved.identity), "", copy.as_ref())?;
+        assert_eq!(files(dir.path())?, ["board.sparksmith"]);
         Ok(())
     }
 

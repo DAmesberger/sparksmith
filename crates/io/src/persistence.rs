@@ -1,7 +1,7 @@
 //! Project files on disk. A project is a ZIP container (see [`container`]).
 //! Writes are atomic: a failed save leaves any existing file untouched and
 //! no temporary file behind. A save Windows refuses because another program
-//! has the file open keeps its version beside it and says so (`windows`).
+//! has the file open keeps its version in a copy beside it (`unsaved`).
 use crate::{Error, Result};
 use sparksmith_core::format::{self, EditorFile, MAX_FILE_BYTES};
 use sparksmith_core::{Document, FirstSave};
@@ -12,8 +12,11 @@ use std::{
 };
 
 pub mod container;
+mod unsaved;
 #[cfg(windows)]
 mod windows;
+
+pub use unsaved::{InUse, UnsavedCopy};
 
 pub fn check_project_path(path: &Path) -> Result<()> {
     if !format::is_project_path(path) {
@@ -165,31 +168,52 @@ pub struct SavedDocument {
 /// copy written, then [`save_project`]. A failed write gives the project
 /// nothing, and neither does one that found the file changed: the version
 /// kept beside it holds `document` as it was, to be named and identified
-/// by its own file at the next save.
+/// by its own file at the next save. Refused because another program has
+/// the file open ([`Error::InUse`]), `document` is kept in its one copy,
+/// over the `copy` an earlier refused save made; saved, that is removed.
 pub fn save_document(
     path: &Path,
     document: &Document,
     expected: Option<DiskIdentity>,
     nonce: &str,
+    copy: Option<&UnsavedCopy>,
+) -> Result<SavedDocument> {
+    save_document_with(path, document, expected, nonce, copy, save_project)
+}
+
+/// [`save_document`], its project written by `save`.
+fn save_document_with(
+    path: &Path,
+    document: &Document,
+    expected: Option<DiskIdentity>,
+    nonce: &str,
+    copy: Option<&UnsavedCopy>,
+    save: impl Fn(&Path, &EditorFile, Option<DiskIdentity>) -> Result<DiskIdentity>,
 ) -> Result<SavedDocument> {
     let mut written = document.clone();
     let first = sparksmith_core::first_save(&mut written, path, nonce);
-    match save_project(path, &EditorFile::from_document(&written), expected) {
-        Ok(identity) => Ok(SavedDocument {
-            identity,
-            document: written,
-            first,
-        }),
+    match save(path, &EditorFile::from_document(&written), expected) {
+        Ok(identity) => {
+            unsaved::discard(copy, path);
+            Ok(SavedDocument {
+                identity,
+                document: written,
+                first,
+            })
+        }
         Err(Error::Conflict(mut conflict)) => {
             if !first.is_empty() {
                 let as_it_was = EditorFile::from_document(document);
-                if let Ok(identity) =
-                    save_project(&conflict.kept, &as_it_was, Some(conflict.identity))
-                {
+                if let Ok(identity) = save(&conflict.kept, &as_it_was, Some(conflict.identity)) {
                     conflict.identity = identity;
                 }
             }
+            unsaved::discard(copy, &conflict.kept);
             Err(Error::Conflict(conflict))
+        }
+        Err(Error::InUse(mut in_use)) => {
+            unsaved::keep(&mut in_use, &EditorFile::from_document(document), copy);
+            Err(Error::InUse(in_use))
         }
         Err(error) => Err(error),
     }
@@ -327,7 +351,7 @@ pub(crate) fn replace_checked(
             Ok(Found::Changed) => {
                 return Err(keep_beside(staged.into_temp_path(), path, identity));
             }
-            Err(error) => return Err(windows::not_replaced(staged, path, error)),
+            Err(error) => return Err(windows::refused(path, error)),
             // No file (a first save, or the opened one was moved away):
             // this document takes the name without replacing anything.
             Ok(Found::Absent) => match staged.into_temp_path().persist_noclobber(path) {

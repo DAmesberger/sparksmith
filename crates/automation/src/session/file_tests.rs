@@ -98,6 +98,7 @@ fn host(path: &Path, kept: Option<u64>) -> HostFile {
     HostFile {
         path: Some(path.to_path_buf()),
         identity: sparksmith_io::open_project(path).ok().map(|(_, id)| id),
+        unsaved: None,
         kept,
         busy: false,
     }
