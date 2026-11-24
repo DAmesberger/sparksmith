@@ -32,8 +32,7 @@ thiserror.workspace = true
 quick-xml = "0.41"
 png = "0.18"
 base64 = "0.22"
-# Runs a shipped generator for a family whose in-code model builder gave way
-# to it (models::family; docs/design/part-generation-plan.md, phase C).
+# Runs a shipped generator for a family's 3D model.
 sparksmith-generators.workspace = true
 
 [dev-dependencies]

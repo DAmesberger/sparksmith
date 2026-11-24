@@ -1,6 +1,6 @@
 # Founder decisions, 14 November 2026
 
-These decisions apply to the three plans in this folder: [file formats](file-format-plan.md), [part generation](part-generation-plan.md) and [extension ABI](extension-abi-design.md). Where a plan's text differs, this page wins.
+These decisions apply to the three plans in this folder: [file formats](file-format-plan.md), part generation and [extension ABI](extension-abi-design.md). Where a plan's text differs, this page wins.
 
 ## File formats
 - **Container:** a project is a folder named `<name>.sparksmith`, registered as a macOS package. "Share as single file" writes a ZIP of the same tree with the same extension.

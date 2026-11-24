@@ -2,7 +2,7 @@
 
 Design, 14 November 2026, against Sparksmith `main` at f18c0658 and the Solidcraft checkout at 4f3ac07ae (read-only). Nothing was built, run or changed. Hours are agent hours and are estimates. Token and byte budgets are targets until measured. **(code)** marks what I read in source, **(doc)** what the repository's documents say.
 
-Read beside it: `design-critique.md`, `part-generation-plan.md`, `file-format-plan.md` and `extension-abi-draft-critique.md` (an earlier draft on this same question; section 4.9 lists what is used from it and where this design differs).
+Read beside it: `design-critique.md`, `file-format-plan.md` and `extension-abi-draft-critique.md` (an earlier draft on this same question; section 4.9 lists what is used from it and where this design differs).
 
 Founder decisions kept as given: one typed command engine; programmatic calls never open dialogs; a failed mutation changes nothing; MCP `2026-07-28` only; `apply` keeps a plain `op` string; LLM-first with small local models; generators are sandboxed, deterministic WASM loaded as data, identified by hash and versioned; no library data in code; **one plugin ABI and one kind of plugin** (as recorded in the part-generation plan, section 3); clean room.
 
