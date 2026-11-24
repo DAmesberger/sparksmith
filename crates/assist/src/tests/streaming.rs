@@ -2,7 +2,6 @@
 //! streams of both wire formats grades exactly as the whole replies do; the
 //! chat's events come in order; Stop acts between chunks.
 use super::*;
-use crate::model::Budget;
 use crate::model::stream::fixtures;
 
 fn without_time(mut facts: RunFacts) -> RunFacts {
@@ -135,7 +134,7 @@ fn the_chat_gets_deltas_rows_and_the_meter_in_order() -> Fallible {
             "request", "writing", "response", "usage", "text", "running", "done"
         ]
     );
-    // The last meter counts every request and token against the budget.
+    // The last meter counts every request and token; the run has no limits.
     let meter = log
         .iter()
         .rev()
@@ -144,9 +143,8 @@ fn the_chat_gets_deltas_rows_and_the_meter_in_order() -> Fallible {
             _ => None,
         })
         .ok_or("a meter")?;
-    let budget = Budget::default();
     assert_eq!(meter.requests.used, n as u64);
-    assert_eq!(meter.requests.limit, u64::from(budget.max_requests));
+    assert_eq!(meter.requests.limit, None);
     assert_eq!(meter.output_tokens.used, outcome.facts.output_tokens);
     assert_eq!(
         meter.tokens.used,
@@ -155,7 +153,9 @@ fn the_chat_gets_deltas_rows_and_the_meter_in_order() -> Fallible {
             + outcome.facts.cache_read_tokens
             + outcome.facts.output_tokens
     );
-    assert_eq!(meter.minutes.limit, budget.max_duration.as_secs() / 60);
+    assert_eq!(meter.output_tokens.limit, None);
+    assert_eq!(meter.tokens.limit, None);
+    assert_eq!(meter.minutes.limit, None);
     Ok(())
 }
 

@@ -102,7 +102,7 @@ impl Edge {
         }
     }
 
-    fn distance(&self, p: Point) -> f64 {
+    pub(crate) fn distance(&self, p: Point) -> f64 {
         match *self {
             Self::Line { a, b } => {
                 let d = sub(b, a);
@@ -178,7 +178,7 @@ impl Edge {
     }
 
     /// Points along the edge with the direction to its right.
-    fn samples(&self, step: f64) -> Vec<(Point, Point)> {
+    pub(crate) fn samples(&self, step: f64) -> Vec<(Point, Point)> {
         let n = (self.length() / step).ceil().clamp(1.0, 400.0) as usize;
         (0..=n).map(|k| self.along(k as f64 / n as f64)).collect()
     }
@@ -463,6 +463,19 @@ impl Frame {
         }
     }
 
+    /// The frame of a footprint's own drawings: no pad of its own.
+    pub(crate) fn of_part(placement: &Placement, footprint: &FootprintDefinition) -> Self {
+        Self {
+            position: placement.position,
+            rotation: placement.rotation_deg,
+            bottom: placement.layer == Layer::Bottom,
+            datum: footprint.datum.offset.to_mm_f64(),
+            datum_turn: footprint.datum.rotation_mdeg.to_degrees_f64(),
+            pad: [0.0; 2],
+            pad_turn: 0.0,
+        }
+    }
+
     pub(crate) fn still(at: Point) -> Self {
         Self {
             position: at,
@@ -482,7 +495,7 @@ impl Frame {
         add(turned(p, self.rotation), self.position)
     }
 
-    fn to_pad(self, p: Point) -> Point {
+    pub(crate) fn to_pad(self, p: Point) -> Point {
         let p = turned(sub(p, self.position), -self.rotation);
         let p = if self.bottom { [p[0], -p[1]] } else { p };
         let p = add(turned(p, self.datum_turn), self.datum);
@@ -535,7 +548,9 @@ impl Prim {
     /// Board points just inside and just outside the material's edge.
     fn probes(&self, step: f64, out: &mut Vec<Point>) {
         const OFF: [f64; 3] = [0.003, 0.015, 0.06];
-        for edge in &self.area.edges {
+        // Of a pour with very many edges, every few.
+        let stride = self.area.edges.len().div_ceil(2000).max(1);
+        for edge in self.area.edges.iter().step_by(stride) {
             let samples = edge.samples(step);
             for (at, right) in &samples {
                 for off in OFF {
@@ -641,6 +656,7 @@ pub(crate) fn copper_but_fills(project: &Project, layer: CopperLayer) -> Vec<Pri
     for pad in pads(project).iter().filter(|p| has_copper(p, layer)) {
         out.push(Prim::new(land(&pad.pad.shape), pad.frame, 0.0, &pad.name));
     }
+    out.extend(bridges(project, layer));
     for t in project.tracks.iter().filter(|t| t.layer == layer) {
         out.push(Prim::new(
             Area::capsule([0.0; 2], sub(t.end, t.start), t.width / 2.0),
@@ -668,6 +684,206 @@ pub(crate) fn copper_but_fills(project: &Project, layer: CopperLayer) -> Vec<Pri
         }
     }
     out
+}
+
+/// The footprint of each placed part, with its placement.
+fn parts(project: &Project) -> Vec<(Placement, FootprintDefinition, String)> {
+    project
+        .placements
+        .iter()
+        .filter_map(|placement| {
+            let instance = project.instance(placement.instance)?;
+            let physical = crate::instances::resolve(&project.library, instance)
+                .ok()?
+                .physical?;
+            Some((
+                placement.clone(),
+                physical.footprint.definition.clone(),
+                instance.designator.clone(),
+            ))
+        })
+        .collect()
+}
+
+/// The copper a net tie's footprint draws between its pads on `layer`: of
+/// each placed part that is used as a tie.
+fn bridges(project: &Project, layer: CopperLayer) -> Vec<Prim> {
+    let mut out = Vec::new();
+    for (placement, footprint, name) in parts(project) {
+        let tie = project
+            .instance(placement.instance)
+            .is_some_and(|i| !i.ties.is_empty());
+        if !tie {
+            continue;
+        }
+        for bridge in &footprint.bridges {
+            let top = (placement.layer == Layer::Top) == (bridge.side == PadSide::Top);
+            let on = if top {
+                CopperLayer::Top
+            } else {
+                CopperLayer::Bottom
+            };
+            if on == layer {
+                out.push(Prim::new(
+                    Area::of_outline(&bridge.outline),
+                    Frame::of_part(&placement, &footprint),
+                    0.0,
+                    format!("a bridge of {name}"),
+                ));
+            }
+        }
+    }
+    out
+}
+
+/// One piece of silkscreen: its edges in its frame, and half its pen.
+pub(crate) struct Ink {
+    pub edges: Vec<Edge>,
+    pub half: f64,
+    pub filled: bool,
+    pub frame: Frame,
+    /// A stroke of a letter, else of a shape.
+    pub letter: bool,
+    pub what: String,
+}
+
+/// One silkscreen text and where its anchor is on the board.
+pub(crate) struct InkText {
+    pub at: Point,
+    pub text: String,
+}
+
+/// Every stroke of one line of text centred on `at`: the letters of the
+/// font's grid (4 by 6, the font's data), each in a cell 0.6 of the cap
+/// height `h` wide, 0.42 of it wide itself and 0.09 in from the cell's
+/// left. Text on the bottom reads from below: seen from the top it is
+/// reflected, left for right.
+fn letters(text: &str, at: Point, h: f64, half: f64, bottom: bool) -> Vec<Ink> {
+    let cells = text.chars().count() as f64;
+    let mut out = Vec::new();
+    for (k, c) in text.chars().enumerate() {
+        let left = (k as f64 - cells / 2.0) * 0.6 * h + 0.09 * h;
+        for stroke in crate::layout::legend::glyph(c).into_iter().flatten() {
+            let points: Vec<Point> = stroke
+                .iter()
+                .map(|(x, y)| {
+                    let x = left + x / 4.0 * 0.42 * h;
+                    let x = if bottom { -x } else { x };
+                    [at[0] + x, at[1] + (y / 6.0 - 0.5) * h]
+                })
+                .collect();
+            // A stroke of one point is a dot.
+            let ends = points.iter().skip(1).chain(points.last());
+            let mut edges: Vec<Edge> = points
+                .iter()
+                .zip(ends)
+                .map(|(a, b)| Edge::Line { a: *a, b: *b })
+                .collect();
+            if edges.len() > 1 {
+                edges.pop();
+            }
+            out.push(Ink {
+                edges,
+                half,
+                filled: false,
+                frame: Frame::still([0.0; 2]),
+                letter: true,
+                what: format!("a stroke of {c:?} of {text:?}"),
+            });
+        }
+    }
+    out
+}
+
+/// What the legend of `side` must print: every silkscreen shape and every
+/// stroke of every visible text of the parts (literal text and designators;
+/// other text prints nothing). Text is read here only where it is level:
+/// one centred line, unturned, of a part that is not turned.
+pub(crate) fn legend(project: &Project, side: Layer) -> Fallible<(Vec<Ink>, Vec<InkText>)> {
+    use crate::library::{DrawingLayer, Fill, Item, Justify, Rotation, Side, TextContent};
+    let (mut inks, mut texts) = (Vec::new(), Vec::new());
+    let silk = project.rules.effective().silkscreen;
+    for (placement, footprint, name) in parts(project) {
+        let frame = Frame::of_part(&placement, &footprint);
+        for graphic in &footprint.graphics {
+            let here = (placement.layer == side) == (graphic.side == Side::Component);
+            if graphic.layer != DrawingLayer::Silkscreen || !here {
+                continue;
+            }
+            match &graphic.item {
+                Item::Shape {
+                    shape,
+                    width_nm,
+                    fill,
+                } => inks.push(Ink {
+                    edges: drawn(shape)?,
+                    half: width_nm.to_mm_f64() / 2.0,
+                    filled: *fill != Fill::None,
+                    frame,
+                    letter: false,
+                    what: format!("silkscreen {} of {name}", graphic.id.0),
+                }),
+                Item::Text(text) => {
+                    let content = match &text.content {
+                        TextContent::Literal(s) => s.clone(),
+                        TextContent::Designator => name.clone(),
+                        _ => continue,
+                    };
+                    if !text.visible || content.trim().is_empty() {
+                        continue;
+                    }
+                    if text.rotation != Rotation::R0
+                        || text.justify != Justify::default()
+                        || placement.rotation_deg != 0.0
+                        || content.contains('\n')
+                    {
+                        return Err(format!("the oracle reads no turned text ({content:?})").into());
+                    }
+                    let at = frame.to_board(text.at.to_mm_f64());
+                    let h = text.height_nm.to_mm_f64();
+                    let pen = (silk.text_stroke_share * h).max(silk.line_width_min);
+                    inks.extend(letters(&content, at, h, pen / 2.0, side == Layer::Bottom));
+                    texts.push(InkText { at, text: content });
+                }
+            }
+        }
+    }
+    Ok((inks, texts))
+}
+
+/// The edges a drawn shape strokes.
+fn drawn(shape: &ShapeNm) -> Fallible<Vec<Edge>> {
+    use crate::units::ArcDirection;
+    Ok(match shape {
+        ShapeNm::Line { a, b } => vec![Edge::Line {
+            a: a.to_mm_f64(),
+            b: b.to_mm_f64(),
+        }],
+        ShapeNm::Polyline { points, radii_nm } => {
+            if radii_nm.iter().any(|r| r.to_mm_f64() > 0.0) {
+                return Err("the oracle draws no rounded polyline".into());
+            }
+            points
+                .windows(2)
+                .map(|w| Edge::Line {
+                    a: w[0].to_mm_f64(),
+                    b: w[1].to_mm_f64(),
+                })
+                .collect()
+        }
+        ShapeNm::Arc {
+            start,
+            end,
+            centre,
+            direction,
+        } => vec![Edge::arc(
+            start.to_mm_f64(),
+            end.to_mm_f64(),
+            centre.to_mm_f64(),
+            *direction == ArcDirection::Clockwise,
+        )],
+        closed => window(closed)?.edges,
+    })
 }
 
 /// The solder mask openings of `side`: a pad's own expansion, else the
@@ -848,6 +1064,15 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
 /// The contours the profile must draw: the outline and every cutout and
 /// slot that is not plated.
 pub(crate) fn profile(project: &Project) -> Vec<sparksmith_fabcheck::outline::Contour> {
+    contours(project, false)
+}
+
+/// The board's outline and its cutouts and slots, the plated slots only
+/// when `plated`.
+pub(crate) fn contours(
+    project: &Project,
+    plated: bool,
+) -> Vec<sparksmith_fabcheck::outline::Contour> {
     use sparksmith_fabcheck::outline::{Contour, Edge as Drawn};
     let board = project.board();
     std::iter::once(&board.outer)
@@ -855,7 +1080,7 @@ pub(crate) fn profile(project: &Project) -> Vec<sparksmith_fabcheck::outline::Co
             board
                 .cutouts
                 .iter()
-                .filter(|c| c.kind != (CutoutKind::Slot { plated: true }))
+                .filter(|c| plated || c.kind != (CutoutKind::Slot { plated: true }))
                 .map(|c| &c.outline),
         )
         .map(|o| Contour {
@@ -1044,6 +1269,26 @@ impl Image {
             objects.push((cover, b, object.dark));
         }
         Ok(Self { objects })
+    }
+
+    /// Of each object, its box's centre and points on its edges.
+    pub(crate) fn object_points(&self) -> Vec<Vec<Point>> {
+        self.objects
+            .iter()
+            .map(|(cover, b, _)| {
+                let mid = [(b[0][0] + b[1][0]) / 2.0, (b[0][1] + b[1][1]) / 2.0];
+                let edges: Vec<Edge> = match cover {
+                    Cover::Area(a) => a.edges.clone(),
+                    Cover::Macro(parts) => {
+                        parts.iter().flat_map(|(_, a)| a.edges.clone()).collect()
+                    }
+                    Cover::Stroke(e, _) => vec![*e],
+                };
+                std::iter::once(mid)
+                    .chain(edges.iter().flat_map(|e| e.samples(0.1)).map(|(p, _)| p))
+                    .collect()
+            })
+            .collect()
     }
 
     pub(crate) fn dark(&self, p: Point) -> bool {

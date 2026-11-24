@@ -66,6 +66,19 @@ impl ListState {
         ctx.data_mut(|d| d.insert_temp(id, self));
     }
 
+    /// Another document was opened: no list keeps rows of the old one
+    /// selected, under the cursor or open. How a list is sorted stays.
+    pub fn forget_rows(ctx: &egui::Context) {
+        ctx.data_mut(|d| {
+            for state in d.iter_mut_temp_by_type::<Self>() {
+                *state = Self {
+                    sort: state.sort,
+                    ..Self::default()
+                };
+            }
+        });
+    }
+
     /// The type-ahead buffer while it is fresh at `now`.
     pub fn typing(&self, now: f64) -> Option<&str> {
         (!self.typed.is_empty() && now - self.typed_at <= TYPEAHEAD_SECONDS)

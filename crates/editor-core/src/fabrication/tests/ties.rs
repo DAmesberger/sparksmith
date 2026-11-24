@@ -244,6 +244,77 @@ fn typed_ties_in_released_copper_paste_cut_steps_and_assembly_csvs() -> Fallible
     Ok(())
 }
 
+/// The copper of a tie, its lands and its bridge, is the document's, turned
+/// and on either side; a bridge left out or moved is seen.
+#[test]
+fn a_bridge_is_plotted_where_the_design_has_it() -> Fallible<()> {
+    use super::oracle::{self, Image};
+    use crate::model::{CopperLayer, Layer};
+    let mut engine = Engine::profiled()?;
+    let copper = tie_part(&mut engine, "Copper return", TieForm::Copper)?;
+    let (nt, _) = place(&mut engine, &copper, "NT1", 1, [20., 10.])?;
+    let chip = tie_part(&mut engine, "Jumper resistor", TieForm::ZeroOhm)?;
+    let (link, _) = place(&mut engine, &chip, "R1", 1, [20., 30.])?;
+    for pin in [1, 2] {
+        connect(&mut engine, ep(nt, pin), ep(link, pin))?;
+    }
+    sync_onto_board(&mut engine)?;
+    for (side, layer, name) in [
+        (Layer::Top, CopperLayer::Top, "-top.gbr"),
+        (Layer::Bottom, CopperLayer::Bottom, "-bottom.gbr"),
+    ] {
+        let mut project = engine.project().clone();
+        let placement = project
+            .placements
+            .iter_mut()
+            .find(|p| p.instance == nt)
+            .ok_or("NT1 on the board")?;
+        placement.position = [30.0, 20.0];
+        placement.rotation_deg = 25.0;
+        placement.layer = side;
+        let set = fabrication::generate(
+            &ProductionSnapshot::resolve(&project, None)?,
+            &Default::default(),
+            &Default::default(),
+        )?;
+        let film = set
+            .files
+            .iter()
+            .find(|f| f.name.contains("-copper-") && f.name.ends_with(name))
+            .ok_or("the copper layer")?;
+        let film = std::str::from_utf8(&film.bytes)?;
+        let design = oracle::copper(&project, layer);
+        assert!(design.iter().any(|p| p.what.contains("bridge")));
+        let b = project.board().bounds();
+        let differs = |text: &str| -> Fallible<usize> {
+            let image = Image::read(text)?;
+            Ok(oracle::differences(&image, &design, [b.min, b.max], 0.02).len())
+        };
+        assert_eq!(differs(film)?, 0, "{side:?}");
+        // Seeded: the bridge's region left out, and moved by 0.02 mm.
+        let start = film
+            .find("%TA.AperFunction,EtchedComponent*%")
+            .ok_or("the bridge")?;
+        let end = start + film[start..].find("G37*\n").ok_or("its end")? + 5;
+        let without = format!("{}{}", &film[..start], &film[end..]);
+        assert!(differs(&without)? > 0, "{side:?}: the bridge left out");
+        let moved: String = film[start..end]
+            .lines()
+            .map(|l| {
+                let l = if l.starts_with('X') {
+                    super::proof::shifted(l, 'X', 0.02, false)
+                } else {
+                    l.to_owned()
+                };
+                format!("{l}\n")
+            })
+            .collect();
+        let moved = format!("{}{moved}{}", &film[..start], &film[end..]);
+        assert!(differs(&moved)? > 0, "{side:?}: the bridge moved");
+    }
+    Ok(())
+}
+
 /// A net tie's bridge is copper like any other: a hole short of the track
 /// clearance from it and fill copper short of its own, even fill of a net
 /// it joins, are found.

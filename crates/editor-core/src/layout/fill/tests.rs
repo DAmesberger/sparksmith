@@ -817,10 +817,10 @@ fn with_solved_board(p: &mut Project, solved: crate::model::board::SolvedBoard) 
             result_hash: String::new(),
         },
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
 }
 

@@ -202,26 +202,36 @@ pub struct Connection {
 }
 
 /// What one run may use: request, token and time caps, the same for every
-/// model, hosted or local. Sparksmith keeps no prices; billing is the
-/// provider's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// model, hosted or local. `None` is no limit, and no limit is the default:
+/// only the person sets one (Settings, a `--max-*` flag, a workflow of their
+/// own). Sparksmith keeps no prices; billing is the provider's.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Budget {
-    pub max_requests: u32,
+    pub max_requests: Option<u32>,
     /// Output tokens of the whole run.
-    pub max_output_tokens: u64,
+    pub max_output_tokens: Option<u64>,
     /// Prompt plus output tokens of the whole run, every request counted.
-    pub max_total_tokens: u64,
-    pub max_duration: Duration,
+    pub max_total_tokens: Option<u64>,
+    pub max_duration: Option<Duration>,
 }
 
-impl Default for Budget {
-    fn default() -> Self {
+impl Budget {
+    /// The smaller of both limits, each by each.
+    pub fn within(self, other: Self) -> Self {
         Self {
-            max_requests: 60,
-            max_output_tokens: 400_000,
-            max_total_tokens: 40_000_000,
-            max_duration: Duration::from_secs(6 * 60 * 60),
+            max_requests: smaller(self.max_requests, other.max_requests),
+            max_output_tokens: smaller(self.max_output_tokens, other.max_output_tokens),
+            max_total_tokens: smaller(self.max_total_tokens, other.max_total_tokens),
+            max_duration: smaller(self.max_duration, other.max_duration),
         }
+    }
+}
+
+/// The smaller limit; `None` is no limit.
+fn smaller<T: Ord>(a: Option<T>, b: Option<T>) -> Option<T> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
     }
 }
 

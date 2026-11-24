@@ -32,8 +32,11 @@ pub const RECORD: &str = "[Kept record";
 /// How much of the conversation the model is sent.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Policy {
-    /// Characters of one tool reply the model reads.
+    /// Characters of one tool reply the model reads, at most.
     pub reply_chars: usize,
+    /// Within [`Policy::reply_chars`], what the model's context leaves room
+    /// for; none: the characters alone.
+    pub reply_context: Option<ReplyContext>,
     /// The last rounds of calls (a request's calls and their replies) whose
     /// replies always stay.
     pub keep_rounds: usize,
@@ -55,11 +58,52 @@ pub struct Policy {
     pub nudge_tokens: u64,
 }
 
+/// How much of the context's free room one tool reply may take, so several
+/// large replies in a row still leave room to answer.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplyContext {
+    /// Share of the context kept free of replies for the model's answer.
+    pub answer_share: f64,
+    /// Share of the room left beside it that one reply may take.
+    pub reply_share: f64,
+    /// A reply may always take this many characters (a datasheet page),
+    /// while that leaves the next request its least room to answer and the
+    /// margin for text denser than the estimate.
+    pub least_chars: usize,
+}
+
 impl Policy {
+    /// Characters the next tool reply may have on a model with
+    /// `context_tokens`, when the conversation already takes `used_tokens`.
+    /// A reply over it is shortened by the profile's strategy; the note
+    /// that says so always fits.
+    pub fn reply_limit(&self, context_tokens: u64, used_tokens: u64) -> usize {
+        let Some(share) = self.reply_context else {
+            return self.reply_chars;
+        };
+        let room = context_tokens.saturating_sub(used_tokens);
+        let answer = (context_tokens as f64 * share.answer_share) as u64;
+        let part = (room.saturating_sub(answer) as f64 * share.reply_share) as u64;
+        let chars =
+            |tokens| usize::try_from(crate::usage::estimated_bytes(tokens)).unwrap_or(usize::MAX);
+        let kept = crate::run::MIN_OUTPUT_ROOM.saturating_add(crate::run::ESTIMATE_MARGIN);
+        let most = chars(room.saturating_sub(kept));
+        self.reply_chars
+            .min(chars(part).max(share.least_chars))
+            .min(most.max(CUT_NOTE.len()))
+    }
+
+    /// The tokens the notes of `calls` more replies take at least.
+    pub(crate) fn notes_tokens(calls: usize) -> u64 {
+        crate::usage::estimated_tokens((CUT_NOTE.len() as u64).saturating_mul(calls as u64))
+    }
+
     /// Nothing shortened or cleared: the conversation as it grew (what the
     /// chat did before K1), for comparisons.
     pub const KEEP_ALL: Self = Self {
         reply_chars: crate::MAX_RESULT_CHARS,
+        reply_context: None,
         keep_rounds: usize::MAX,
         bulky_chars: usize::MAX,
         batch_chars: usize::MAX,
@@ -131,6 +175,10 @@ fn complete_permissions(entry: &mut Value) {
     }
 }
 
+/// Ends a reply no shortening made fit.
+const CUT_NOTE: &str =
+    "… [cut: the reply exceeded the chat's reply limit; ask for a narrower view]";
+
 /// `value` as text of at most `budget` characters: as it is when it fits,
 /// else shortened as JSON, saying so.
 pub fn shrink(value: &Value, budget: usize) -> String {
@@ -162,10 +210,8 @@ pub fn shrink(value: &Value, budget: usize) -> String {
             return text;
         }
     }
-    const NOTE: &str =
-        "… [cut: the reply exceeded the chat's reply limit; ask for a narrower view]";
-    let (prefix_bytes, suffix) = if budget >= NOTE.len() {
-        (budget.saturating_sub(200), NOTE)
+    let (prefix_bytes, suffix) = if budget >= CUT_NOTE.len() {
+        (budget.saturating_sub(200), CUT_NOTE)
     } else {
         // Preserve a prefix even when the profile leaves room only for an ellipsis.
         let marker = match budget {

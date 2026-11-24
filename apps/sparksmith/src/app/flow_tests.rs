@@ -742,6 +742,7 @@ fn a_reroute_after_a_board_edit_is_one_toast() -> Fallible {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
     h.app.engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    h.app.document_replaced();
     let project = h.app.engine.project();
     let j1 = project.instance_by_designator("J1").ok_or("J1")?.id;
     let mut dimension = project

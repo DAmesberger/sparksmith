@@ -119,18 +119,6 @@ impl ChatLibrary {
     }
 }
 
-/// A budget with no caps, for a scripted model in tests and for the
-/// host's test model; the chat itself runs within Settings › AI's limits
-/// ([`crate::settings::Limits::turn_budget`]).
-pub fn unbounded() -> Budget {
-    Budget {
-        max_requests: u32::MAX,
-        max_output_tokens: u64::MAX,
-        max_total_tokens: u64::MAX,
-        max_duration: std::time::Duration::MAX,
-    }
-}
-
 /// What a turn may use, on which model.
 #[derive(Clone, Debug)]
 pub struct ChatConfig {
@@ -152,7 +140,7 @@ pub struct ChatConfig {
 
 impl ChatConfig {
     /// A chat on `profile` with the shipped prompt, the six verbs and
-    /// `budget` per turn.
+    /// `budget` per turn (the person's limits, or none).
     pub fn new(library: &ChatLibrary, profile: ModelProfile, budget: Budget) -> Result<Self> {
         Self::with_profiles(library, profile, budget, None)
     }
@@ -338,8 +326,11 @@ pub fn turn(
         && let Some((turns, record)) = context::summarise(
             history,
             &config.condense,
-            u32::try_from(u64::from(profile.output.per_request).min(budget.max_output_tokens))
-                .unwrap_or(profile.output.per_request),
+            crate::request::Allowance {
+                output: budget.max_output_tokens,
+                duration: None,
+            }
+            .output_within(profile.output.per_request),
             profile.request_timeout,
             |request| {
                 let prompt = crate::usage::estimated_tokens(
@@ -408,7 +399,6 @@ pub fn turn(
             Ok(allowance) => allowance,
             Err(stop) => break stop.into(),
         };
-        let limit = u64::from(profile.output.per_request).min(allowance.output);
         // Between requests: replies read and moved past go, together.
         let before = estimate(history);
         let cleared = config.history_strategy.clear_settled(history, policy);
@@ -435,8 +425,8 @@ pub fn turn(
             system: &config.system,
             tools: &config.tools,
             messages: history,
-            max_output_tokens: u32::try_from(limit).unwrap_or(profile.output.per_request),
-            timeout: profile.request_timeout.min(allowance.duration),
+            max_output_tokens: allowance.output_within(profile.output.per_request),
+            timeout: allowance.timeout_within(profile.request_timeout),
         };
         let received = match (crate::request::Driver {
             backend,
@@ -503,8 +493,10 @@ pub fn turn(
                 End::Answered
             };
         }
-        let mut results = Vec::with_capacity(calls.len());
+        let mut results: Vec<Part> = Vec::with_capacity(calls.len());
+        let mut left = calls.len();
         for (call, (id, name, mut input, malformed)) in (0u32..).zip(calls) {
+            left -= 1;
             let row = |state| Event::Call {
                 request: n,
                 call,
@@ -550,9 +542,18 @@ pub fn turn(
                 answer["error"].clone()
             };
             crate::run::integers_as_text(&mut body);
-            let text = config
-                .reply_strategy
-                .render(&name, &input, body, policy.reply_chars);
+            let used = estimate(history)
+                .saturating_add(crate::usage::estimated_tokens(
+                    crate::model::appended_chars(&results),
+                ))
+                .saturating_add(crate::run::ESTIMATE_MARGIN)
+                .saturating_add(Policy::notes_tokens(left));
+            let text = config.reply_strategy.render(
+                &name,
+                &input,
+                body,
+                policy.reply_limit(context, used),
+            );
             events(row(if ok {
                 CallState::Done {
                     reply: text.clone(),

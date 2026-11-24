@@ -164,17 +164,20 @@ pub fn courtyard(pads: &[Pad], body: Option<Box2>) -> Option<Vec<Point>> {
     Some(snapped.corners().to_vec())
 }
 
-/// A pad's effective solder-mask opening, as a box: its copper box grown
-/// by its own mask expansion, or `default_mask_nm` where it follows the
-/// project's rule (none when tented).
-pub fn opening_box(pad: &Pad, default_mask_nm: i64) -> Option<Box2> {
+/// What silkscreen keeps clear of round a pad, before its clearance and half
+/// its stroke: the pad's copper box, grown where its mask opening reaches
+/// beyond the copper. A shrunk opening, or none, still keeps ink off the
+/// copper: the host's silkscreen check measures from it whatever the mask
+/// does (`footprint.silk_over_pad`), and its own drawing keeps out the same
+/// box (`footprint_drawings`; both are held to `silk_cases`).
+pub fn silk_box(pad: &Pad, default_mask_nm: i64) -> Box2 {
     let grow = match pad.mask {
         Opening::Expansion(e) => e,
         Opening::Default => default_mask_nm,
-        Opening::None | Opening::Windows(_) => return None,
+        // A mask has no windows (the host refuses them); the copper is kept.
+        Opening::None | Opening::Windows(_) => 0,
     };
-    let bounds = pad_box(pad).inflated(grow);
-    (bounds.max[0] > bounds.min[0] && bounds.max[1] > bounds.min[1]).then_some(bounds)
+    pad_box(pad).inflated(grow.max(0))
 }
 
 /// The pieces of the horizontal or vertical segment `a`–`b` outside every box.
@@ -216,12 +219,11 @@ fn clipped(a: Point, b: Point, boxes: &[Box2]) -> Vec<Primitive> {
 }
 
 /// The body outline [`SILK_OUTSET_NM`] outside `body`, as lines broken
-/// around the pads' mask openings plus clearance.
+/// around the pads and their mask openings ([`silk_box`]) plus clearance.
 pub fn silk_outline(pads: &[Pad], body: Box2, default_mask_nm: i64) -> Vec<Graphic> {
     let boxes: Vec<Box2> = pads
         .iter()
-        .filter_map(|p| opening_box(p, default_mask_nm))
-        .map(|opening| opening.inflated(SILK_PAD_CLEARANCE_NM + SILK_STROKE_NM / 2))
+        .map(|p| silk_box(p, default_mask_nm).inflated(SILK_PAD_CLEARANCE_NM + SILK_STROKE_NM / 2))
         .collect();
     let [c0, c1, c2, c3] = body.inflated(SILK_OUTSET_NM).corners();
     [
@@ -291,6 +293,10 @@ fn text(key: &str, at: Point, height_nm: i64) -> Graphic {
 }
 
 #[cfg(test)]
+#[path = "silk_cases.rs"]
+mod silk_cases;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use sparksmith_generator_abi::v1::Side;
@@ -338,17 +344,50 @@ mod tests {
         assert_eq!(courtyard(&[], None), None);
     }
 
+    /// Every mask opening of the shared cases, which the host's own drawing
+    /// is held to as well (`footprint_drawings`).
     #[test]
-    fn a_shrunk_inherited_opening_sets_the_silk_keepout() {
-        let body = Box2::centred([0, 0], [4_000_000, 2_000_000]);
-        let pads = [rect([0, 1_150_000], [1_000_000, 500_000])];
-        let lines = silk_outline(&pads, body, -50_000);
-        // Half width 0.5 − 0.05 mm mask + 0.1 mm clearance + 0.075 mm half stroke.
-        assert!(lines.iter().any(|g| g.shape
-            == Primitive::Line {
-                a: [-2_150_000, 1_150_000],
-                b: [-625_000, 1_150_000]
-            }));
+    fn silkscreen_keeps_out_as_the_host_drawing_does() {
+        use silk_cases::{BODY, CASES, Mask, PAD_AT, PAD_SIZE, TOP_LINE_Y};
+        for case in CASES {
+            let mut pad = rect(PAD_AT, PAD_SIZE);
+            match case.mask {
+                Mask::Inherit => {}
+                Mask::Expansion(by) => pad.mask = Opening::Expansion(by),
+                Mask::Tented => pad.mask = Opening::None,
+                Mask::PasteWindows => {
+                    pad.paste =
+                        Opening::Windows(vec![sparksmith_generator_abi::v1::Window::Rect {
+                            min: [-100_000, -100_000],
+                            max: [100_000, 100_000],
+                            radius_nm: 0,
+                        }]);
+                }
+            }
+            let body = Box2::centred([0, 0], BODY);
+            let lines = silk_outline(&[pad], body, case.default_nm);
+            let top: Vec<_> = lines
+                .into_iter()
+                .filter(|g| g.key.starts_with("outline-top-"))
+                .map(|g| g.shape)
+                .collect();
+            let end = BODY[0] / 2 + SILK_OUTSET_NM;
+            let line = |a, b| Primitive::Line {
+                a: [a, TOP_LINE_Y],
+                b: [b, TOP_LINE_Y],
+            };
+            assert_eq!(
+                top,
+                [line(-end, -case.half_nm), line(case.half_nm, end)],
+                "{}",
+                case.name
+            );
+        }
+        // A mask with windows is refused before it is drawn; its copper is
+        // kept out all the same.
+        let mut windows = rect(PAD_AT, PAD_SIZE);
+        windows.mask = Opening::Windows(Vec::new());
+        assert_eq!(silk_box(&windows, 50_000), pad_box(&windows));
     }
 
     #[test]

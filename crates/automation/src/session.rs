@@ -670,22 +670,6 @@ impl Request {
         }
     }
 
-    /// The `component.place` requests among this request's operations.
-    pub fn placements(&self) -> Vec<&sparksmith_core::instances::NewInstance> {
-        let operations: &[Operation] = match self {
-            Self::Apply(params) => std::slice::from_ref(&params.operation),
-            Self::ApplyAll(params) => &params.operations,
-            _ => &[],
-        };
-        operations
-            .iter()
-            .filter_map(|operation| match operation {
-                Operation::Instance(sparksmith_core::InstanceCommand::Place(new)) => Some(new),
-                _ => None,
-            })
-            .collect()
-    }
-
     /// What the gate reports as requested: the operation or query inside
     /// `project.apply` and `project.query`, else the request itself.
     pub fn subject(&self) -> &'static str {
@@ -1268,6 +1252,9 @@ pub struct Session {
     /// Set while [`Session::respond`] runs a request: mutations answer
     /// without building the snapshot.
     compact: bool,
+    /// Set by the front door for each call: the caller is an agent, whose
+    /// parts are placed on the page ([`Session::hosted_operation`]).
+    pub(crate) on_page: bool,
     baseline: Option<reply::Baseline>,
     /// Help read from an explicit library or by a session without an engine context.
     help_index: std::sync::OnceLock<std::result::Result<sparksmith_core::help::Index, String>>,
@@ -1325,6 +1312,7 @@ impl Session {
             hosting: None,
             sources,
             compact: false,
+            on_page: false,
             baseline: None,
             help_index: Default::default(),
             shipped: None,
@@ -1480,7 +1468,8 @@ impl Session {
         }
         match request {
             Request::Apply(params) => {
-                let operation = self.hosted_operation(params.operation)?;
+                let operation =
+                    Self::hosted_operation(self.engine.project(), params.operation, self.on_page)?;
                 let outcome =
                     self.engine
                         .apply_hosted(params.expected_revision, operation, hosted())?;
@@ -1490,14 +1479,23 @@ impl Session {
                 return Ok(reply);
             }
             Request::ApplyAll(params) => {
-                let operations = params
-                    .operations
-                    .into_iter()
-                    .map(|o| self.hosted_operation(o))
-                    .collect::<Result<Vec<_>>>()?;
-                let outcomes =
-                    self.engine
-                        .apply_all_hosted(params.expected_revision, operations, hosted())?;
+                let count = params.operations.len();
+                let on_page = self.on_page;
+                let outcomes = self.engine.apply_all_resolved(
+                    params.expected_revision,
+                    params.operations,
+                    hosted(),
+                    |index, project, operation| {
+                        Self::hosted_operation(project, operation, on_page).map_err(|error| {
+                            match error {
+                                crate::Error::Document(error) => {
+                                    error.in_batch(index, count).into()
+                                }
+                                error => error,
+                            }
+                        })
+                    },
+                )?;
                 let mut reply = self.document_reply();
                 reply["outcomes"] = serde_json::to_value(outcomes)?;
                 self.add_rerouted(&mut reply)?;
@@ -1511,10 +1509,12 @@ impl Session {
                 if let Query::RuleProfiles { id } = query {
                     return Ok(serde_json::to_value(match id {
                         Some(id) => QueryResult::RuleProfile(Box::new(
-                            self.hosted_profile(ProfileChoice::Id(id))?
+                            Self::hosted_profile(self.engine.project(), ProfileChoice::Id(id))?
                                 .resolve(&self.engine.project().rules)?,
                         )),
-                        None => QueryResult::RuleProfiles(self.profile_list()?),
+                        None => {
+                            QueryResult::RuleProfiles(Self::profile_list(self.engine.project())?)
+                        }
                     })?);
                 }
                 let query = match query {
@@ -1523,7 +1523,7 @@ impl Session {
                         options,
                         keep_overrides,
                     } => Query::PreviewProfile {
-                        profile: self.hosted_profile(profile)?,
+                        profile: Self::hosted_profile(self.engine.project(), profile)?,
                         options,
                         keep_overrides,
                     },
@@ -1920,11 +1920,11 @@ impl Session {
     /// `rules.set_fab_profile`, `rules.preview_fab_profile` and
     /// `rules.fab_profiles {id}` take. The board's own id is left for the
     /// engine, which reads it as the board's snapshot.
-    fn hosted_profile(&self, choice: ProfileChoice) -> Result<ProfileChoice> {
+    fn hosted_profile(project: &Project, choice: ProfileChoice) -> Result<ProfileChoice> {
         let ProfileChoice::Id(id) = choice else {
             return Ok(choice);
         };
-        if let Some(board) = &self.engine.project().rules.profile
+        if let Some(board) = &project.rules.profile
             && board.id == id
         {
             return Ok(ProfileChoice::Id(id));
@@ -1932,7 +1932,10 @@ impl Session {
         match sparksmith_io::fabrication::resolve_profile(&id) {
             Ok(profile) => Ok(ProfileChoice::Profile(Box::new(profile))),
             Err(error) if error.code() == "not_found" => {
-                let known: Vec<String> = self.profile_list()?.into_iter().map(|p| p.id).collect();
+                let known: Vec<String> = Self::profile_list(project)?
+                    .into_iter()
+                    .map(|p| p.id)
+                    .collect();
                 Err(sparksmith_core::Error::NotFound(format!(
                     "rules.fab_profile_unknown: no fab profile {id}; the profiles are {}",
                     known.join(", ")
@@ -1944,8 +1947,15 @@ impl Session {
     }
 
     /// `operation` with a fab profile it names by id read by
-    /// [`Self::hosted_profile`].
-    fn hosted_operation(&self, operation: Operation) -> Result<Operation> {
+    /// [`Self::hosted_profile`] against `project`, the document as it is when the
+    /// operation runs: in a batch, what the operations before it made. With
+    /// `on_page`, a part is placed only where a person sees it, on its sheet's
+    /// page.
+    fn hosted_operation(
+        project: &Project,
+        operation: Operation,
+        on_page: bool,
+    ) -> Result<Operation> {
         use sparksmith_core::interface::InterfaceCommand;
         use sparksmith_core::interface::assembly_link::AssemblyCommand;
         use sparksmith_core::rules::RulesCommand;
@@ -1978,13 +1988,23 @@ impl Session {
             ))
             .into());
         }
+        if on_page
+            && let Operation::Instance(sparksmith_core::InstanceCommand::Place(new)) = &operation
+            && let Some(position) = new.position
+        {
+            let sheet = new.sheet.unwrap_or_else(|| project.sheets.first());
+            // An unknown sheet is the core's to refuse.
+            if project.sheet(sheet).is_some() {
+                sparksmith_core::schematic::spot::check_on_page(project, sheet, position)?;
+            }
+        }
         Ok(match operation {
             Operation::Rules(RulesCommand::SetProfile {
                 profile,
                 options,
                 keep_overrides,
             }) => Operation::Rules(RulesCommand::SetProfile {
-                profile: self.hosted_profile(profile)?,
+                profile: Self::hosted_profile(project, profile)?,
                 options,
                 keep_overrides,
             }),
@@ -1994,9 +2014,9 @@ impl Session {
 
     /// `rules.fab_profiles`: the board's own profile first, then the user's
     /// library and the shipped profiles whose ids it does not have.
-    fn profile_list(&self) -> Result<Vec<sparksmith_core::rules::ProfileBrief>> {
+    fn profile_list(project: &Project) -> Result<Vec<sparksmith_core::rules::ProfileBrief>> {
         use sparksmith_core::rules::ProfileBrief;
-        let board = self.engine.project().rules.profile.as_ref();
+        let board = project.rules.profile.as_ref();
         let dirs = sparksmith_io::settings::UserDirs::from_env()?;
         let listing = sparksmith_io::rule_profiles::ProfileLibrary::from_dirs(&dirs)?.list()?;
         Ok(board
@@ -2351,6 +2371,8 @@ pub mod sources;
 
 #[cfg(test)]
 mod assembly_link_tests;
+#[cfg(test)]
+mod batch_tests;
 #[cfg(test)]
 mod body_tests;
 #[cfg(test)]

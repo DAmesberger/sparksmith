@@ -17,7 +17,7 @@ use crate::library::footprint_source::{
 use crate::library::{Segment, datum::DatumName};
 use crate::model::board::{
     BoardFeatureId, BoardShape, BoardSketch, CutoutKind, CutoutRole, MountingHoleRole,
-    ParameterValue, SolvedBoard, SolvedCutout, SolvedMountingHole,
+    ParameterValue, ShapeFault, ShapeFaultKind, SolvedBoard, SolvedCutout, SolvedMountingHole,
 };
 use crate::model::dimension::{BoardRef, FeatureRef, FollowedFaceId, PadPoint};
 use crate::model::interface::{
@@ -126,14 +126,15 @@ fn sketched() -> Fallible<Engine> {
             }],
             holes: vec![hole(1, [4.0, 4.0]), hole(2, [56.0, 4.0])],
             edges: Vec::new(),
+            values: vec![ParameterValue {
+                name: ParamName("width".into()),
+                value: ParamValue::Length(60.0),
+            }],
         },
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: vec![ParameterValue {
-            name: ParamName("width".into()),
-            value: ParamValue::Length(60.0),
-        }],
     }));
     project.board_size = [60.0, 40.0];
     file.project = project;
@@ -141,9 +142,10 @@ fn sketched() -> Fallible<Engine> {
 }
 
 /// A board parameter is exported with the value the host evaluated for
-/// the board's last solve, a number and an expression over other
+/// the board's last valid solve, a number and an expression over other
 /// parameters alike. It is resolved only with a value (the core reads no
-/// expression), and its content hash follows the value.
+/// expression), and its content hash follows the value. A parameter added
+/// while the outline is invalid has none until it is valid.
 #[test]
 fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
     let param = |name: &str, expr: &str| FootprintParam {
@@ -152,7 +154,7 @@ fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
         unit: ParamUnit::Mm,
         comment: String::new(),
     };
-    let listed = |values: Vec<ParameterValue>| -> Fallible<_> {
+    let listed = |values: Vec<ParameterValue>, fault: Option<ShapeFault>| -> Fallible<_> {
         let mut file = sketched()?.to_file();
         let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
             return Err("a sketched board".into());
@@ -161,7 +163,9 @@ fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
             param("width", "60 mm"),
             param("tab_x", "(width - 12 mm) / 2"),
         ];
-        sketch.values = values;
+        sketch.solved.values = values;
+        sketch.current = fault.is_none();
+        sketch.fault = fault;
         let mut engine = Engine::from_file(file)?;
         for name in ["width", "tab_x"] {
             export(
@@ -187,9 +191,9 @@ fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
         name: ParamName(name.into()),
         value: ParamValue::Length(value),
     };
-    let unevaluated = listed(Vec::new())?;
-    let solved = listed(vec![value("width", 60.0), value("tab_x", 24.0)])?;
-    let wider = listed(vec![value("width", 65.0), value("tab_x", 26.5)])?;
+    let unevaluated = listed(Vec::new(), Some(open_outline()))?;
+    let solved = listed(vec![value("width", 60.0), value("tab_x", 24.0)], None)?;
+    let wider = listed(vec![value("width", 65.0), value("tab_x", 26.5)], None)?;
     for (token, at_60, at_65) in [
         ("board.parameter.width", 60.0, 65.0),
         ("board.parameter.tab_x", 24.0, 26.5),
@@ -203,6 +207,143 @@ fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
         assert_eq!(after.geometry, mm(at_65));
         assert_ne!(datum_hash(&before)?, datum_hash(&after)?, "{token}");
     }
+    Ok(())
+}
+
+/// An outline that does not close.
+fn open_outline() -> ShapeFault {
+    ShapeFault {
+        kind: ShapeFaultKind::Open,
+        message: "The board outline is open.".into(),
+        at: vec![[0.0, 0.0]],
+    }
+}
+
+/// Opening a file whose valid solve does not hold exactly one finite value
+/// of its own kind for each board parameter is refused, naming the parameter.
+#[test]
+fn a_valid_solve_has_exactly_one_value_per_parameter() -> Fallible {
+    let value = |name: &str, value: ParamValue| ParameterValue {
+        name: ParamName(name.into()),
+        value,
+    };
+    let width = || value("width", ParamValue::Length(60.0));
+    let depth = || value("depth", ParamValue::Length(1.0));
+    let only = |v: ParamValue| vec![value("width", v)];
+    let cases = [
+        ("empty", Vec::new(), "width"),
+        ("another's", vec![depth()], "width"),
+        ("duplicate", vec![width(), width()], "width"),
+        ("an angle", only(ParamValue::Angle(60.0)), "width"),
+        ("a count", only(ParamValue::Count(60)), "width"),
+        ("not finite", only(ParamValue::Length(f64::NAN)), "width"),
+        ("unknown", vec![width(), depth()], "depth"),
+    ];
+    for (what, values, named) in cases {
+        let mut file = sketched()?.to_file();
+        let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
+            return Err("a sketched board".into());
+        };
+        sketch.solved.values = values;
+        let error = Engine::from_file(file)
+            .err()
+            .ok_or_else(|| format!("{what} values accepted"))?
+            .to_string();
+        assert!(
+            error.contains("board.param_value") && error.contains(named),
+            "{what}: {error}"
+        );
+    }
+    Ok(())
+}
+
+/// While the outline is invalid the values are the last valid solve's: the
+/// parameters typed since need not match them, but each is still named once
+/// and finite.
+#[test]
+fn an_invalid_outline_keeps_the_values_of_its_shape() -> Fallible {
+    let opened = |values: Vec<ParameterValue>| -> Fallible<_> {
+        let mut file = sketched()?.to_file();
+        let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
+            return Err("a sketched board".into());
+        };
+        sketch.fault = Some(open_outline());
+        sketch.current = false;
+        sketch.solved.values = values;
+        Ok(Engine::from_file(file))
+    };
+    let depth = |value| ParameterValue {
+        name: ParamName("depth".into()),
+        value,
+    };
+    assert!(opened(vec![depth(ParamValue::Angle(1.0))])?.is_ok());
+    for values in [
+        vec![depth(ParamValue::Count(1)), depth(ParamValue::Count(1))],
+        vec![depth(ParamValue::Length(f64::INFINITY))],
+    ] {
+        let error = opened(values)?.err().ok_or("accepted")?.to_string();
+        assert!(error.contains("‘depth’"), "{error}");
+    }
+    Ok(())
+}
+
+/// A board whose outline is invalid is not published: the list and the
+/// preview say why, and so does the refusal. Its sidecar would hold the
+/// last valid shape with its own values.
+#[test]
+fn an_invalid_outline_blocks_publishing() -> Fallible {
+    use crate::interface::{assembly_link, publish};
+    let mut engine = sketched()?;
+    let width = ExportTarget::BoardParameter {
+        name: ParamName("width".into()),
+    };
+    export(&mut engine, width)?;
+    assert!(list(&engine)?.blocked.is_empty());
+    assert!(assembly_link::check_publish(engine.project()).is_ok());
+    let mut file = engine.to_file();
+    let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
+        return Err("a sketched board".into());
+    };
+    // Beside a current solve the fault blocks nothing here.
+    sketch.fault = Some(open_outline());
+    let stray = Engine::from_file(file.clone())?;
+    assert!(list(&stray)?.blocked.is_empty());
+    assert!(assembly_link::check_publish(stray.project()).is_ok());
+    let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
+        return Err("a sketched board".into());
+    };
+    sketch.current = false;
+    if let Some(p) = sketch.parameters.first_mut() {
+        p.expr = Expr("75".into());
+    }
+    let faulty = reopened(&Engine::from_file(file)?)?;
+    let shown = list(&faulty)?;
+    let [why] = shown.blocked.as_slice() else {
+        return Err(format!("{:?}", shown.blocked).into());
+    };
+    assert!(why.contains("The board outline is open."), "{why}");
+    let preview = publish::preview(faulty.project(), None, None, faulty.revision())?;
+    assert_eq!(preview.blocked, shown.blocked);
+    let refused = assembly_link::check_publish(faulty.project())
+        .err()
+        .ok_or("published")?
+        .to_string();
+    assert!(
+        refused.contains("interface.outline_invalid") && refused.contains(why.as_str()),
+        "{refused}"
+    );
+    let row = shown
+        .datums
+        .iter()
+        .find(|d| d.token == "board.parameter.width")
+        .ok_or("width")?;
+    assert_eq!(
+        row.geometry,
+        Some(DatumGeometry::Parameter {
+            value: 60.0,
+            unit: "mm".into()
+        })
+    );
     Ok(())
 }
 

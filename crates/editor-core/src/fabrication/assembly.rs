@@ -57,7 +57,6 @@ use crate::model::{Layer, Project};
 use crate::rules::glob_matches;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 /// Most rotation offsets one convention carries.
 pub const MAX_ROTATION_OFFSETS: usize = 256;
@@ -157,17 +156,6 @@ pub struct PlacementRow {
     pub side: Layer,
 }
 
-/// The BOM line of each instance.
-fn line_index(report: &completeness::BomReport) -> BTreeMap<Id, &BomLine> {
-    let mut index = BTreeMap::new();
-    for line in &report.lines {
-        for id in &line.instances {
-            index.insert(*id, line);
-        }
-    }
-    index
-}
-
 /// The Value of an instance in the BOM and pick-and-place files: its value
 /// text ([`instances::value_text`], every typed value field as the
 /// instance shows it, "10 µF 16 V", or an LED's colour), else the chosen
@@ -175,15 +163,17 @@ fn line_index(report: &completeness::BomReport) -> BTreeMap<Id, &BomLine> {
 /// it is a description ("USB-C receptacle 16-pin", "Chip capacitor 0603")
 /// the Package column and the part's Status already cover. The production
 /// check warns on an empty value field (`fabrication.no_value`).
-fn instance_value(
+///
+/// Read from the assembly decision, never from a BOM row: a part kept off the
+/// BOM is still fitted and placed, with the same value.
+pub fn instance_value(
     project: &Project,
     instance: &crate::model::ComponentInstance,
-    line: Option<&BomLine>,
+    decision: &completeness::Assembly<'_>,
 ) -> Result<String> {
-    let fitted = instances::variants::fitted(project, instance);
     Ok(
-        instances::variants::fitted_value(project, instance, &fitted)?
-            .or_else(|| line.and_then(|l| l.mpn.clone()))
+        instances::variants::fitted_value(project, instance, &decision.fitted)?
+            .or_else(|| decision.purchase.mpn.clone())
             .unwrap_or_default(),
     )
 }
@@ -218,20 +208,19 @@ pub fn rows(project: &Project, convention: &PlacementConvention) -> Result<Vec<P
         PlacementOrigin::OutlineLowerLeft => project.board().bounds().min,
         PlacementOrigin::Point { at } => at,
     };
-    let bom = completeness::bom(project)?;
-    let lines = line_index(&bom);
     let mut out = Vec::with_capacity(project.placements.len());
     for placement in &project.placements {
         let Some(instance) = project.instance(placement.instance) else {
             continue;
         };
-        if !completeness::assembly(project, instance).placement {
+        let decision = completeness::assembly(project, instance);
+        if !decision.placement {
             continue;
         }
         let Some(package) = package_name(project, instance) else {
             continue;
         };
-        let value = instance_value(project, instance, lines.get(&instance.id).copied())?;
+        let value = instance_value(project, instance, &decision)?;
         let mut x = placement.position[0] - origin[0];
         let y = placement.position[1] - origin[1];
         let mut rotation = placement.rotation_deg;
@@ -378,7 +367,7 @@ pub fn bom_csv(project: &Project) -> Result<String> {
     );
     for (k, line) in report.lines.iter().filter(|l| l.fitted).enumerate() {
         let value = match line.instances.first().and_then(|id| project.instance(*id)) {
-            Some(first) => instance_value(project, first, Some(line))?,
+            Some(first) => instance_value(project, first, &completeness::assembly(project, first))?,
             None => String::new(),
         };
         record(
@@ -401,8 +390,6 @@ pub fn bom_csv(project: &Project) -> Result<String> {
 /// One row per instance, in designator order, with whether the active
 /// variant fits it.
 pub fn bom_parts_csv(project: &Project) -> Result<String> {
-    let report = completeness::bom(project)?;
-    let lines = line_index(&report);
     let mut instances: Vec<&crate::model::ComponentInstance> = project
         .instances
         .iter()
@@ -426,21 +413,17 @@ pub fn bom_parts_csv(project: &Project) -> Result<String> {
         ],
     );
     for instance in instances {
-        let line = lines.get(&instance.id).copied();
-        let value = instance_value(project, instance, line)?;
+        let decision = completeness::assembly(project, instance);
+        let value = instance_value(project, instance, &decision)?;
         record(
             &mut out,
             &[
                 &instance.designator,
                 &value,
                 &package_name(project, instance).unwrap_or_default(),
-                line.and_then(|l| l.manufacturer.as_deref()).unwrap_or(""),
-                line.and_then(|l| l.mpn.as_deref()).unwrap_or(""),
-                if line.is_none_or(|l| l.fitted) {
-                    "yes"
-                } else {
-                    "no"
-                },
+                decision.purchase.manufacturer.as_deref().unwrap_or(""),
+                decision.purchase.mpn.as_deref().unwrap_or(""),
+                if decision.populated() { "yes" } else { "no" },
             ],
         );
     }

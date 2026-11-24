@@ -149,19 +149,20 @@ fn import_with(
     } else {
         None
     };
-    let schematic =
-        sparksmith_io::kicad_files::schematic_files(&board).map_err(|e| e.to_string())?;
+    let folder = sparksmith_io::kicad_files::folder(&board);
+    let schematic = sparksmith_io::kicad_files::root_schematic(&board)
+        .map(|root| {
+            let mut sheets = sparksmith_io::kicad_files::SheetReader::new(&board)?;
+            let files = sparksmith_kicad::schematic::collect(&root, |name| sheets.read(name))?;
+            Ok::<_, std::io::Error>((root, files))
+        })
+        .transpose()
+        .map_err(|e| e.to_string())?;
     let defaults = sparksmith_io::new_project::shipped().map_err(|e| e.to_string())?;
     let profile =
         sparksmith_io::rule_profiles::for_new_board_from_env(profile).map_err(|e| e.to_string())?;
     let mut models = runtime
-        .map(|runtime| {
-            crate::kicad_models::Models::new(
-                board.parent().unwrap_or(Path::new(".")),
-                runtime,
-                presets,
-            )
-        })
+        .map(|runtime| crate::kicad_models::Models::new(folder, runtime, presets))
         .transpose()?;
     let imported = sparksmith_kicad::import::import_with_models(
         &bytes,

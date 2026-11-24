@@ -687,6 +687,9 @@ fn with_tracks(count: usize, total: usize) -> Result<Project> {
 /// One via board's build, for profiling (`SPARKSMITH_TRACKS` tracks in all,
 /// [`with_tracks`]): `SPARKSMITH_VIAS=10000 cargo test
 /// --profile ci -p sparksmith-solidcraft via_build_profile -- --ignored --nocapture`.
+/// With `SPARKSMITH_BODY_TABLE=FILE` the last build's native bodies are
+/// written there, one line each (kind, layer, box, volume and triangles, in
+/// the model's order), to compare the model two Solidcraft revisions build.
 #[test]
 #[ignore = "benchmark"]
 fn via_build_profile() -> Result<()> {
@@ -704,6 +707,7 @@ fn via_build_profile() -> Result<()> {
         .and_then(|v| v.parse().ok())
         .unwrap_or(0);
     let project = with_tracks(count, tracks)?;
+    let mut last = None;
     for _ in 0..runs {
         let start = std::time::Instant::now();
         let model = build(&project)?;
@@ -713,20 +717,54 @@ fn via_build_profile() -> Result<()> {
             native(&model).count(),
             start.elapsed().as_secs_f64() * 1e3
         );
+        last = Some(model);
+    }
+    if let (Ok(path), Some(model)) = (std::env::var("SPARKSMITH_BODY_TABLE"), last) {
+        use std::fmt::Write;
+        let mut table = String::new();
+        for g in native(&model) {
+            let _ = writeln!(
+                table,
+                "{:?} {:?} {:?} {:?} {:e} {}",
+                g.kind,
+                g.layer,
+                g.min,
+                g.max,
+                g.volume(),
+                g.mesh.triangles.len()
+            );
+        }
+        std::fs::write(&path, table).map_err(|e| Error::Verification(e.to_string()))?;
     }
     Ok(())
 }
 
-/// Isolate the exact substrate stage sampled by the native export review.
-/// Run the small case first so its measurements survive a large-case timeout.
+/// The exact build of the four-layer via boards by stage, and how it grows
+/// with the vias: each laminate slab on its own (its sketch, its extrusion
+/// and their evaluation, in a design that holds the laminate alone), then
+/// the whole build. `SPARKSMITH_VIAS=100,1000,10000` picks the added vias
+/// (default 100, 300 and 1,000). Each size prints as soon as it is
+/// measured, so a run stopped by a time limit keeps the sizes it finished:
+/// `cargo test --locked --profile ci -p sparksmith-solidcraft --lib
+/// four_layer_exact_slab_profile -- --ignored --nocapture`.
 #[test]
 #[ignore = "benchmark"]
 fn four_layer_exact_slab_profile() -> Result<()> {
     let _scope = native_scale_context()?;
-    for (added, total_vias, tracks) in [(100, 121, 108), (10_000, 10_021, 258)] {
+    let sizes: Vec<usize> = std::env::var("SPARKSMITH_VIAS")
+        .ok()
+        .map(|list| {
+            list.split(',')
+                .filter_map(|v| v.trim().parse().ok())
+                .collect()
+        })
+        .filter(|sizes: &Vec<usize>| !sizes.is_empty())
+        .unwrap_or_else(|| vec![100, 300, 1000]);
+    // Each size's vias, laminate seconds and whole-build seconds.
+    let mut measured: Vec<(usize, f64, f64)> = vec![];
+    for added in sizes {
         let project = via_board(added)?;
-        assert_eq!(project.vias.len(), total_vias);
-        assert_eq!(project.tracks.len(), tracks);
+        let (vias, tracks) = (project.vias.len(), project.tracks.len());
         let board = plan::of(&project)?;
         assert_eq!(board.laminate.len(), 5);
 
@@ -734,21 +772,43 @@ fn four_layer_exact_slab_profile() -> Result<()> {
         builder.native.defer_evaluation()?;
         stackup_params(&mut builder, &project)?;
         builder.native.component("PCB substrate", true)?;
+        let mut laminate_s = 0.0;
         for slab in &board.laminate {
-            eprintln!(
-                "{total_vias} vias, {tracks} tracks: starting {}, {} contours",
+            // The slab's own evaluation ends with it: the next slab's
+            // commands would otherwise run it.
+            let start = std::time::Instant::now();
+            laminate(&mut builder, &project, std::slice::from_ref(slab))?;
+            builder.native.evaluate_deferred()?;
+            let seconds = start.elapsed().as_secs_f64();
+            builder.native.defer_evaluation()?;
+            laminate_s += seconds;
+            println!(
+                "{vias} vias, {tracks} tracks: {} ({} loops) {seconds:.2} s",
                 slab.name,
                 slab.loops.len()
             );
-            let start = std::time::Instant::now();
-            laminate(&mut builder, &project, std::slice::from_ref(slab))?;
-            eprintln!("{} built in {:?}", slab.name, start.elapsed());
             assert_eq!(builder.bodies.get(&slab.name), Some(&BodyKind::Substrate));
         }
-        eprintln!("Evaluating {total_vias}-via laminate");
+        drop(builder);
+
         let start = std::time::Instant::now();
-        builder.native.evaluate_deferred()?;
-        eprintln!("Laminate evaluated in {:?}", start.elapsed());
+        let model = build(&project)?;
+        let build_s = start.elapsed().as_secs_f64();
+        println!(
+            "{vias} vias, {tracks} tracks: laminate alone {laminate_s:.2} s, whole build {build_s:.2} s \
+             ({} native bodies)",
+            native(&model).count()
+        );
+        if let Some(&(before, laminate_before, build_before)) = measured.last() {
+            // Time grows as vias to this power between the two sizes.
+            let power = |now: f64, was: f64| (now / was).ln() / (vias as f64 / before as f64).ln();
+            println!(
+                "{before} to {vias} vias: laminate grows as vias^{:.2}, whole build as vias^{:.2}",
+                power(laminate_s, laminate_before),
+                power(build_s, build_before)
+            );
+        }
+        measured.push((vias, laminate_s, build_s));
     }
     Ok(())
 }
@@ -2461,10 +2521,10 @@ fn with_washer(mut project: Project) -> Project {
         next_feature: 2,
         solve: Default::default(),
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
     project
 }

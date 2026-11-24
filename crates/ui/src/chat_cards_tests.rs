@@ -321,9 +321,9 @@ fn run_block_shows_steps_meter_and_stop() {
         StepLine { title: "Package", state: StepState::Waiting, summary: "" },
     ];
     let gauges = [
-        GaugeRow { unit: "requests", used: 14, limit: 40 },
-        GaugeRow { unit: "tokens", used: 61_000, limit: 200_000 },
-        GaugeRow { unit: "min", used: 6, limit: 45 },
+        GaugeRow { unit: "requests", used: 14, limit: Some(40) },
+        GaugeRow { unit: "tokens", used: 61_000, limit: Some(200_000) },
+        GaugeRow { unit: "min", used: 6, limit: Some(45) },
     ];
     every_size(|h| {
         let mut stopped = false;
@@ -344,9 +344,19 @@ fn run_block_shows_steps_meter_and_stop() {
 
 #[test]
 fn the_meter_shows_no_prices() {
-    let line = meter_line(&[GaugeRow { unit: "requests", used: 3, limit: 40 }, GaugeRow { unit: "tokens", used: 12_345_678, limit: 100_000_000 }]);
+    let line = meter_line(&[
+        GaugeRow { unit: "requests", used: 3, limit: Some(40) },
+        GaugeRow { unit: "tokens", used: 12_345_678, limit: Some(100_000_000) },
+    ]);
     assert_eq!(line, "3 of 40 requests · 12 M of 100 M tokens");
     assert!(!line.contains('$') && !line.contains('€'));
+}
+
+#[test]
+fn the_meter_reads_without_limits() {
+    let gauges = |requests| [("requests", requests), ("tokens", 61_000), ("min", 6)].map(|(unit, used)| GaugeRow { unit, used, limit: None });
+    assert_eq!(meter_line(&gauges(14)), "14 requests · 61 k tokens · 6 min");
+    assert_eq!(meter_line(&gauges(1)), "1 request · 61 k tokens · 6 min");
 }
 
 #[test]

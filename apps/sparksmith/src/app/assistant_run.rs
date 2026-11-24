@@ -33,7 +33,7 @@ const RESULT_CHARS: usize = 4_000;
 
 /// The run's model configuration: the run profile Settings › AI's model
 /// selects (shipped or the person's own), the person's limits as `budget`
-/// (the runner holds the workflow's own budget within them).
+/// (the runner holds a budget the workflow declares within them).
 fn run_config(
     profile: ModelProfile,
     budget: Budget,
@@ -155,10 +155,9 @@ impl App {
         let (model, budget, permissions) = match self.chat_model() {
             Ok(chosen) => (
                 chosen.model,
-                // The runner holds the workflow's own budget within the
+                // The runner holds a budget the workflow declares within the
                 // person's limits, when they set any.
-                sparksmith_assist::settings::run_budget(chosen.limits.as_ref(), None)
-                    .unwrap_or_else(sparksmith_assist::chat::unbounded),
+                sparksmith_assist::settings::run_budget(chosen.limits.as_ref()),
                 chosen.permissions,
             ),
             Err(why) => {

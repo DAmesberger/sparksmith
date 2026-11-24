@@ -7063,6 +7063,7 @@ dependencies = [
  "sparksmith-generators",
  "sparksmith-io",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]

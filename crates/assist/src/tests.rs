@@ -999,7 +999,7 @@ fn token_and_time_caps_bind_a_local_model() -> Fallible {
     let dir = tempfile::tempdir()?;
     let mut config = local_config(131_072)?;
     // The first request alone could take 32 000 output tokens.
-    config.budget.max_total_tokens = 30_000;
+    config.budget.max_total_tokens = Some(30_000);
     let mut backend = openai(chat_script(&script()?), &config);
     let (outcome, _) = run_with(
         &config,
@@ -1015,7 +1015,7 @@ fn token_and_time_caps_bind_a_local_model() -> Fallible {
     assert!(backend.wire.posts.is_empty());
 
     let mut config = local_config(131_072)?;
-    config.budget.max_duration = std::time::Duration::ZERO;
+    config.budget.max_duration = Some(std::time::Duration::ZERO);
     let mut backend = openai(chat_script(&script()?), &config);
     let (outcome, _) = run_with(
         &config,
@@ -1030,7 +1030,7 @@ fn token_and_time_caps_bind_a_local_model() -> Fallible {
     );
     // Each request waits no longer than the run has left.
     let mut config = local_config(131_072)?;
-    config.budget.max_duration = std::time::Duration::from_secs(600);
+    config.budget.max_duration = Some(std::time::Duration::from_secs(600));
     let mut backend = openai(chat_script(&script()?), &config);
     run_with(
         &config,
@@ -1150,7 +1150,7 @@ fn a_late_completed_reply_keeps_estimated_accounting_without_running_tools() -> 
         usage_estimated: true,
     });
     let mut config = local_config(131_072)?;
-    config.budget.max_duration = Duration::from_secs(5);
+    config.budget.max_duration = Some(Duration::from_secs(5));
     let mut log = Vec::new();
     let outcome = run(
         &goal(text_datasheet(&dir)?),
@@ -1191,5 +1191,111 @@ fn a_late_completed_reply_keeps_estimated_accounting_without_running_tools() -> 
                 ..
             }
     )));
+    Ok(())
+}
+
+/// An outcome whose review names `run`.
+fn named_outcome(run: &str) -> Outcome {
+    Outcome {
+        report: None,
+        stop: Stop::Ended,
+        facts: report::RunFacts {
+            model: run.into(),
+            ..Default::default()
+        },
+    }
+}
+
+/// A session whose project is named `run`.
+fn named_session(run: &str) -> Fallible<Session> {
+    let mut session = profiled_session();
+    let revision = session.engine().revision();
+    let renamed = session.dispatch(json!({"command": "project.apply", "params": {
+        "expected_revision": revision,
+        "operation": {"editor": "Schematic", "operation": {
+            "command": "project.rename", "params": {"name": run}}}}}));
+    if renamed["ok"] != true {
+        return Err(renamed.to_string().into());
+    }
+    Ok(session)
+}
+
+/// The names in `dir`, sorted.
+fn listed(dir: &std::path::Path) -> Fallible<Vec<String>> {
+    let mut names = std::fs::read_dir(dir)?
+        .map(|e| Ok(e?.file_name().to_string_lossy().into_owned()))
+        .collect::<std::io::Result<Vec<_>>>()?;
+    names.sort();
+    Ok(names)
+}
+
+/// Two runs that save under one name at once: one is written whole, the
+/// other fails and leaves nothing, and the project and its reviews are
+/// always the same run's.
+#[test]
+fn two_runs_with_one_output_name_never_mix() -> Fallible {
+    for round in 0..40 {
+        let dir = tempfile::tempdir()?;
+        let out = dir.path().join("part.sparksmith");
+        let start = std::sync::Barrier::new(2);
+        let results: Vec<(&str, bool)> = std::thread::scope(|scope| {
+            let runs: Vec<_> = ["run-a", "run-b"]
+                .into_iter()
+                .map(|run| {
+                    let (out, start) = (&out, &start);
+                    scope.spawn(move || {
+                        let session = named_session(run).map_err(|e| e.to_string());
+                        start.wait();
+                        let mut session = session?;
+                        Ok::<_, String>((
+                            run,
+                            write_outputs(&mut session, out, &named_outcome(run)).is_ok(),
+                        ))
+                    })
+                })
+                .collect();
+            runs.into_iter()
+                .map(|run| run.join().map_err(|_| "a run panicked".to_owned())?)
+                .collect::<std::result::Result<_, String>>()
+        })?;
+        let won: Vec<&str> = results.iter().filter(|(_, ok)| *ok).map(|r| r.0).collect();
+        assert_eq!(won.len(), 1, "round {round}: {results:?}");
+        let project = sparksmith_io::read_project(&out)?.project.name.clone();
+        let [json_path, md_path] = review_paths(&out);
+        let review: Value = serde_json::from_slice(&std::fs::read(&json_path)?)?;
+        assert_eq!(project, won[0], "round {round}");
+        assert_eq!(review["run"]["model"], won[0], "round {round}");
+        assert_eq!(review["project"]["saved_path"], out.display().to_string());
+        assert!(
+            std::fs::read_to_string(&md_path)?.contains(won[0]),
+            "round {round}"
+        );
+        assert_eq!(
+            listed(dir.path())?,
+            ["part.review.json", "part.review.md", "part.sparksmith"],
+            "round {round}"
+        );
+    }
+    Ok(())
+}
+
+/// What a run stopped between its writes left keeps the name taken: the
+/// next run with it is refused and touches nothing.
+#[test]
+fn what_an_interrupted_run_left_is_never_completed_by_another() -> Fallible {
+    let left = ["part.review.json", "part.review.md", "part.sparksmith"];
+    for count in 1..=left.len() {
+        let dir = tempfile::tempdir()?;
+        for name in &left[..count] {
+            std::fs::write(dir.path().join(name), b"theirs")?;
+        }
+        let out = dir.path().join("part.sparksmith");
+        let refused = write_outputs(&mut named_session("ours")?, &out, &named_outcome("ours"));
+        assert!(refused.is_err(), "{count}");
+        assert_eq!(listed(dir.path())?, left[..count], "{count}");
+        for name in &left[..count] {
+            assert_eq!(std::fs::read(dir.path().join(name))?, b"theirs");
+        }
+    }
     Ok(())
 }

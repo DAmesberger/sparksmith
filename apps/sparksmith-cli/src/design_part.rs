@@ -6,7 +6,8 @@
 //! applied without asking and the model's generator choice stands. The
 //! result is saved as a new project of drafts (component, symbol, package,
 //! footprint, binding, generated 3D model), with the review report beside
-//! it as `.review.json` and `.review.md`. Nothing is published. `--record`
+//! it as `.review.json` and `.review.md`, however the run ended; Ctrl-C ends
+//! it like the app's Stop. Nothing is published. `--record`
 //! writes a recording that names the workflow; `--replay` runs one against
 //! the same workflow version only; a recording that names no workflow (the
 //! reference conversations in `examples/`) replays as the conversation it
@@ -16,7 +17,7 @@
 //! A key comes from a named environment variable or the system keychain, is
 //! never printed or written, and is refused over plain HTTP to another
 //! computer. `llm-key` stores one in the keychain for one endpoint.
-use super::Result;
+use super::{Result, interrupt};
 use serde_json::Value;
 use sparksmith_assist::model::profile::ANTHROPIC_BASE_URL;
 use sparksmith_assist::model::record::{Recording, Replay};
@@ -34,7 +35,6 @@ use sparksmith_automation::Session;
 use sparksmith_core::product::SHORT_NAME as CLI;
 use std::io::Read as _;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 pub const USAGE: &str = "design-part --datasheet PDF|URL [--datasheet …] --name NAME --out NEW.sparksmith
@@ -212,10 +212,10 @@ impl ModelFlags {
             "--effort" => flags.effort = Some(value),
             "--request-timeout" => flags.request_timeout = Some(count(f, &value)?),
             "--profile" => flags.profile = Some(value),
-            "--max-requests" => budget.max_requests = count(f, &value)?,
-            "--max-tokens" => budget.max_total_tokens = count(f, &value)?,
+            "--max-requests" => budget.max_requests = Some(count(f, &value)?),
+            "--max-tokens" => budget.max_total_tokens = Some(count(f, &value)?),
             "--max-seconds" => {
-                budget.max_duration = Duration::from_secs(count(f, &value)?);
+                budget.max_duration = Some(Duration::from_secs(count(f, &value)?));
             }
             "--record" => self.record = Some(PathBuf::from(value)),
             "--replay" => self.replay = Some(PathBuf::from(value)),
@@ -301,9 +301,9 @@ pub(super) fn print_event(event: Event) {
         ),
         Event::Call {
             name,
-            state: CallState::Refused { .. },
+            state: CallState::Refused { reply },
             ..
-        } => eprintln!("  {name}: refused"),
+        } => eprintln!("  {name}: refused: {}", refusal_line(&reply)),
         Event::Call {
             name,
             state: CallState::NotRun { why },
@@ -325,6 +325,21 @@ pub(super) fn print_event(event: Event) {
         }
         Event::Warning(text) => eprintln!("warning: {text}"),
     }
+}
+
+/// Most characters of a refusal shown on its line.
+const REFUSAL_CHARS: usize = 300;
+
+/// Why a call was refused, as one line: what the model read, cut to its
+/// first [`REFUSAL_CHARS`] characters, so a headless run's log says what
+/// the model was told.
+fn refusal_line(reply: &str) -> String {
+    let mut line: String = reply.split_whitespace().collect::<Vec<_>>().join(" ");
+    if let Some((end, _)) = line.char_indices().nth(REFUSAL_CHARS) {
+        line.truncate(end);
+        line.push('…');
+    }
+    line
 }
 
 /// The person of a headless run: the run's steps and cards as lines on
@@ -530,7 +545,7 @@ pub fn run(args: &[String]) -> Result<()> {
     let mut session = super::user_session(sparksmith_io::new_project::profiled_engine(
         &super::context()?,
     )?);
-    let cancel = AtomicBool::new(false);
+    let cancel = interrupt::stop_on_ctrl_c()?;
     let run = WorkflowRun {
         loaded: &loaded,
         inputs: inputs(&args),
@@ -541,6 +556,9 @@ pub fn run(args: &[String]) -> Result<()> {
     let outcome = runner::run_workflow(run, backend.as_mut(), &mut session, &mut console, &cancel)?;
     let review = outcome.review(&session);
     let saved = save(&mut session, &args, &review);
+    if let Some(path) = &args.record {
+        eprintln!("recording: {}", path.display());
+    }
     let total = started.elapsed().as_secs_f64();
     let model = console.model_seconds;
     let local = (total - key_seconds - model).max(0.0);
@@ -570,7 +588,7 @@ fn replay_conversation(args: &Args, mut replay: Replay) -> Result<()> {
         &mut replay,
         &mut session,
         &mut print_event,
-        &AtomicBool::new(false),
+        interrupt::stop_on_ctrl_c()?.as_ref(),
     )?;
     save(&mut session, args, &outcome)
 }
@@ -706,7 +724,14 @@ mod tests {
         assert_eq!(p.output.per_request, 32_000);
         assert_eq!(parsed.connection.key, KeySource::None);
         assert!(parsed.connection.endpoint.is_loopback());
-        assert_eq!(parsed.config.budget.max_duration, Duration::from_secs(3600));
+        // Only what a flag sets is limited.
+        assert_eq!(
+            parsed.config.budget,
+            Budget {
+                max_duration: Some(Duration::from_secs(3600)),
+                ..Budget::default()
+            }
+        );
         Ok(())
     }
 
@@ -717,7 +742,7 @@ mod tests {
         assert_eq!(parsed.config.profile, defaults.profile);
         assert_eq!(parsed.config.run_profile, defaults.run_profile);
         assert_eq!(parsed.config.base_prompt, defaults.base_prompt);
-        assert_eq!(parsed.config.budget, defaults.budget);
+        assert_eq!(parsed.config.budget, Budget::default());
         // The run reaches what the shipped datasheet profile lets it: no
         // files, so it names no folder; the CLI writes the outputs itself.
         assert_eq!(parsed.config.reach, defaults.reach);
@@ -753,6 +778,18 @@ mod tests {
         assert_eq!(value, 8);
         assert!(said.is_empty());
         Ok(())
+    }
+
+    /// A refused call's line says why, on one line and bounded.
+    #[test]
+    fn a_refusal_is_shown_as_one_bounded_line() {
+        assert_eq!(
+            refusal_line("{\"code\":\"not_found\",\n  \"message\":\"nothing at draft:5\"}"),
+            "{\"code\":\"not_found\", \"message\":\"nothing at draft:5\"}"
+        );
+        let long = refusal_line(&"é".repeat(REFUSAL_CHARS + 10));
+        assert_eq!(long.chars().count(), REFUSAL_CHARS + 1);
+        assert!(long.ends_with('…'));
     }
 
     #[test]

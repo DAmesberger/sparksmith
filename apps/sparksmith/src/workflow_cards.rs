@@ -109,7 +109,7 @@ enum Item {
         title: String,
         version: String,
         steps: Vec<(String, String, cards::StepState, String)>,
-        meter: Option<[(u64, u64); 3]>,
+        meter: Option<[(u64, Option<u64>); 3]>,
         ended: Option<RunEnd>,
     },
     Inputs {
@@ -221,6 +221,21 @@ impl WorkflowCards {
             folder,
             ..Self::default()
         }
+    }
+
+    /// Another project opened: its conversation has no cards yet, none of
+    /// the last one's files and nothing the person chose there still to
+    /// run. The numbering goes on, so no id names two cards.
+    pub(crate) fn document_opened(&mut self) {
+        let old = std::mem::take(self);
+        *self = Self {
+            listed: old.listed,
+            next: old.next,
+            folder: old.folder,
+            workspace: old.workspace,
+            next_key: old.next_key,
+            ..Self::default()
+        };
     }
 
     /// The host's workflows: the shipped library's and the person's own.

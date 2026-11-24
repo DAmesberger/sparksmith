@@ -441,4 +441,172 @@ mod tests {
         }
         Ok(())
     }
+
+    const BARE: &[u8] = b"(kicad_pcb (version 20240108) (generator \"bare\") \
+        (layers (0 \"F.Cu\" signal) (31 \"B.Cu\" signal)))";
+
+    /// What the check prints for `ours` against `theirs`, and whether it
+    /// passes; a plot it refuses to read is a failure.
+    fn outline(ours: &[File], theirs: &[File]) -> Result<(String, bool)> {
+        let imported = import(BARE, None, None)?;
+        Ok(outline_line(&imported, ours, theirs, [0, 0])
+            .unwrap_or_else(|error| (error.to_string(), false)))
+    }
+
+    /// A profile plot of closed polylines and circles (centre, radius), mm.
+    fn plot(rings: &[&[[f64; 2]]], circles: &[([f64; 2], f64)]) -> File {
+        let nm = |mm: f64| (mm * 1e6).round() as i64;
+        let mut text = String::from(
+            "%FSLAX46Y46*%\n%MOMM*%\n%TF.FileFunction,Profile,NP*%\n%ADD10C,0.05*%\nD10*\nG01*\n",
+        );
+        for ring in rings {
+            for (k, p) in ring.iter().chain(ring.first()).enumerate() {
+                let code = if k == 0 { "D02" } else { "D01" };
+                let _ = writeln!(text, "X{}Y{}{code}*", nm(p[0]), nm(p[1]));
+            }
+        }
+        for (c, r) in circles {
+            let (x, y) = (nm(c[0] + r), nm(c[1]));
+            let _ = writeln!(
+                text,
+                "X{x}Y{y}D02*\nG75*\nG03*\nX{x}Y{y}I{}J0D01*\nG01*",
+                nm(-r)
+            );
+        }
+        text.push_str("M02*\n");
+        File {
+            name: "profile.gbr".into(),
+            bytes: text.into_bytes(),
+        }
+    }
+
+    fn rect(min: [f64; 2], max: [f64; 2]) -> [[f64; 2]; 4] {
+        [min, [max[0], min[1]], max, [min[0], max[1]]]
+    }
+
+    #[test]
+    fn the_outline_check_fails_on_every_seeded_fault() -> Result<()> {
+        let outer = rect([0.0, 0.0], [50.0, 30.0]);
+        let cutout = rect([10.0, 10.0], [14.0, 12.0]);
+        let hole = [([40.0, 15.0], 3.0)];
+        let good = plot(&[&outer, &cutout], &hole);
+        let (text, ok) = outline(std::slice::from_ref(&good), std::slice::from_ref(&good))?;
+        assert!(ok, "{text}");
+        // Half a micrometre is within the tolerance, the other way round too.
+        let close = rect([0.0, 0.0], [50.0005, 30.0]);
+        let close = plot(&[&close, &cutout], &hole);
+        assert!(outline(std::slice::from_ref(&close), std::slice::from_ref(&good))?.1);
+        assert!(outline(std::slice::from_ref(&good), &[close])?.1);
+
+        let far = rect([30.0, 25.0], [32.0, 26.0]);
+        let shifted = rect([0.0, 0.0], [50.01, 30.0]);
+        let moved = [([40.0, 15.01], 3.0)];
+        let mut not_a_line = good.clone();
+        not_a_line.bytes = String::from_utf8(not_a_line.bytes)?
+            .replace("M02*", "X1000000Y1000000D03*\nM02*")
+            .into_bytes();
+        let faults: [(&str, File); 7] = [
+            ("an extra cutout", plot(&[&outer, &cutout, &far], &hole)),
+            ("a missing cutout", plot(&[&outer], &hole)),
+            ("a missing round cutout", plot(&[&outer, &cutout], &[])),
+            ("a shifted edge", plot(&[&shifted, &cutout], &hole)),
+            ("a shifted round cutout", plot(&[&outer, &cutout], &moved)),
+            ("an empty profile", plot(&[], &[])),
+            ("a flash in the profile", not_a_line),
+        ];
+        for (name, bad) in &faults {
+            // Seeded in ours, then in the reference.
+            let (text, ok) = outline(std::slice::from_ref(bad), std::slice::from_ref(&good))?;
+            assert!(!ok, "{name} of ours: {text}");
+            let (text, ok) = outline(std::slice::from_ref(&good), std::slice::from_ref(bad))?;
+            assert!(!ok, "{name} of kicad: {text}");
+        }
+        // A missing profile, or one that cannot be read.
+        let mut unread = good.clone();
+        unread.bytes = b"%FSLAX46Y46*%\nnot a gerber".to_vec();
+        for (name, files) in [
+            ("no profile", Vec::new()),
+            ("an unreadable profile", vec![unread]),
+        ] {
+            let (text, ok) = outline(&files, std::slice::from_ref(&good))?;
+            assert!(!ok, "{name} of ours: {text}");
+            let (text, ok) = outline(std::slice::from_ref(&good), &files)?;
+            assert!(!ok, "{name} of kicad: {text}");
+        }
+        Ok(())
+    }
+
+    /// A plated slot is compared as a drill hit, and a cutout of KiCad's
+    /// that we plate fails both comparisons.
+    #[test]
+    fn plated_slots_are_compared() -> Result<()> {
+        let drills = |slots: &[([f64; 2], [f64; 2])]| {
+            let mut text = String::from(
+                "M48\n; #@! TF.FileFunction,Plated,1,2,PTH\nMETRIC\nT1C1.000\n%\nT1\n",
+            );
+            for (a, b) in slots {
+                let _ = writeln!(text, "X{:.3}Y{:.3}G85X{:.3}Y{:.3}", a[0], a[1], b[0], b[1]);
+            }
+            text.push_str("M30\n");
+            File {
+                name: "plated.drl".into(),
+                bytes: text.into_bytes(),
+            }
+        };
+        let slot = ([10.5, 10.0], [13.5, 10.0]);
+        let judge = Judge::exact(TOLERANCE_NM);
+        let passes = |ours: &[File], theirs: &[File]| -> Result<bool> {
+            let diff = compare_sets(ours, theirs, Scope::Filled, &judge)?;
+            Ok(diff.drills.iter().all(|d| d.diff.passes()))
+        };
+        let good = drills(&[slot]);
+        assert!(passes(
+            std::slice::from_ref(&good),
+            std::slice::from_ref(&good)
+        )?);
+        let moved = drills(&[([10.51, 10.0], [13.51, 10.0])]);
+        let shorter = drills(&[([10.5, 10.0], [13.4, 10.0])]);
+        let none = drills(&[]);
+        for bad in [moved, shorter, none.clone()] {
+            assert!(!passes(
+                std::slice::from_ref(&bad),
+                std::slice::from_ref(&good)
+            )?);
+            assert!(!passes(std::slice::from_ref(&good), &[bad])?);
+        }
+        assert!(!passes(&[], std::slice::from_ref(&good))?);
+        assert!(!passes(std::slice::from_ref(&good), &[])?);
+
+        // KiCad mills the slot (a rectangle stands in for it) and we plate it.
+        let outer = rect([0.0, 0.0], [50.0, 30.0]);
+        let milled = rect([10.0, 9.5], [14.0, 10.5]);
+        let ours = [plot(&[&outer], &[]), good];
+        let theirs = [plot(&[&outer, &milled], &[]), none];
+        let (text, ok) = outline(&ours, &theirs)?;
+        assert!(!ok, "{text}");
+        assert!(!passes(&ours, &theirs)?);
+        Ok(())
+    }
+
+    /// What we emit for an imported board is a profile the check can read.
+    #[test]
+    fn our_own_profile_is_usable() -> Result<()> {
+        let imported = import(BARE, None, None)?;
+        let set = fabrication::generate(
+            &fabrication::ProductionSnapshot::resolve(imported.engine.project(), None)?,
+            &FabricationOptions::default(),
+            &Default::default(),
+        )?;
+        let ours: Vec<File> = set
+            .files
+            .iter()
+            .map(|f| File {
+                name: f.name.clone(),
+                bytes: f.bytes.clone(),
+            })
+            .collect();
+        let (text, ok) = outline(&ours, &ours)?;
+        assert!(ok, "{text}");
+        Ok(())
+    }
 }

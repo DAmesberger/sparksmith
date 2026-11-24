@@ -1,5 +1,6 @@
-//! The written files read back and rasterised, against the core's own
-//! geometry rendered independently (`expected`): every copper layer, both
+//! The written files read back and rasterised, against the point oracle's
+//! image (`expected`), and measured object by object against formulas and
+//! counts (`second`), which share nothing with it: every copper layer, both
 //! masks and pastes, the profile and both drill files, at 10 µm pixels,
 //! for the showcase, a sketched board with arcs, a cutout, slots and
 //! mounting holes, and a 10,000-via plane. Format details are checked on
@@ -445,10 +446,10 @@ fn sketched() -> Fallible<Project> {
             result_hash: String::new(),
         },
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
     refill(&mut p)?;
     Ok(p)
@@ -479,6 +480,9 @@ fn the_showcase_layers_match_the_core_geometry() -> Fallible<()> {
         set.files.iter().map(|f| f.bytes.len()).sum::<usize>(),
         start.elapsed()
     );
+    // The same files by another method: places, areas and counts.
+    let second = super::second::disagreements(&project, &set)?;
+    assert!(second.is_empty(), "{second:#?}");
     let rows = compare_all(&project, &set, "showcase")?;
     // 4 copper, 2 masks, 2 pastes, profile and two drill comparisons.
     assert_eq!(rows.len(), 4 + 2 + 2 + 1 + 2);
@@ -532,6 +536,8 @@ fn a_sketched_board_with_arcs_cutouts_slots_and_holes_matches() -> Fallible<()> 
         &FabricationOptions::default(),
         &Default::default(),
     )?;
+    let second = super::second::disagreements(&project, &set)?;
+    assert!(second.is_empty(), "{second:#?}");
     compare_all(&project, &set, "sketched")?;
     // The plated slot is routed in the plated drill file, not the profile.
     let plated = excellon_reader::parse(text(&set, "-plated.drl")?)?;

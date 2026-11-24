@@ -109,7 +109,9 @@ pub struct Workflow {
     /// `show`, `edit` and `ask`.
     #[schemars(with = "BTreeMap<String, String>")]
     pub reach: BTreeMap<String, Class>,
-    pub budget: Budget,
+    /// What a run may use at most; none: only the person's limits hold it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget: Option<Budget>,
     /// The inputs a person (or an offer) gives, by name.
     pub inputs: BTreeMap<String, Input>,
     /// The answer shapes of its model steps, by name.
@@ -142,18 +144,49 @@ pub struct Need {
     pub minor: u16,
 }
 
-/// What a run may use. A run gets the smaller of this and the limits in
-/// Settings.
+/// What a run may use, when its workflow declares it. A run gets the
+/// smaller of this and the limits in Settings.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Budget {
     /// Model requests.
     pub requests: u32,
     pub output_tokens: u64,
-    /// Prompt plus output tokens; Settings' limit when absent.
+    /// Prompt plus output tokens; only Settings' limit when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<u64>,
     pub minutes: u32,
+}
+
+impl Budget {
+    fn check(&self, out: &mut Vec<Problem>) {
+        if !(1..=MAX_REQUESTS).contains(&self.requests) {
+            out.push(problem(
+                "/budget/requests",
+                format!("from 1 to {MAX_REQUESTS}"),
+            ));
+        }
+        if !(1..=MAX_OUTPUT_TOKENS).contains(&self.output_tokens) {
+            out.push(problem(
+                "/budget/output_tokens",
+                format!("from 1 to {MAX_OUTPUT_TOKENS}"),
+            ));
+        }
+        if let Some(total) = self.total_tokens
+            && !(self.output_tokens..=MAX_TOTAL_TOKENS).contains(&total)
+        {
+            out.push(problem(
+                "/budget/total_tokens",
+                format!("from output_tokens to {MAX_TOTAL_TOKENS}"),
+            ));
+        }
+        if !(1..=MAX_MINUTES).contains(&self.minutes) {
+            out.push(problem(
+                "/budget/minutes",
+                format!("from 1 to {MAX_MINUTES}"),
+            ));
+        }
+    }
 }
 
 /// What an input holds.
@@ -674,32 +707,8 @@ impl Workflow {
                 ));
             }
         }
-        let budget = &self.budget;
-        if !(1..=MAX_REQUESTS).contains(&budget.requests) {
-            out.push(problem(
-                "/budget/requests",
-                format!("from 1 to {MAX_REQUESTS}"),
-            ));
-        }
-        if !(1..=MAX_OUTPUT_TOKENS).contains(&budget.output_tokens) {
-            out.push(problem(
-                "/budget/output_tokens",
-                format!("from 1 to {MAX_OUTPUT_TOKENS}"),
-            ));
-        }
-        if let Some(total) = budget.total_tokens
-            && !(budget.output_tokens..=MAX_TOTAL_TOKENS).contains(&total)
-        {
-            out.push(problem(
-                "/budget/total_tokens",
-                format!("from output_tokens to {MAX_TOTAL_TOKENS}"),
-            ));
-        }
-        if !(1..=MAX_MINUTES).contains(&budget.minutes) {
-            out.push(problem(
-                "/budget/minutes",
-                format!("from 1 to {MAX_MINUTES}"),
-            ));
+        if let Some(budget) = &self.budget {
+            budget.check(out);
         }
     }
 
@@ -875,12 +884,13 @@ impl Workflow {
                             "a model step names its answer's shape",
                         )),
                     }
+                    let most = self.budget.as_ref().map_or(MAX_REQUESTS, |b| b.requests);
                     if let Some(requests) = step.requests
-                        && !(1..=self.budget.requests).contains(&requests)
+                        && !(1..=most).contains(&requests)
                     {
                         out.push(problem(
                             format!("{at}/requests"),
-                            "from 1 to the workflow's budget",
+                            format!("from 1 to {most}"),
                         ));
                     }
                     self.check_rule(out, &at, n, step);

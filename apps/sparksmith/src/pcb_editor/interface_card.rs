@@ -857,6 +857,15 @@ impl PcbEditor {
         self.interface_done(ctx, done)
     }
 
+    /// A linked design just read for the open document: `operation` is
+    /// what its record applies (tests).
+    #[cfg(test)]
+    pub(crate) fn stage_link(&mut self, operation: Operation) {
+        let (sender, running) = Running::pending();
+        let _ = sender.send(Done::AssemblyRead(Ok(operation)));
+        self.interface.linking = Some(running);
+    }
+
     /// Let the open review wait on `running` (tests).
     #[cfg(test)]
     pub(super) fn interface_hold(&mut self, running: Running) {

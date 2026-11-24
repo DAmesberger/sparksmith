@@ -92,7 +92,9 @@ pub struct MountingHoleRole {
     pub pad_diameter: Option<Expr>,
 }
 
-/// The solved shape: what checks, fills, 2D and 3D read.
+/// A valid solve of the board, whole: its shape and the parameter values
+/// that gave it. Checks, fills, 2D, 3D, exports and the interface read it;
+/// it is replaced whole by the next valid solve, or kept whole.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SolvedBoard {
@@ -109,6 +111,12 @@ pub struct SolvedBoard {
     pub holes: Vec<SolvedMountingHole>,
     /// Every named edge's solved segment.
     pub edges: Vec<SolvedEdge>,
+    /// Each board parameter's value in this solve, as the host evaluated it
+    /// (the core reads no expression). Exactly one per parameter of a
+    /// current solve ([`BoardSketch::current`]); an earlier one keeps the
+    /// values its shape was solved with. Empty for
+    /// a plain rectangle.
+    pub values: Vec<ParameterValue>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -184,7 +192,16 @@ impl SolvedBoard {
             cutouts: Vec::new(),
             holes: Vec::new(),
             edges,
+            values: Vec::new(),
         }
+    }
+
+    /// The value the board parameter `name` has in this solve.
+    pub fn value(&self, name: &ParamName) -> Option<ParamValue> {
+        self.values
+            .iter()
+            .find(|v| v.name == *name)
+            .map(|v| v.value)
     }
 
     pub fn edge(&self, name: &EdgeName) -> Option<&SolvedEdge> {
@@ -321,14 +338,17 @@ pub fn flatten(outline: &Outline, tolerance: f64) -> Vec<Point> {
 }
 
 /// The parametric board: SolidCraft's sketch, its parameters, the roles
-/// of its loops and curves, and the last solve.
+/// of its loops and curves, as the person edits them; how the last attempt
+/// to solve them went ([`Self::solve`], [`Self::fault`], [`Self::idle`]);
+/// and the last valid solve ([`Self::solved`]).
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct BoardSketch {
     pub evaluator: EvaluatorRef,
     pub sketch: SketchBlob,
-    /// Board parameters (`width`, `height`, `corner_r`); dimensions bind
-    /// to them through SolidCraft's own `Constraint.param`.
+    /// Board parameters (`width`, `height`, `corner_r`) as the person typed
+    /// them, also while the outline is invalid; dimensions bind to them
+    /// through SolidCraft's own `Constraint.param`.
     pub parameters: Vec<FootprintParam>,
     /// Slot roles of inner loops. The outline itself is no list: it is the
     /// sketch's one closed region (docs/board-sketch-references.md §5.1).
@@ -339,28 +359,45 @@ pub struct BoardSketch {
     pub edges: Vec<NamedEdge>,
     /// Next [`BoardFeatureId`].
     pub next_feature: u32,
+    /// How the last attempt solved: its status and freedom. Its
+    /// `result_hash` is of `solved`.
     pub solve: SolveSummary,
-    /// The shape the last valid solve produced; `Project::board_size` holds
-    /// its bounding box.
+    /// The last valid solve, its shape and its parameter values;
+    /// `Project::board_size` holds its bounding box.
     pub solved: SolvedBoard,
-    /// The arc-fit tolerance `solved` was made with, mm: the effective
+    /// Whether `solved` is of the last attempt, so of the sketch and
+    /// parameters as they are now; `false` while the last attempt gave no
+    /// valid outline and `solved` is an earlier one, whole.
+    pub current: bool,
+    /// The arc-fit tolerance of the last attempt, mm: the effective
     /// `board.outline_fit` rule (`layout::outline::validate` keeps the two
     /// equal; changing the rule re-solves the board).
     pub outline_fit: f64,
-    /// Why the sketch's curves are not a board now (open ends, a crossing,
-    /// a touching hole); `solved` is then the last valid shape.
+    /// What is wrong with the curves of the last attempt (open ends, a
+    /// crossing, a touching hole). With [`Self::current`] it is a stray open
+    /// line beside a closed outline; else the attempt gave no outline.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fault: Option<ShapeFault>,
     /// Board parameters that drive sketch dimensions but move no outline
-    /// curve or mounting hole (`board.param_idle`), as the last solve found
-    /// them.
+    /// curve or mounting hole (`board.param_idle`), as the last attempt
+    /// found them; none are looked for with a fault.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub idle: Vec<ParamName>,
-    /// Each board parameter's value as the host evaluated the parameters
-    /// for the last solve, so what reads a parameter without the host (an
-    /// exported board parameter, `interface::list`) has it, of an
-    /// expression over other parameters too.
-    pub values: Vec<ParameterValue>,
+}
+
+impl BoardSketch {
+    /// Why the outline is not valid now, as a sentence: [`Self::solved`] is
+    /// then not what the sketch and parameters say, and the interface and the
+    /// native model are not written until it is. `None` for a valid outline.
+    pub fn invalid(&self) -> Option<&str> {
+        if self.current {
+            return None;
+        }
+        Some(match &self.fault {
+            Some(fault) => fault.message.as_str(),
+            None => "The board sketch does not solve.",
+        })
+    }
 }
 
 /// A board parameter's evaluated value, in the parameter's own unit.
@@ -410,6 +447,14 @@ pub enum BoardShape {
 impl BoardShape {
     pub fn is_rectangle(&self) -> bool {
         matches!(self, Self::Rectangle)
+    }
+
+    /// Why the outline is not valid now ([`BoardSketch::invalid`]).
+    pub fn invalid(&self) -> Option<&str> {
+        match self {
+            Self::Rectangle => None,
+            Self::Sketch(sketch) => sketch.invalid(),
+        }
     }
 }
 

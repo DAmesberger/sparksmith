@@ -1522,8 +1522,8 @@ fn permissions(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, 
 }
 
 /// The person's own limits on model runs: off by default, so the chat can
-/// build a whole board; a workflow brings its own budget, held within
-/// these when they are on.
+/// build a whole board and a workflow finish; a budget a workflow of the
+/// person's own declares is held within these when they are on.
 fn limits(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, shipped: &Shipped) {
     use workflow::{MAX_MINUTES, MAX_OUTPUT_TOKENS, MAX_REQUESTS, MAX_TOTAL_TOKENS};
     let mut on = settings.limits.is_some();
@@ -1536,8 +1536,8 @@ fn limits(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, shipp
     let Some(mut l) = settings.limits else {
         kit::hint(
             ui,
-            "No limit: the chat runs until it is done or you stop it",
-            "A workflow brings its own budget (the datasheet workflow: its requests and minutes). Turn this on to hold every run, the chat's and the workflows', within your own limits.",
+            "No limit: a run goes on until it is done or you stop it",
+            "The built-in workflows declare no budget; a workflow of your own may. Turn this on to hold every run, the chat's and the workflows', within your own limits.",
         );
         return;
     };
@@ -1561,7 +1561,7 @@ fn limits(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, shipp
     kit::hint(
         ui,
         "A model run stops at the first of these it reaches",
-        "All tokens counts prompt and output. A workflow's budget is held within these, never above. An agent's tokens are its own; its time still holds.",
+        "All tokens counts prompt and output. A budget a workflow declares is held within these, never above. An agent's tokens are its own; its time still holds.",
     );
     if l != before {
         let mut next = settings.clone();

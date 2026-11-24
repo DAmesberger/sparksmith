@@ -52,6 +52,10 @@ pub struct InterfaceList {
     /// Datums added, changed or retired since then ("3 datums changed
     /// since revision 14").
     pub changed: usize,
+    /// Why publishing would be refused, as [`PublishPreview::blocked`]. With
+    /// an invalid outline the datums are of the board's last valid solve.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocked: Vec<String>,
 }
 
 /// How one datum changes from the last published revision to the
@@ -155,9 +159,9 @@ pub struct PublishPreview {
     pub tier: Tier,
     /// Every live or newly retired datum, in slot order.
     pub changes: Vec<DatumChange>,
-    /// Why the publish would be refused: each broken reference between the
-    /// board and the linked design, in the user's words. Publishing waits
-    /// until they are resolved; nothing else does.
+    /// Why the publish would be refused: an invalid board outline, and each
+    /// broken reference between the board and the linked design, in the
+    /// user's words. Publishing waits until they are resolved.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocked: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

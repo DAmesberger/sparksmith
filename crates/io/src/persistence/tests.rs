@@ -739,3 +739,46 @@ fn saving_through_absolute_and_relative_links_keeps_the_link_and_both_writers() 
     }
     Ok(())
 }
+
+/// The names in `dir`, sorted.
+fn names(dir: &Path) -> Result<Vec<String>> {
+    let mut names = std::fs::read_dir(dir)?
+        .map(|entry| Ok(entry?.file_name().to_string_lossy().into_owned()))
+        .collect::<Result<Vec<_>>>()?;
+    names.sort();
+    Ok(names)
+}
+
+/// A set of new files is published whole or not at all: whichever file is
+/// taken meanwhile, the ones already placed are removed again, the taken
+/// one is untouched and no staging folder stays. A set dropped before it
+/// is published leaves nothing either.
+#[test]
+fn a_set_of_new_files_is_published_whole_or_not_at_all() -> Result<()> {
+    let files = ["a.json", "a.md", "a.sparksmith"];
+    let staged = |dir: &Path| -> Result<NewSet> {
+        let mut set = NewSet::beside(&dir.join("a.sparksmith"))?;
+        for file in files {
+            std::fs::write(set.stage(&dir.join(file))?, b"ours")?;
+        }
+        Ok(set)
+    };
+    for taken in files {
+        let dir = tempfile::tempdir()?;
+        let set = staged(dir.path())?;
+        std::fs::write(dir.path().join(taken), b"theirs")?;
+        let refused = set.publish().err().map(|e| e.to_string());
+        assert!(
+            refused.as_ref().is_some_and(|e| e.contains(taken)),
+            "{refused:?}"
+        );
+        assert_eq!(names(dir.path())?, [taken]);
+        assert_eq!(std::fs::read(dir.path().join(taken))?, b"theirs");
+    }
+    let dir = tempfile::tempdir()?;
+    drop(staged(dir.path())?);
+    assert!(names(dir.path())?.is_empty());
+    staged(dir.path())?.publish()?;
+    assert_eq!(names(dir.path())?, files);
+    Ok(())
+}

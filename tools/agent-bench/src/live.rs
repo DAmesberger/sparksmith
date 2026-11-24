@@ -68,10 +68,10 @@ impl Operator {
             wire,
         ));
         let budget = Budget {
-            max_requests: self.requests,
-            max_total_tokens: self.cumulative_tokens,
-            max_output_tokens: self.cumulative_output_tokens,
-            max_duration: Duration::from_secs(self.seconds),
+            max_requests: Some(self.requests),
+            max_total_tokens: Some(self.cumulative_tokens),
+            max_output_tokens: Some(self.cumulative_output_tokens),
+            max_duration: Some(Duration::from_secs(self.seconds)),
         };
         let run = std::path::absolute(dir)?.to_string_lossy().into_owned();
         let backend = Box::new(Paid {
