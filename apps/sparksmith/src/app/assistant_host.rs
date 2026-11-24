@@ -25,7 +25,7 @@ use crate::assistant::{
 };
 use crate::kit::severity::Level;
 use serde_json::{Value, json};
-use sparksmith_assist::chat::{self, ChatConfig, End, Outcome, ReachProfile};
+use sparksmith_assist::chat::{ChatConfig, End, Outcome, ReachProfile};
 use sparksmith_assist::desk::{self, Called};
 use sparksmith_assist::model::{Connection, KeySource, Message, Part, Provider};
 use sparksmith_assist::settings::{self as ai, AssistSettings, Limits, Permissions, Rule, Shipped};
@@ -485,7 +485,7 @@ impl App {
         self.assistant.permissions = Some(permissions);
         // The person's limits when they set any; else none.
         self.assistant.conversation.limits = limits;
-        let budget = ai::run_budget(limits.as_ref(), None).unwrap_or_else(chat::unbounded);
+        let budget = ai::run_budget(limits.as_ref());
         let (grant, _) = match self.chat_grant() {
             Ok(both) => both,
             Err(why) => {

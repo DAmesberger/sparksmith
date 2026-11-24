@@ -496,13 +496,13 @@ pub fn progress(ui: &mut Ui, step: &str, done: u32, total: u32, can_stop: bool) 
     stop
 }
 
-/// One limit of the meter and how much of it is used.
+/// One figure of the meter: how much is used, and its limit when there is one.
 #[derive(Clone, Copy, Debug)]
 pub struct GaugeRow<'a> {
     /// "requests", "tokens", "min".
     pub unit: &'a str,
     pub used: u64,
-    pub limit: u64,
+    pub limit: Option<u64>,
 }
 
 /// A count the way the meter shows it: `61 k` past ten thousand, else whole.
@@ -516,16 +516,22 @@ pub fn short_count(n: u64) -> String {
     }
 }
 
-/// The meter's line: "14 of 40 requests · 61 k of 200 k tokens · 6 of 45 min". No prices.
+/// The meter's line: "14 of 40 requests · 61 k of 200 k tokens · 6 of 45 min", and without
+/// limits "14 requests · 61 k tokens · 6 min". No prices.
 pub fn meter_line(gauges: &[GaugeRow<'_>]) -> String {
-    gauges.iter().map(|g| format!("{} of {} {}", short_count(g.used), short_count(g.limit), g.unit)).collect::<Vec<_>>().join(" · ")
+    let figure = |g: &GaugeRow<'_>| match g.limit {
+        Some(limit) => format!("{} of {} {}", short_count(g.used), short_count(limit), g.unit),
+        None if g.used == 1 => format!("1 {}", g.unit.trim_end_matches('s')),
+        None => format!("{} {}", short_count(g.used), g.unit),
+    };
+    gauges.iter().map(figure).collect::<Vec<_>>().join(" · ")
 }
 
-/// `meter`: requests, tokens and minutes against the run's limits; a limit reached is in the
-/// error ink.
+/// `meter`: requests, tokens and minutes, against the run's limits when it has any; a limit
+/// reached is in the error ink.
 pub fn meter(ui: &mut Ui, gauges: &[GaugeRow<'_>]) -> Response {
     let t = Tokens::get();
-    let full = gauges.iter().any(|g| g.limit > 0 && g.used >= g.limit);
+    let full = gauges.iter().any(|g| g.limit.is_some_and(|limit| limit > 0 && g.used >= limit));
     let ink = if full { t.form_error } else { t.form_dim };
     ui.add(egui::Label::new(RichText::new(meter_line(gauges)).size(t.font_small).color(ink)).wrap())
 }

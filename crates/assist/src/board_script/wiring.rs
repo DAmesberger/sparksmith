@@ -41,7 +41,7 @@ pub fn placed() -> std::result::Result<Placed, Box<dyn std::error::Error>> {
     let config = ChatConfig::new(
         &library,
         ModelProfile::anthropic("claude-opus-5-5"),
-        chat::unbounded(),
+        crate::model::Budget::default(),
     )?;
     let mut session = fresh()?;
     let grant = library.reach.grant();

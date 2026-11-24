@@ -5,10 +5,11 @@
 //! the fitted body is applied without asking and the model's generator
 //! choice stands. The footprint is kept. The result is saved as a new
 //! project at `--out` with the review report beside it (`.review.json`,
-//! `.review.md`); a run that makes no body writes nothing and says why.
-//! The model flags, `--record` and `--replay` are `design-part`'s.
-use super::Result;
+//! `.review.md`), also when it ends early; a run that makes no body says
+//! so, and one that asked the model nothing writes nothing. Ctrl-C ends it
+//! like the app's Stop. The model flags, `--record` and `--replay` are `design-part`'s.
 use super::design_part::{Console, ModelFlags, connect, installed_workflow};
+use super::{Result, interrupt};
 use serde_json::Value;
 use sparksmith_assist::Datasheet;
 use sparksmith_assist::model::ModelBackend;
@@ -17,7 +18,6 @@ use sparksmith_assist::workflow::event::RunEnd;
 use sparksmith_assist::workflow::runner::{self, WorkflowRun};
 use sparksmith_core::product::SHORT_NAME as CLI;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 
 pub const USAGE: &str =
     "design-body --project FILE.sparksmith --designator REF --datasheet PDF [--datasheet …]
@@ -139,7 +139,7 @@ pub fn run(args: &[String]) -> Result<()> {
         backend.as_mut(),
         &mut session,
         &mut Console::default(),
-        &AtomicBool::new(false),
+        &interrupt::stop_on_ctrl_c()?,
     )?;
     let review = outcome.review(&session);
     let facts = &review.facts;
@@ -152,23 +152,31 @@ pub fn run(args: &[String]) -> Result<()> {
         facts.output_tokens,
         facts.elapsed_seconds
     );
-    if !outcome.results.contains_key("apply") {
-        return Err(format!(
+    let no_body = (!outcome.results.contains_key("apply")).then(|| {
+        format!(
             "no body was made ({cost}): {}",
             match &outcome.end {
                 RunEnd::Done => "the run ended without applying one".to_owned(),
                 other => format!("{other:?}"),
             }
         )
-        .into());
+    });
+    if let Some(path) = &record {
+        eprintln!("recording: {}", path.display());
     }
-    let [_, written] = sparksmith_assist::write_outputs(&mut session, &args.out, &review)?;
-    eprintln!(
-        "{}: {cost}; saved to {} (review {})",
-        review.stop,
-        args.out.display(),
-        written.display()
-    );
+    // What the model worked out is kept, unless it was never asked.
+    if no_body.is_none() || facts.requests > 0 {
+        let [_, written] = sparksmith_assist::write_outputs(&mut session, &args.out, &review)?;
+        eprintln!(
+            "{}: {cost}; saved to {} (review {})",
+            review.stop,
+            args.out.display(),
+            written.display()
+        );
+    }
+    if let Some(why) = no_body {
+        return Err(why.into());
+    }
     if review.report.is_none() {
         return Err(format!("no accepted review report: {}", review.stop).into());
     }

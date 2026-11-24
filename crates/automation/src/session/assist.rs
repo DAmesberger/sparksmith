@@ -256,6 +256,15 @@ impl Session {
         std::mem::replace(&mut self.assist.documents, documents)
     }
 
+    /// The working pinout documents, by handle.
+    pub fn working_pinouts(&self) -> Map<String, Value> {
+        self.assist
+            .working
+            .iter()
+            .map(|(handle, w)| (handle.clone(), Value::Object(w.pinout.clone())))
+            .collect()
+    }
+
     /// Lend the session the workflows a host offers, for
     /// `assist.workflows`; `None` takes them back.
     pub fn lend_workflows(&mut self, workflows: Option<Vec<Listed>>) {

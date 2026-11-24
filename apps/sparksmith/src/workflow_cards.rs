@@ -109,7 +109,7 @@ enum Item {
         title: String,
         version: String,
         steps: Vec<(String, String, cards::StepState, String)>,
-        meter: Option<[(u64, u64); 3]>,
+        meter: Option<[(u64, Option<u64>); 3]>,
         ended: Option<RunEnd>,
     },
     Inputs {

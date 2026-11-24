@@ -78,6 +78,11 @@ pub struct RunFacts {
     pub drafts: Vec<(u64, String, String)>,
     /// Finding codes per draft (blocking ones marked `!`).
     pub findings: Vec<(u64, Vec<String>)>,
+    /// What a run that ended early had worked out beside its drafts: each
+    /// model step's accepted answer by step id, and the working pinout
+    /// documents by handle (`unfinished.pinouts`).
+    #[serde(default, skip_serializing_if = "Unfinished::is_empty")]
+    pub unfinished: Unfinished,
     /// Operations applied, in order (tool and outcome).
     pub steps: Vec<String>,
     /// Each request: why it stopped, its tokens and tool calls.
@@ -89,6 +94,21 @@ pub struct RunFacts {
     /// The component draft's pin rules over their samples.
     #[serde(default)]
     pub rules: Vec<sparksmith_core::functions::rules::RuleCheck>,
+}
+
+/// The work of a run that ended before its last step.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct Unfinished {
+    #[serde(default)]
+    pub answers: serde_json::Map<String, Value>,
+    #[serde(default)]
+    pub pinouts: serde_json::Map<String, Value>,
+}
+
+impl Unfinished {
+    pub fn is_empty(&self) -> bool {
+        self.answers.is_empty() && self.pinouts.is_empty()
+    }
 }
 
 /// One request of a run.
@@ -193,6 +213,20 @@ pub fn markdown(report: Option<&ReviewReport>, facts: &RunFacts) -> String {
         "Run: model `{}`{via}, {} requests in {:.0} s; stopped: {}.\n",
         facts.model, facts.requests, facts.elapsed_seconds, facts.stop
     );
+    if !facts.unfinished.is_empty() {
+        let _ = writeln!(
+            s,
+            "Unfinished: the steps answered so far ({}) and {} working pinout document(s) are in the `.review.json` beside this file, under `run.unfinished`.\\n",
+            facts
+                .unfinished
+                .answers
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", "),
+            facts.unfinished.pinouts.len()
+        );
+    }
     let estimated = if facts.usage_estimated {
         " Estimated from the characters where the server reported no counts."
     } else {

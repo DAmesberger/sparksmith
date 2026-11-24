@@ -103,7 +103,7 @@ fn summary_requests_share_the_turn_budget_and_usage() -> Fallible {
     let mut config = config()?;
     config.policy.trigger = 0.10;
     config.policy.target = 0.05;
-    config.budget.max_requests = 1;
+    config.budget.max_requests = Some(1);
     let mut model = Script::new([text("Summary."), text("Answer.")]);
     let mut history = summary_history();
     let mut tools = Recorder {
@@ -166,7 +166,7 @@ fn summary_output_uses_the_same_remaining_token_budget() -> Fallible {
     let mut config = config()?;
     config.policy.trigger = 0.10;
     config.policy.target = 0.05;
-    config.budget.max_output_tokens = 10;
+    config.budget.max_output_tokens = Some(10);
     let mut model = Script::new([text("Summary."), text("Answer.")]);
     let mut history = summary_history();
     let mut tools = Recorder {
@@ -244,7 +244,7 @@ fn cancelled_summary_counts_usage_but_does_not_replace_history() -> Fallible {
 fn late_replies_are_counted_without_using_answers_or_summaries() -> Fallible {
     for summary in [false, true] {
         let mut config = config()?;
-        config.budget.max_duration = std::time::Duration::from_secs(2);
+        config.budget.max_duration = Some(std::time::Duration::from_secs(2));
         if summary {
             config.policy.trigger = 0.10;
             config.policy.target = 0.05;
@@ -556,7 +556,7 @@ fn stop_between_calls_leaves_the_rest_unrun_and_the_history_answered() -> Fallib
 #[test]
 fn a_turn_stops_at_its_request_limit_and_a_failed_backend_says_why() -> Fallible {
     let mut config = config()?;
-    config.budget.max_requests = 1;
+    config.budget.max_requests = Some(1);
     let mut model = Script::new([calls(vec![call("a", "find", json!({"text": "via"}))])]);
     let mut history = Vec::new();
     let mut tools = Recorder {
@@ -579,7 +579,7 @@ fn a_turn_stops_at_its_request_limit_and_a_failed_backend_says_why() -> Fallible
             why: "1 requests".into()
         }
     );
-    config.budget.max_requests = 5;
+    config.budget.max_requests = Some(5);
     let outcome = turn(
         &config,
         &mut model,

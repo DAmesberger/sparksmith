@@ -37,7 +37,7 @@ fn build(policy: Policy) -> Fallible<Built> {
     let mut config = ChatConfig::new(
         &library,
         crate::model::ModelProfile::anthropic("claude-opus-5-5"),
-        unbounded(),
+        Budget::default(),
     )?;
     config.policy = policy;
     let mut session = fresh()?;

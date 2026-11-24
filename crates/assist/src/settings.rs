@@ -322,9 +322,9 @@ pub struct Permissions {
 }
 
 /// Limits the person may set on every model run, hosted or local. Unset
-/// by default, so the chat can build a whole board; a workflow brings its
-/// own budget ([`crate::workflow::Budget`]), held within these when set
-/// ([`run_budget`]). There are no per-turn caps on edits or calls.
+/// by default, so a run goes on until it is done or stopped; the budget a
+/// workflow declares ([`crate::workflow::Budget`]) is held within these
+/// when set. There are no per-turn caps on edits or calls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Limits {
@@ -354,64 +354,22 @@ impl Limits {
         Ok(())
     }
 
-    /// `budget` held within these limits.
-    pub fn cap(&self, budget: Budget) -> Budget {
+    /// These limits as a run's.
+    fn budget(&self) -> Budget {
         Budget {
-            max_requests: budget.max_requests.min(self.requests),
-            max_output_tokens: budget.max_output_tokens.min(self.output_tokens),
-            max_total_tokens: budget.max_total_tokens.min(self.total_tokens),
-            max_duration: budget
-                .max_duration
-                .min(Duration::from_secs(u64::from(self.minutes) * 60)),
+            max_requests: Some(self.requests),
+            max_output_tokens: Some(self.output_tokens),
+            max_total_tokens: Some(self.total_tokens),
+            max_duration: Some(Duration::from_secs(u64::from(self.minutes) * 60)),
         }
     }
 }
 
-/// A model run's budget: a workflow's own, held within the person's
-/// limits when they are set; the person's limits alone for a run with no
-/// budget of its own (the chat); none when neither is set, so the chat
-/// runs until it is done or stopped. A workflow budget without a total
-/// token figure takes the format's bound.
-pub fn run_budget(
-    limits: Option<&Limits>,
-    workflow: Option<&crate::workflow::Budget>,
-) -> Option<Budget> {
-    let own = workflow.map(|w| Budget {
-        max_requests: w.requests,
-        max_output_tokens: w.output_tokens,
-        max_total_tokens: w.total_tokens.unwrap_or(crate::workflow::MAX_TOTAL_TOKENS),
-        max_duration: Duration::from_secs(u64::from(w.minutes) * 60),
-    });
-    match (own, limits) {
-        (Some(own), Some(limits)) => Some(limits.cap(own)),
-        (Some(own), None) => Some(own),
-        (None, Some(limits)) => Some(Budget {
-            max_requests: limits.requests,
-            max_output_tokens: limits.output_tokens,
-            max_total_tokens: limits.total_tokens,
-            max_duration: Duration::from_secs(u64::from(limits.minutes) * 60),
-        }),
-        (None, None) => None,
-    }
-}
-
-/// The budget the shipped workflow `id` declares, read from its
-/// `workflow.json` and checked by the format's rules.
-pub fn workflow_budget(shipped: &ShippedLibrary, id: &str) -> Result<crate::workflow::Budget> {
-    let name = format!(
-        "{}/{id}/{}",
-        crate::workflow::load::FOLDER,
-        crate::workflow::WORKFLOW_FILE
-    );
-    let origin = shipped.shelf(Shelf::Assist).join(&name);
-    let bytes = shipped
-        .read(Shelf::Assist, &name, crate::workflow::load::MAX_FILE_BYTES)
-        .map_err(|e| Error::Config(format!("{}: {e}", origin.display())))?;
-    let text = String::from_utf8(bytes)
-        .map_err(|_| Error::Config(format!("{}: not UTF-8 text", origin.display())))?;
-    let workflow = crate::workflow::Workflow::parse(&text, &origin.display().to_string())
-        .map_err(Error::Config)?;
-    Ok(workflow.budget)
+/// A model run's limits: the person's, or none. A workflow run is held
+/// within these and its workflow's own budget
+/// ([`crate::workflow::runner::budget`]).
+pub fn run_budget(limits: Option<&Limits>) -> Budget {
+    limits.map(Limits::budget).unwrap_or_default()
 }
 
 /// A person's Settings › AI, as stored.

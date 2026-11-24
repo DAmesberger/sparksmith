@@ -34,12 +34,12 @@ const MAX_NUDGES: u32 = 2;
 const MAX_CUTS_IN_A_ROW: u32 = 3;
 /// Least room for output worth sending a request: a tool call took 806 tokens
 /// on a local model, reasoning included, and even that was a simple one.
-const MIN_OUTPUT_ROOM: u64 = 4_000;
+pub(crate) const MIN_OUTPUT_ROOM: u64 = 4_000;
 /// Characters of one tool result sent back; longer results are cut with a
 /// note (the model can ask for a narrower view).
 pub const MAX_RESULT_CHARS: usize = 120_000;
 /// Added to the estimate of the next prompt.
-const ESTIMATE_MARGIN: u64 = 4_000;
+pub(crate) const ESTIMATE_MARGIN: u64 = 4_000;
 
 /// What a run may use, on which model.
 #[derive(Clone, Debug)]
@@ -60,8 +60,8 @@ pub struct RunConfig {
 
 impl RunConfig {
     /// A run of `profile` with the run profile it selects from `shipped`
-    /// and the user's profile `folder`, the default budget and policy. The
-    /// profile's declarations are set on the model.
+    /// and the user's profile `folder`, and no limits. The profile's
+    /// declarations are set on the model.
     pub fn new(
         shipped: &AssistLibrary,
         mut profile: ModelProfile,
@@ -178,6 +178,7 @@ fn dispatch_tool_call(
     input: &Value,
     malformed: Option<&str>,
     harness: &crate::harness::HarnessProfile,
+    reply_chars: usize,
 ) -> (String, ToolOutcome) {
     if let Some(why) = malformed {
         return (
@@ -271,10 +272,9 @@ fn dispatch_tool_call(
         )
     });
     integers_as_text(&mut result);
-    let text =
-        harness
-            .reply_strategy()
-            .render(verb, &arguments, result, harness.policy().reply_chars);
+    let text = harness
+        .reply_strategy()
+        .render(verb, &arguments, result, reply_chars);
     (
         label,
         ToolOutcome::Reply {
@@ -560,8 +560,8 @@ pub(crate) struct Conversation<'a> {
     pub(crate) first_estimate: u64,
     /// The datasheets' tokens in the prompt, for the truncation warning.
     pub(crate) document_tokens: u64,
-    /// The conversation stops before the tally reaches this many requests.
-    pub(crate) max_requests: u32,
+    /// The conversation stops once the tally reaches this many requests.
+    pub(crate) max_requests: Option<u32>,
 }
 
 /// What drives conversations, shared by a workflow's model steps: the
@@ -635,8 +635,10 @@ pub(crate) fn converse(
             Ok(allowance) => allowance,
             Err(stop) => break stop.into(),
         };
-        if allowance.output < u64::from(limit) {
-            break Stop::Budget(format!("{} output tokens", budget.max_output_tokens));
+        if let (Some(left), Some(max)) = (allowance.output, budget.max_output_tokens)
+            && left < u64::from(limit)
+        {
+            break Stop::Budget(format!("{max} output tokens"));
         }
         // Near the context's end, earlier tool replies give way to stubs
         // naming their calls, as in the chat (`chat::context::condense`):
@@ -680,7 +682,7 @@ pub(crate) fn converse(
             tools: specs,
             messages: &messages,
             max_output_tokens: limit,
-            timeout: profile.request_timeout.min(allowance.duration),
+            timeout: allowance.timeout_within(profile.request_timeout),
         };
         let prompt_tokens = if first {
             // Count exactly when the backend can; otherwise the estimate.
@@ -817,7 +819,9 @@ pub(crate) fn converse(
             break Stop::Ended;
         }
         let mut results = Vec::new();
+        let mut left = calls.len();
         for (call, (id, name, mut input, malformed)) in (0u32..).zip(calls) {
+            left -= 1;
             let logged = facts.request_log.last_mut();
             let row = |state| Event::Call {
                 request: n,
@@ -858,8 +862,24 @@ pub(crate) fn converse(
             events(row(CallState::Running {
                 input: input.clone(),
             }));
-            let (label, outcome) =
-                dispatch_tool_call(driver.context, &name, &input, malformed.as_deref(), harness);
+            // What the server counted, and what came since: this round's
+            // replies and, for the calls after this one, their notes.
+            let used = last_prompt
+                .saturating_add(crate::usage::estimated_tokens(
+                    appended.saturating_add(appended_chars(&results)),
+                ))
+                .saturating_add(ESTIMATE_MARGIN)
+                .saturating_add(crate::chat::Policy::notes_tokens(left));
+            let (label, outcome) = dispatch_tool_call(
+                driver.context,
+                &name,
+                &input,
+                malformed.as_deref(),
+                harness,
+                harness
+                    .policy()
+                    .reply_limit(profile.capabilities.context_tokens, used),
+            );
             if let Some(r) = logged {
                 let failed = matches!(outcome, ToolOutcome::Reply { error: true, .. });
                 r.tools.push(if failed {

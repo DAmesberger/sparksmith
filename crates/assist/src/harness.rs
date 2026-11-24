@@ -2,7 +2,7 @@
 //! conversation history. Profiles describe presentation only.
 use crate::{
     Error, Result,
-    chat::{Condensed, Policy, context},
+    chat::{Condensed, Policy, context, context::ReplyContext},
     model::Message,
 };
 use serde::Deserialize;
@@ -63,6 +63,9 @@ pub(crate) enum ReplyStrategy {
 struct ReplyShape {
     strategy: ReplyStrategy,
     reply_chars: usize,
+    /// What the model's context leaves room for, within `reply_chars`.
+    #[serde(default)]
+    context: Option<ReplyContext>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
@@ -200,6 +203,22 @@ impl HarnessProfile {
         }
         for (field, valid) in [
             ("reply_shape.reply_chars", policy.reply_chars > 0),
+            (
+                "reply_shape.context.answer_share",
+                policy
+                    .reply_context
+                    .is_none_or(|c| c.answer_share > 0.0 && c.answer_share < 1.0),
+            ),
+            (
+                "reply_shape.context.reply_share",
+                policy
+                    .reply_context
+                    .is_none_or(|c| c.reply_share > 0.0 && c.reply_share < 1.0),
+            ),
+            (
+                "reply_shape.context.least_chars",
+                policy.reply_context.is_none_or(|c| c.least_chars > 0),
+            ),
             ("condense.bulky_chars", policy.bulky_chars > 0),
             ("condense.batch_chars", policy.batch_chars > 0),
             ("condense.window_tokens", policy.window_tokens > 0),
@@ -226,6 +245,7 @@ impl HarnessProfile {
     pub fn policy(&self) -> Policy {
         Policy {
             reply_chars: self.reply_shape.reply_chars,
+            reply_context: self.reply_shape.context,
             keep_rounds: self.condense.keep_rounds,
             bulky_chars: self.condense.bulky_chars,
             batch_chars: self.condense.batch_chars,

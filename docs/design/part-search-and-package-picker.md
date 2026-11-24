@@ -387,7 +387,7 @@ What bounds it is the person's, never the design's:
 
 - **Permissions** (Settings › AI › Permissions), per kind of action, as a coding agent's harness asks: each kind is Ask every time, Ask once a session, Always allow or Deny, and an ask offers **Allow once**, **Allow for this session**, **Always allow** and **Deny**. Document edits run inside a reviewable turn; **publishing a part into the project never asks**; **publishing to a library asks** (unless the person chose otherwise); files and network (the registry) ask. Keys, endpoints and grants are Never-class.
 - **Review gates**: every preview is a dry run with an impact card bound to its revision; a workflow's `confirm` gates; each message is one labelled undo step with **Undo turn**.
-- **No turn limits.** A whole board may be one message. A long conversation stays within the model's context through compaction ([assistant panel §6.5](../assistant-panel.md#65-context-compaction)); the person's optional run limits and a workflow's budget are the only stops besides Stop.
+- **No turn limits.** A whole board may be one message. A long conversation stays within the model's context through compaction ([assistant panel §6.5](../assistant-panel.md#65-context-compaction)); the person's optional run limits, and a budget a workflow of their own declares, are the only limits.
 
 ### 5.2 Part search and part making, end to end in the chat
 

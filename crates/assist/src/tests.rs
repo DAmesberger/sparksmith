@@ -999,7 +999,7 @@ fn token_and_time_caps_bind_a_local_model() -> Fallible {
     let dir = tempfile::tempdir()?;
     let mut config = local_config(131_072)?;
     // The first request alone could take 32 000 output tokens.
-    config.budget.max_total_tokens = 30_000;
+    config.budget.max_total_tokens = Some(30_000);
     let mut backend = openai(chat_script(&script()?), &config);
     let (outcome, _) = run_with(
         &config,
@@ -1015,7 +1015,7 @@ fn token_and_time_caps_bind_a_local_model() -> Fallible {
     assert!(backend.wire.posts.is_empty());
 
     let mut config = local_config(131_072)?;
-    config.budget.max_duration = std::time::Duration::ZERO;
+    config.budget.max_duration = Some(std::time::Duration::ZERO);
     let mut backend = openai(chat_script(&script()?), &config);
     let (outcome, _) = run_with(
         &config,
@@ -1030,7 +1030,7 @@ fn token_and_time_caps_bind_a_local_model() -> Fallible {
     );
     // Each request waits no longer than the run has left.
     let mut config = local_config(131_072)?;
-    config.budget.max_duration = std::time::Duration::from_secs(600);
+    config.budget.max_duration = Some(std::time::Duration::from_secs(600));
     let mut backend = openai(chat_script(&script()?), &config);
     run_with(
         &config,
@@ -1150,7 +1150,7 @@ fn a_late_completed_reply_keeps_estimated_accounting_without_running_tools() -> 
         usage_estimated: true,
     });
     let mut config = local_config(131_072)?;
-    config.budget.max_duration = Duration::from_secs(5);
+    config.budget.max_duration = Some(Duration::from_secs(5));
     let mut log = Vec::new();
     let outcome = run(
         &goal(text_datasheet(&dir)?),

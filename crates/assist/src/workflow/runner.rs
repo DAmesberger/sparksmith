@@ -24,8 +24,9 @@
 //! tool step refuses when its call fails; one a check names also when its
 //! reply says `"accepted": false` or lists a finding that blocks.
 //!
-//! The run's budget is the smaller of the workflow's and the configured
-//! limits ([`RunConfig::budget`]), counted over all its model steps; a
+//! The run's limits are the smaller of the budget its workflow declares, if
+//! it declares one, and the configured limits ([`RunConfig::budget`]),
+//! counted over all its model steps; with neither, nothing limits it. A
 //! model step's `requests` caps that step. The runner has no rights of its
 //! own: every call, its own and the model's, is the caller's principal.
 use super::control::{
@@ -106,7 +107,8 @@ impl WorkflowOutcome {
     /// The run as a datasheet run's outcome, for the review written beside
     /// a saved project: the review report a model step answered (once the
     /// run is done, so the review check accepted it), and the drafts, pins
-    /// and findings in `session`.
+    /// and findings in `session`; of a run that ended early, also the steps
+    /// answered and the working pinouts.
     pub fn review(&self, session: &sparksmith_automation::Session) -> crate::Outcome {
         let report = match self.end {
             RunEnd::Done => self.results.values().find_map(|value| {
@@ -124,6 +126,9 @@ impl WorkflowOutcome {
         let mut facts = self.facts.clone();
         facts.stop = stop.to_string();
         report::session_facts(&mut facts, session);
+        if self.end != RunEnd::Done {
+            facts.unfinished.pinouts = session.working_pinouts();
+        }
         crate::Outcome {
             report,
             stop,
@@ -141,17 +146,18 @@ pub fn mark(loaded: &Loaded) -> WorkflowMark {
     }
 }
 
-/// The budget of a run: the smaller of the workflow's and `limits`.
-pub fn budget(workflow: &super::Budget, limits: &Budget) -> Budget {
-    Budget {
-        max_requests: workflow.requests.min(limits.max_requests),
-        max_output_tokens: workflow.output_tokens.min(limits.max_output_tokens),
-        max_total_tokens: workflow
-            .total_tokens
-            .map_or(limits.max_total_tokens, |t| t.min(limits.max_total_tokens)),
-        max_duration: Duration::from_secs(u64::from(workflow.minutes) * 60)
-            .min(limits.max_duration),
-    }
+/// The budget of a run: the one the workflow declares held within
+/// `limits`, or `limits` alone.
+pub fn budget(workflow: Option<&super::Budget>, limits: &Budget) -> Budget {
+    workflow.map_or(*limits, |own| {
+        Budget {
+            max_requests: Some(own.requests),
+            max_output_tokens: Some(own.output_tokens),
+            max_total_tokens: own.total_tokens,
+            max_duration: Some(Duration::from_secs(u64::from(own.minutes) * 60)),
+        }
+        .within(*limits)
+    })
 }
 
 /// Run `run` on the session at `desk` (the run's own, or the window's):
@@ -195,7 +201,7 @@ pub fn run_workflow(
             .map_err(|why| Error::Config(format!("input {name}: {why}")))?;
     }
     let mut config = run.config.clone();
-    config.budget = budget(&workflow.budget, &run.config.budget);
+    config.budget = budget(workflow.budget.as_ref(), &run.config.budget);
     config.profile.check()?;
     let system = run::system_prompt(&config)?;
     let specs = run::tool_specs(&config.run_profile);
@@ -279,6 +285,14 @@ pub fn run_workflow(
     facts.documents = context.facts;
     report::tally_facts(&mut facts, &tally);
     facts.stop = describe(&end);
+    if end != RunEnd::Done {
+        facts.unfinished.answers = workflow
+            .steps
+            .iter()
+            .filter(|step| step.kind == StepKind::Model)
+            .filter_map(|step| Some((step.id.clone(), results.get(&step.id)?.clone())))
+            .collect();
+    }
     Ok(WorkflowOutcome {
         end,
         results,
@@ -889,9 +903,10 @@ impl Runner<'_, '_> {
         let brief = self.brief(step, note);
         let budget = &self.config.budget;
         let max_requests = match step.requests {
-            Some(cap) => budget
-                .max_requests
-                .min(self.tally.requests.saturating_add(cap)),
+            Some(cap) => {
+                let cap = self.tally.requests.saturating_add(cap);
+                Some(budget.max_requests.map_or(cap, |max| max.min(cap)))
+            }
             None => budget.max_requests,
         };
         let open = OpenStep {
@@ -960,7 +975,7 @@ impl Runner<'_, '_> {
             run: self.run_id.clone(),
             requests: Gauge {
                 used: u64::from(self.tally.requests),
-                limit: u64::from(budget.max_requests),
+                limit: budget.max_requests.map(u64::from),
             },
             output_tokens: Gauge {
                 used: self.tally.usage.output_tokens,
@@ -968,7 +983,7 @@ impl Runner<'_, '_> {
             },
             minutes: Gauge {
                 used: self.started.elapsed().as_secs() / 60,
-                limit: budget.max_duration.as_secs() / 60,
+                limit: budget.max_duration.map(|d| d.as_secs() / 60),
             },
         }
     }

@@ -585,13 +585,16 @@ fn the_run_block_follows_the_run_and_stops_it() -> Fallible {
             run: "run-1".into(),
             requests: Gauge {
                 used: 14,
-                limit: 40,
+                limit: Some(40),
             },
             output_tokens: Gauge {
                 used: 61_000,
-                limit: 200_000,
+                limit: Some(200_000),
             },
-            minutes: Gauge { used: 6, limit: 45 },
+            minutes: Gauge {
+                used: 6,
+                limit: Some(45),
+            },
         });
         chat.settle();
         assert!(

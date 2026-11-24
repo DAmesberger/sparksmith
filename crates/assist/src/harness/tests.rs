@@ -90,6 +90,51 @@ fn profile_errors_identify_the_file_and_field() -> Fallible {
 }
 
 #[test]
+fn a_reply_takes_what_the_context_leaves_room_for() -> Fallible {
+    let shipped = ShippedLibrary::locate()?;
+    let policy = HarnessProfile::load(&shipped, None, "datasheet")?.policy();
+    let limit = |context, used| policy.reply_limit(context, used);
+    // A large context: the profile's whole limit.
+    assert_eq!(limit(262_144, 24_000), 120_000);
+    // A third of what is left beside a quarter kept for the answer.
+    let at_32k = limit(32_768, 16_000);
+    assert!((8_000..9_000).contains(&at_32k), "{at_32k}");
+    // A page, while that leaves the least room to answer; then the note.
+    assert_eq!(limit(32_768, 22_000), 4_000);
+    assert!(limit(32_768, 28_500) < 1_000);
+    let full = limit(32_768, 40_000);
+    let text = crate::chat::context::shrink(&json!({"text": "x".repeat(9_000)}), full);
+    assert!(text.contains("narrower view"), "{text}");
+    // Compact is as it was, whatever the context.
+    let compact = HarnessProfile::load(&shipped, None, "compact")?.policy();
+    assert_eq!(compact.reply_context, None);
+    assert_eq!(compact.reply_limit(16_384, 16_000), 12_000);
+    let source: Value = serde_json::from_slice(&shipped.read(
+        Shelf::Assist,
+        "harness/datasheet.json",
+        MAX_FILE_BYTES,
+    )?)?;
+    for (field, invalid) in [
+        ("answer_share", json!(1.0)),
+        ("reply_share", json!(0.0)),
+        ("least_chars", json!(0)),
+        ("least_chars", json!("page")),
+    ] {
+        let mut broken = source.clone();
+        broken["reply_shape"]["context"][field] = invalid;
+        let why = HarnessProfile::parse(&broken.to_string(), "harness/test.json")
+            .err()
+            .ok_or("broken profile accepted")?
+            .to_string();
+        assert!(
+            why.contains(&format!("reply_shape.context.{field}")),
+            "{why}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn strategies_are_chosen_only_from_explicit_profile_names() {
     let names = HarnessSelection {
         model: Some("model"),
@@ -237,7 +282,7 @@ fn task_and_person_profiles_replace_all_model_harness_settings() -> Fallible {
     let chat = crate::chat::ChatConfig::with_profiles(
         &crate::chat::ChatLibrary::load(&lib)?,
         config.profile,
-        crate::chat::unbounded(),
+        crate::model::Budget::default(),
         Some(&run_dir),
     )?;
     assert_eq!(chat.policy.reply_chars, 73);

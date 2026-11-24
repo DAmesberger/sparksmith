@@ -250,8 +250,12 @@ pub fn run(task: &Task, dir: &Path, binary: &Path, arm: Arm, instruction: &str) 
             detail: detail.clone(),
         },
     )?;
+    let duration = arm
+        .budget
+        .max_duration
+        .ok_or("this external arm needs a run time")?;
     let (mut connection, tools, method) =
-        Connection::open(binary, &dir, &path, task, &detail, arm.budget.max_duration)?;
+        Connection::open(binary, &dir, &path, task, &detail, duration)?;
     let mut cfg = ChatConfig::new(&ChatLibrary::locate()?, arm.profile, arm.budget)?;
     cfg.system = method;
     cfg.tools = tools;
