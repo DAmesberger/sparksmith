@@ -101,6 +101,9 @@ pub struct LayerResult {
     pub worst_um: f64,
     /// Whether the layer is within the judge's tolerances.
     pub passes: bool,
+    /// Whether both sets hold a file of this function (an empty paste or
+    /// mask layer may be left out).
+    pub paired: bool,
     /// Objects of the reference file, and how many the scope kept.
     pub reference_objects: usize,
     pub kept_objects: usize,
@@ -126,8 +129,16 @@ pub struct SetDiff {
 }
 
 impl SetDiff {
+    /// Every layer and drill file within the tolerances, at least one
+    /// copper layer compared, and no copper layer held by one set alone.
     pub fn passes(&self) -> bool {
-        self.layers.iter().all(|l| l.passes) && self.drills.iter().all(|d| d.diff.passes())
+        let copper = |l: &&LayerResult| l.function.starts_with("Copper,");
+        self.layers.iter().any(|l| copper(&l))
+            && self
+                .layers
+                .iter()
+                .all(|l| l.passes && (l.paired || !copper(&l)))
+            && self.drills.iter().all(|d| d.diff.passes())
     }
 }
 
@@ -143,7 +154,7 @@ fn gerbers(files: &[File]) -> Fallible<BTreeMap<String, GerberFile>> {
     for file in files.iter().filter(|f| f.name.ends_with(".gbr")) {
         let parsed = crate::gerber::parse(std::str::from_utf8(&file.bytes)?)?;
         let Some(function) = parsed.file_attribute(".FileFunction") else {
-            continue;
+            return Err(format!("sets: {} states no file function", file.name).into());
         };
         let function = function.join(",");
         if compared(&function) && out.insert(function.clone(), parsed).is_some() {
@@ -157,11 +168,11 @@ fn drill_files(files: &[File]) -> Fallible<BTreeMap<String, excellon::DrillFile>
     let mut out = BTreeMap::new();
     for file in files.iter().filter(|f| f.name.ends_with(".drl")) {
         let parsed = excellon::parse(std::str::from_utf8(&file.bytes)?)?;
-        let Some(function) = parsed.attribute(".FileFunction") else {
-            continue;
-        };
-        let Some(kind) = function.first().cloned() else {
-            continue;
+        let Some(kind) = parsed
+            .attribute(".FileFunction")
+            .and_then(|f| f.first().cloned())
+        else {
+            return Err(format!("sets: {} states no file function", file.name).into());
         };
         if out.insert(kind.clone(), parsed).is_some() {
             return Err(format!("sets: two drill files of function {kind}").into());
@@ -321,6 +332,7 @@ pub fn compare_sets(
             arc_worst_um,
             worst_um,
             passes,
+            paired: mine.contains_key(function) && theirs.contains_key(function),
             reference_objects: total,
             kept_objects: kept,
             ours: a,
@@ -425,4 +437,40 @@ pub fn attribute(layer: &LayerResult, judge: &Judge, pads: &[PadBox]) -> Vec<Cla
         }
     }
     rows.into_values().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn layer(name: &str, function: &str, body: &str) -> File {
+        File {
+            name: name.into(),
+            bytes: format!(
+                "%FSLAX46Y46*%\n%MOMM*%\n{function}G75*\n%ADD10C,1*%\nD10*\n{body}M02*\n"
+            )
+            .into_bytes(),
+        }
+    }
+
+    const FLASH: &str = "X0Y0D03*\n";
+    const TOP: &str = "%TF.FileFunction,Copper,L1,Top*%\n";
+
+    /// Nothing compared, a layer only one set holds and a file that does
+    /// not say what it is are failures.
+    #[test]
+    fn a_missing_or_unnamed_file_fails_the_comparison() -> Fallible<()> {
+        let judge = Judge::exact(1000);
+        let compare = |a: &[File], b: &[File]| compare_sets(a, b, Scope::All, &judge);
+        let top = layer("a.gbr", TOP, FLASH);
+        let empty = layer("b.gbr", "%TF.FileFunction,Copper,L2,Bot*%\n", "");
+        assert!(compare(std::slice::from_ref(&top), std::slice::from_ref(&top))?.passes());
+        assert!(!compare(&[], &[])?.passes(), "nothing compared");
+        assert!(!compare(std::slice::from_ref(&top), &[])?.passes());
+        let both = [top.clone(), empty];
+        assert!(!compare(std::slice::from_ref(&top), &both)?.passes());
+        let unnamed = layer("c.gbr", "", FLASH);
+        assert!(compare(&[top, unnamed], &both).is_err());
+        Ok(())
+    }
 }

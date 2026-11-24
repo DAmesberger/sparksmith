@@ -250,23 +250,15 @@ fn the_place_palette_places_a_generic_part() -> Fallible {
     ax.type_text("capacitor 0603");
     // The shipped generators are read off the UI thread.
     let hint = "Not a component yet: choosing it makes one with its generator, then you place it";
-    for _ in 0..400 {
-        ax.settle();
-        if ax.find(Role::Label, hint).is_ok() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(25));
-    }
+    wait_for_generators("the generator hint", &mut ax, |ax| {
+        ax.find(Role::Label, hint).is_ok()
+    })?;
     ax.find(Role::Label, hint)?;
     ax.button("Chip capacitor 0603")?;
     // Made off the UI thread, applied, then armed.
-    for _ in 0..600 {
-        ax.settle();
-        if ax.app.engine.project().library.components.len() > components {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
+    ax.until("the generic part being made", |ax| {
+        ax.app.engine.project().library.components.len() > components
+    })?;
     ax.settle();
     let free = on_sheet(&ax, [20.0, -30.0])?;
     ax.click_at(free);
@@ -971,21 +963,13 @@ fn a_generic_resistors_value_is_placed_and_edited_in_properties_at_a_small_windo
     ax.button("Place")?;
     ax.settle();
     ax.type_text("10k 0603");
-    for _ in 0..400 {
-        ax.settle();
-        if ax.find(Role::Button, "Chip resistor 0603").is_ok() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(25));
-    }
+    wait_for_generators("the Chip resistor 0603 row", &mut ax, |ax| {
+        ax.find(Role::Button, "Chip resistor 0603").is_ok()
+    })?;
     ax.button("Chip resistor 0603")?;
-    for _ in 0..600 {
-        ax.settle();
-        if ax.app.engine.project().library.components.len() > components {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
+    ax.until("the generic part being made", |ax| {
+        ax.app.engine.project().library.components.len() > components
+    })?;
     ax.settle();
     // Below and right of the demo's parts, inside the narrow canvas.
     let (o, x, y) = (
@@ -1220,4 +1204,49 @@ fn settings_question_opens_the_source_of_the_default() -> Fallible {
     ax.button("Close help")?;
     assert!(!ax.has(Role::Heading, "Default source"));
     Ok(())
+}
+
+/// [`Ax::until`] for work that waits on the shipped generators, read off
+/// the UI thread: on a refusal the error says what the generators were
+/// asked and answered, since the screen alone only says nothing matched.
+fn wait_for_generators(what: &str, ax: &mut Ax, done: impl FnMut(&Ax) -> bool) -> Fallible {
+    ax.until(what, done).map_err(|error| {
+        format!(
+            "{error}\n{}\nscreen:\n{}",
+            generators_diagnosis(),
+            ax.dump()
+        )
+        .into()
+    })
+}
+
+/// What a fresh read of the shipped generators answers: the library found
+/// (or not) and, for each module, what it offers or why it was refused (a
+/// `generator.timed_out` here means the machine was too slow for the
+/// worker's wall time, not that the module is wrong).
+fn generators_diagnosis() -> String {
+    let report = match sparksmith_automation::Session::lending().generators_report() {
+        Ok(report) => report,
+        Err(error) => return format!("generators: the report failed: {error}"),
+    };
+    let mut lines = vec![format!(
+        "generators: shipped library {}",
+        if report.shipped_library.is_some() {
+            "found"
+        } else {
+            "NOT found"
+        }
+    )];
+    for module in &report.shipped {
+        lines.push(match (&module.description, &module.refused) {
+            (Some(offer), _) => format!(
+                "  {}: offers {} families",
+                module.name,
+                offer.families.len()
+            ),
+            (None, Some(why)) => format!("  {}: refused: {why}", module.name),
+            (None, None) => format!("  {}: no description", module.name),
+        });
+    }
+    lines.join("\n")
 }

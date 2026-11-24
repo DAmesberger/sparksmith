@@ -110,27 +110,32 @@ pub(crate) fn evaluate_each(
                 .get(&p.name.0)
                 .copied()
                 .ok_or_else(|| format!("`{}` has no value", p.name.0))?;
-            let typed = match p.unit {
-                ParamUnit::Mm => v.to_kind(Kind::Length).map(ParamValue::Length),
-                ParamUnit::Deg => v
-                    .to_kind(Kind::Angle)
-                    .map(|rad| ParamValue::Angle(rad.to_degrees())),
-                ParamUnit::Count => {
-                    return count_value(&p.name.0, v)
-                        // Whole and within 0…1024, so the conversion is exact.
-                        .map(|n| ParamValue::Count(n as u32))
-                        .map_err(|e| e.message);
-                }
-            };
-            match typed {
-                Ok(ParamValue::Length(x) | ParamValue::Angle(x)) if !x.is_finite() => {
-                    Err(format!("`{}` is not finite", p.name.0))
-                }
-                Ok(value) => Ok(value),
-                Err(e) => Err(e.to_string()),
-            }
+            typed(p, v)
         })
         .collect())
+}
+
+/// A parameter's value in its own unit, or why it has none.
+fn typed(p: &FootprintParam, v: Value) -> std::result::Result<ParamValue, String> {
+    let typed = match p.unit {
+        ParamUnit::Mm => v.to_kind(Kind::Length).map(ParamValue::Length),
+        ParamUnit::Deg => v
+            .to_kind(Kind::Angle)
+            .map(|rad| ParamValue::Angle(rad.to_degrees())),
+        ParamUnit::Count => {
+            return count_value(&p.name.0, v)
+                // Whole and within 0…1024, so the conversion is exact.
+                .map(|n| ParamValue::Count(n as u32))
+                .map_err(|e| e.message);
+        }
+    };
+    match typed {
+        Ok(ParamValue::Length(x) | ParamValue::Angle(x)) if !x.is_finite() => {
+            Err(format!("`{}` is not finite", p.name.0))
+        }
+        Ok(value) => Ok(value),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// Why `expr` cannot define parameter `name` by itself (its syntax, an
@@ -254,6 +259,12 @@ impl Values {
             return Err(problem(EXPR, format!("`{text}` is not finite")));
         }
         Ok(v)
+    }
+
+    /// A parameter's evaluated value in its own unit, or why it has none.
+    pub(crate) fn of(&self, p: &FootprintParam) -> std::result::Result<ParamValue, String> {
+        let value = self.0.get(&p.name.0).copied();
+        typed(p, value.ok_or_else(|| "it has no value".to_owned())?)
     }
 
     /// A signed length in mm within the coordinate range.

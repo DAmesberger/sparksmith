@@ -38,13 +38,13 @@ use sparksmith_core::layout::outline::{
     FreeFormCurve, refuses,
 };
 use sparksmith_core::library::footprint_source::{
-    DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, ParamUnit, SketchBlob, SketchCurveId,
-    SketchEdit, SketchOutcome, SketchPointId, SketchRef, SolveStatus, SolveSummary,
+    DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, ParamUnit, ParamValue, SketchBlob,
+    SketchCurveId, SketchEdit, SketchOutcome, SketchPointId, SketchRef, SolveStatus, SolveSummary,
 };
 use sparksmith_core::library::{MAX_OUTLINE_SEGMENTS, Outline, Segment};
 use sparksmith_core::model::board::{
-    BoardSketch, CutoutKind, CutoutRole, EdgeName, NamedEdge, RECT_EDGES, ShapeFault,
-    ShapeFaultKind, SolvedBoard, SolvedCutout, SolvedEdge, SolvedMountingHole,
+    BoardSketch, CutoutKind, CutoutRole, EdgeName, NamedEdge, ParameterValue, RECT_EDGES,
+    ShapeFault, ShapeFaultKind, SolvedBoard, SolvedCutout, SolvedEdge, SolvedMountingHole,
 };
 use sparksmith_core::model::dimension::FeatureGeometry;
 use sparksmith_core::rules::OUTLINE_FIT_RANGE_MM;
@@ -163,6 +163,7 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
             next_feature: 1,
             solve: SolveSummary::default(),
             solved: SolvedBoard::rectangle(size),
+            current: true,
             outline_fit,
             fault: None,
             idle: Vec::new(),
@@ -172,7 +173,9 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
             return Err(Error::Invalid(format!("{}: {}", f.code, f.message)));
         }
         board.solve = evaluation.solve;
-        board.solved = evaluation.solved;
+        board.solved = evaluation
+            .solved
+            .ok_or_else(|| problem(OUTLINE, "the rectangle makes no outline"))?;
         if let Some(s) = evaluation.sketch_out {
             board.sketch = s;
         }
@@ -195,7 +198,7 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
         let stored = check::check_board_sketch(&board.sketch.0)?;
         Ok(match run(board, &stored) {
             Ok(evaluation) => evaluation,
-            Err(p) => unsolved(board, p),
+            Err(p) => unsolved(p),
         })
     }
 
@@ -393,8 +396,8 @@ fn fixed_geometry(
     Ok((outcome.sketch, made))
 }
 
-/// A failed solve: the last solved shape kept, a fatal finding.
-fn unsolved(board: &BoardSketch, p: Problem) -> BoardEvaluation {
+/// A failed solve: no outline of this solve, a fatal finding.
+fn unsolved(p: Problem) -> BoardEvaluation {
     let status = if p.code == "footprint.solve_failed" {
         SolveStatus::OverConstrained
     } else {
@@ -406,7 +409,7 @@ fn unsolved(board: &BoardSketch, p: Problem) -> BoardEvaluation {
         FindingCode::BoardShapeUnsolved
     };
     BoardEvaluation {
-        solved: board.solved.clone(),
+        solved: None,
         solve: SolveSummary {
             evaluator: evaluator_ref(),
             status,
@@ -853,12 +856,14 @@ fn extended(
 }
 
 fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
-    let values = params::evaluate(&board.parameters, &[]).map_err(|p| {
+    let unread = |why: String| {
         problem(
             FindingCode::BoardShapeUnsolved,
-            format!("board parameters: {}", p.message),
+            format!("board parameters: {why}"),
         )
-    })?;
+    };
+    let values = params::evaluate(&board.parameters, &[]).map_err(|p| unread(p.message))?;
+    let evaluated = solved_values(board, &values).map_err(unread)?;
     if !OUTLINE_FIT_RANGE_MM.contains(&board.outline_fit) {
         return Err(problem(
             RANGE,
@@ -876,22 +881,22 @@ fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
             "the solved sketch leaves the coordinate range",
         ));
     }
-    // Curves that are not one board keep the last valid shape; open ends
-    // are named even when the closed curves make a board.
+    // Curves that are not one board give no solve; open ends are named even
+    // when the closed curves make a board.
     let shaped = match region(&sk) {
-        Ok(region) => shape(board, &sk, &values, &region)?,
+        Ok(region) => shape(board, &sk, &values, evaluated, &region)?,
         Err(fault) => Err(fault),
     };
     let (solved, fault) = match shaped {
-        Ok(solved) => (solved, open_ends(&sk)),
-        Err(fault) => (board.solved.clone(), Some(open_ends(&sk).unwrap_or(fault))),
+        Ok(solved) => (Some(solved), open_ends(&sk)),
+        Err(fault) => (None, Some(open_ends(&sk).unwrap_or(fault))),
     };
     let idle = if fault.is_none() {
         idle(board, &sk)
     } else {
         Vec::new()
     };
-    let bytes = serde_json::to_vec(&solved)
+    let bytes = serde_json::to_vec(solved.as_ref().unwrap_or(&board.solved))
         .map_err(|e| problem(FindingCode::BoardInternal, e.to_string()))?;
     let dof = u32::try_from(dof).unwrap_or(u32::MAX);
     Ok(BoardEvaluation {
@@ -911,6 +916,34 @@ fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
         sketch_out: Some(SketchBlob(check::canonical(&sk)?)),
         idle,
     })
+}
+
+/// Each parameter's value, to the nanometre as the solved points are; or
+/// why one has none, naming it.
+fn solved_values(
+    board: &BoardSketch,
+    values: &Values,
+) -> std::result::Result<Vec<ParameterValue>, String> {
+    board
+        .parameters
+        .iter()
+        .map(|p| {
+            let rounded =
+                |v: f64| q(v).map_err(|_| format!("`{}` = {v} is out of range", p.name.0));
+            let value = match values
+                .of(p)
+                .map_err(|why| format!("`{}`: {why}", p.name.0))?
+            {
+                ParamValue::Length(mm) => ParamValue::Length(rounded(mm)?),
+                ParamValue::Angle(deg) => ParamValue::Angle(rounded(deg)?),
+                count => count,
+            };
+            Ok(ParameterValue {
+                name: p.name.clone(),
+                value,
+            })
+        })
+        .collect()
 }
 
 /// The board parameters that drive a sketch dimension but move no outline
@@ -974,12 +1007,13 @@ fn idle(board: &BoardSketch, sk: &Sketch) -> Vec<ParamName> {
 
 /// The solved board of a valid region: the outline counter-clockwise, its
 /// holes as cutouts (or the slots their roles make them), the mounting
-/// holes and the named edges. A slot role whose curves no longer bound one
-/// hole is a fault.
+/// holes, the named edges and the parameter values. A slot role whose
+/// curves no longer bound one hole is a fault.
 fn shape(
     board: &BoardSketch,
     sk: &Sketch,
     values: &Values,
+    evaluated: Vec<ParameterValue>,
     region: &Region,
 ) -> Outcome<std::result::Result<SolvedBoard, ShapeFault>> {
     let fit = board.outline_fit;
@@ -1134,6 +1168,7 @@ fn shape(
         cutouts,
         holes,
         edges,
+        values: evaluated,
     }))
 }
 
@@ -1536,5 +1571,7 @@ pub mod model_refs;
 #[cfg(test)]
 pub(crate) mod package_datum_tests;
 mod parts;
+#[cfg(test)]
+mod solved_values_tests;
 #[cfg(test)]
 pub(crate) mod tests;

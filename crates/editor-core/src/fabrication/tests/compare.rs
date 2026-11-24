@@ -1,5 +1,6 @@
-//! The written files read back and rasterised, against the core's own
-//! geometry rendered independently (`expected`): every copper layer, both
+//! The written files read back and rasterised, against the point oracle's
+//! image (`expected`), and measured object by object against formulas and
+//! counts (`second`), which share nothing with it: every copper layer, both
 //! masks and pastes, the profile and both drill files, at 10 µm pixels,
 //! for the showcase, a sketched board with arcs, a cutout, slots and
 //! mounting holes, and a 10,000-via plane. Format details are checked on
@@ -110,6 +111,23 @@ pub(super) fn perimeter(b: &Bitmap) -> f64 {
     edges as f64 * b.pixel
 }
 
+/// A block of two by two pixels that differ, if any: a difference thicker
+/// than the edges' sampling.
+pub(super) fn thick(a: &Bitmap, b: &Bitmap) -> Option<[f64; 2]> {
+    let differs = |i, j| a.get(i, j) != b.get(i, j);
+    (0..a.height.saturating_sub(1))
+        .flat_map(|j| (0..a.width.saturating_sub(1)).map(move |i| (i, j)))
+        .find(|&(i, j)| {
+            differs(i, j) && differs(i + 1, j) && differs(i, j + 1) && differs(i + 1, j + 1)
+        })
+        .map(|(i, j)| {
+            [
+                a.min[0] + (i as f64 + 1.0) * a.pixel,
+                a.min[1] + (j as f64 + 1.0) * a.pixel,
+            ]
+        })
+}
+
 /// Compare every layer of `set` with the core geometry of `project`;
 /// returns (layer, comparison) rows after asserting each is within its
 /// limit.
@@ -128,6 +146,11 @@ fn compare_all(
     let mut check = |name: String, got: Bitmap, want: Bitmap| -> Fallible<()> {
         let c = raster::compare(&got, &want)?;
         let limit = allowed(&c, perimeter(&want));
+        // The band is spread along the edges: no difference is two pixels
+        // thick, however small its area (a missing paste island).
+        if let Some(at) = thick(&got, &want) {
+            return Err(format!("{label} {name}: differs round {at:?}").into());
+        }
         if c.xor_area > 0.0 {
             let mut where_ = Vec::new();
             for j in 0..got.height {
@@ -180,16 +203,7 @@ fn compare_all(
     }
     // The profile mills the outline, cutouts and non-plated slots; plated
     // straight slots are routed by the plated drill file instead.
-    let mut got = profile_region(&gerber(set, "-profile.gbr")?, &grid)?;
-    if has(set, "-plated.drl") {
-        let mut drill = excellon_reader::parse(text(set, "-plated.drl")?)?;
-        drill
-            .hits
-            .retain(|h| matches!(h, excellon_reader::Hit::Slot { .. }));
-        let mut slots = grid.blank();
-        raster::render_drill(&drill, &mut slots)?;
-        got.subtract(&slots)?;
-    }
+    let got = profile_region(&gerber(set, "-profile.gbr")?, &grid)?;
     let mut want = grid.blank();
     expected::outline(project, &mut want)?;
     check("profile".into(), got, want)?;
@@ -432,6 +446,7 @@ fn sketched() -> Fallible<Project> {
             result_hash: String::new(),
         },
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
@@ -465,6 +480,9 @@ fn the_showcase_layers_match_the_core_geometry() -> Fallible<()> {
         set.files.iter().map(|f| f.bytes.len()).sum::<usize>(),
         start.elapsed()
     );
+    // The same files by another method: places, areas and counts.
+    let second = super::second::disagreements(&project, &set)?;
+    assert!(second.is_empty(), "{second:#?}");
     let rows = compare_all(&project, &set, "showcase")?;
     // 4 copper, 2 masks, 2 pastes, profile and two drill comparisons.
     assert_eq!(rows.len(), 4 + 2 + 2 + 1 + 2);
@@ -518,6 +536,8 @@ fn a_sketched_board_with_arcs_cutouts_slots_and_holes_matches() -> Fallible<()> 
         &FabricationOptions::default(),
         &Default::default(),
     )?;
+    let second = super::second::disagreements(&project, &set)?;
+    assert!(second.is_empty(), "{second:#?}");
     compare_all(&project, &set, "sketched")?;
     // The plated slot is routed in the plated drill file, not the profile.
     let plated = excellon_reader::parse(text(&set, "-plated.drl")?)?;

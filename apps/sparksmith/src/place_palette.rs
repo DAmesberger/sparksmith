@@ -546,6 +546,31 @@ impl PlacePalette {
         self.online.reply = None;
     }
 
+    /// Another document was opened: the palette closes and drops what it
+    /// searched, chose and sent for the old one. The person's sources, the
+    /// shipped generators and the previews already drawn stay; the counters
+    /// go on, so an answer still on the way is never taken for a new one's.
+    pub fn document_opened(&mut self) {
+        let old = std::mem::take(self);
+        *self = Self {
+            context: old.context,
+            context_generation: old.context_generation,
+            shelf: old.shelf,
+            shelf_seen: old.shelf_seen,
+            loading: old.loading,
+            local_generation: old.local_generation,
+            generation: old.generation.wrapping_add(1),
+            online: Online {
+                name: old.online.name,
+                generation: old.online.generation.wrapping_add(1),
+                ..Online::default()
+            },
+            previews: old.previews,
+            bundles: old.bundles,
+            ..Self::default()
+        };
+    }
+
     /// How the preview reads library bundles; `generation` changes with
     /// the sources, and `loader` is only built then.
     pub fn set_bundle_loader(&mut self, generation: u64, loader: impl FnOnce() -> BundleLoader) {

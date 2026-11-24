@@ -174,11 +174,21 @@ impl CopperGraph {
             &mut remaining,
         );
         let edges = crate::layout::board_edge::BoardEdges::of(project);
+        let holes: Vec<_> = if bridges.is_empty() {
+            Vec::new()
+        } else {
+            physical::holes(project)
+                .into_iter()
+                .map(|h| (h.feature.ring(), h))
+                .collect()
+        };
         for bridge in bridges {
             let copper = bridge_ring(&bridge);
             let Some(bounds) = copper.bounds else {
                 continue;
             };
+            self.tie_findings
+                .extend(bridge_holes(project, &rules, &bridge, &copper, &holes));
             let mut islands = Vec::new();
             let mut foreign = Vec::new();
             let owner = ObjectRef::Instance {
@@ -508,6 +518,77 @@ impl CopperGraph {
         };
         self.contact_pairs.contains(&(*a, *b))
     }
+}
+
+/// A bridge's copper against every drilled hole (via drills, pad and board
+/// holes) but the plated ones of the nets it joins, by the hole kind's
+/// track clearance: a bridge is copper no other hole check reads.
+fn bridge_holes(
+    project: &Project,
+    rules: &crate::layout::limits::BoardRules<'_>,
+    bridge: &PlacedBridge,
+    copper: &CopperRing,
+    holes: &[(CopperRing, physical::Hole)],
+) -> Vec<Finding> {
+    let Some(bounds) = copper.bounds else {
+        return Vec::new();
+    };
+    let reach = crate::layout::copper::check_reach(rules);
+    let near = bounds.inflated(reach);
+    let part = project
+        .instance(bridge.instance)
+        .map_or("Tie", |i| &i.designator);
+    let mut out = Vec::new();
+    for (ring, hole) in holes {
+        if !ring.bounds.is_some_and(|b| near.intersects(&b))
+            || hole.plated && hole.net.is_some_and(|n| bridge.nets.contains(&n))
+        {
+            continue;
+        }
+        let (code, kind) = match hole.owner {
+            physical::HoleOwner::Via(_) => {
+                (FindingCode::BoardViaDrillClearance, CopperObject::ViaHole)
+            }
+            physical::HoleOwner::Pad { .. } => (
+                FindingCode::BoardPadHoleClearance,
+                CopperObject::hole(hole.plated),
+            ),
+            _ => (
+                FindingCode::BoardHoleClearance,
+                CopperObject::hole(hole.plated),
+            ),
+        };
+        let needs = |net| rules.clearance_need(CopperObject::Track, net, kind, hole.net);
+        let need = bridge
+            .nets
+            .iter()
+            .map(|n| needs(Some(*n)))
+            .max_by(|a, b| a.mm.total_cmp(&b.mm))
+            .unwrap_or_else(|| needs(None));
+        if !copper.closer_than(ring, need.mm) {
+            continue;
+        }
+        let gap = copper.gap(ring, need.mm + 1.0);
+        out.push(
+            Finding::new(
+                code,
+                format!(
+                    "{part} bridge is {} mm from the hole of {}; {}",
+                    crate::layout::limits::mm_against(gap, need.mm),
+                    hole.name,
+                    need.text()
+                ),
+                vec![
+                    ObjectRef::Instance {
+                        id: bridge.instance,
+                    },
+                    hole.object(),
+                ],
+            )
+            .requiring(need.at_most(gap)),
+        );
+    }
+    out
 }
 
 pub(crate) fn bridge_ring(b: &PlacedBridge) -> CopperRing {

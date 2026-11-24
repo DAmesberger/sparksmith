@@ -78,12 +78,17 @@ fn presets_are_the_starter_rows_and_all_generate() -> Result<(), Vec<Problem>> {
 #[test]
 fn row_lands_and_pin_one_ink_use_the_requested_mask_opening() -> Result<(), Vec<Problem>> {
     let mut params = preset("no-lead-qfn-16-3x3-0.5");
-    for (expansion, width, pin_one_x) in [(70_000, 260_000, -1_450_000), (0, 300_000, -1_400_000)] {
+    for (expansion, width, pin_one_x) in [
+        (70_000, 260_000, -1_450_000),
+        (0, 300_000, -1_400_000),
+        (-300_000, 300_000, -1_400_000),
+    ] {
         params.push(kv("board_mask_expansion_nm", expansion));
         let g = sdk::generate::<NoLead>(&request(Scope::Package, &params))?;
         let first = &g.footprint.pads[0];
         // Pitch 0.5 mm minus two mask expansions and a 0.1 mm web.
         // At zero expansion the terminal plus its allowance limits the width.
+        // A shrunk opening leaves the dot as far from the copper as none.
         assert_eq!(
             first.shape,
             PadShape::Rect {

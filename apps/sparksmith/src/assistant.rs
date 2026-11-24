@@ -344,18 +344,25 @@ impl Assistant {
     }
 
     /// Another project opened: its conversation starts empty, and a turn
-    /// of the last one ends without touching the new project.
+    /// of the last one ends without touching the new project. Only what is
+    /// named here is kept (the column, what the person is typing, the model
+    /// and what they allowed); everything else, a field added later too, is
+    /// the old conversation's, its session and calls still waiting included.
     pub fn document_opened(&mut self) {
         self.stop();
-        self.job = None;
-        self.run = None;
-        self.runs.clear();
-        self.notes.clear();
-        self.turn = None;
-        self.conversation = Conversation::default();
-        self.history.clear();
-        self.expanded.clear();
-        self.files.clear();
+        let old = std::mem::take(self);
+        *self = Self {
+            open: old.open,
+            folded: old.folded,
+            dock: old.dock,
+            composer: old.composer,
+            model: old.model,
+            model_limits: old.model_limits,
+            library: old.library,
+            allowed_session: old.allowed_session,
+            permissions: old.permissions,
+            ..Self::default()
+        };
     }
 
     /// The folded column: the state dot and the button that unfolds it.

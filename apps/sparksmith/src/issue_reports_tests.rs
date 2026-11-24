@@ -188,3 +188,17 @@ fn current_checks_the_current_state_at_once() -> Fallible {
     ));
     Ok(())
 }
+
+/// While the report of a project just opened is made, nothing stands in
+/// for it: the last project's rows name its own objects and findings.
+#[test]
+fn another_projects_report_is_never_shown() -> Fallible {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let mut engine = Engine::showcase()?;
+    let mut reports = Reports::start(egui::Context::default());
+    assert!(reports.wait(&engine, PATIENCE));
+    engine.replace_document(Engine::demo()?.to_file())?;
+    assert!(reports.latest(&engine).is_none());
+    assert!(reports.wait(&engine, PATIENCE));
+    Ok(())
+}

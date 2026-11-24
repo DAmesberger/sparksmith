@@ -117,6 +117,12 @@ impl ModelExport {
         self.write_anyway = false;
     }
 
+    /// Another project was opened: its export is chosen anew. One already
+    /// running goes on with the board it was started for.
+    pub(crate) fn document_opened(&mut self) {
+        self.choosing = None;
+    }
+
     /// Whether an export is running.
     #[cfg(test)]
     pub(crate) fn busy(&self) -> bool {

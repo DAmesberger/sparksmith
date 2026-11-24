@@ -130,6 +130,23 @@ impl LiveMcp {
         self.place = place;
     }
 
+    /// Another project was opened: a request held for the person's answer
+    /// was about the old one, so it is refused.
+    pub fn document_opened(&mut self) {
+        if let Some(held) = self.held.take() {
+            let refused = sparksmith_automation::gate::refusal(
+                "live.stale_approval",
+                held.admitted.subject(),
+                "Another project was opened in the window. Nothing was done.",
+                "Send the request again for the project open now.",
+            );
+            let _ = held
+                .request
+                .reply
+                .send(sparksmith_automation::gate::failure(&refused));
+        }
+    }
+
     /// Listen, or stop: stopping refuses a held request and closes every
     /// connection.
     pub fn set_on(&mut self, ctx: &egui::Context, on: bool) {

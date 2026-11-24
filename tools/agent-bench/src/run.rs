@@ -57,6 +57,18 @@ pub struct Arm {
     pub reports_usage: bool,
 }
 
+/// Creates the arm's directory, owner-only where the platform has modes.
+#[cfg(unix)]
+fn create_private_dir(dir: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::DirBuilderExt;
+    std::fs::DirBuilder::new().mode(0o700).create(dir)
+}
+
+#[cfg(not(unix))]
+fn create_private_dir(dir: &Path) -> std::io::Result<()> {
+    std::fs::DirBuilder::new().create(dir)
+}
+
 pub fn run(task: &Task, dir: &Path, arm: Arm, gate: bool) -> Result<Row> {
     run_with_prompt(task, dir, arm, gate, None, None)
 }
@@ -68,13 +80,7 @@ pub fn run_with_prompt(
     system: Option<&str>,
     goal: Option<&str>,
 ) -> Result<Row> {
-    let mut create = std::fs::DirBuilder::new();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::DirBuilderExt;
-        create.mode(0o700);
-    }
-    create.create(dir)?;
+    create_private_dir(dir)?;
     let dir = dir.canonicalize()?;
     let started = Instant::now();
     let trace = Trace::create(

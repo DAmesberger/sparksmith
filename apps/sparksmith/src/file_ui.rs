@@ -727,6 +727,7 @@ impl FileUi {
         }
         self.document = engine.document().clone();
         self.saved_document = (!recovered).then(|| self.document.clone());
+        self.model_export.document_opened();
         self.changed_at = self.now;
         self.clear_recovery(false);
         Ok(())
@@ -794,6 +795,7 @@ impl FileUi {
         self.restored_source = None;
         self.document = engine.document().clone();
         self.saved_document = (revision == engine.revision()).then(|| self.document.clone());
+        self.model_export.document_opened();
         self.changed_at = self.now;
         self.clear_recovery(false);
     }

@@ -17,6 +17,8 @@ use sparksmith_ui::theme::Tokens;
 /// The Board setup dialog's state: the fabrication choices being edited,
 /// and the revision its OK was sent at.
 pub(super) struct BoardSetup {
+    /// The board's choices when the dialog opened: OK replaces these only.
+    base: Fabrication,
     fabrication: Fabrication,
     /// The revision OK sent its operation at; the dialog closes once the
     /// document has moved on, and stays open with the refusal otherwise.
@@ -26,9 +28,13 @@ pub(super) struct BoardSetup {
     opening: bool,
 }
 
+/// Why OK is refused when the board is not what the dialog opened on.
+pub(super) const CHANGED: &str = "The board changed while this was open. Cancel and open it again";
+
 impl BoardSetup {
     fn new(fabrication: Fabrication) -> Self {
         Self {
+            base: fabrication,
             fabrication,
             sent: None,
             refusal: None,
@@ -205,6 +211,18 @@ impl PcbEditor {
         self.setup = Some(BoardSetup::new(project.fabrication));
     }
 
+    /// Open Board setup with another soldermask chosen (tests).
+    #[cfg(test)]
+    pub(crate) fn stage_board_setup(&mut self, project: &Project) {
+        self.open_board_setup(project);
+        if let Some(setup) = &mut self.setup {
+            setup.fabrication.mask_colour = match setup.base.mask_colour {
+                MaskColour::Red => MaskColour::Blue,
+                _ => MaskColour::Red,
+            };
+        }
+    }
+
     /// The docked Board setup dialog: soldermask, mask finish, pad finish
     /// and silkscreen, committed together by OK as one
     /// `layout.set_fabrication` step.
@@ -245,8 +263,12 @@ impl PcbEditor {
                 self.setup = None;
                 None
             }
-            Some(DialogAction::Primary) => match fabrication_edit(project.fabrication, fabrication)
-            {
+            Some(DialogAction::Primary) => match fabrication_edit(setup.base, fabrication) {
+                // Undo, redo or another client changed it meanwhile.
+                Some(_) if project.fabrication != setup.base => {
+                    setup.refusal = Some(CHANGED.into());
+                    None
+                }
                 Some(operation) => {
                     setup.refusal = None;
                     setup.sent = Some(engine.revision());

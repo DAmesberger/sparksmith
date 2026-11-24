@@ -223,6 +223,21 @@ impl WorkflowCards {
         }
     }
 
+    /// Another project opened: its conversation has no cards yet, none of
+    /// the last one's files and nothing the person chose there still to
+    /// run. The numbering goes on, so no id names two cards.
+    pub(crate) fn document_opened(&mut self) {
+        let old = std::mem::take(self);
+        *self = Self {
+            listed: old.listed,
+            next: old.next,
+            folder: old.folder,
+            workspace: old.workspace,
+            next_key: old.next_key,
+            ..Self::default()
+        };
+    }
+
     /// The host's workflows: the shipped library's and the person's own.
     pub(crate) fn listed(&mut self) -> &[Listed] {
         self.listed.get_or_insert_with(workflow::load::host)

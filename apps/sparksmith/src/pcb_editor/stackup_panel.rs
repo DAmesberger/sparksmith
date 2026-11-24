@@ -27,6 +27,8 @@ use std::collections::BTreeMap;
 /// The Stackup dialog's state: the draft, where removed layers' copper
 /// goes, and the revision its OK was sent at.
 pub(super) struct StackupSetup {
+    /// The board's stackup when the dialog opened: OK replaces it only.
+    base: Stackup,
     draft: StackupDraft,
     /// A removed layer's copper → the layer of the new stackup it moves to.
     dropped: BTreeMap<CopperLayer, CopperLayer>,
@@ -43,6 +45,7 @@ pub(super) struct StackupSetup {
 impl StackupSetup {
     pub(super) fn new(stackup: &Stackup) -> Self {
         Self {
+            base: stackup.clone(),
             draft: StackupDraft::of(stackup),
             dropped: BTreeMap::new(),
             selected: None,
@@ -100,6 +103,17 @@ impl PcbEditor {
         self.stackup = Some(StackupSetup::new(&project.stackup));
     }
 
+    /// Open the Stackup dialog with a thicker dielectric (tests).
+    #[cfg(test)]
+    pub(crate) fn stage_stackup(&mut self, project: &Project) {
+        self.open_stackup(project);
+        if let Some(setup) = &mut self.stackup
+            && let Some(dielectric) = setup.draft.stackup.dielectrics.first_mut()
+        {
+            dielectric.thickness_mm += 0.1;
+        }
+    }
+
     /// The docked Stackup dialog.
     pub(super) fn stackup_setup(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Operation> {
         let project = engine.project();
@@ -131,6 +145,11 @@ impl PcbEditor {
                 None
             }
             Some(DialogAction::Primary) if rule.is_none() => match setup.operation() {
+                // Undo, redo or another client changed it meanwhile.
+                Some(_) if project.stackup != setup.base => {
+                    setup.refusal = Some(super::board_card::CHANGED.into());
+                    None
+                }
                 Some(operation) => {
                     setup.refusal = None;
                     setup.sent = Some(engine.revision());

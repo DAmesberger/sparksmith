@@ -29,3 +29,6 @@ docs/architecture/board-interface.schema.json sparksmith-core
 
 # The MCP skill the workflow tests read.
 skills/sparksmith-datasheet-part/ sparksmith-automation
+
+# The silkscreen cases the core's footprint drawing shares with the SDK's.
+crates/generator-sdk/src/silk_cases.rs sparksmith-core

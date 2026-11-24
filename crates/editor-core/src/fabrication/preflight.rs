@@ -195,7 +195,7 @@ const MAX_LEGEND_NAME: usize = 16;
 
 /// Finding codes that may not be waived, and whether one may: they live
 /// with the findings ([`crate::issues`]), which hide waived findings.
-pub use crate::issues::{NO_WAIVER, can_waive};
+pub use crate::issues::{NO_WAIVER, SLOT_UNROUTABLE, can_waive};
 
 /// Whether the finding a waiver key names may not be waived.
 fn unwaivable(key: &str) -> bool {
@@ -241,6 +241,9 @@ fn instead(code: &str) -> &'static str {
         }
         "rules.no_fab_profile" => "choose a fab profile",
         crate::layout::fill::CLEARANCE_UNLISTED => "refill the fill",
+        c if c.starts_with(SLOT_UNROUTABLE) => {
+            "draw the plated slot as a straight slot with round ends, or make it unplated"
+        }
         _ => "re-pick or acknowledge the reference",
     }
 }
@@ -485,10 +488,7 @@ fn production_findings(project: &Project, drafts: &Drafts, items: &mut Vec<Prefl
             && super::drill::stadium(&cutout.outline).is_none()
         {
             items.push(item(
-                &format!(
-                    "fabrication.slot_unroutable.{}",
-                    cutout.id.map_or(0, |id| id.0)
-                ),
+                &format!("{SLOT_UNROUTABLE}.{}", cutout.id.map_or(0, |id| id.0)),
                 Severity::Error,
                 "A plated board slot is not a straight slot the drill file can route".into(),
                 Some("Draw the plated slot as a straight slot with round ends".into()),
@@ -659,18 +659,19 @@ fn silk_over_pads(project: &Project, items: &mut Vec<PreflightItem>) {
         let Some(by) = pad.mask_expansion(rules.mask.expansion) else {
             continue;
         };
-        let Some(shape) = pad.pad.shape.grown(by, tol) else {
-            continue;
-        };
-        let ring = shape.transformed(&pad.pad_transform()).flatten(tol);
-        let Some(bounds) = Bounds::of(ring.iter().copied()) else {
-            continue;
-        };
-        if pad.pad.kind.through_hole() {
-            openings.push((Layer::Top, ring.clone(), bounds));
-            openings.push((Layer::Bottom, ring, bounds));
-        } else {
-            openings.push((pad.layer, ring, bounds));
+        // A hole in an opening (mask the growth left) is not looked for:
+        // ink there is reported too.
+        for piece in pad.pad.shape.offset_pieces(by, tol) {
+            let ring = piece.outer.transformed(&pad.pad_transform()).flatten(tol);
+            let Some(bounds) = Bounds::of(ring.iter().copied()) else {
+                continue;
+            };
+            if pad.pad.kind.through_hole() {
+                openings.push((Layer::Top, ring.clone(), bounds));
+                openings.push((Layer::Bottom, ring, bounds));
+            } else {
+                openings.push((pad.layer, ring, bounds));
+            }
         }
     }
     let graphics = layout::placed_graphics(project);

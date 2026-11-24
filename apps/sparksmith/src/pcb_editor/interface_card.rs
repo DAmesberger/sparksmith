@@ -503,6 +503,12 @@ pub(super) fn publish_blockers(preview: &PublishPreview) -> Vec<ReviewLine> {
         }),
         EffectKind::Moves => None,
     }));
+    lines.extend(dry.warnings.iter().map(|warning| ReviewLine {
+        level: Level::Warning,
+        title: warning.clone(),
+        ack: None,
+        locate: false,
+    }));
     lines
 }
 
@@ -849,6 +855,15 @@ impl PcbEditor {
             review.running = None;
         }
         self.interface_done(ctx, done)
+    }
+
+    /// A linked design just read for the open document: `operation` is
+    /// what its record applies (tests).
+    #[cfg(test)]
+    pub(crate) fn stage_link(&mut self, operation: Operation) {
+        let (sender, running) = Running::pending();
+        let _ = sender.send(Done::AssemblyRead(Ok(operation)));
+        self.interface.linking = Some(running);
     }
 
     /// Let the open review wait on `running` (tests).

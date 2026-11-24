@@ -482,28 +482,6 @@ fn trim_um(um: f64) -> String {
     text.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
 
-/// The value printed for each instance: its BOM values, else its MPN.
-fn values(project: &Project) -> BTreeMap<Id, String> {
-    let mut out = BTreeMap::new();
-    if let Ok(bom) = crate::completeness::bom(project) {
-        for line in bom.lines {
-            let text = if line.values.is_empty() {
-                line.mpn.clone().unwrap_or_default()
-            } else {
-                line.values
-                    .iter()
-                    .map(|v| v.text.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            };
-            for id in line.instances {
-                out.insert(id, text.clone());
-            }
-        }
-    }
-    out
-}
-
 fn box_loop(b: Bounds) -> Vec<Point> {
     vec![b.min, [b.max[0], b.min[1]], b.max, [b.min[0], b.max[1]]]
 }
@@ -564,7 +542,6 @@ fn trace_cuts(project: &Project) -> Vec<(Layer, TraceCut)> {
 }
 
 fn assembly_sides(project: &Project) -> Result<Vec<AssemblySide>> {
-    let values = values(project);
     let mut assembly: BTreeMap<(Id, bool), Vec<Vec<Point>>> = BTreeMap::new();
     let mut courtyard: BTreeMap<(Id, bool), Vec<Vec<Point>>> = BTreeMap::new();
     let bottom = |l: Layer| l == Layer::Bottom;
@@ -645,18 +622,18 @@ fn assembly_sides(project: &Project) -> Result<Vec<AssemblySide>> {
                     Some(vec![ring])
                 })
                 .unwrap_or_default();
-            let fitted = crate::instances::variants::fitted(project, instance).populated();
+            let decision = crate::completeness::assembly(project, instance);
             let cut_trace = cut_parts.contains(&instance.id);
             parts.push(AssemblyPart {
                 instance: instance.id,
                 designator: instance.designator.clone(),
-                value: values.get(&instance.id).cloned().unwrap_or_default(),
+                value: super::assembly::instance_value(project, instance, &decision)?,
                 at: placement.position,
                 rotation_deg: placement.rotation_deg,
                 body,
                 pads: part_pads,
                 polarity: polarity.get(&instance.id).copied(),
-                fitted,
+                fitted: decision.populated(),
                 cut_trace,
             });
         }
@@ -680,6 +657,8 @@ pub fn data(
     settings: &crate::layout::CheckSettings,
 ) -> Result<DrawingData> {
     let project = snapshot.project();
+    // A plated slot is drawn as a hole, so one that is none would be lost.
+    super::representable(project)?;
     let board = project.board();
     let holes = super::drill::holes(project);
     let outline = drawing_outline(&board.outer, DRAWING_CHORD_MM, "board outline")?;

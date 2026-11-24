@@ -406,12 +406,14 @@ impl Dims {
 }
 
 fn mm(nm: i64) -> String {
+    let sign = if nm < 0 { "-" } else { "" };
+    let nm = nm.abs();
     let whole = nm / MM;
-    let mut frac = format!("{:06}", (nm % MM).abs());
+    let mut frac = format!("{:06}", nm % MM);
     while frac.len() > 1 && frac.ends_with('0') {
         frac.pop();
     }
-    format!("{whole}.{frac}")
+    format!("{sign}{whole}.{frac}")
 }
 
 fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
@@ -670,7 +672,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                 first[0],
                 first[1]
                     - half(d.land[1])
-                    - mask_expansion
+                    - mask_expansion.max(0)
                     - land::SILK_PAD_CLEARANCE_NM
                     - 2 * PIN_ONE_DOT_RADIUS_NM,
             ],

@@ -1172,10 +1172,14 @@ fn footprint_pads(
         pads.push(pad);
     }
     for (window, reference, number) in paste_only {
-        if !translate::add_paste_window(&mut pads, &window) {
-            report.add_detail(Case::PadWithoutCopper, reference, number, "");
-        } else {
-            report.add(Case::PasteWindow);
+        match translate::add_paste_window(&mut pads, &window) {
+            Ok(()) => report.add(Case::PasteWindow),
+            Err(translate::NoWindow::NoPad) => {
+                report.add_detail(Case::PadWithoutCopper, reference, number, "");
+            }
+            Err(translate::NoWindow::Shape) => {
+                report.add_detail(Case::PasteWindowShape, reference, number, "");
+            }
         }
     }
     if !pads.iter().any(|p| p.terminal.is_some()) {

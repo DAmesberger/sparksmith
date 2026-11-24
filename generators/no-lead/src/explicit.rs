@@ -439,7 +439,7 @@ impl Explicit {
 fn pin_one_dot(first: &Pad, body: [i64; 3], mask_expansion: i64) -> Graphic {
     let b = lands::pad_box(first);
     let r = super::PIN_ONE_DOT_RADIUS_NM;
-    let gap = mask_expansion + lands::SILK_PAD_CLEARANCE_NM + 2 * r;
+    let gap = mask_expansion.max(0) + lands::SILK_PAD_CLEARANCE_NM + 2 * r;
     // Across x when the land lies relatively nearer the ±x edge.
     let across_x = first.at[0].abs() * body[1] >= first.at[1].abs() * body[0];
     let center = if across_x {

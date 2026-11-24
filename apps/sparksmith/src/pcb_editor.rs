@@ -714,6 +714,36 @@ impl Default for PcbEditor {
 }
 
 impl PcbEditor {
+    /// Another document was opened: the editor starts anew on it. Only what
+    /// is named here is kept: how the person views and draws, in any
+    /// project. Everything else, a field added later too, is the old
+    /// document's (its selection, dialogs, drafts, running jobs and paths)
+    /// and goes with it.
+    pub fn document_opened(&mut self) {
+        let old = std::mem::take(self);
+        *self = Self {
+            trackpad: old.trackpad,
+            view_3d: old.view_3d,
+            show_airwires: old.show_airwires,
+            layers: old.layers,
+            view_layers: old.view_layers,
+            interface_shown: old.interface_shown,
+            from_bottom: old.from_bottom,
+            fill_display: old.fill_display,
+            focus: old.focus,
+            filter: old.filter,
+            route: route_tool::RouteState {
+                posture: old.route.posture,
+                mode: old.route.mode,
+                vias_stay: old.route.vias_stay,
+                ..Default::default()
+            },
+            // The window's one report follows the open document itself.
+            reports: old.reports,
+            ..Self::default()
+        };
+    }
+
     /// The layers PCB 3D shows: its own toggles, with the outer copper and
     /// silkscreen toggles it shares with PCB 2D.
     pub fn layer_view(&self) -> crate::layer_view::LayerView {

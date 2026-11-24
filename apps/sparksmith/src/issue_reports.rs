@@ -33,6 +33,9 @@ struct Worker {
 /// The report of every area and where the next one comes from.
 #[derive(Default)]
 pub struct Reports {
+    /// The opening ([`Engine::opening`]) `shown` is of: a report never
+    /// stands in for another project's while that one's is made.
+    opening: Option<u64>,
     /// The newest report applied, and the state it describes.
     shown: Option<(ReportKey, Computed)>,
     /// The key last sent to the worker.
@@ -96,6 +99,7 @@ impl Reports {
     /// ready, else the last one while the current one is made (`None`
     /// before the first). Asks for the current one when it has not yet.
     pub fn latest(&mut self, engine: &Engine) -> Option<Answer> {
+        self.follow(engine);
         let key = engine.report_key();
         self.receive(&key);
         if self.shown.as_ref().is_some_and(|(at, _)| *at == key) {
@@ -123,6 +127,7 @@ impl Reports {
     /// issues (a placement's toast), never for drawing. The views use it
     /// too, so no worker makes it again.
     pub fn current(&mut self, engine: &Engine) -> Answer {
+        self.follow(engine);
         let key = engine.report_key();
         self.receive(&key);
         match &self.shown {
@@ -134,6 +139,14 @@ impl Reports {
                     .as_ref()
                     .map_or(Answer::Pending, |(_, answer)| answer.issues.clone())
             }
+        }
+    }
+
+    /// Drop the report of a project that is no longer the open one.
+    fn follow(&mut self, engine: &Engine) {
+        if self.opening != Some(engine.opening()) {
+            self.opening = Some(engine.opening());
+            self.shown = None;
         }
     }
 

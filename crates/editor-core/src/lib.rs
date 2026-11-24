@@ -820,6 +820,9 @@ pub struct Engine {
     /// or the history is cleared. An undo group joins only the step it
     /// made itself, while this has not moved ([`GroupMark`]).
     history: u64,
+    /// Which opening this is: a fresh value whenever a whole document comes
+    /// in ([`Engine::opening`]).
+    opening: u64,
     /// The undo group open now ([`Engine::begin_group`]).
     group: Option<Group>,
     /// `fabrication.waive` refuses a waiver without a reason (a host
@@ -983,6 +986,7 @@ impl Engine {
             redo: Vec::new(),
             last_step: None,
             history: next_history(),
+            opening: next_history(),
             group: None,
             waiver_reason_required: false,
             check_settings: layout::CheckSettings::default(),
@@ -1591,7 +1595,18 @@ impl Engine {
         self.redo.clear();
         self.last_step = None;
         self.history = next_history();
+        self.opening = next_history();
         Ok(())
+    }
+
+    /// Which opened document this is, unique in the process: the same
+    /// through every edit, undo and redo, another one once another document
+    /// is opened, started or recovered ([`Self::replace_document`]). What a
+    /// host keeps or computes for a document and may finish later (a draft,
+    /// a background job) holds the opening it was started for, so it never
+    /// reaches another document.
+    pub fn opening(&self) -> u64 {
+        self.opening
     }
 
     /// Apply one operation at an expected revision as one undo step. A
@@ -1641,18 +1656,32 @@ impl Engine {
         operations: Vec<Operation>,
         evaluators: Evaluators<'_>,
     ) -> Result<Vec<Outcome>> {
+        self.apply_all_resolved(expected_revision, operations, evaluators, |_, _, o| Ok(o))
+    }
+
+    /// [`apply_all_hosted`](Self::apply_all_hosted) with each operation read
+    /// by the host first: `resolve` takes its place in the batch (from 0)
+    /// and the project the operations before it made, so what it looks up
+    /// there (a fab profile id, a sheet's page) is what the same operation
+    /// sent alone would find. Its refusal leaves everything unchanged.
+    pub fn apply_all_resolved<E: From<Error>>(
+        &mut self,
+        expected_revision: u64,
+        operations: Vec<Operation>,
+        evaluators: Evaluators<'_>,
+        resolve: impl Fn(usize, &Project, Operation) -> std::result::Result<Operation, E>,
+    ) -> std::result::Result<Vec<Outcome>, E> {
         self.check_revision(expected_revision)?;
         self.rerouted = Default::default();
         let count = operations.len();
         if count == 0 {
-            return Err(Error::Invalid(
-                "a batch needs at least one operation".into(),
-            ));
+            return Err(Error::Invalid("a batch needs at least one operation".into()).into());
         }
         if count > MAX_BATCH {
             return Err(Error::Limit(format!(
                 "a batch takes at most {MAX_BATCH} operations, not {count}"
-            )));
+            ))
+            .into());
         }
         // One kind of operation names the step; a mix is several changes.
         let project = &self.document.project;
@@ -1691,6 +1720,7 @@ impl Engine {
         let mut outcomes = Vec::with_capacity(count);
         let mut rerouted = layout::router::reroute::Rerouted::default();
         for (index, operation) in operations.into_iter().enumerate() {
+            let operation = resolve(index, scratch.project(), operation)?;
             let at = scratch.revision;
             let outcome = scratch
                 .apply_inner(at, operation, evaluators)
@@ -1751,6 +1781,7 @@ impl Engine {
             redo: self.redo.clone(),
             last_step: self.last_step,
             history: self.history,
+            opening: self.opening,
             group: None,
             waiver_reason_required: self.waiver_reason_required,
             check_settings: self.check_settings,

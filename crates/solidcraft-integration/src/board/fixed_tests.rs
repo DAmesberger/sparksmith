@@ -822,3 +822,152 @@ fn a_binding_both_sides_changed_is_chosen_too() -> Fallible<()> {
     assert!((engine.project().board_size[0] - 52.0).abs() <= 1e-9);
     Ok(())
 }
+
+/// Whether a stored constraint holds the number `value` (an index into the
+/// sketch is a whole number, never a float).
+fn holds(json: &serde_json::Value, value: f64) -> bool {
+    use serde_json::Value;
+    match json {
+        Value::Number(n) => n.is_f64() && n.as_f64() == Some(value),
+        Value::Array(items) => items.iter().any(|v| holds(v, value)),
+        Value::Object(fields) => fields.values().any(|v| holds(v, value)),
+        _ => false,
+    }
+}
+
+/// The datums the linked design's loops run through, and how many the
+/// board's checks report.
+fn loops(engine: &Engine) -> Fallible<Vec<sparksmith_core::model::interface::DatumId>> {
+    let link = engine.project().assembly_link.as_deref().ok_or("linked")?;
+    let mut datums: Vec<_> = link.cycles.iter().map(|c| c.datum).collect();
+    datums.sort();
+    let reported = assembly_link::checks(engine.project())
+        .into_iter()
+        .filter(|f| f.code == findings::ASSEMBLY_CYCLE)
+        .count();
+    assert_eq!(reported, datums.len(), "every loop is reported");
+    Ok(datums)
+}
+
+/// Draw a circle off the board: two regions are no board. Returns the edit
+/// that deletes it.
+fn invalidate(engine: &mut Engine) -> Fallible<BoardEdit> {
+    let circle = created_curves_of(edit(
+        engine,
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::AddCircle {
+                center: [150.0, 20.0],
+                radius: 2.0,
+                construction: false,
+            },
+        }],
+    )?);
+    assert!(engine.project().board_shape.invalid().is_some());
+    Ok(BoardEdit::Sketch {
+        edit: SketchEdit::Delete {
+            ids: circle.into_iter().map(SketchRef::Curve).collect(),
+        },
+    })
+}
+
+/// A loop through the board's outline and one through a part held to it are
+/// kept while the outline is invalid, whatever is edited meanwhile; once it
+/// is valid again they are found anew: one that is still there is reported,
+/// one that is gone is not.
+#[test]
+fn loops_are_kept_while_the_outline_is_invalid() -> Fallible<()> {
+    use sparksmith_core::interface::{ExportTarget, InterfaceCommand};
+    use sparksmith_core::layout::dimensions::DimensionCommand;
+    use sparksmith_core::library::footprint_source::Expr;
+    use sparksmith_core::model::board::ConstraintTarget;
+    use sparksmith_core::model::dimension::{
+        BoardRef, FeatureRef, PartDimensionSpec, PartRelation,
+    };
+    let mut engine = sketched()?;
+    let height = engine.project().board_size[1];
+    let placement = engine.project().placements.first().ok_or("a part")?;
+    let (part, y) = (placement.instance, placement.position[1]);
+    let edge = sketch(&engine)?
+        .edges
+        .iter()
+        .find(|e| e.name.0 == "top")
+        .map(|e| e.curve.clone())
+        .ok_or("top")?;
+    // Held where it stands, below the top edge.
+    apply(
+        &mut engine,
+        Operation::Dimension(DimensionCommand::Add {
+            dimension: PartDimensionSpec {
+                kind: PartRelation::Dim(DimKind::Distance),
+                refs: vec![
+                    BoardRef::Part(FeatureRef::Origin {
+                        target: ConstraintTarget::Placement(part),
+                    }),
+                    BoardRef::Board(SketchRef::Curve(edge)),
+                ],
+                value: Some(DimValue::Expr(Expr(format!("{} mm", height - y)))),
+                reference: false,
+            },
+        }),
+    )?;
+    let dimension = engine
+        .project()
+        .part_dimensions
+        .iter()
+        .next()
+        .ok_or("the dimension")?
+        .id;
+    apply(
+        &mut engine,
+        Operation::Interface(InterfaceCommand::Export {
+            target: ExportTarget::PartFrame { instance: part },
+            name: None,
+        }),
+    )?;
+    let outline = uses(&engine, DatumRole::BoardOutline, "Far wall")?;
+    let frame = uses(&engine, DatumRole::PartFrame, "Boss")?;
+    let (outline_id, frame_id) = (outline.datum, frame.datum);
+    let mut both = vec![outline_id, frame_id];
+    both.sort();
+    let (mut engine, _) = followed_on(engine, vec![outline, frame])?;
+    assert_eq!(loops(&engine)?, both);
+
+    // Invalid, and edited while it is: both kept. Valid with both still
+    // there: both found again.
+    let fix = invalidate(&mut engine)?;
+    assert_eq!(loops(&engine)?, both);
+    edit(&mut engine, vec![super::tests::set("width", "62 mm")])?;
+    assert_eq!(loops(&engine)?, both);
+    edit(&mut engine, vec![fix])?;
+    assert!(engine.project().board_shape.invalid().is_none());
+    assert_eq!(loops(&engine)?, both);
+
+    // The part let go while invalid: its loop is kept until the outline is
+    // valid, then gone; the outline's is still there.
+    let fix = invalidate(&mut engine)?;
+    apply(
+        &mut engine,
+        Operation::Dimension(DimensionCommand::Delete { id: dimension }),
+    )?;
+    assert_eq!(loops(&engine)?, both);
+    edit(&mut engine, vec![fix])?;
+    assert_eq!(loops(&engine)?, [outline_id]);
+
+    // The edge let go of the wall while invalid: the same.
+    let fix = invalidate(&mut engine)?;
+    let to_wall = find(&engine, "constraints", |k| holds(k, 1.0))?;
+    edit(
+        &mut engine,
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::Delete {
+                ids: vec![SketchRef::Constraint(SketchConstraintId(to_wall))],
+            },
+        }],
+    )?;
+    assert_eq!(loops(&engine)?, [outline_id]);
+    edit(&mut engine, vec![fix])?;
+    assert!(loops(&engine)?.is_empty());
+    engine.undo()?;
+    assert_eq!(loops(&engine)?, [outline_id]);
+    Ok(())
+}

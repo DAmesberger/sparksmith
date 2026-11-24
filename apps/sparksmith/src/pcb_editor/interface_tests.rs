@@ -506,6 +506,7 @@ fn preview(engine: &Engine, name: &str) -> PublishPreview {
                     message: "The linked design's ‘Lid rib’ would fail".into(),
                 },
             ],
+            warnings: vec!["The linked design's ‘Wall boss’ uses H1 and may not follow it.".into()],
         }),
         token: Some("publish-test".into()),
     }
@@ -586,6 +587,7 @@ fn the_publish_preview_waits_then_shows_changes_and_the_dry_run() -> TestResult 
         "Revision 1 → 2 · 1 datum changed",
         "The linked design's ‘Lid rib’ would fail",
         "Publish anyway: ‘Lid rib’ will fail in SolidCraft",
+        "The linked design's ‘Wall boss’ uses H1 and may not follow it.",
         "DATUMS",
         "J1 opening, 2 mm along X",
         "The linked design's ‘USB opening’ follows J1 opening: it moves 2 mm along X",

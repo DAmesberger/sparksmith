@@ -223,3 +223,60 @@ fn competing_imports_publish_one_project_and_report() -> Fallible {
     );
     Ok(())
 }
+
+/// A sheet file with further items.
+fn sheet(items: &str) -> String {
+    format!(
+        "(kicad_sch (version 20231120) (generator \"sparksmith_test\")
+  (uuid \"00000000-0000-4000-8000-000000000001\") (paper \"A4\") (lib_symbols) {items})"
+    )
+}
+
+/// A sheet symbol naming `file`.
+fn names(file: &str) -> String {
+    format!(
+        "(sheet (at 50 50) (size 20 10) (uuid \"00000000-0000-4000-8000-000000000002\")
+  (property \"Sheetname\" \"Child\" (at 50 49 0)) (property \"Sheetfile\" \"{file}\" (at 50 61 0)))"
+    )
+}
+
+/// However the board's path is written, the project's own sheets come in,
+/// one in a subfolder and one it names beside itself among them. Another
+/// project's schematic in the folder, here too large to read, is not read.
+#[test]
+fn a_boards_schematics_are_the_ones_its_sheets_name() -> Fallible {
+    for spelling in ["board.kicad_pcb", "./board.kicad_pcb", "board.kicad_pro"] {
+        let dir = tempfile::tempdir()?;
+        let config = tempfile::tempdir()?;
+        let target = tempfile::tempdir()?;
+        std::fs::write(dir.path().join("board.kicad_pcb"), BOARD)?;
+        std::fs::write(dir.path().join("board.kicad_pro"), b"{}")?;
+        std::fs::write(
+            dir.path().join("board.kicad_sch"),
+            sheet(&names("parts/child.kicad_sch")),
+        )?;
+        std::fs::create_dir(dir.path().join("parts"))?;
+        std::fs::write(
+            dir.path().join("parts/child.kicad_sch"),
+            sheet(&names("beside.kicad_sch")),
+        )?;
+        std::fs::write(dir.path().join("parts/beside.kicad_sch"), sheet(""))?;
+        std::fs::File::create(dir.path().join("other.kicad_sch"))?.set_len(65 * 1024 * 1024)?;
+        let out = Command::new(env!("CARGO_BIN_EXE_sparksmith"))
+            .env("SPARKSMITH_CONFIG_DIR", config.path())
+            .env("SPARKSMITH_CACHE_DIR", config.path())
+            .current_dir(dir.path())
+            .args(["import-kicad", spelling])
+            .arg(target.path().join("imported.sparksmith"))
+            .output()?;
+        assert!(
+            out.status.success(),
+            "{spelling}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let reply: Value = serde_json::from_slice(&out.stdout)?;
+        assert_eq!(reply["counts"]["sheets"], 3, "{spelling}: {reply:#}");
+        assert_eq!(count(&reply["rows"], "schematic_unreadable"), 0);
+    }
+    Ok(())
+}

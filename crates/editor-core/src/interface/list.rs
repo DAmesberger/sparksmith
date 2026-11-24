@@ -13,7 +13,7 @@ use crate::geometry::Point;
 use crate::ids::{ContentHash, Id};
 use crate::layout::dimensions::{FeatureGeometry, features, view};
 use crate::library::datum::DatumKind;
-use crate::library::footprint_source::{ParamUnit, SketchRef};
+use crate::library::footprint_source::{ParamName, ParamValue, SketchRef};
 use crate::library::{Outline, Segment};
 use crate::model::board::BoardShape;
 use crate::model::dimension::{BoardRef, BoxSide, FeatureRef, ReferenceStatus};
@@ -41,8 +41,8 @@ pub fn table(project: &Project) -> Result<Cow<'_, InterfaceTable>> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Derived {
     pub kind: DatumKind,
-    /// `None` when the datum is lost, or when its value needs the host's
-    /// expression evaluator (a board parameter given as an expression).
+    /// `None` when the datum is lost (a board parameter without a value is
+    /// too).
     pub geometry: Option<DatumGeometry>,
     pub status: DatumStatus,
 }
@@ -199,30 +199,23 @@ fn turned_over(outline: &Outline) -> Outline {
     }
 }
 
-fn parameter(project: &Project, name: &str) -> Option<Option<DatumGeometry>> {
+/// A board parameter's value in the board's last valid solve, the one whose
+/// shape the interface shows: the core reads no expression, a plain number
+/// either.
+fn parameter(project: &Project, name: &str) -> Option<DatumGeometry> {
     let BoardShape::Sketch(sketch) = &project.board_shape else {
         return None;
     };
-    let param = sketch.parameters.iter().find(|p| p.name.0 == name)?;
-    let unit = match param.unit {
-        ParamUnit::Mm => "mm",
-        ParamUnit::Deg => "deg",
-        ParamUnit::Count => "",
+    let solved = sketch.solved.value(&ParamName(name.into()))?;
+    let (value, unit) = match solved {
+        ParamValue::Length(mm) => (mm, "mm"),
+        ParamValue::Angle(deg) => (deg, "deg"),
+        ParamValue::Count(n) => (f64::from(n), ""),
     };
-    // A number, alone or with the parameter's own unit as the board sketch
-    // writes it ("40 mm"), is its value; anything else is an expression,
-    // which the host's evaluator reads.
-    let text = param.expr.0.trim();
-    let number = text.strip_suffix(unit).map_or(text, str::trim_end);
-    Some(
-        number
-            .parse::<f64>()
-            .ok()
-            .map(|value| DatumGeometry::Parameter {
-                value,
-                unit: unit.into(),
-            }),
-    )
+    Some(DatumGeometry::Parameter {
+        value,
+        unit: unit.into(),
+    })
 }
 
 /// The kind a feature datum has: what its geometry is, or, when it is
@@ -365,16 +358,10 @@ pub fn derive(project: &Project, datum: &InterfaceDatum) -> Derived {
             };
             found(kind, Some(side_height(project, layer)))
         }
-        (DatumOwner::Board, DatumRole::BoardParameter) => {
-            match parameter(project, key.name.as_deref().unwrap_or_default()) {
-                Some(geometry) => Derived {
-                    kind,
-                    geometry,
-                    status: DatumStatus::Resolved,
-                },
-                None => found(kind, None),
-            }
-        }
+        (DatumOwner::Board, DatumRole::BoardParameter) => found(
+            kind,
+            parameter(project, key.name.as_deref().unwrap_or_default()),
+        ),
         (DatumOwner::Cutout { id }, DatumRole::BoardCutout) => {
             let board = project.board();
             let loop_ =
@@ -564,6 +551,7 @@ pub fn list(project: &Project) -> Result<InterfaceList> {
     });
     let changed = datums.iter().filter(|r| r.changed).count() + retired_since;
     Ok(InterfaceList {
+        blocked: super::assembly_link::publish_blockers(project),
         source_id: table.source_id,
         rules: AutoRule::ALL
             .into_iter()

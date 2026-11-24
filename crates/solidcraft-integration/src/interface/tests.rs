@@ -431,7 +431,7 @@ fn dry_run_reports_movement_on_the_513th_assembly_body() -> Fallible {
     )?;
     move_by(&mut engine, part, [2.0, 0.0])?;
     let next = publish(&mut engine, Tier::Interface, &candidate_path)?;
-    let effects = assembly.dry_run(
+    let (effects, _) = assembly.dry_run(
         &link,
         candidate_path.to_str().ok_or("candidate path")?,
         &published,

@@ -240,7 +240,7 @@ pub(super) fn sidecar(design: &Path) -> TestResult<sparksmith_core::interface::S
 /// The test linked design (acceptance 3): the board linked and grounded; a
 /// 2 mm wall across J1's opening, 1 mm in front of the board edge, with a
 /// cutout projected from the opening's outer face; a boss under the board
-/// projected from mounting hole 1's wall. Returns it with the wall's own
+/// projected from mounting hole 1's rim. Returns it with the wall's own
 /// box faces.
 pub(super) fn linked_design(
     design: &Path,
@@ -268,22 +268,15 @@ pub(super) fn linked_design(
         2.0,
         Extrude::Cut,
     )?;
-    // Mounting hole 1's wall: the board's curved face round the hole,
-    // which stands 3.5 mm from the left edge and from the tab's edge.
-    let wall = assembly_link
-        .faces("board")?
-        .into_iter()
-        .find(|f| {
-            f.normal.is_none()
-                && (f.centroid[0] - 3.5).abs() < 1e-6
-                && (f.centroid[1] - 3.5).abs() < 1e-6
-        })
-        .ok_or("a hole wall")?;
-    assembly_link.projected(
+    // Mounting hole 1's lower rim: the hole stands 3.5 mm from the left
+    // edge and from the tab's edge and is 2.7 mm across. (Its wall, seen
+    // along the hole, is two rims on one circle, which SolidCraft does not
+    // update: `LinkedDesign::projected`.)
+    assembly_link.projected_edge(
         "Boss",
         [[0.0, 0.0, -6.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
         "board",
-        wall.point,
+        [3.5 + 1.35, 3.5, 0.0],
         4.0,
         Extrude::New,
     )?;
@@ -967,5 +960,136 @@ fn equal_revision_tokens_bind_copper_and_board_lineage_even_with_equal_datums() 
         assert!(!design.exists());
         assert!(!sparksmith_io::interface::sidecar_path(&design).exists());
     }
+    Ok(())
+}
+
+/// A board whose outline is invalid is not published: the list and the
+/// preview say why and the publish writes nothing, while the interface
+/// shows the last valid outline with its own parameter values. Made valid
+/// again, it publishes the new outline with the new values.
+#[test]
+fn an_invalid_outline_waits_to_be_published() -> TestResult {
+    use sparksmith_core::interface::{DatumGeometry, ExportTarget, InterfaceCommand};
+    use sparksmith_core::layout::outline::{BoardCommand, BoardEdit};
+    use sparksmith_core::library::footprint_source::{
+        Expr, FootprintParam, ParamName, ParamUnit, SketchEdit, SketchRef,
+    };
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let mut session = open(dir.path())?;
+    let win_h = ParamName("win_h".into());
+    apply(
+        &mut session,
+        Operation::Interface(InterfaceCommand::Export {
+            target: ExportTarget::BoardParameter {
+                name: win_h.clone(),
+            },
+            name: None,
+        }),
+    )?;
+    publish(&mut session, &design, "interface")?;
+    // The parameter's value and the tallest cutout's height.
+    let published = || -> TestResult<(f64, f64)> {
+        let mut value = None;
+        let mut tallest: f64 = 0.0;
+        for d in sidecar(&design)?.datums {
+            match d.geometry {
+                DatumGeometry::Parameter { value: v, .. } if d.token.ends_with(".win_h") => {
+                    value = Some(v);
+                }
+                DatumGeometry::Profile { loops, .. } if d.role == "board.cutout" => {
+                    for l in &loops {
+                        let b = sparksmith_core::model::board::outline_bounds(l);
+                        tallest = tallest.max(b.max[1] - b.min[1]);
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok((value.ok_or("win_h")?, tallest))
+    };
+    let is = |(value, height): (f64, f64), mm: f64| {
+        assert!(
+            (value - mm).abs() < 1e-6 && (height - mm).abs() < 1e-6,
+            "{value} and {height}, not {mm}"
+        );
+    };
+    is(published()?, 10.0);
+
+    // A circle off the board is a second region; the window is made shorter
+    // in the same edit.
+    let outcome = apply(
+        &mut session,
+        Operation::Board(BoardCommand::Edit {
+            edits: vec![
+                BoardEdit::Sketch {
+                    edit: SketchEdit::AddCircle {
+                        center: [100.0, 20.0],
+                        radius: 2.0,
+                        construction: false,
+                    },
+                },
+                BoardEdit::SetParameter {
+                    param: FootprintParam {
+                        name: win_h,
+                        expr: Expr("8 mm".into()),
+                        unit: ParamUnit::Mm,
+                        comment: String::new(),
+                    },
+                },
+            ],
+        }),
+    )?;
+    let circle: Vec<SketchRef> = serde_json::from_value(outcome["outcome"]["created"].clone())?;
+    let circle: Vec<_> = circle
+        .into_iter()
+        .filter(|r| matches!(r, SketchRef::Curve(_)))
+        .collect();
+    let revision = session.engine().revision();
+    let list = ok(
+        &mut session,
+        json!({"command": "project.query", "params": {
+            "query": "interface.list", "params": {}}}),
+    )?;
+    let shown = preview(&mut session, &design)?;
+    for reply in [&list, &shown] {
+        assert!(
+            reply.to_string().contains("The board outline is not valid"),
+            "{reply}"
+        );
+    }
+    assert!(changes(&shown).is_empty(), "nothing moved: {shown}");
+    let before = (
+        std::fs::read(&design)?,
+        std::fs::read(sparksmith_io::interface::sidecar_path(&design))?,
+    );
+    let refused = session.dispatch(json!({"command": "interface.publish", "params": {
+        "path": design.display().to_string(), "tier": "interface",
+        "expected_revision": revision}}));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert_eq!(
+        refused["error"]["rule"], "interface.outline_invalid",
+        "{refused}"
+    );
+    assert_eq!(session.engine().revision(), revision);
+    assert_eq!(
+        (
+            std::fs::read(&design)?,
+            std::fs::read(sparksmith_io::interface::sidecar_path(&design))?
+        ),
+        before,
+        "nothing written"
+    );
+
+    apply(
+        &mut session,
+        Operation::Board(BoardCommand::Edit {
+            edits: vec![BoardEdit::Sketch {
+                edit: SketchEdit::Delete { ids: circle },
+            }],
+        }),
+    )?;
+    publish(&mut session, &design, "interface")?;
+    is(published()?, 8.0);
     Ok(())
 }

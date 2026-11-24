@@ -22,6 +22,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// Most sheet instances in one hierarchy.
 pub const MAX_SHEETS: usize = 512;
+/// Most file names one hierarchy is looked for under.
+const MAX_NAMES: usize = 4 * MAX_SHEETS;
 /// Deepest hierarchy.
 pub const MAX_DEPTH: usize = 32;
 /// Most wire segments on one sheet file.
@@ -55,7 +57,8 @@ impl std::error::Error for SchematicError {}
 type Result<T> = std::result::Result<T, SchematicError>;
 
 /// The schematic files of a project: the root's name and every file's
-/// bytes by the name sheets use for it (`Sheetfile`).
+/// bytes by its name in the project folder ([`sheet_names`]; [`collect`]
+/// reads them).
 #[derive(Clone, Copy)]
 pub struct SchematicFiles<'a> {
     pub root: &'a str,
@@ -420,6 +423,72 @@ pub fn read_file(bytes: &[u8]) -> Result<SheetFile> {
     Ok(out)
 }
 
+/// `name` against the folder `dir` (both `/`-separated, inside the project
+/// folder), or `None` when it is absolute or leaves the project folder.
+fn joined(dir: &str, name: &str) -> Option<String> {
+    let name = name.replace('\\', "/");
+    let drive = name.as_bytes().get(1) == Some(&b':')
+        && name.as_bytes().first().is_some_and(u8::is_ascii_alphabetic);
+    if name.is_empty() || name.starts_with('/') || drive {
+        return None;
+    }
+    let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
+    for part in name.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            part => parts.push(part),
+        }
+    }
+    Some(parts.join("/"))
+}
+
+/// The files a sheet named `file` on the sheet file `parent` can be, by
+/// name in the project folder. The published format says the property is a
+/// file name and not which folder a relative one starts from, so it is read
+/// from the project's folder and from the parent file's, the same one unless
+/// the parent lies in a subfolder.
+pub fn sheet_names(parent: &str, file: &str) -> Vec<String> {
+    let dir = parent.rsplit_once('/').map_or("", |(dir, _)| dir);
+    let mut names: Vec<String> = ["", dir].iter().filter_map(|d| joined(d, file)).collect();
+    names.dedup();
+    names
+}
+
+/// The files of the hierarchy under `root`, by name in the project folder:
+/// each sheet file the ones before it name, as `read` gives it. A file that
+/// is not there or cannot be read is left for [`read`](fn@read) to report.
+pub fn collect<E>(
+    root: &str,
+    mut read: impl FnMut(&str) -> std::result::Result<Option<Vec<u8>>, E>,
+) -> std::result::Result<BTreeMap<String, Vec<u8>>, E> {
+    let mut files = BTreeMap::new();
+    let mut asked = BTreeSet::from([root.to_owned()]);
+    let mut queue = std::collections::VecDeque::from([(root.to_owned(), 0)]);
+    while let Some((name, depth)) = queue.pop_front() {
+        let Some(bytes) = read(&name)? else {
+            continue;
+        };
+        if depth <= MAX_DEPTH
+            && let Ok(sheet) = read_file(&bytes)
+        {
+            for child in sheet
+                .sheets
+                .iter()
+                .flat_map(|s| sheet_names(&name, &s.file))
+            {
+                if asked.len() < MAX_NAMES && asked.insert(child.clone()) {
+                    queue.push_back((child, depth + 1));
+                }
+            }
+        }
+        files.insert(name, bytes);
+    }
+    Ok(files)
+}
+
 /// Read a schematic's hierarchy from its root file.
 pub fn read(files: SchematicFiles<'_>) -> Result<Schematic> {
     /// A sheet instance still to read: its file, name, paths, parent
@@ -470,8 +539,17 @@ pub fn read(files: SchematicFiles<'_>) -> Result<Schematic> {
         });
         // Children in reverse, so they are read in file order.
         for (k, child) in children.into_iter().rev() {
+            let mut found = sheet_names(&out.sheets[index].file, &child.file)
+                .into_iter()
+                .filter(|name| files.files.contains_key(name));
+            let file = found.next().ok_or(SchematicError::Missing)?;
+            if found.next().is_some() {
+                return Err(SchematicError::Value(
+                    "a sheet's file name is found in two folders",
+                ));
+            }
             stack.push((
-                child.file.clone(),
+                file,
                 child.name.clone(),
                 format!("{path}/{}", child.uuid),
                 format!("{short}/{}", child.uuid),

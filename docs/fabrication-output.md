@@ -49,6 +49,8 @@ A check whose limit is the fab profile's own rule (not an override's, a net clas
 - **Never a waiver.** A correctly drawn part is made by a profile that allows it, not waived (founder decision, 16 November 2026). A finding with needs offers no Waive… in the dialog or in Issues (`PreflightItem::offers_waiver`), and the engine refuses `fabrication.waive` of its key from any caller (`fabrication.not_waivable`, naming the need; decision 23 November 2026); the Production dialog lists the needs and each qualifying profile with "Switch to …", and an Issues row's Fix is "Switch to …" the first one. A switch is one `rules.set_fab_profile` built as the snapshot builds it (`fabrication::snapshot::switch`: overrides kept, the copper weight that orders the board's foils), so the board is then made exactly as it was checked; Export, while only such errors block it, says "Fix the design or switch to a fab profile that allows it first". The suggestions run on a worker, after the check.
 
 **Waivers:**
+- A plated board slot the drill file cannot route (`fabrication.slot_unroutable`) cannot be waived, a waiver of one saved in a file is ignored, and `fabrication::generate` refuses such a board: milled on the profile it would be unplated.
+- Waiving a stale fill means its stored copper is made as it is, so the check then measures that copper against every clearance, drills included, as it does fresh copper; each object it is too close to is its own finding.
 - Incomplete board checks, unrouted connections and parts not on the board cannot be waived (`fabrication::preflight::NO_WAIVER`), nor can a lost or inexact dimension reference, a loop between the board and its linked design, or a board without a fab profile. A waiver of an unrouted connection would turn Issues to "No issues" while airwires remain and let export write a complete-looking job (e2e run 13, finding 37); a part to leave unassembled is placed and marked Not fitted in a variant. `fabrication.waive` refuses such a key, naming what resolves it; a waiver of one saved in a file is ignored, so the finding still blocks export, stays in Issues and adds no drawing note.
 - An unwaived error blocks export, and nothing is written. Every underlying finding is checked separately, even when Issues groups several pad pairs or unrouted connections into one row. A waiver removes only its own finding before Issues groups the remaining findings.
 - `fabrication.waive {keys, reason?}` waives one or more findings with one optional reason, and `fabrication.unwaive {key}` restores one. Each is a document operation and one undo step. A list with one empty or unprintable key is refused whole. The setting "Require a reason to waive errors" (Settings → Production, off by default) makes the engine refuse a waiver without a reason, from the dialog, the in-app assistant and headless CLI and MCP sessions alike: every host sets up its engine from the user's settings file the same way (`UserSettings::configure`).
@@ -92,7 +94,8 @@ A check whose limit is the fab profile's own rule (not an override's, a net clas
   - Pads open by their mask rule; `Inherit` uses the effective design rules' mask expansion, not the footprint default.
   - Untented vias and mounting holes open by the same expansion.
   - Through-hole and NPTH pads open on both sides.
-- **Paste:** `Inherit` shrinks by the rules' paste reduction, for surface pads without a hole; explicit reductions and windows are kept as authored.
+  - A notch that the growth closes inside a custom outline stays mask: the opening is a region with a cut-in, which clears nothing drawn before.
+- **Paste:** `Inherit` shrinks by the rules' paste reduction, for surface pads without a hole; explicit reductions and windows are kept as authored. A custom outline that shrinks into several pieces prints every piece.
 - **Legend:**
   - Footprint silkscreen strokes are drawn with a round pen, with exact arcs; filled shapes are regions.
   - Text uses Sparksmith's stroke font (`layout::legend`, now shared with the 3D silkscreen films).
@@ -111,7 +114,7 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
 
 - **Header:** `M48`, X2 attributes as `; #@! TF.…` comments, `FMAT,2`, `METRIC`, and one `TnnCd.ddd` tool table per file, each tool preceded by its `TA.AperFunction` comment.
 - **Body:** `%`, `G90`, `G05`, then decimal-point coordinates at 3 decimals, so no zero-suppression convention applies. The file ends with `T0` and `M30`.
-- **Slots:** pad slots and plated straight board slots are canned `G85` slots with the tool's width.
+- **Slots:** pad slots and plated straight board slots are canned `G85` slots with the tool's width. A board slot or circle is one only when its whole outline lies within 0.1 µm of the slot or circle read from its two half turns (`layout::physical::stadium`): arcs that bulge inwards, sides that are not parallel and open or non-tangent outlines are not.
 - **Tools:** one per (plating, diameter to 1 µm, hit or slot, function), numbered from 1 across both files, plated first (T1–T3 plated, T4 non-plated), so a number names one tool in the drill table, the drill map, the fabrication drawing and either file. Excellon numbers tools per file, but a fabricator who loads both files into one CAM job, or reads the combined drill table, then never sees two tools called T1.
 
 ### Pick-and-place
@@ -142,7 +145,11 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
 
 `fabrication::tests` holds an original Gerber/Excellon reader and a bit rasteriser that samples pixel centres. They are tested against hand-derived areas: circle and stadium flashes and draws, rotated macros, cut-in and clear regions, arcs, and Excellon slots.
 
-`expected` renders the core's own geometry independently, from placed pads, track capsules, via discs, fill regions, mask and paste rules, the solved outline and the holes. `compare` reads every written layer back and takes the XOR against that rendering at 10 µm. Both boards below are compared.
+`oracle` decides point by point what must be made, from the document's primitives alone: exact distances to lines and arcs, with no polygon library and none of the production geometry (pad growth, slot reading, placement, fill computation). `expected` paints it, and `compare` reads every written layer back, takes the XOR against it at 10 µm and allows no difference two pixels thick. Both boards below are compared.
+
+`second` is a second opinion by another method, without the point oracle: every object of every file measured on its own and paired one to one with an object of the document whose area is a formula (a land, its grown or shrunk opening, a via, a track), the stored fill areas, the profile's contours and length, and the holes by size and plating. `layers` holds a four-layer board with two pours a layer drawn past its edge, the legend of both sides, the drill map and table against the drill files, and the job file against the files. Both have seeded faults.
+
+`proof` holds one board with everything the files can hold to the oracle: each layer's image at points 3 to 60 µm either side of every edge, a two-way inventory of every file, hole, slot, contour and copper object, and the spacing of fill copper measured in the Gerber and Excellon files (`fabcheck::spacing`) against the rules' numbers. Every kind of output fault is seeded in the files, and each must be reported. What still shares code with production: the footprint a part resolves to, the effective rule values, the stored fill regions (their position and spacing are checked on their own), and the polygon library under `fabcheck::spacing`.
 
 | Board | Layers | Largest XOR |
 | --- | --- | --- |
@@ -160,7 +167,7 @@ Format tests check attributes, polarities, D-code reuse, macro text, escapes, de
 ## Limits and follow-ups
 
 - **Out of scope:** IPC-2581 and ODB++ are follow-ups.
-- **Holes:** blind and buried vias are not modelled, so there are no drill-pair files. A plated board slot that is not straight is refused by the check.
+- **Holes:** blind and buried vias are not modelled, so there are no drill-pair files; a document that held one is refused. A plated board slot that is not straight is refused by the check and by the writers.
 - **Legend:** it is not clipped at mask openings or the outline (the fabricator clips; the check warns). The desktop's Designator section moves the silkscreen designator only; the command takes any footprint text.
 - **Assembly variants:** the assembly files and drawing follow the active variant ([assembly variants](assembly-variants.md)); one export writes one variant.
 - **Profile check:** the desktop dialog keys its check on the document, the check settings (Settings → impedance tolerance) and the picked profile's content. It reads the user's profiles when it opens and again at Export: a profile file edited since the check refuses that Export ("The fab profile's file changed since the check"), and the dialog checks the new rules first.
