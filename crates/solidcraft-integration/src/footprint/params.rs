@@ -261,9 +261,10 @@ impl Values {
         Ok(v)
     }
 
-    /// A parameter's evaluated value in its own unit, when it has one.
-    pub(crate) fn of(&self, p: &FootprintParam) -> Option<ParamValue> {
-        typed(p, *self.0.get(&p.name.0)?).ok()
+    /// A parameter's evaluated value in its own unit, or why it has none.
+    pub(crate) fn of(&self, p: &FootprintParam) -> std::result::Result<ParamValue, String> {
+        let value = self.0.get(&p.name.0).copied();
+        typed(p, value.ok_or_else(|| "it has no value".to_owned())?)
     }
 
     /// A signed length in mm within the coordinate range.

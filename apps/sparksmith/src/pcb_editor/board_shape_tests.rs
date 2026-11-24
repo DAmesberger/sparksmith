@@ -9,7 +9,7 @@ use egui::{Pos2, Shape};
 use sparksmith_core::layout::outline::{BoardCommand, BoardEvaluation};
 use sparksmith_core::library::footprint_source::SolveStatus;
 use sparksmith_core::library::footprint_source::{EvaluatorRef, FootprintEvaluator, SketchOutcome};
-use sparksmith_core::model::board::{NamedEdge, ShapeFaultKind, SolvedBoard};
+use sparksmith_core::model::board::{NamedEdge, ParameterValue, ShapeFaultKind, SolvedBoard};
 use sparksmith_core::{BoardShape, Engine, Operation};
 use sparksmith_solidcraft::footprint::SketchEvaluator;
 use sparksmith_solidcraft::footprint::view::LiveSketch;
@@ -81,7 +81,7 @@ fn board_of(size: Point, parameters: Vec<FootprintParam>) -> Result<BoardSketch>
             curve: c.clone(),
         })
         .collect();
-    Ok(BoardSketch {
+    let mut board = BoardSketch {
         evaluator: HOST.evaluator(),
         sketch: stage.staged().clone(),
         parameters,
@@ -94,8 +94,18 @@ fn board_of(size: Point, parameters: Vec<FootprintParam>) -> Result<BoardSketch>
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
-    })
+    };
+    board.solved.values = view::parameter_values(&source_of(&board), &[])?
+        .into_iter()
+        .map(|p| {
+            let value = p.value.map_err(Error::Invalid)?;
+            Ok(ParameterValue {
+                name: p.name,
+                value,
+            })
+        })
+        .collect::<Result<_>>()?;
+    Ok(board)
 }
 
 fn scene_view(board: &BoardSketch) -> Result<SketchView> {

@@ -24,12 +24,12 @@ use crate::library::footprint_source::{
 };
 use crate::model::board::{
     BoardFeatureId, BoardSketch, CutoutKind, CutoutRole, EdgeName, MAX_FAULT_POINTS,
-    MAX_FAULT_TEXT, MAX_NAMED_EDGES, MountingHoleRole, NamedEdge, ShapeFault, ShapeFaultKind,
+    MAX_FAULT_TEXT, MAX_NAMED_EDGES, MountingHoleRole, NamedEdge, ParameterValue, ShapeFault, ShapeFaultKind,
 };
 use crate::model::{BoardShape, Project, SolvedBoard};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The largest bulge of a solved arc (as `library::Outline` allows).
 const MAX_BULGE: f64 = 1e3;
@@ -70,13 +70,15 @@ pub fn refuses(code: &str) -> bool {
 /// What a board evaluation produced.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct BoardEvaluation {
+    /// The shape and the parameter values of this solve; not read with a
+    /// [`Self::fault`].
     pub solved: SolvedBoard,
     pub solve: SolveSummary,
     /// Design problems (unsolved, over-constrained). Codes that
     /// [`refuses`] names refuse the edit.
     pub findings: Vec<Finding>,
-    /// Why the curves are not a board; `solved` is then the board's last
-    /// valid shape.
+    /// Why the curves are not a board; the board then keeps its last valid
+    /// solve.
     #[serde(default)]
     pub fault: Option<ShapeFault>,
     /// The sketch with its stored positions moved to the solve, so the
@@ -87,10 +89,6 @@ pub struct BoardEvaluation {
     /// curve or mounting hole ([`PARAM_IDLE`]).
     #[serde(default)]
     pub idle: Vec<ParamName>,
-    /// Each board parameter's value, as this evaluation read the
-    /// parameters ([`crate::model::board::BoardSketch::values`]).
-    #[serde(default)]
-    pub values: Vec<crate::model::board::ParameterValue>,
 }
 
 /// What [`BoardShapeEvaluator::fillet`] drew: the sketch and, per new
@@ -797,7 +795,7 @@ fn identify_cutouts(sketch: &mut BoardSketch) -> Result<()> {
 /// Solve a candidate sketch (with its free-form curves fitted within the
 /// project's `board.outline_fit`) and store it with its solve; refuses a
 /// shape that does not solve. Curves that are not a board are stored with their
-/// [`ShapeFault`] and the last valid shape. Every inner loop keeps (or gets)
+/// [`ShapeFault`], the last valid solve kept whole. Every inner loop keeps (or gets)
 /// its stable id ([`identify_cutouts`]).
 pub(crate) fn commit(
     project: &mut Project,
@@ -818,12 +816,14 @@ pub(crate) fn commit(
             "{SHAPE_UNSOLVED}: the board sketch does not solve"
         )));
     }
-    let size = sketch_size(&evaluation.solved)?;
     sketch.solve = evaluation.solve;
-    sketch.solved = evaluation.solved;
     sketch.fault = evaluation.fault.map(bounded);
     sketch.idle = evaluation.idle;
-    sketch.values = evaluation.values;
+    if sketch.fault.is_none() {
+        sketch.solved = evaluation.solved;
+    }
+    check_values(&sketch)?;
+    let size = sketch_size(&sketch.solved)?;
     if let Some(blob) = evaluation.sketch_out {
         sketch.sketch = blob;
     }
@@ -973,6 +973,58 @@ fn near_mm(a: f64, b: f64) -> bool {
     (a - b).abs() <= 1e-6
 }
 
+/// The solved board's parameter values: each name once and finite; of a
+/// valid solve exactly one per board parameter, of its kind. While the
+/// outline is invalid they are the last valid solve's, whose parameters the
+/// person may have renamed, removed or changed since.
+fn check_values(sketch: &BoardSketch) -> Result<()> {
+    let refuse = |what: String| Err(Error::Invalid(format!("board.param_value: {what}")));
+    let mut values: BTreeMap<&ParamName, ParamValue> = BTreeMap::new();
+    for ParameterValue { name, value } in &sketch.solved.values {
+        if !name.valid() {
+            return refuse("a solved value's name is not a parameter name".into());
+        }
+        if !value.is_finite() {
+            return refuse(format!(
+                "the board parameter ‘{}’ has no finite value",
+                name.0
+            ));
+        }
+        if values.insert(name, *value).is_some() {
+            return refuse(format!(
+                "the board parameter ‘{}’ has more than one value",
+                name.0
+            ));
+        }
+    }
+    if sketch.invalid().is_some() {
+        return Ok(());
+    }
+    for p in &sketch.parameters {
+        match values.remove(&p.name) {
+            None => {
+                return refuse(format!("the board parameter ‘{}’ has no value", p.name.0));
+            }
+            Some(value) if value.unit() != p.unit => {
+                return refuse(format!(
+                    "the board parameter ‘{}’ is {}, but its value is {}",
+                    p.name.0,
+                    p.unit.words(),
+                    value.unit().words()
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+    match values.keys().next() {
+        Some(name) => refuse(format!(
+            "there is a value for ‘{}’, which is not a board parameter",
+            name.0
+        )),
+        None => Ok(()),
+    }
+}
+
 fn validate_sketch(sketch: &BoardSketch) -> Result<()> {
     let bad = |what: &str| Err(Error::Invalid(format!("board.sketch: {what}")));
     if sketch.sketch.0.len() > crate::library::footprint_source::MAX_SKETCH_BYTES {
@@ -981,7 +1033,7 @@ fn validate_sketch(sketch: &BoardSketch) -> Result<()> {
     if sketch.edges.len() > MAX_NAMED_EDGES
         || sketch.parameters.len() > MAX_BOARD_PARAMETERS
         || sketch.idle.len() > MAX_BOARD_PARAMETERS
-        || sketch.values.len() > MAX_BOARD_PARAMETERS
+        || sketch.solved.values.len() > MAX_BOARD_PARAMETERS
     {
         return Err(Error::Limit("board.sketch: too many roles".into()));
     }
@@ -1005,11 +1057,13 @@ fn validate_sketch(sketch: &BoardSketch) -> Result<()> {
             }
         }
     }
-    // Every inner loop of a valid shape has its stable id, a role's.
+    // Every inner loop of a valid shape has its stable id, a role's. While
+    // the outline is invalid the shape is an earlier one, whose cutouts the
+    // person may have deleted since.
     let roles: BTreeSet<BoardFeatureId> = sketch.cutouts.iter().map(|c| c.id).collect();
     for c in &sketch.solved.cutouts {
         match c.id {
-            Some(id) if !roles.contains(&id) => {
+            Some(id) if sketch.fault.is_none() && !roles.contains(&id) => {
                 return bad("a cutout's id names no role");
             }
             None if sketch.fault.is_none() => return bad("every cutout has its id"),
@@ -1031,16 +1085,7 @@ fn validate_sketch(sketch: &BoardSketch) -> Result<()> {
     if sketch.idle.iter().any(|n| !params.contains(&n)) {
         return bad("idle parameters are board parameters");
     }
-    let evaluated = |v: &crate::model::board::ParameterValue| {
-        params.contains(&v.name)
-            && match v.value {
-                ParamValue::Length(x) | ParamValue::Angle(x) => x.is_finite(),
-                ParamValue::Count(_) => true,
-            }
-    };
-    if !sketch.values.iter().all(evaluated) {
-        return bad("evaluated values are finite and of board parameters");
-    }
+    check_values(sketch)?;
     for h in &sketch.holes {
         if !h.drill.valid() || h.pad_diameter.as_ref().is_some_and(|d| !d.valid()) {
             return bad("mounting holes need drill expressions");

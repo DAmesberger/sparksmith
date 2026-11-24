@@ -13,7 +13,7 @@ use crate::geometry::Point;
 use crate::ids::{ContentHash, Id};
 use crate::layout::dimensions::{FeatureGeometry, features, view};
 use crate::library::datum::DatumKind;
-use crate::library::footprint_source::{ParamValue, SketchRef};
+use crate::library::footprint_source::{ParamName, ParamValue, SketchRef};
 use crate::library::{Outline, Segment};
 use crate::model::board::BoardShape;
 use crate::model::dimension::{BoardRef, BoxSide, FeatureRef, ReferenceStatus};
@@ -199,14 +199,15 @@ fn turned_over(outline: &Outline) -> Outline {
     }
 }
 
-/// A board parameter's value as the host evaluated it for the board's last
-/// solve: the core reads no expression, a plain number either.
+/// A board parameter's value in the board's last valid solve, the one whose
+/// shape the interface shows: the core reads no expression, a plain number
+/// either.
 fn parameter(project: &Project, name: &str) -> Option<DatumGeometry> {
     let BoardShape::Sketch(sketch) = &project.board_shape else {
         return None;
     };
-    let evaluated = sketch.values.iter().find(|v| v.name.0 == name)?;
-    let (value, unit) = match evaluated.value {
+    let solved = sketch.solved.value(&ParamName(name.into()))?;
+    let (value, unit) = match solved {
         ParamValue::Length(mm) => (mm, "mm"),
         ParamValue::Angle(deg) => (deg, "deg"),
         ParamValue::Count(n) => (f64::from(n), ""),
@@ -550,6 +551,7 @@ pub fn list(project: &Project) -> Result<InterfaceList> {
     });
     let changed = datums.iter().filter(|r| r.changed).count() + retired_since;
     Ok(InterfaceList {
+        blocked: super::assembly_link::publish_blockers(project),
         source_id: table.source_id,
         rules: AutoRule::ALL
             .into_iter()

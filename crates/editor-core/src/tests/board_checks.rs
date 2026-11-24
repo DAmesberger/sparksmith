@@ -574,6 +574,7 @@ fn sketched(project: &mut Project, slot: bool) {
         }],
         holes: Vec::new(),
         edges: Vec::new(),
+        values: Vec::new(),
     };
     project.board_shape = BoardShape::Sketch(Box::new(BoardSketch {
         evaluator: Default::default(),
@@ -588,7 +589,6 @@ fn sketched(project: &mut Project, slot: bool) {
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
 }
 
@@ -785,7 +785,6 @@ fn with_hole(project: &mut Project, at: Point) {
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
 }
 

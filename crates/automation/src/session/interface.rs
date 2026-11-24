@@ -4,8 +4,8 @@
 //! sidecar; the publish builds the design from the core's candidate sidecar
 //! with Solidcraft, commits the design and sidecar through a recoverable journal and
 //! records the publish with `interface.record_publish`, which, like a save,
-//! is no undo step. A broken reference between the board and the linked
-//! design blocks the publish, writing nothing.
+//! is no undo step. An invalid board outline, or a broken reference between
+//! the board and the linked design, blocks the publish, writing nothing.
 use super::Session;
 use crate::Result;
 use serde_json::{Value, json};
@@ -288,16 +288,13 @@ impl Session {
     /// summary. The desktop runs this off the UI thread, on a session over
     /// a fork of the window's engine, and applies the record on its own
     /// engine; nothing else differs from the request. Refused, writing
-    /// nothing, while a reference between the board and the linked design
-    /// is broken.
+    /// nothing, while the board outline is invalid or a reference between
+    /// the board and the linked design is broken.
     pub fn interface_write(&self, params: &PublishParams) -> Result<(Operation, Value)> {
         let design = Path::new(&params.path);
         files::check_design_path(design)?;
         let project = self.engine.project_arc().clone();
-        let blockers = sparksmith_core::interface::assembly_link::publish_blockers(&project);
-        if !blockers.is_empty() {
-            return Err(sparksmith_core::interface::findings::publish_blocked(&blockers).into());
-        }
+        sparksmith_core::interface::assembly_link::check_publish(&project)?;
         let baseline = files::Publication::open(design)?.baseline()?;
         let reviewed = self.check_publish_token(params, &baseline)?;
         let previous = baseline.sidecar.as_ref();

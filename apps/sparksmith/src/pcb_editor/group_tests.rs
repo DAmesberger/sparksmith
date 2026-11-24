@@ -783,7 +783,6 @@ fn picking_a_washer_inspects_the_board_hole_in_both_views() -> Fallible {
         outline_fit: 0.01,
         fault: None,
         idle: vec![],
-        values: vec![],
     }));
     let engine = super::super::raster_tests::with_project(&engine, project)?;
     let _context = engine.enter_context();

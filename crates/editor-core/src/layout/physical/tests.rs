@@ -156,7 +156,6 @@ pub(crate) fn gate_board_with(with: &[&str]) -> Result<(Engine, Gate)> {
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
     for (key, mm) in [
         (RuleKey::TrackWidthMin, TRACK_MIN_MM),

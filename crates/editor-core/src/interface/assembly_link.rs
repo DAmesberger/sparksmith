@@ -1289,15 +1289,40 @@ fn two_way(project: &Project, link: &AssemblyLink) -> Vec<Finding> {
     out
 }
 
-/// Why publishing to the linked design waits: every finding that blocks it
-/// (a broken reference, in either direction), in the user's words. Empty
-/// when publishing may go ahead.
+/// Why publishing to linked designs waits: an invalid board outline, then
+/// [`broken_references`]. Empty when publishing may go ahead.
 pub fn publish_blockers(project: &Project) -> Vec<String> {
+    let mut out: Vec<String> = project
+        .board_shape
+        .invalid()
+        .map(findings::outline_invalid)
+        .into_iter()
+        .collect();
+    out.extend(broken_references(project));
+    out
+}
+
+/// Every finding that blocks publishing to the linked design (a broken
+/// reference, in either direction), in the user's words.
+fn broken_references(project: &Project) -> Vec<String> {
     checks(project)
         .into_iter()
         .filter(|f| findings::blocks_publish(&f.code))
         .map(|f| f.message)
         .collect()
+}
+
+/// Refuse publishing while [`publish_blockers`] lists anything, saying why.
+pub fn check_publish(project: &Project) -> Result<()> {
+    if let Some(why) = project.board_shape.invalid() {
+        return Err(findings::outline_blocked(why));
+    }
+    let broken = broken_references(project);
+    if broken.is_empty() {
+        Ok(())
+    } else {
+        Err(findings::publish_blocked(&broken))
+    }
 }
 
 /// What `assembly.status` reads, most serious first.
@@ -1503,7 +1528,8 @@ pub struct AssemblyPreview {
     pub refused: Option<String>,
     /// The two-way check after the update (slice B5): the linked design holds
     /// an older board, features on unexported faces, loops; and, when both
-    /// changed, that.
+    /// changed, that. Also an outline the update leaves invalid: the board
+    /// then keeps its last valid shape, which `objects` compares.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub findings: Vec<Finding>,
 }
@@ -1696,11 +1722,15 @@ pub fn diff(
             }
         }
     }
-    let findings = after
+    let mut findings = after
         .assembly_link
         .as_deref()
         .map(|link| two_way(after, link))
         .unwrap_or_default();
+    // The rows above compare the last valid shapes.
+    if after.board_shape.invalid().is_some() {
+        findings.extend(crate::layout::outline::checks(after));
+    }
     AssemblyPreview {
         document_revision,
         expect_hash,
