@@ -181,6 +181,7 @@ fn a_waiver_without_its_value_counts_for_nothing_until_given_again() -> Fallible
         key: key.clone(),
         reason: "before".into(),
         accepted: Vec::new(),
+        footprints: Vec::new(),
     }];
     let mut engine = Engine::from_file(file)?;
     let found = item(&engine, &key)?;
@@ -297,9 +298,53 @@ fn a_value_makes_nothing_waivable() -> Fallible<()> {
         key: stale.clone(),
         reason: String::new(),
         accepted: vec![Measured::at_least(0.0, 1.0, Unit::Mm, 0.0)],
+        footprints: Vec::new(),
     }];
     let engine = Engine::from_file(file)?;
     let found = item(&engine, &stale)?;
     assert!(found.blocks() && found.lapsed.is_none());
+    Ok(())
+}
+
+/// A pad's id is its footprint's: on another footprint it is other copper,
+/// which the waiver did not accept, with a value or without one.
+#[test]
+fn a_pad_on_another_footprint_is_not_accepted() -> Fallible<()> {
+    let mut engine = Engine::from_file(super::preflight::close_parts()?.to_file())?;
+    let key = preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?
+    .items
+    .into_iter()
+    .find(|i| i.code == "board.clearance" && i.offers_waiver())
+    .ok_or("a pad clearance")?
+    .key;
+    waive(&mut engine, &key)?;
+    assert!(item(&engine, &key)?.waiver.is_some());
+    assert_eq!(
+        engine.project().production.waivers[0].footprints.len(),
+        2,
+        "one for each pad"
+    );
+    for (change, text) in [
+        (
+            Some(crate::ids::DefinitionId(Id::MAX)),
+            "Was accepted on another footprint",
+        ),
+        (None, "Was accepted without its footprint; accept it again"),
+    ] {
+        let mut file = engine.to_file();
+        let waiver = &mut file.project.production.waivers[0];
+        match change {
+            Some(other) => waiver.footprints[0] = other,
+            None => waiver.footprints.clear(),
+        }
+        let found = item(&Engine::from_file(file)?, &key)?;
+        assert!(found.blocks());
+        assert_eq!(found.lapsed.ok_or("why")?.text, text);
+    }
     Ok(())
 }

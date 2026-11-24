@@ -1302,6 +1302,7 @@ fn a_row_says_what_was_accepted_and_what_it_is_now() -> TestResult {
         key: item.key.clone(),
         reason: "taken".into(),
         accepted: vec![Measured::at_least(0.15, 0.2, Unit::Mm, 0.0)],
+        footprints: Vec::new(),
     };
     item.waiver = Some(waiver.clone());
     assert_eq!(row_title(&item), item.title);

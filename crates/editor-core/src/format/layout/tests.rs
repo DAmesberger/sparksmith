@@ -118,11 +118,13 @@ fn the_showcase_board_round_trips_collection_by_collection() -> Fallible {
             key: "fill.stale []".into(),
             reason: "checked by hand".into(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         },
         Waiver {
             key: r#"board.clearance [{"kind":"track","id":4}]"#.into(),
             reason: "fab confirmed".into(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         },
     ];
     round_trip(&records::WAIVERS, &no_header(), &waivers)?;

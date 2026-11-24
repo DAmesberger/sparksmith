@@ -6,7 +6,7 @@
 //! validation all apply. Field values are checked, applied and resolved
 //! through `fields`, and function selections through `functions`; this
 //! module only looks up the definitions they need.
-use crate::diagnostics::{Error, Result};
+use crate::diagnostics::{Error, ObjectRef, Result};
 use crate::fields::{
     self, EffectiveField, FieldOverride, InstanceFields, MAX_FIELDS, MAX_PROPERTY_EDITS,
     PropertyEdit, PropertyInput,
@@ -153,6 +153,24 @@ pub fn resolve_physical<'a>(
         footprint,
         package,
     })
+}
+
+/// The footprint (its lineage) of each pad among `objects`, in order. A
+/// pad's id is its footprint's: on another footprint it names other copper.
+pub fn pad_footprints(project: &Project, objects: &[ObjectRef]) -> Vec<DefinitionId> {
+    objects
+        .iter()
+        .filter_map(|object| match object {
+            ObjectRef::Pad { instance, .. } | ObjectRef::PadVia { instance, .. } => {
+                project.instance(*instance)
+            }
+            _ => None,
+        })
+        .filter_map(|instance| {
+            let physical = resolve(&project.library, instance).ok()?.physical?;
+            Some(physical.footprint.id)
+        })
+        .collect()
 }
 
 /// Whether `instance` is listed on the bill of materials: its component

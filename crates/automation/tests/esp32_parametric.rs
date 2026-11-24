@@ -880,6 +880,7 @@ fn assert_never_waived(
             key,
             reason: "known".into(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         })
         .collect();
     let saved = dir.join("waived.sparksmith");

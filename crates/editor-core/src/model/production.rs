@@ -2,6 +2,7 @@
 //! user waived for fabrication output. Data only; `fabrication::preflight`
 //! matches waivers to findings and `fabrication::apply` edits them.
 use crate::diagnostics::{Measured, ObjectRef, Sense, Unit};
+use crate::ids::DefinitionId;
 use crate::rules::requirement::number_against;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -40,6 +41,10 @@ pub struct Waiver {
     /// numbers, not rounded. Several when findings share the key.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub accepted: Vec<Measured>,
+    /// The footprint of each pad the key names, in order: on another
+    /// footprint the same pad id is other copper, which nobody accepted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub footprints: Vec<DefinitionId>,
 }
 
 /// What a project's waivers say of a finding.
@@ -194,14 +199,27 @@ impl Production {
     }
 
     /// Whether the waivers accept a finding of `key` that measures
-    /// `measured` now. Each number must be one the waiver accepted, or
-    /// better, and no farther from its limit, whatever the limit is now
-    /// ([`Measured::accepts`]).
-    pub fn acceptance(&self, key: &str, measured: &[Measured]) -> Acceptance<'_> {
+    /// `measured` now, its pads being of `footprints`
+    /// (`instances::pad_footprints`). Each number must be one the waiver
+    /// accepted, or better, and no farther from its limit, whatever the
+    /// limit is now ([`Measured::accepts`]).
+    pub fn acceptance(
+        &self,
+        key: &str,
+        measured: &[Measured],
+        footprints: impl FnOnce() -> Vec<DefinitionId>,
+    ) -> Acceptance<'_> {
         let Some(waiver) = self.waiver(key) else {
             return Acceptance::None;
         };
         let lapsed = |text: String| Acceptance::Lapsed(waiver, text);
+        if waiver.footprints != footprints() {
+            return lapsed(if waiver.footprints.is_empty() {
+                "Was accepted without its footprint; accept it again".into()
+            } else {
+                "Was accepted on another footprint".into()
+            });
+        }
         if measured.is_empty() {
             // It had a number and has none now: copper that touches, or
             // lies outside.
@@ -242,6 +260,7 @@ impl Production {
                     && w.reason.len() <= MAX_WAIVER_TEXT
                     && !w.key.chars().chain(w.reason.chars()).any(char::is_control)
                     && w.accepted.len() <= MAX_ACCEPTED
+                    && w.footprints.len() <= MAX_ACCEPTED
                     && w.accepted.iter().all(|m| {
                         m.value.is_finite()
                             && m.limit.is_finite()

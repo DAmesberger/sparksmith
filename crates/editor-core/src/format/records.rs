@@ -254,7 +254,7 @@ pub const WAIVERS: Collection = Collection {
     header: &[],
     type_field: None,
     sort: &["key"],
-    records: records!(&["key", "accepted", "reason"]),
+    records: records!(&["key", "accepted", "footprints", "reason"]),
     numbers: Numbers::FloatsAllowed,
 };
 

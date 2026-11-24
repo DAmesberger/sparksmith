@@ -434,6 +434,7 @@ mod tests {
             key: r#"board.clearance [{"kind":"track","id":4}]"#.into(),
             reason: "checked".into(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         }];
         let bytes = encode(&file)?;
         let value: serde_json::Value = serde_json::from_slice(&bytes)?;
@@ -478,6 +479,7 @@ mod tests {
             key: "not a finding key".into(),
             reason: String::new(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         };
         assert!(serde_json::to_string(&bad).is_err());
         assert!(serde_json::from_str::<Waiver>(r#"{"key":"fill.stale []","reason":""}"#).is_err());

@@ -1319,6 +1319,7 @@ fn unroutable(outline: Outline) -> Fallible<()> {
             key: item.key.clone(),
             reason: "accepted".into(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         });
     let engine = Engine::from_file(file)?;
     let report = preflight(&engine)?;
@@ -1452,6 +1453,7 @@ fn the_showcases_stale_fills_cannot_be_waived() -> Fallible<()> {
             key,
             reason: "accepted".into(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         })
         .collect();
     let mut engine = Engine::from_file(file)?;
@@ -1678,6 +1680,7 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
             key,
             reason: "accepted".into(),
             accepted: loosest.clone(),
+            footprints: Vec::new(),
         })
         .collect();
     let engine = Engine::from_file(file)?;
@@ -1782,6 +1785,7 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
         key: waiver_key("fill.overlap", &names),
         reason: "accepted".into(),
         accepted: Vec::new(),
+        footprints: Vec::new(),
     });
     waivers.sort_by(|a, b| a.key.cmp(&b.key));
     let engine = Engine::from_file(file)?;

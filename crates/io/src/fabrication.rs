@@ -885,6 +885,7 @@ mod tests {
             key: format!("{} []", readback::MISMATCH),
             reason: "as it is".into(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         }];
         for zip in [false, true] {
             for (what, file, fault) in seeded::faults() {

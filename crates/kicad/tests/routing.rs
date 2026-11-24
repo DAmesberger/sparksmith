@@ -287,6 +287,7 @@ fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
             key,
             reason: "as imported".into(),
             accepted: Vec::new(),
+            footprints: Vec::new(),
         })
         .collect();
     engine.replace_document(file)?;

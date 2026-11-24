@@ -446,13 +446,20 @@ fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Str
     for (key, measured) in &legend {
         now.entry(key.clone()).or_default().push(measured);
     }
+    let footprints = |key: &str| {
+        crate::model::production::StoredKey::parse(key).map_or_else(Vec::new, |k| {
+            crate::instances::pad_footprints(project, &k.objects)
+        })
+    };
     waivers
         .iter()
         .filter(|w| {
             super::preflight::can_waive(w.key.split_whitespace().next().unwrap_or_default())
                 && now.get(&w.key).into_iter().flatten().all(|measured| {
                     matches!(
-                        project.production.acceptance(&w.key, measured),
+                        project
+                            .production
+                            .acceptance(&w.key, measured, || footprints(&w.key)),
                         crate::model::production::Acceptance::Holds(_)
                     )
                 })
@@ -821,11 +828,13 @@ mod tests {
                 key: "board.clearance []".into(),
                 reason: String::new(),
                 accepted: Vec::new(),
+                footprints: Vec::new(),
             },
             Waiver {
                 key: waiver_key(&finding.code, &finding.objects),
                 reason: "Checked with the fab".into(),
                 accepted: finding.measured.clone(),
+                footprints: Vec::new(),
             },
         ];
         project.production.waivers.sort_by(|a, b| a.key.cmp(&b.key));

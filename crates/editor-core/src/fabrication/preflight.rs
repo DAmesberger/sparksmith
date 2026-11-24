@@ -59,14 +59,14 @@ declare_entries!(FabricationCommand in checks {
 });
 
 /// Apply one waiver command; `reason_required` refuses a waiver without a
-/// reason (a host setting), and `accepted` is what the findings of a
-/// [`FabricationCommand::Waive`] measure ([`accepted`]). A refused command
+/// reason (a host setting), and `accepted` is what a
+/// [`FabricationCommand::Waive`] accepts ([`accepted`]). A refused command
 /// leaves `production` unchanged.
 pub fn apply(
     production: &mut Production,
     command: FabricationCommand,
     reason_required: bool,
-    accepted: &BTreeMap<String, Vec<Measured>>,
+    accepted: &BTreeMap<String, Accepted>,
 ) -> Result<()> {
     let waivers = &mut production.waivers;
     match command {
@@ -110,17 +110,20 @@ pub fn apply(
                     "fabrication.waiver_key: `{k}` is not a finding's key (its code, a space and the objects it names as JSON, as fabrication.preflight gives it)"
                 )));
             }
-            if let Some(k) = keys
-                .iter()
-                .find(|k| accepted.get(*k).is_some_and(|a| a.len() > MAX_ACCEPTED))
-            {
+            if let Some(k) = keys.iter().find(|k| {
+                accepted
+                    .get(*k)
+                    .is_some_and(|a| a.measured.len() > MAX_ACCEPTED)
+            }) {
                 return Err(Error::Limit(format!(
                     "fabrication.waiver_bounds: `{k}` measures more than {MAX_ACCEPTED} numbers"
                 )));
             }
             for key in keys {
+                let what = accepted.get(&key).cloned().unwrap_or_default();
                 let waiver = Waiver {
-                    accepted: accepted.get(&key).cloned().unwrap_or_default(),
+                    accepted: what.measured,
+                    footprints: what.footprints,
                     reason: reason.clone(),
                     key,
                 };
@@ -237,9 +240,16 @@ fn unwaivable(key: &str) -> bool {
     !can_waive(code)
 }
 
-/// What the findings of `keys` measure on `project` (a snapshot's), for the
-/// waivers that accept them: the numbers of every finding that shares a key,
-/// but for those another accepts too. Refuses a key that names a finding
+/// What a waiver accepts of one key.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Accepted {
+    pub measured: Vec<Measured>,
+    pub footprints: Vec<DefinitionId>,
+}
+
+/// What waiving `keys` accepts on `project` (a snapshot's): the numbers of
+/// every finding that shares a key, but for those another accepts too, and
+/// the footprints of the pads it names. Refuses a key that names a finding
 /// `project` needs more of its fab profile for (`fabrication.not_waivable`,
 /// naming the need): a profile that allows it, or a change to the design,
 /// resolves it. The engine runs this before [`apply`] of a waiver.
@@ -248,11 +258,21 @@ pub fn accepted(
     drafts: &Drafts,
     settings: &crate::layout::CheckSettings,
     keys: &[String],
-) -> Result<BTreeMap<String, Vec<Measured>>> {
+) -> Result<BTreeMap<String, Accepted>> {
     let keys: BTreeSet<&str> = keys.iter().map(|k| k.trim()).collect();
-    let mut out: BTreeMap<String, Vec<Measured>> = BTreeMap::new();
+    let mut out: BTreeMap<String, Accepted> = keys
+        .iter()
+        .filter_map(|k| {
+            let objects = crate::model::production::StoredKey::parse(k)?.objects;
+            let accepted = Accepted {
+                footprints: crate::instances::pad_footprints(project, &objects),
+                ..Accepted::default()
+            };
+            Some(((*k).to_owned(), accepted))
+        })
+        .collect();
     let mut take = |k: String, measured: &[Measured]| {
-        let all = out.entry(k).or_default();
+        let all = &mut out.entry(k).or_default().measured;
         for m in measured {
             if !all.iter().any(|a| a.accepts(m)) {
                 all.retain(|a| !m.accepts(a));
@@ -419,7 +439,8 @@ pub fn check(
         if unwaivable(&i.key) || i.needs.is_some() {
             continue;
         }
-        match p.production.acceptance(&i.key, &i.measured) {
+        let footprints = || crate::instances::pad_footprints(p, &i.objects);
+        match p.production.acceptance(&i.key, &i.measured, footprints) {
             Acceptance::None => {}
             Acceptance::Holds(waiver) => i.waiver = Some(waiver.clone()),
             Acceptance::Lapsed(waiver, text) => {

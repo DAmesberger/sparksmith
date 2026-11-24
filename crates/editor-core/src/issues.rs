@@ -307,6 +307,7 @@ fn acceptance<'a>(project: &'a Project, finding: &Finding) -> Acceptance<'a> {
     project.production.acceptance(
         &crate::model::production::waiver_key(&finding.code, &finding.objects),
         &finding.measured,
+        || crate::instances::pad_footprints(project, &finding.objects),
     )
 }
 
