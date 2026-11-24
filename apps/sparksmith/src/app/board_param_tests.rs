@@ -5,7 +5,11 @@ use super::*;
 use egui::{Key, Modifiers, Role};
 use sparksmith_core::BoardShape;
 
-/// The showcase board as a sketch, on Layout's Board card.
+/// The showcase board as a sketch, on Layout's Board card. Its fills are
+/// poured for this shape already: the app's fill worker would store them
+/// later, as a revision of its own at no set frame (`Engine::store_fills`).
+/// It does after each later sketch edit, so these tests compare the sketch,
+/// never the revision.
 fn sketched() -> Fallible<Ax> {
     let mut engine = Engine::showcase()?;
     engine.apply_hosted(
@@ -16,6 +20,7 @@ fn sketched() -> Fallible<Ax> {
             board: crate::pcb_editor::board_shape::host_evaluator(),
         },
     )?;
+    engine.refill_stale()?;
     Ax::with_engine(engine, Workspace::Pcb)
 }
 
@@ -52,10 +57,9 @@ fn command_z_undoes_the_project_once_a_parameter_row_committed() -> Fallible {
     let mut ax = sketched()?;
     let stored = width(&ax)?;
     let wider = format!("{} mm", ax.app.engine.project().board_size[0] + 2.0);
-    let before = ax.app.engine.revision();
     retype(&mut ax, "width", &wider)?;
     ax.command_key(Key::Z);
-    assert_eq!(ax.app.engine.revision(), before, "the field's own undo");
+    assert_eq!(width(&ax)?, stored, "the field's own undo");
     ax.key_with(Key::A, Modifiers::COMMAND);
     ax.type_text(&wider);
     ax.key(Key::Enter);
@@ -95,7 +99,7 @@ fn dimensions(ax: &Ax) -> Fallible<usize> {
         .count())
 }
 
-/// Apply a `board.edit` as the app would.
+/// Apply a `board.edit`, with the fills poured for it (see [`sketched`]).
 fn edit(ax: &mut Ax, edits: Vec<sparksmith_core::layout::outline::BoardEdit>) -> Fallible {
     ax.app.engine.apply_hosted(
         ax.app.engine.revision(),
@@ -105,6 +109,7 @@ fn edit(ax: &mut Ax, edits: Vec<sparksmith_core::layout::outline::BoardEdit>) ->
             board: crate::pcb_editor::board_shape::host_evaluator(),
         },
     )?;
+    ax.app.engine.refill_stale()?;
     ax.settle();
     Ok(())
 }
@@ -138,7 +143,7 @@ fn placed(ax: &mut Ax, at: [f64; 2]) -> Fallible {
 fn a_refused_value_leaves_no_dimension() -> Fallible {
     let mut ax = sketched()?;
     placed(&mut ax, [7.0, 9.0])?;
-    let (before, count) = (ax.app.engine.revision(), dimensions(&ax)?);
+    let (before, count) = (board(&ax)?, dimensions(&ax)?);
     let typed = |ax: &mut Ax, text: &str| {
         assert!(ax.ctx.text_edit_focused(), "the value takes the keyboard");
         ax.key_with(Key::A, Modifiers::COMMAND);
@@ -149,14 +154,14 @@ fn a_refused_value_leaves_no_dimension() -> Fallible {
     // Not an expression, then one only the engine can refuse.
     for refused in ["1 x = 2", "gap = nowhere + 1", "gap = -5 mm"] {
         typed(&mut ax, refused);
-        assert_eq!(ax.app.engine.revision(), before, "{refused}");
+        assert_eq!(board(&ax)?, before, "{refused}");
         assert_eq!(dimensions(&ax)?, count, "{refused}");
         assert!(ax.texts.iter().any(|t| t == refused), "the text is kept");
     }
     // Esc drops it: nothing was added, and Esc went no further.
     ax.key(Key::Escape);
     ax.settle();
-    assert_eq!(ax.app.engine.revision(), before);
+    assert_eq!(board(&ax)?, before);
     let refs = [
         [7.0, 9.0],
         [0.0, ax.app.engine.project().board_size[1] * 0.5],
@@ -165,9 +170,8 @@ fn a_refused_value_leaves_no_dimension() -> Fallible {
         let p = ax.app.pcb.layout_to_screen(p).ok_or("no canvas")?;
         ax.click_at(p);
     }
-    assert_eq!(ax.app.engine.revision(), before, "placed, not yet added");
+    assert_eq!(board(&ax)?, before, "placed, not yet added");
     typed(&mut ax, "gap = 6 mm");
-    assert_eq!(ax.app.engine.revision(), before + 1, "one step");
     assert_eq!(dimensions(&ax)?, count + 1);
     let named = |ax: &Ax| {
         Ok::<_, Box<dyn std::error::Error>>(board(ax)?.parameters.iter().any(|p| p.name.0 == "gap"))
@@ -175,8 +179,7 @@ fn a_refused_value_leaves_no_dimension() -> Fallible {
     assert!(named(&ax)?);
     ax.command_key(Key::Z);
     ax.settle();
-    assert_eq!(dimensions(&ax)?, count);
-    assert!(!named(&ax)?);
+    assert_eq!(board(&ax)?, before, "one ⌘Z undoes both");
     Ok(())
 }
 
@@ -208,13 +211,15 @@ fn a_redundant_dimension_is_refused_where_it_is_placed() -> Fallible {
     ax.settle();
     let _ = ax.app.pcb.on_tool("bs-dimension", &ax.app.engine);
     ax.settle();
-    let before = ax.app.engine.revision();
+    let (before, count) = (board(&ax)?, dimensions(&ax)?);
     let [w, h] = ax.app.engine.project().board_size;
     for p in [[w, h * 0.5], [w + 3.0, h * 0.5]] {
         let p = ax.app.pcb.layout_to_screen(p).ok_or("no canvas")?;
         ax.click_at(p);
     }
-    assert_eq!(ax.app.engine.revision(), before);
+    assert_eq!(dimensions(&ax)?, count);
+    assert_eq!(board(&ax)?, before);
+    assert!(!ax.ctx.text_edit_focused(), "no value is asked for");
     let says = "‘height’ already sets this";
     assert!(ax.texts.iter().any(|t| t.contains(says)), "{:?}", ax.texts);
     Ok(())
