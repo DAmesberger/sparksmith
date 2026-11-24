@@ -14,6 +14,10 @@ use sparksmith_core::{
     geometry::Point,
     ids::{DefinitionRef, LibraryId, Revision, SourceLineageId},
     layout,
+    layout::{
+        LayoutCommand,
+        fab_stackup::{self, PickOptions, StackupFilter},
+    },
     library::{
         graphics::{GraphicTarget, SILK_STROKE_MM, SYMBOL_STROKE_MM},
         import::{OtherRevision, PlaceSource},
@@ -1516,6 +1520,12 @@ impl Session {
                         }
                     })?);
                 }
+                if let Query::Stackups { .. } = query {
+                    return Ok(serde_json::to_value(Self::stackups(
+                        self.engine.project(),
+                        query,
+                    )?)?);
+                }
                 let query = match query {
                     Query::PreviewProfile {
                         profile,
@@ -1985,6 +1995,17 @@ impl Session {
                 options,
                 keep_overrides,
             }),
+            Operation::Layout(LayoutCommand::UseStackup {
+                stackup,
+                moves,
+                average_dk,
+            }) => {
+                let library = sparksmith_io::fab_stackups::shipped()?;
+                let stackup = sparksmith_io::fab_stackups::find(&library, &stackup)?;
+                let options = PickOptions { moves, average_dk };
+                let pick = fab_stackup::pick(project, stackup, &options)?;
+                Operation::Layout(LayoutCommand::EditStackup(pick.edit))
+            }
             Operation::Fabrication(FabricationCommand::Waive {
                 keys,
                 reason,
@@ -1998,6 +2019,41 @@ impl Session {
             }),
             other => other,
         })
+    }
+
+    /// `layout.stackups`: the shipped stackups, or one of them in full.
+    fn stackups(project: &Project, query: Query) -> Result<QueryResult> {
+        let Query::Stackups {
+            id,
+            copper_layers,
+            board_mm,
+            fabricator,
+            all,
+            moves,
+            average_dk,
+        } = query
+        else {
+            return Err(
+                sparksmith_core::Error::Invalid("layout.stackups: another query".into()).into(),
+            );
+        };
+        let library = sparksmith_io::fab_stackups::shipped()?;
+        let Some(id) = id else {
+            let filter = StackupFilter {
+                copper_layers,
+                board_mm,
+                fabricator,
+                all,
+            };
+            return Ok(QueryResult::Stackups(Box::new(fab_stackup::list(
+                project, &library, &filter,
+            ))));
+        };
+        let stackup = sparksmith_io::fab_stackups::find(&library, &id)?;
+        let options = PickOptions { moves, average_dk };
+        Ok(QueryResult::Stackup(Box::new(fab_stackup::report(
+            project, stackup, &options,
+        )?)))
     }
 
     /// `rules.fab_profiles`: the board's own profile first, then the user's
@@ -2409,6 +2465,8 @@ mod project_import_tests;
 mod replace_tests;
 #[cfg(test)]
 mod reply_tests;
+#[cfg(test)]
+mod stackup_tests;
 #[cfg(test)]
 mod svg_tests;
 #[cfg(test)]
