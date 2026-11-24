@@ -301,9 +301,9 @@ pub(super) fn print_event(event: Event) {
         ),
         Event::Call {
             name,
-            state: CallState::Refused { .. },
+            state: CallState::Refused { reply },
             ..
-        } => eprintln!("  {name}: refused"),
+        } => eprintln!("  {name}: refused: {}", refusal_line(&reply)),
         Event::Call {
             name,
             state: CallState::NotRun { why },
@@ -325,6 +325,21 @@ pub(super) fn print_event(event: Event) {
         }
         Event::Warning(text) => eprintln!("warning: {text}"),
     }
+}
+
+/// Most characters of a refusal shown on its line.
+const REFUSAL_CHARS: usize = 300;
+
+/// Why a call was refused, as one line: what the model read, cut to its
+/// first [`REFUSAL_CHARS`] characters, so a headless run's log says what
+/// the model was told.
+fn refusal_line(reply: &str) -> String {
+    let mut line: String = reply.split_whitespace().collect::<Vec<_>>().join(" ");
+    if let Some((end, _)) = line.char_indices().nth(REFUSAL_CHARS) {
+        line.truncate(end);
+        line.push('…');
+    }
+    line
 }
 
 /// The person of a headless run: the run's steps and cards as lines on
@@ -753,6 +768,18 @@ mod tests {
         assert_eq!(value, 8);
         assert!(said.is_empty());
         Ok(())
+    }
+
+    /// A refused call's line says why, on one line and bounded.
+    #[test]
+    fn a_refusal_is_shown_as_one_bounded_line() {
+        assert_eq!(
+            refusal_line("{\"code\":\"not_found\",\n  \"message\":\"nothing at draft:5\"}"),
+            "{\"code\":\"not_found\", \"message\":\"nothing at draft:5\"}"
+        );
+        let long = refusal_line(&"é".repeat(REFUSAL_CHARS + 10));
+        assert_eq!(long.chars().count(), REFUSAL_CHARS + 1);
+        assert!(long.ends_with('…'));
     }
 
     #[test]

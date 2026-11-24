@@ -355,6 +355,10 @@ fn a_check_sends_the_step_back_with_the_refusal() -> Fallible {
     let brief = last.2["messages"].to_string();
     assert!(brief.contains("was sent back"), "{brief}");
     assert!(brief.contains("library.review_check refused it"), "{brief}");
+    // With the answer it refused, so the step corrects it instead of
+    // writing it again from nothing.
+    assert!(brief.contains("Your last answer was:"), "{brief}");
+    assert!(brief.contains("Ground array optional?"), "{brief}");
     // The malformed answer came back as a refusal naming the field.
     let refused = posts
         .iter()

@@ -298,6 +298,21 @@ fn describe(end: &RunEnd) -> String {
     }
 }
 
+/// A step's result as a model step reads it: cut at [`MAX_EARLIER_CHARS`]
+/// with a note.
+fn shown(result: &Value) -> String {
+    let mut shown = result.to_string();
+    if shown.len() > MAX_EARLIER_CHARS {
+        let mut end = MAX_EARLIER_CHARS;
+        while !shown.is_char_boundary(end) {
+            end -= 1;
+        }
+        shown.truncate(end);
+        shown.push_str("… [cut: read more with the tools]");
+    }
+    shown
+}
+
 /// `text` with a capital first letter.
 fn sentence(text: &str) -> String {
     let mut chars = text.chars();
@@ -842,21 +857,23 @@ impl Runner<'_, '_> {
             let Some(result) = self.results.get(&s.id) else {
                 continue;
             };
-            let mut shown = result.to_string();
-            if shown.len() > MAX_EARLIER_CHARS {
-                let mut end = MAX_EARLIER_CHARS;
-                while !shown.is_char_boundary(end) {
-                    end -= 1;
-                }
-                shown.truncate(end);
-                shown.push_str("… [cut: read more with the tools]");
-            }
-            text.push_str(&format!("\n### {} ({})\n{shown}\n", s.id, s.title));
+            text.push_str(&format!(
+                "\n### {} ({})\n{}\n",
+                s.id,
+                s.title,
+                shown(result)
+            ));
         }
         if let Some(note) = note {
             text.push_str(&format!(
-                "\nYour last answer to this step was sent back: {note}\nFix what it names and answer again.\n"
+                "\nYour last answer to this step was sent back: {note}\n"
             ));
+            // The answer the refusal is about: the step keeps nothing else
+            // of its last conversation, and would write it all again.
+            if let Some(last) = self.results.get(&step.id) {
+                text.push_str(&format!("Your last answer was:\n{}\n", shown(last)));
+            }
+            text.push_str("Fix what it names and answer again.\n");
         }
         let section = step
             .method
