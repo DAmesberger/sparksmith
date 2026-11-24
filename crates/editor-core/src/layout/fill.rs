@@ -188,6 +188,7 @@ pub fn apply(project: &mut Project, command: FillCommand) -> Result<Option<Id>> 
                     "fill.stale: the board changed since this fill was computed".into(),
                 ));
             }
+            refuse_unsound(&copper)?;
             if let Some(f) = project.fills.iter_mut().find(|f| f.id == fill) {
                 f.computed = Some(*copper);
             }
@@ -213,6 +214,9 @@ pub fn apply(project: &mut Project, command: FillCommand) -> Result<Option<Id>> 
                 return Err(Error::Conflict(
                     "fill.stale: the board changed since these fills were computed".into(),
                 ));
+            }
+            for stored in &fills {
+                refuse_unsound(&stored.copper)?;
             }
             for stored in fills {
                 if let Some(f) = project.fills.iter_mut().find(|f| f.id == stored.fill) {
@@ -645,6 +649,89 @@ fn as_region(region: &crate::model::fill::FilledRegion) -> geom::Region {
     std::iter::once(region.outer.clone())
         .chain(region.holes.iter().cloned())
         .collect()
+}
+
+/// Whether stored regions are what a fill computation returns: no region
+/// overlaps another and every hole lies in its own outer ring, clear of the
+/// region's other holes. Told by area: the union of the regions is as large
+/// as their outer rings less their holes exactly then (an overlap counts
+/// twice in the sum, a hole outside its ring adds in one and not the
+/// other). Within the polygon arithmetic's rounding, 1 nm along every edge.
+pub(crate) fn sound(regions: &[crate::model::fill::FilledRegion]) -> bool {
+    let mut shapes: Vec<geom::Region> = Vec::with_capacity(regions.len());
+    let (mut area, mut around) = (0.0, 0.0);
+    for region in regions {
+        let Some(outer) = geom::ccw(region.outer.clone()) else {
+            continue;
+        };
+        let mut left = geom::area2(&outer) / 2.0;
+        around += ring_length(&outer);
+        let mut shape = vec![outer];
+        for hole in &region.holes {
+            if let Some(mut hole) = geom::ccw(hole.clone()) {
+                left -= geom::area2(&hole) / 2.0;
+                around += ring_length(&hole);
+                hole.reverse();
+                shape.push(hole);
+            }
+        }
+        if left < 0.0 {
+            return false;
+        }
+        area += left;
+        shapes.push(shape);
+    }
+    let union: f64 = geom::union_regions(&shapes)
+        .iter()
+        .map(geom::region_area)
+        .sum();
+    (union - area).abs() <= 1e-6 + around * 1e-6
+}
+
+fn ring_length(ring: &[crate::geometry::Point]) -> f64 {
+    (0..ring.len())
+        .map(|k| crate::geometry::distance(ring[k], ring[(k + 1) % ring.len()]))
+        .sum()
+}
+
+/// What stored regions say is copper, whatever they are: each region's
+/// outer ring less its own holes, together.
+pub(crate) fn united<'a>(
+    regions: impl IntoIterator<Item = &'a crate::model::fill::FilledRegion>,
+) -> Vec<crate::model::fill::FilledRegion> {
+    let parts: Vec<geom::Region> = regions
+        .into_iter()
+        .filter_map(|r| {
+            let outer = geom::ccw(r.outer.clone())?;
+            let holes: Vec<geom::Ring> = r
+                .holes
+                .iter()
+                .filter_map(|h| geom::ccw(h.clone()))
+                .collect();
+            Some(geom::difference_rings(&[vec![outer]], &holes))
+        })
+        .flatten()
+        .collect();
+    geom::union_regions(&parts)
+        .into_iter()
+        .filter_map(|mut r| {
+            (!r.is_empty()).then(|| crate::model::fill::FilledRegion {
+                outer: r.remove(0),
+                holes: r,
+            })
+        })
+        .collect()
+}
+
+/// Refuses copper no fill computation returns ([`sound`]).
+fn refuse_unsound(copper: &crate::model::fill::FilledCopper) -> Result<()> {
+    if sound(&copper.regions) {
+        return Ok(());
+    }
+    Err(Error::Invalid(
+        "fill.regions: a fill's regions must not overlap, and each hole must lie in its own region"
+            .into(),
+    ))
 }
 
 /// The copper of `under` that lies in the holes of `over`: none where the

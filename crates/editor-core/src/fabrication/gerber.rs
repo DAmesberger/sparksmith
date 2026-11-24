@@ -281,8 +281,10 @@ impl Writer {
         Ok(())
     }
 
-    fn segments(&mut self, start: Point, segs: &[Seg]) -> Result<()> {
+    /// Draws `segs` from `start`; whether anything was drawn.
+    fn segments(&mut self, start: Point, segs: &[Seg]) -> Result<bool> {
         let mut from = start;
+        let mut drawn = false;
         for seg in segs {
             let begun = std::mem::replace(&mut from, seg.to());
             match *seg {
@@ -292,7 +294,10 @@ impl Writer {
                 Seg::Arc { to, center, ccw }
                     if begun != to
                         && self.at == Some((units(to[0])?, units(to[1])?))
-                        && sweep(begun, to, center, ccw) < std::f64::consts::PI => {}
+                        && sweep(begun, to, center, ccw) < std::f64::consts::PI =>
+                {
+                    continue;
+                }
                 Seg::Line(to) => {
                     self.set_mode(1);
                     let xy = self.xy(to)?;
@@ -313,8 +318,10 @@ impl Writer {
                     let _ = writeln!(self.body, "{xy}I{}J{}D01*", cx - sx, cy - sy);
                 }
             }
+            drawn = true;
         }
-        self.check_size()
+        self.check_size()?;
+        Ok(drawn)
     }
 
     /// The full `X…Y…` of the current point.
@@ -330,13 +337,14 @@ impl Writer {
     pub fn stroke(&mut self, d: u32, start: Point, segs: &[Seg]) -> Result<()> {
         self.select(d);
         self.move_to(start)?;
-        if segs.is_empty() {
+        // A path of no length (no segment, or only arcs too short to draw)
+        // is the pen's dot.
+        if !self.segments(start, segs)? {
             self.set_mode(1);
             let xy = self.here()?;
             let _ = writeln!(self.body, "{xy}D01*");
-            return self.check_size();
         }
-        self.segments(start, segs)
+        self.check_size()
     }
 
     /// A region of one closed contour from `start` (the last segment must
@@ -453,6 +461,30 @@ mod tests {
 %TA.AperFunction,Conductor*%\n%ADD12C,0.6*%\n%TD.AperFunction*%\n\
 %TO.N,GND*%\nD10*\nX1000000Y2000000D03*\nY3000000D03*\nD12*\nX0Y0D02*\nG01*\nX5000000D01*\n%TD*%\nM02*\n";
         assert_eq!(text, expected);
+        Ok(())
+    }
+
+    /// A stroke that is one arc shorter than the 1 nm step keeps its pen's
+    /// dot: neither the full circle the format would read, nor nothing.
+    #[test]
+    fn a_stroke_shorter_than_the_format_is_a_dot() -> Result<()> {
+        let mut w = Writer::new(&[]);
+        let d = w.aperture(Aperture::circle(0.15)?, None);
+        w.stroke(
+            d,
+            [1.0, 2.0],
+            &[Seg::Arc {
+                to: [1.0, 2.0 + 2e-7],
+                center: [0.0, 2.0],
+                ccw: true,
+            }],
+        )?;
+        let text = String::from_utf8(w.finish()?).map_err(|e| Error::Invalid(e.to_string()))?;
+        assert!(
+            text.contains("X1000000Y2000000D02*\nG01*\nX1000000Y2000000D01*\n"),
+            "{text}"
+        );
+        assert!(!text.contains("G03*"), "{text}");
         Ok(())
     }
 

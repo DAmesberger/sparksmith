@@ -286,6 +286,11 @@ fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) 
     let mut unions = Vec::new();
     for (net, pours) in by_net {
         let regions = match pours.as_slice() {
+            // Regions no fill computation returns: plotted one by one, a
+            // region's holes would erase the copper of another.
+            pours if pours.iter().any(|p| !layout::fill::sound(p)) => {
+                Cow::Owned(layout::fill::united(pours.iter().flat_map(|p| p.iter())))
+            }
             [only] => Cow::Borrowed(*only),
             many => Cow::Owned(layout::fill::copper_union(
                 many.iter().flat_map(|pour| pour.iter()),

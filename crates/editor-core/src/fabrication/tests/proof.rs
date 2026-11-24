@@ -1517,6 +1517,243 @@ fn retained_copper_keeps_the_fills_own_and_a_pads_own_clearance() -> Fallible<()
     Ok(())
 }
 
+/// One pad's own fill clearance, the rules' fill clearance, and a pad's
+/// farther than any clearance rule reaches: each holds retained copper,
+/// and only where it applies.
+#[test]
+fn retained_copper_keeps_one_pads_and_the_rules_fill_clearance() -> Fallible<()> {
+    use crate::diagnostics::ObjectRef;
+    use crate::model::fill::{PadFillOverride, PadFillOverrideEntry};
+    let clean = board()?;
+    let id = clean.fills.first().ok_or("a fill")?.id;
+    let r1 = clean.placements.first().ok_or("R1")?.instance;
+    let found = |p: &mut Project| -> Fallible<Vec<(ObjectRef, String)>> {
+        let key = crate::layout::fill::inputs_key(p, id)?;
+        for f in p.fills.iter_mut().filter(|f| f.id == id) {
+            if let Some(c) = &mut f.computed {
+                c.key.clone_from(&key);
+            }
+        }
+        Ok(crate::layout::fill::findings(p)
+            .into_iter()
+            .filter(|f| f.code == "fill.clearance")
+            .filter_map(|f| match f.objects.as_slice() {
+                [ObjectRef::Fill { id: f_id }, other] if *f_id == id => Some((*other, f.message)),
+                _ => None,
+            })
+            .collect())
+    };
+    let set = |p: &mut Project, pad: u32, mm: f64| -> Fallible<()> {
+        let placement = p.placements.first_mut().ok_or("R1")?;
+        placement.pad_fill_overrides = vec![PadFillOverrideEntry {
+            pad: PadId(pad),
+            settings: PadFillOverride {
+                clearance: Some(nm(mm)),
+                ..PadFillOverride::default()
+            },
+        }];
+        Ok(())
+    };
+    // R1's D-shaped pad alone.
+    let d_shape = ObjectRef::Pad {
+        instance: r1,
+        pad: PadId(50),
+    };
+    let mut project = clean.clone();
+    set(&mut project, 50, 0.7)?;
+    let own = found(&mut project)?;
+    assert!(
+        matches!(own.as_slice(), [(o, m)] if *o == d_shape
+            && m.contains("needs 0.7 mm (the pad's fill override: clearance)")),
+        "{own:?}"
+    );
+    // The rules' fill clearance, over every copper pair it exceeds and no
+    // hole: the holes' own rules stay.
+    let mut project = clean.clone();
+    project
+        .rules
+        .overrides
+        .retain(|o| o.key != RuleKey::FillClearance);
+    project.rules.overrides.push(RuleOverride {
+        key: RuleKey::FillClearance,
+        value: RuleValue::Length(0.5),
+    });
+    let own = found(&mut project)?;
+    assert!(own.iter().any(|(o, _)| *o == d_shape), "{own:?}");
+    assert!(
+        own.iter()
+            .all(|(_, m)| m.contains("needs 0.5 mm (") && m.contains("fill clearance")),
+        "{own:?}"
+    );
+    // Copper 2.5 mm from R1's fiducial (a 1 mm disc at (15, 21)), which no
+    // rule of at most 0.45 mm looks for.
+    let mark = ObjectRef::Pad {
+        instance: r1,
+        pad: PadId(56),
+    };
+    for (mm, reported) in [(3.0, true), (2.4, false)] {
+        let mut project = clean.clone();
+        project.tracks.clear();
+        project.vias.clear();
+        set(&mut project, 56, mm)?;
+        for c in project
+            .fills
+            .iter_mut()
+            .filter(|f| f.id == id)
+            .filter_map(|f| f.computed.as_mut())
+        {
+            c.regions = vec![FilledRegion {
+                outer: vec![[18.0, 20.9], [19.0, 20.9], [19.0, 21.1], [18.0, 21.1]],
+                holes: Vec::new(),
+            }];
+        }
+        let own = found(&mut project)?;
+        assert_eq!(own.iter().any(|(o, _)| *o == mark), reported, "{own:?}");
+        assert!(
+            own.iter().all(|(o, m)| *o == mark && m.contains("is 2.5")),
+            "{own:?}"
+        );
+    }
+    Ok(())
+}
+
+/// The review's five steps: a person waives a pour's staleness and the gap
+/// to one via (0.35 mm where a raised drill rule asks for 1 mm), then the
+/// via is moved into the pour. The short is another thing than the gap that
+/// was accepted, so it must block.
+#[test]
+#[ignore = "waits for the founder's waiver decision"]
+fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
+    use crate::diagnostics::ObjectRef;
+    use crate::layout::LayoutCommand;
+    use crate::model::production::{Waiver, waiver_key};
+    let mut engine = Engine::showcase()?;
+    // 1. The drill rule is raised: the pours are stale.
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(crate::rules::RulesCommand::SetOverride {
+            key: RuleKey::Clearance {
+                a: CopperObject::Fill,
+                b: CopperObject::ViaHole,
+            }
+            .normalized(),
+            value: RuleValue::Length(1.0),
+        }),
+    )?;
+    // 2. Held by the document, whatever the command accepts: each pour's
+    // staleness, and its gap to every via.
+    let mut file = engine.to_file();
+    let project = &mut file.project;
+    let mut keys = Vec::new();
+    for fill in &project.fills {
+        let me = ObjectRef::Fill { id: fill.id };
+        keys.push(waiver_key("fill.stale", &[me]));
+        for via in &project.vias {
+            keys.push(waiver_key(
+                "fill.clearance",
+                &[me, ObjectRef::Via { id: via.id }],
+            ));
+        }
+    }
+    keys.sort();
+    keys.dedup();
+    project.production.waivers = keys
+        .into_iter()
+        .map(|key| Waiver {
+            key,
+            reason: "accepted".into(),
+        })
+        .collect();
+    let mut engine = Engine::from_file(file)?;
+    // 3. A via of another net goes where the pour is solid: 0.8 mm from its
+    // edge, and 1.5 mm from all other copper, holes and the board's edge.
+    let project = engine.project().clone();
+    let holes = oracle::holes(&project)?;
+    let outer = oracle::Area::of_outline(&project.board().outer);
+    let copper: Vec<oracle::Prim> = project
+        .stackup
+        .layers()
+        .into_iter()
+        .flat_map(|layer| oracle::copper_but_fills(&project, layer))
+        .collect();
+    let free = |p: Point, moved: Point| {
+        -outer.signed(p) > 1.5
+            && copper
+                .iter()
+                .all(|c| near(c.frame.to_board([0.0; 2]), moved) || c.excess(p) > 1.5)
+            && holes.iter().all(|h| {
+                near(h.from, moved)
+                    || oracle::Area::capsule(h.from, h.to, h.width / 2.0).signed(p) > 1.5
+            })
+    };
+    let bounds = project.board().bounds();
+    let mut target = None;
+    'search: for fill in project.fills.iter().filter(|f| f.net.is_some()) {
+        let Some(via) = project
+            .vias
+            .iter()
+            .find(|v| !v.locked && Some(v.net) != fill.net)
+        else {
+            continue;
+        };
+        let mut solid = Vec::new();
+        for region in fill.computed.iter().flat_map(|c| &c.regions) {
+            let mut area = oracle::Area::of_ring(&region.outer);
+            for hole in &region.holes {
+                area.edges.extend(oracle::Area::of_ring(hole).edges);
+            }
+            solid.push(area.filed());
+        }
+        // Solid all round, 0.8 mm out.
+        let poured = |p: Point| {
+            solid.iter().any(|a| {
+                a.inside(p)
+                    && (0..16).all(|k| {
+                        let (s, c) = (f64::from(k) * std::f64::consts::TAU / 16.0).sin_cos();
+                        a.inside([p[0] + 0.8 * c, p[1] + 0.8 * s])
+                    })
+            })
+        };
+        for i in 0..400 {
+            for j in 0..400 {
+                let p = [
+                    bounds.min[0] + 0.25 * f64::from(i),
+                    bounds.min[1] + 0.25 * f64::from(j),
+                ];
+                if p[0] > bounds.max[0] || p[1] > bounds.max[1] {
+                    break;
+                }
+                if poured(p) && free(p, via.position) {
+                    target = Some((fill.id, via.id, p));
+                    break 'search;
+                }
+            }
+        }
+    }
+    let (fill, via, position) = target.ok_or("a place in a pour for a via")?;
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::MoveVia { id: via, position }),
+    )?;
+    // 4. and 5. The files would short the two nets; the export must not be
+    // free to write them.
+    let report = fabrication::preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?;
+    let names = [ObjectRef::Fill { id: fill }, ObjectRef::Via { id: via }];
+    let short: Vec<_> = report
+        .items
+        .iter()
+        .filter(|i| names.iter().all(|n| i.objects.contains(n)))
+        .map(|i| (&i.code, &i.title, i.blocks()))
+        .collect();
+    assert!(short.iter().any(|(_, _, blocks)| *blocks), "{short:?}");
+    Ok(())
+}
+
 /// The review's probe: the fill-to-via-hole minimum raised to 1 mm after
 /// the pour was computed, and its staleness waived. The stored copper is
 /// what would be made, so its gap to the drill blocks the export, naming
@@ -1630,6 +1867,126 @@ fn overlapping_pours_erase_nothing_of_each_other() -> Fallible<()> {
     assert!(image.dark([39.5, 25.0]), "erased in the other's hole");
     assert!(!image.dark([42.0, 25.0]), "the hole itself");
     assert!(image.dark([38.5, 22.5]) && image.dark([43.5, 25.0]));
+    Ok(())
+}
+
+/// A fill's regions that overlap, or a hole outside its ring, are refused
+/// by `fill.store`; held by a document all the same, they are plotted as
+/// the copper they say: each outer ring less its own holes, together.
+#[test]
+fn a_fills_own_overlapping_regions_erase_nothing() -> Fallible<()> {
+    use crate::layout::fill::{FillCommand, inputs_key};
+    let ring = |x0: f64, y0: f64, x1: f64, y1: f64| vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    let region = |outer, holes| FilledRegion { outer, holes };
+    let overlapping = vec![
+        region(ring(20.0, 20.0, 30.0, 30.0), Vec::new()),
+        region(
+            ring(20.5, 20.5, 29.5, 29.5),
+            vec![ring(23.0, 23.0, 26.0, 26.0)],
+        ),
+    ];
+    let stray = vec![region(
+        ring(20.0, 20.0, 25.0, 25.0),
+        vec![ring(27.0, 20.0, 29.0, 22.0)],
+    )];
+    let crossing = vec![region(
+        ring(20.0, 20.0, 30.0, 30.0),
+        vec![ring(21.0, 21.0, 24.0, 24.0), ring(23.0, 23.0, 26.0, 26.0)],
+    )];
+    let across = vec![region(
+        ring(20.0, 20.0, 25.0, 25.0),
+        vec![ring(24.0, 21.0, 27.0, 23.0)],
+    )];
+    let sound = vec![
+        region(
+            ring(20.0, 20.0, 30.0, 30.0),
+            vec![ring(22.0, 22.0, 28.0, 28.0)],
+        ),
+        // An island in the other's hole.
+        region(ring(23.0, 23.0, 27.0, 27.0), Vec::new()),
+    ];
+    let mut engine = Engine::showcase()?;
+    let id = engine.project().fills.first().ok_or("a fill")?.id;
+    let store = |engine: &mut Engine, regions: &Vec<FilledRegion>| -> Fallible<bool> {
+        let copper = FilledCopper {
+            key: inputs_key(engine.project(), id)?,
+            regions: regions.clone(),
+            removed_islands: 0,
+            removed_spokes: Vec::new(),
+        };
+        let done = engine.apply(
+            engine.revision(),
+            Operation::Fill(FillCommand::Store {
+                fill: id,
+                copper: Box::new(copper),
+            }),
+        );
+        Ok(done.is_ok())
+    };
+    let before = engine.project().clone();
+    for regions in [&overlapping, &stray, &crossing, &across] {
+        assert!(!store(&mut engine, regions)?, "{regions:?}");
+        assert_eq!(engine.project(), &before);
+    }
+    assert!(store(&mut engine, &sound)?);
+    // Every computed fill is sound.
+    for project in [before, board()?] {
+        for fill in &project.fills {
+            let regions = fill.computed.as_ref().ok_or("copper")?.regions.as_slice();
+            assert!(crate::layout::fill::sound(regions), "{}", fill.name);
+        }
+    }
+    // Plotted: what each says is copper, and nothing else.
+    for (regions, dark, clear) in [
+        (
+            overlapping,
+            vec![[24.5, 24.5], [20.2, 25.0], [29.8, 29.8]],
+            vec![[19.9, 25.0], [30.1, 25.0]],
+        ),
+        (stray, vec![[22.0, 22.0]], vec![[28.0, 21.0], [26.0, 21.0]]),
+        (
+            crossing,
+            vec![[20.5, 20.5], [28.0, 28.0]],
+            vec![[22.0, 22.0], [23.5, 23.5], [25.0, 25.0]],
+        ),
+        (
+            across,
+            vec![[22.0, 22.0], [24.5, 24.0]],
+            vec![[24.5, 22.0], [26.0, 22.0]],
+        ),
+    ] {
+        let mut project = board()?;
+        // Nothing but the pour near these points.
+        project.tracks.clear();
+        project.vias.clear();
+        for f in project
+            .fills
+            .iter_mut()
+            .filter(|f| f.layer == CopperLayer::Top)
+        {
+            f.computed = Some(FilledCopper {
+                key: String::new(),
+                regions: regions.clone(),
+                removed_islands: 0,
+                removed_spokes: Vec::new(),
+            });
+        }
+        let files = written(&project)?;
+        let image = Image::read(file(&files, "copper-l1-top.gbr")?)?;
+        // The fixture's own lands may lie on a point: it is then no test.
+        let lands = oracle::copper_but_fills(&project, CopperLayer::Top);
+        for (p, want) in dark
+            .iter()
+            .map(|p| (*p, true))
+            .chain(clear.iter().map(|p| (*p, false)))
+        {
+            assert!(
+                lands.iter().all(|l| l.excess(p) > 0.0),
+                "{p:?} is on a land"
+            );
+            assert_eq!(image.dark(p), want, "{p:?} of {regions:?}");
+        }
+    }
     Ok(())
 }
 
