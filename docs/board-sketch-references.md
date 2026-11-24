@@ -115,7 +115,7 @@ The `outline` curve list is dropped. After the board solve, the evaluator runs `
 - its outer loop does not cross itself;
 - every hole lies strictly inside the outer loop, apart from the others.
 
-The outer loop is the outline. Each hole is a cutout, unless a `CutoutRole` keyed by its curve ids makes it a slot. Otherwise the last valid `SolvedBoard` is kept, and the board reports one of:
+The outer loop is the outline. Each hole is a cutout, unless a `CutoutRole` keyed by its curve ids makes it a slot. Otherwise the last valid `SolvedBoard`, its shape and its parameter values, is kept whole, and the board reports one of (open ends beside a closed outline are reported too, and that outline is taken):
 
 - `board.shape_open`, with the open ends from `loose_ends`. It is advisory in Board shape mode and an error everywhere else.
 - `board.shape_invalid`, naming the crossing or the touching hole.

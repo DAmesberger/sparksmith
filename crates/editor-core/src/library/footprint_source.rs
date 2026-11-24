@@ -226,6 +226,17 @@ pub enum ParamUnit {
     Count,
 }
 
+impl ParamUnit {
+    /// What it measures, for a sentence: "a length".
+    pub fn words(self) -> &'static str {
+        match self {
+            Self::Mm => "a length",
+            Self::Deg => "an angle",
+            Self::Count => "a count",
+        }
+    }
+}
+
 /// One named footprint parameter (land sizes, row spans, counts).
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -245,6 +256,24 @@ pub enum ParamValue {
     /// Degrees.
     Angle(f64),
     Count(u32),
+}
+
+impl ParamValue {
+    /// The unit a parameter of this value has.
+    pub fn unit(self) -> ParamUnit {
+        match self {
+            Self::Length(_) => ParamUnit::Mm,
+            Self::Angle(_) => ParamUnit::Deg,
+            Self::Count(_) => ParamUnit::Count,
+        }
+    }
+
+    pub fn is_finite(self) -> bool {
+        match self {
+            Self::Length(x) | Self::Angle(x) => x.is_finite(),
+            Self::Count(_) => true,
+        }
+    }
 }
 
 /// A package value injected into footprint expressions as `pkg_<name>`.

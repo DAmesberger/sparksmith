@@ -143,10 +143,10 @@ fn the_complete_outer_edge_and_cutout_survive_all_three_pdf_views() -> Fallible<
         next_feature: 2,
         solve: Default::default(),
         solved,
+        current: true,
         outline_fit,
         fault: None,
         idle: vec![],
-        values: vec![],
     }));
     let engine = Engine::from_file(file)?;
     let mut project = engine.project().clone();

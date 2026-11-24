@@ -153,10 +153,10 @@ pub(crate) fn gate_board_with(with: &[&str]) -> Result<(Engine, Gate)> {
         next_feature: 2,
         solve: Default::default(),
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
     for (key, mm) in [
         (RuleKey::TrackWidthMin, TRACK_MIN_MM),

@@ -2521,10 +2521,10 @@ fn with_washer(mut project: Project) -> Project {
         next_feature: 2,
         solve: Default::default(),
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
     project
 }

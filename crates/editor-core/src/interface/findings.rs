@@ -48,6 +48,9 @@ pub const ASSEMBLY_DRIVEN_EDGE: &str = "assembly.driven_edge";
 /// design is broken.
 pub const ASSEMBLY_PUBLISH_BLOCKED: &str = "assembly.publish_blocked";
 
+/// Refusal: publishing while the board outline is not valid.
+pub const OUTLINE_INVALID: &str = "interface.outline_invalid";
+
 /// One finding code's consequences.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CodeSpec {
@@ -168,6 +171,20 @@ pub fn assembly_both_changed() -> Finding {
             .into(),
         vec![ObjectRef::Board],
     )
+}
+
+/// Why publishing waits while the outline is invalid (`why` a sentence,
+/// [`crate::model::board::BoardShape::invalid`]).
+pub fn outline_invalid(why: &str) -> String {
+    format!(
+        "The board outline is not valid: {why} Publishing waits until it is; until then the \
+         interface shows the last valid outline with the parameter values it was solved with"
+    )
+}
+
+/// The refusal of a publish while the outline is invalid.
+pub fn outline_blocked(why: &str) -> Error {
+    Error::Conflict(format!("{OUTLINE_INVALID}: {}", outline_invalid(why)))
 }
 
 /// The refusal of a publish while references are broken: `broken` are the

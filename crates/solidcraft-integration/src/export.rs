@@ -467,7 +467,8 @@ fn since(_: Option<Clock>) -> Option<f64> {
 /// Export `project`'s board at `tier` to `output`: build the exact model,
 /// check it against the board plan, then let the host stage and publish
 /// the native file without replacing any destination. Refuses an existing
-/// file before building, and the interface tier, which is published with
+/// file before building, a board whose outline is invalid (the model would
+/// be of an earlier outline), and the interface tier, which is published with
 /// `interface.publish`. A model that does
 /// not fit the plan is refused ([`Error::Unfit`], writing nothing) unless
 /// `unfit` is [`Unfit::Write`]. Stops with [`Error::Cancelled`], writing
@@ -504,6 +505,12 @@ fn board_inner(
                 .into(),
         )
     })?;
+    if let Some(why) = project.board_shape.invalid() {
+        return Err(Error::Invalid(format!(
+            "export.outline_invalid: the board outline is not valid: {why} The export waits until \
+             it is"
+        )));
+    }
     watch.enter(Stage::Building)?;
     let started = clock();
     let model = project::build_watched(&board, Arc::clone(watch))?;

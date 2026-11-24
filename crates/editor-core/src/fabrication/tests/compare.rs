@@ -445,10 +445,10 @@ fn sketched() -> Fallible<Project> {
             result_hash: String::new(),
         },
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
-        values: Vec::new(),
     }));
     refill(&mut p)?;
     Ok(p)
