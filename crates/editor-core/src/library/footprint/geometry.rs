@@ -96,15 +96,24 @@ pub fn offset_polygon(points: &[Point], by: f64) -> Option<Vec<Point>> {
     (signed_area2(&out) * area > 1e-9).then_some(out)
 }
 
-/// A ring offset by `by` mm (negative shrinks) as a true offset: round
-/// joins whose vertices lie on the true arcs, within `tol`. When the offset
-/// splits a ring (a shrunk waist), the largest piece is kept; a grown ring
-/// keeps its outer boundary. `None` when nothing is left.
-fn true_offset(mut ring: Vec<Point>, by: f64, tol: f64) -> Option<Vec<Point>> {
+/// One piece of an offset shape: its outer boundary and the holes in it
+/// (rings, clockwise).
+#[derive(Clone, Debug, PartialEq)]
+pub struct OffsetPiece {
+    pub outer: Shape,
+    pub holes: Vec<Vec<Point>>,
+}
+
+/// Every piece of a ring offset by `by` mm (negative shrinks) as a true
+/// offset: round joins whose vertices lie on the true arcs, within `tol`.
+/// Shrinking may split a ring at a waist; growing may close a notch into a
+/// hole. Largest first; each an outer ring (counter-clockwise) and its
+/// holes. Empty when nothing is left.
+fn true_offset(mut ring: Vec<Point>, by: f64, tol: f64) -> Vec<(Vec<Point>, Vec<Vec<Point>>)> {
     use i_overlay::mesh::float::outline::offset::OutlineOffset;
     use i_overlay::mesh::float::style::{LineJoin, OutlineStyle};
     if ring.len() < 3 {
-        return None;
+        return Vec::new();
     }
     if signed_area2(&ring) < 0.0 {
         ring.reverse();
@@ -113,18 +122,26 @@ fn true_offset(mut ring: Vec<Point>, by: f64, tol: f64) -> Option<Vec<Point>> {
     let step = 2.0 * (1.0 - (tol / r).min(1.0)).acos().max(0.01);
     let style = OutlineStyle::new(by).line_join(LineJoin::Round(step));
     let shapes: Vec<Vec<Vec<Point>>> = vec![vec![ring]].outline(&style);
-    shapes
+    let area = |r: &[Point]| signed_area2(r).abs();
+    let real = |r: &Vec<Point>| area(r).is_finite() && area(r) > 1e-12;
+    // Turned the way asked: counter-clockwise (`+1`) or clockwise.
+    let turned = |mut r: Vec<Point>, way: f64| {
+        if signed_area2(&r) * way < 0.0 {
+            r.reverse();
+        }
+        r
+    };
+    let mut pieces: Vec<_> = shapes
         .into_iter()
-        .filter_map(|shape| shape.into_iter().next())
-        .map(|outer| (signed_area2(&outer).abs(), outer))
-        .filter(|(area, _)| area.is_finite() && *area > 1e-12)
-        .max_by(|a, b| a.0.total_cmp(&b.0))
-        .map(|(_, mut outer)| {
-            if signed_area2(&outer) < 0.0 {
-                outer.reverse();
-            }
-            outer
+        .filter_map(|shape| {
+            let mut rings = shape.into_iter();
+            let outer = rings.next().filter(real)?;
+            let holes = rings.filter(real).map(|h| turned(h, -1.0)).collect();
+            Some((turned(outer, 1.0), holes))
         })
+        .collect();
+    pieces.sort_by(|a, b| area(&b.0).total_cmp(&area(&a.0)));
+    pieces
 }
 
 /// The circular arc from `a` to `b` with `bulge = tan(sweep / 4)`
@@ -171,12 +188,53 @@ impl PadShape {
         }
     }
 
-    /// The shape grown by `by` mm on every side (negative shrinks) as a core
-    /// shape in the pad frame, centred on the origin: a true offset, so a
-    /// grown sharp corner is rounded by `by`. Rounded corners stay exact; a
-    /// custom outline's arcs and grown corners are flattened within `tol`.
-    /// `None` when it vanishes.
+    /// The outer boundary of the largest piece of [`Self::offset_pieces`]:
+    /// the whole offset but for a custom outline that shrinks into several
+    /// pieces or grows round a hole. What is made from a pad (mask, paste)
+    /// reads the pieces; this is for what may cover more (a clearance, a
+    /// keep-out) and for display. `None` when nothing is left.
     pub fn grown(&self, by: f64, tol: f64) -> Option<Shape> {
+        self.offset_pieces(by, tol)
+            .into_iter()
+            .next()
+            .map(|p| p.outer)
+    }
+
+    /// The shape grown by `by` mm on every side (negative shrinks) as core
+    /// shapes in the pad frame, centred on the origin: a true offset (every
+    /// point within `by` of the land, or inside it by that much), so a
+    /// grown sharp corner is rounded by `by`. Rounded corners stay exact; a
+    /// custom outline's arcs and grown corners are flattened within `tol`,
+    /// and it alone may split into several pieces or close round holes.
+    /// Largest first; empty when it vanishes.
+    pub fn offset_pieces(&self, by: f64, tol: f64) -> Vec<OffsetPiece> {
+        if let Self::Custom { outline } = self {
+            let ring = outline.flatten(tol);
+            let pieces = if by == 0.0 {
+                vec![(ring, Vec::new())]
+            } else {
+                true_offset(ring, by, tol)
+            };
+            return pieces
+                .into_iter()
+                .filter(|(outer, _)| outer.len() >= 3)
+                .map(|(outer, holes)| OffsetPiece {
+                    outer: Shape::polygon(outer),
+                    holes,
+                })
+                .collect();
+        }
+        self.grown_convex(by)
+            .map(|outer| OffsetPiece {
+                outer,
+                holes: Vec::new(),
+            })
+            .into_iter()
+            .collect()
+    }
+
+    /// [`Self::offset_pieces`] of the convex shapes, always one piece.
+    fn grown_convex(&self, by: f64) -> Option<Shape> {
         match self {
             Self::Rect { size } => rounded_box(size.to_mm_f64(), 0.0, [false; 4], by),
             Self::RoundRect { size, corners, .. } => rounded_box(
@@ -201,15 +259,7 @@ impl PadShape {
                 let size = size.to_mm_f64();
                 rounded_box(size, size[0].min(size[1]) / 2.0, [true; 4], by)
             }
-            Self::Custom { outline } => {
-                let ring = outline.flatten(tol);
-                let ring = if by == 0.0 {
-                    ring
-                } else {
-                    true_offset(ring, by, tol)?
-                };
-                (ring.len() >= 3).then(|| Shape::polygon(ring))
-            }
+            Self::Custom { .. } => None,
         }
     }
 
@@ -379,11 +429,13 @@ impl Pad {
     /// for hole kinds and fiducials.
     pub fn paste_openings(&self, defaults: &PadDefaults, tol: f64) -> Vec<Shape> {
         let frame = self.frame();
+        // A shrunk outline has no holes (only growing closes one); a
+        // negative reduction grows, where a hole is not shown.
         let shrink = |by: f64| {
             self.shape
-                .grown(-by, tol)
-                .map(|s| s.transformed(&frame))
+                .offset_pieces(-by, tol)
                 .into_iter()
+                .map(|p| p.outer.transformed(&frame))
                 .collect()
         };
         match &self.paste {

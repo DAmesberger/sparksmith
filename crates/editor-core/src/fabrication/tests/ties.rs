@@ -243,3 +243,97 @@ fn typed_ties_in_released_copper_paste_cut_steps_and_assembly_csvs() -> Fallible
     assert_eq!(cuts(&open), ["Cut JP1 pads 2–3"]);
     Ok(())
 }
+
+/// A net tie's bridge is copper like any other: a hole short of the track
+/// clearance from it and fill copper short of its own, even fill of a net
+/// it joins, are found.
+#[test]
+fn a_bridge_keeps_its_clearance_from_holes_and_fills() -> Fallible<()> {
+    use crate::diagnostics::ObjectRef;
+    use crate::model::CopperLayer;
+    use crate::model::board::{BoardFeatureId, SolvedBoard, SolvedMountingHole};
+    use crate::model::fill::{Fill, FilledCopper, FilledRegion};
+    use crate::rules::{CopperObject, RuleKey, RuleOverride, RuleValue};
+    let mut engine = Engine::profiled()?;
+    let copper = tie_part(&mut engine, "Copper return", TieForm::Copper)?;
+    let (nt, _) = place(&mut engine, &copper, "NT1", 1, [20., 10.])?;
+    let chip = tie_part(&mut engine, "Jumper resistor", TieForm::ZeroOhm)?;
+    let (link, _) = place(&mut engine, &chip, "R1", 1, [20., 30.])?;
+    for pin in [1, 2] {
+        connect(&mut engine, ep(nt, pin), ep(link, pin))?;
+    }
+    sync_onto_board(&mut engine)?;
+    let net = net_of(&engine, ep(nt, 1))?;
+    let mut project = engine.project().clone();
+    let placement = project
+        .placements
+        .iter_mut()
+        .find(|p| p.instance == nt)
+        .ok_or("NT1 on the board")?;
+    placement.position = [30.0, 20.0];
+    placement.rotation_deg = 0.0;
+    for b in [CopperObject::NpthHole, CopperObject::Fill] {
+        project.rules.overrides.push(RuleOverride {
+            key: RuleKey::Clearance {
+                a: CopperObject::Track,
+                b,
+            }
+            .normalized(),
+            value: RuleValue::Length(0.3),
+        });
+    }
+    // The bridge runs from (28.5, 19.9) to (30, 20.1): a 1 mm hole `gap`
+    // above it, and a pour `gap` below.
+    let instance = ObjectRef::Instance { id: nt };
+    for (gap, found) in [(0.2, true), (0.35, false)] {
+        let mut p = project.clone();
+        let mut solved = SolvedBoard::rectangle(p.board_size);
+        solved.holes.push(SolvedMountingHole {
+            id: BoardFeatureId(3),
+            at: [29.25, 20.1 + gap + 0.5],
+            drill: 1.0,
+            plated: false,
+            pad_diameter: None,
+        });
+        p.board_shape = super::proof::sketch(solved);
+        let hole = ObjectRef::BoardFeature { feature: 3 };
+        let holes = crate::layout::checks(&p, &Default::default())
+            .into_iter()
+            .filter(|f| f.objects == vec![instance, hole])
+            .count();
+        assert_eq!(holes, usize::from(found), "hole {gap} mm off");
+        let id = p.allocate()?;
+        let (top, bottom) = (19.9 - gap, 18.0);
+        let region = vec![[29.0, bottom], [29.5, bottom], [29.5, top], [29.0, top]];
+        p.fills.push(Fill {
+            id,
+            name: "Pour".into(),
+            net: Some(net),
+            layer: CopperLayer::Top,
+            region: Default::default(),
+            outline: FootprintKeepout::rect("", [28.0, 17.0], [31.0, 19.95]).outline,
+            priority: 0,
+            settings: Default::default(),
+            locked: false,
+            computed: None,
+        });
+        let key = crate::layout::fill::inputs_key(&p, id)?;
+        for f in p.fills.iter_mut().filter(|f| f.id == id) {
+            f.computed = Some(FilledCopper {
+                key: key.clone(),
+                regions: vec![FilledRegion {
+                    outer: region.clone(),
+                    holes: Vec::new(),
+                }],
+                removed_islands: 0,
+                removed_spokes: Vec::new(),
+            });
+        }
+        let fills = crate::layout::fill::findings(&p)
+            .into_iter()
+            .filter(|f| f.objects == vec![ObjectRef::Fill { id }, instance])
+            .count();
+        assert_eq!(fills, usize::from(found), "pour {gap} mm off");
+    }
+    Ok(())
+}

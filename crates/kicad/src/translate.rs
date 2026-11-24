@@ -931,9 +931,11 @@ pub fn add_paste_window(pads: &mut [Pad], window: &Pad) -> bool {
         PasteRule::Reduction(r) => r.to_mm_f64(),
         _ => 0.0,
     };
-    let Some(opening) = window.shape.grown(-reduction, CHORD_MM) else {
+    // Every piece a reduction leaves is a window of its own.
+    let openings = window.shape.offset_pieces(-reduction, CHORD_MM);
+    if openings.is_empty() || openings.iter().any(|p| !p.holes.is_empty()) {
         return false;
-    };
+    }
     let frame = |p: &Pad| Transform2 {
         translate: p.position(),
         rotation_deg: p.rotation_deg(),
@@ -954,24 +956,27 @@ pub fn add_paste_window(pads: &mut [Pad], window: &Pad) -> bool {
         PasteRule::Windows(w) => w.clone(),
         PasteRule::Reduction(r) => target
             .shape
-            .grown(-r.to_mm_f64(), CHORD_MM)
-            .and_then(|s| ShapeNm::from_mm_rounded(&s).ok())
-            .map(|shape| PasteWindow {
-                id: ApertureId(1),
+            .offset_pieces(-r.to_mm_f64(), CHORD_MM)
+            .iter()
+            .filter_map(|p| ShapeNm::from_mm_rounded(&p.outer).ok())
+            .zip(1..)
+            .map(|(shape, id)| PasteWindow {
+                id: ApertureId(id),
                 shape,
             })
-            .into_iter()
             .collect(),
         PasteRule::None | PasteRule::Inherit => Vec::new(),
     };
-    let Ok(shape) = ShapeNm::from_mm_rounded(&opening.transformed(&into_target)) else {
-        return false;
-    };
-    let next = windows.iter().map(|w| w.id.0).max().unwrap_or(0) + 1;
-    windows.push(PasteWindow {
-        id: ApertureId(next),
-        shape,
-    });
+    for opening in &openings {
+        let Ok(shape) = ShapeNm::from_mm_rounded(&opening.outer.transformed(&into_target)) else {
+            return false;
+        };
+        let next = windows.iter().map(|w| w.id.0).max().unwrap_or(0) + 1;
+        windows.push(PasteWindow {
+            id: ApertureId(next),
+            shape,
+        });
+    }
     target.paste = PasteRule::Windows(windows);
     true
 }
@@ -1285,4 +1290,65 @@ pub(crate) fn copper_ties(fp: &Footprint, pads: &[Pad]) -> Result<ImportedTies, 
         }
     }
     Ok(ImportedTies { groups, bridges })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sparksmith_core::library::{Outline, Segment};
+
+    /// A paste-only pad whose reduction splits it (two 1 mm squares joined
+    /// by a bar 0.1 mm wide, less 0.08 mm) gives a window for each island.
+    #[test]
+    fn every_island_of_a_reduced_paste_pad_is_a_window() -> sparksmith_core::diagnostics::Result<()>
+    {
+        let points = [
+            [-1.3, -0.5],
+            [-0.3, -0.5],
+            [-0.3, -0.05],
+            [0.3, -0.05],
+            [0.3, -0.5],
+            [1.3, -0.5],
+            [1.3, 0.5],
+            [0.3, 0.5],
+            [0.3, 0.05],
+            [-0.3, 0.05],
+            [-0.3, 0.5],
+            [-1.3, 0.5],
+        ];
+        let land = Pad::smd_rect_mm(
+            sparksmith_core::PadId(1),
+            PackageTerminalId(1),
+            "1",
+            [0.0, 0.0],
+            [4.0, 2.0],
+        )?;
+        let mut window = land.clone();
+        window.shape = PadShape::Custom {
+            outline: Outline {
+                start: points[0],
+                segments: points[1..]
+                    .iter()
+                    .chain(&points[..1])
+                    .map(|p| Segment::Line { to: *p })
+                    .collect(),
+            },
+        };
+        window.paste = PasteRule::Reduction(sparksmith_core::units::Nm::from_mm_f64_rounded(0.08)?);
+        let mut pads = vec![land];
+        assert!(add_paste_window(&mut pads, &window));
+        let Some(PasteRule::Windows(windows)) = pads.first().map(|p| &p.paste) else {
+            return Err(sparksmith_core::Error::Invalid("no windows".into()));
+        };
+        assert_eq!(windows.len(), 2);
+        // Each island is the square less 0.08 mm a side, and a little more
+        // beside the bar.
+        for w in windows {
+            let bounds = w.shape.to_mm().bounds(0.0);
+            let size = bounds.size();
+            assert!((size[1] - 0.84).abs() < 1e-3, "{size:?}");
+            assert!(size[0] > 0.84 - 1e-3 && size[0] < 0.87, "{size:?}");
+        }
+        Ok(())
+    }
 }

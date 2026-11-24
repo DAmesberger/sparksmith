@@ -110,6 +110,23 @@ pub(super) fn perimeter(b: &Bitmap) -> f64 {
     edges as f64 * b.pixel
 }
 
+/// A block of two by two pixels that differ, if any: a difference thicker
+/// than the edges' sampling.
+pub(super) fn thick(a: &Bitmap, b: &Bitmap) -> Option<[f64; 2]> {
+    let differs = |i, j| a.get(i, j) != b.get(i, j);
+    (0..a.height.saturating_sub(1))
+        .flat_map(|j| (0..a.width.saturating_sub(1)).map(move |i| (i, j)))
+        .find(|&(i, j)| {
+            differs(i, j) && differs(i + 1, j) && differs(i, j + 1) && differs(i + 1, j + 1)
+        })
+        .map(|(i, j)| {
+            [
+                a.min[0] + (i as f64 + 1.0) * a.pixel,
+                a.min[1] + (j as f64 + 1.0) * a.pixel,
+            ]
+        })
+}
+
 /// Compare every layer of `set` with the core geometry of `project`;
 /// returns (layer, comparison) rows after asserting each is within its
 /// limit.
@@ -128,6 +145,11 @@ fn compare_all(
     let mut check = |name: String, got: Bitmap, want: Bitmap| -> Fallible<()> {
         let c = raster::compare(&got, &want)?;
         let limit = allowed(&c, perimeter(&want));
+        // The band is spread along the edges: no difference is two pixels
+        // thick, however small its area (a missing paste island).
+        if let Some(at) = thick(&got, &want) {
+            return Err(format!("{label} {name}: differs round {at:?}").into());
+        }
         if c.xor_area > 0.0 {
             let mut where_ = Vec::new();
             for j in 0..got.height {
@@ -180,16 +202,7 @@ fn compare_all(
     }
     // The profile mills the outline, cutouts and non-plated slots; plated
     // straight slots are routed by the plated drill file instead.
-    let mut got = profile_region(&gerber(set, "-profile.gbr")?, &grid)?;
-    if has(set, "-plated.drl") {
-        let mut drill = excellon_reader::parse(text(set, "-plated.drl")?)?;
-        drill
-            .hits
-            .retain(|h| matches!(h, excellon_reader::Hit::Slot { .. }));
-        let mut slots = grid.blank();
-        raster::render_drill(&drill, &mut slots)?;
-        got.subtract(&slots)?;
-    }
+    let got = profile_region(&gerber(set, "-profile.gbr")?, &grid)?;
     let mut want = grid.blank();
     expected::outline(project, &mut want)?;
     check("profile".into(), got, want)?;

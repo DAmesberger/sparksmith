@@ -115,6 +115,13 @@ impl Seg {
     }
 }
 
+/// How far an arc about `center` turns from `from` to `to`, radians.
+fn sweep(from: Point, to: Point, center: Point, ccw: bool) -> f64 {
+    let at = |p: Point| (p[1] - center[1]).atan2(p[0] - center[0]);
+    let turn = at(to) - at(from);
+    (if ccw { turn } else { -turn }).rem_euclid(std::f64::consts::TAU)
+}
+
 /// One Gerber file being written.
 pub struct Writer {
     header: String,
@@ -274,9 +281,18 @@ impl Writer {
         Ok(())
     }
 
-    fn segments(&mut self, segs: &[Seg]) -> Result<()> {
+    fn segments(&mut self, start: Point, segs: &[Seg]) -> Result<()> {
+        let mut from = start;
         for seg in segs {
+            let begun = std::mem::replace(&mut from, seg.to());
             match *seg {
+                // An arc shorter than the format's step would end where it
+                // starts, which the format reads as a full circle. It has
+                // no length to plot.
+                Seg::Arc { to, center, ccw }
+                    if begun != to
+                        && self.at == Some((units(to[0])?, units(to[1])?))
+                        && sweep(begun, to, center, ccw) < std::f64::consts::PI => {}
                 Seg::Line(to) => {
                     self.set_mode(1);
                     let xy = self.xy(to)?;
@@ -320,7 +336,7 @@ impl Writer {
             let _ = writeln!(self.body, "{xy}D01*");
             return self.check_size();
         }
-        self.segments(segs)
+        self.segments(start, segs)
     }
 
     /// A region of one closed contour from `start` (the last segment must
@@ -334,7 +350,7 @@ impl Writer {
         let (x, y) = (units(start[0])?, units(start[1])?);
         self.at = Some((x, y));
         let _ = writeln!(self.body, "X{x}Y{y}D02*");
-        self.segments(segs)?;
+        self.segments(start, segs)?;
         self.body.push_str("G37*\n");
         if function.is_some() {
             self.body.push_str("%TD.AperFunction*%\n");

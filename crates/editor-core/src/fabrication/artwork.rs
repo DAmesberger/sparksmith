@@ -14,10 +14,12 @@
 //!   component (`.C`).
 //! - **Solder mask** (`Soldermask`, negative: the image is the openings).
 //!   Each pad's land grown by its mask rule (inherited pads by the design
-//!   rules' mask expansion), open vias grown the same, mounting holes.
+//!   rules' mask expansion), open vias grown the same, mounting holes. A
+//!   notch the growth closes stays mask: the opening is a region with a
+//!   cut-in, which clears no other opening.
 //! - **Paste** (`Paste`, positive). Each surface pad's land shrunk by its
-//!   paste rule (inherited pads by the rules' paste reduction), or its
-//!   explicit windows.
+//!   paste rule (inherited pads by the rules' paste reduction), every piece
+//!   of it, or its explicit windows.
 //! - **Legend** (`Legend`, positive). Footprint silkscreen strokes with a
 //!   round pen and filled shapes as regions; text in Sparksmith's stroke font
 //!   (`layout::legend`). The legend is not clipped at mask openings; the
@@ -28,13 +30,13 @@
 use super::gerber::{Aperture, Seg, Writer, escape, macro_body, units};
 use super::snapshot::Identity;
 use super::{FabFile, FabricationOptions, FileGroup};
-use crate::diagnostics::Result;
+use crate::diagnostics::{Error, Result};
 use crate::geometry::{Point, Shape, Transform2, rounded_path, signed_area2};
 use crate::ids::Id;
 use crate::layout::physical::LandOwner;
 use crate::layout::{self, PlacedPad};
 use crate::layout::{BoardDrawing, PlacedItem};
-use crate::library::{CHECK_CHORD_MM, Outline, PadKind, PadShape, PasteRule, Segment};
+use crate::library::{CHECK_CHORD_MM, OffsetPiece, Outline, PadKind, PadShape, PasteRule, Segment};
 use crate::model::board::{CutoutKind, arc_geometry};
 use crate::model::fill::FilledRegion;
 use crate::model::{CopperLayer, Layer, Project};
@@ -302,7 +304,8 @@ fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) 
         .collect();
     // Material nested inside a hole, including another net, is added last.
     regions.sort_by(|a, b| b.0.total_cmp(&a.0));
-    for (_, net, region) in regions {
+    for (k, (_, net, region)) in regions.iter().enumerate() {
+        let net = *net;
         w.object(&[("N", board.net(net))]);
         w.polarity(true);
         polygon_region(&mut w, Some("Conductor"), &region.outer)?;
@@ -310,6 +313,24 @@ fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) 
             w.polarity(false);
             for hole in &region.holes {
                 polygon_region(&mut w, None, hole)?;
+            }
+            // Nets whose pours overlap (a violation the check reports, which
+            // may be waived) keep their copper in each other's holes: what
+            // the holes just cleared of a larger pour is drawn again.
+            for (_, other, under) in regions.iter().take(k).filter(|r| r.1 != net) {
+                let lost = layout::fill::copper_in_holes(under, region);
+                if lost.is_empty() {
+                    continue;
+                }
+                w.object(&[("N", board.net(*other))]);
+                w.polarity(true);
+                for piece in lost {
+                    polygon_region(
+                        &mut w,
+                        Some("Conductor"),
+                        &cut_in(piece.outer, piece.holes)?,
+                    )?;
+                }
             }
         }
     }
@@ -408,16 +429,91 @@ fn mask(board: &Board<'_>, side: Layer, attributes: &[(&str, String)]) -> Result
         let Some(by) = pad.mask_expansion(e) else {
             continue;
         };
-        let Some(shape) = pad.pad.shape.grown(by, CHECK_CHORD_MM) else {
-            continue;
-        };
         let exact = match &pad.pad.shape {
             PadShape::Custom { outline } if by == 0.0 => Some(outline),
             _ => None,
         };
-        land(&mut w, &shape, exact, &pad.pad_transform(), None)?;
+        for piece in pad.pad.shape.offset_pieces(by, CHECK_CHORD_MM) {
+            opening(&mut w, &piece, exact, &pad.pad_transform())?;
+        }
     }
     w.finish()
+}
+
+/// One piece of a mask or paste opening, placed by `t`.
+fn opening(
+    w: &mut Writer,
+    piece: &OffsetPiece,
+    exact: Option<&Outline>,
+    t: &Transform2,
+) -> Result<()> {
+    if piece.holes.is_empty() {
+        return land(w, &piece.outer, exact, t, None);
+    }
+    let outer = piece.outer.transformed(t).flatten(CHECK_CHORD_MM);
+    let holes: Vec<Vec<Point>> = piece
+        .holes
+        .iter()
+        .map(|h| h.iter().map(|p| t.apply(*p)).collect())
+        .collect();
+    polygon_region(w, None, &cut_in(outer, holes)?)
+}
+
+/// One contour round `outer` and, along cut-ins, round each of `holes`: the
+/// Gerber region of a shape with holes. Each cut-in is one horizontal
+/// segment drawn there and back, from a hole's leftmost point to the
+/// contour to its left, as the Gerber specification asks of cut-ins.
+/// Unlike clear polarity, it erases nothing drawn before.
+fn cut_in(mut outer: Vec<Point>, mut holes: Vec<Vec<Point>>) -> Result<Vec<Point>> {
+    if signed_area2(&outer) < 0.0 {
+        outer.reverse();
+    }
+    let leftmost = |h: &[Point]| {
+        (0..h.len()).min_by(|a, b| {
+            h[*a][0]
+                .total_cmp(&h[*b][0])
+                .then(h[*a][1].total_cmp(&h[*b][1]))
+        })
+    };
+    for hole in &mut holes {
+        if signed_area2(hole) > 0.0 {
+            hole.reverse();
+        }
+        if let Some(k) = leftmost(hole) {
+            hole.rotate_left(k);
+        }
+    }
+    // Leftmost first: whatever lies left of a hole is in the contour.
+    holes.retain(|h| h.len() >= 3);
+    holes.sort_by(|a, b| {
+        a[0][0]
+            .total_cmp(&b[0][0])
+            .then(a[0][1].total_cmp(&b[0][1]))
+    });
+    for hole in holes {
+        let from = hole[0];
+        let n = outer.len();
+        let hit = (0..n)
+            .filter_map(|i| {
+                let (a, b) = (outer[i], outer[(i + 1) % n]);
+                if (a[1] > from[1]) == (b[1] > from[1]) {
+                    return None;
+                }
+                let x = a[0] + (from[1] - a[1]) / (b[1] - a[1]) * (b[0] - a[0]);
+                (x <= from[0]).then_some((x, i))
+            })
+            .max_by(|a, b| a.0.total_cmp(&b.0));
+        let Some((x, i)) = hit else {
+            return Err(Error::Invalid(
+                "fabrication.region: a hole of a shape lies outside it".into(),
+            ));
+        };
+        let mut around = vec![[x, from[1]]];
+        around.extend(&hole);
+        around.extend([from, [x, from[1]]]);
+        outer.splice(i + 1..i + 1, around);
+    }
+    Ok(outer)
 }
 
 fn paste(board: &Board<'_>, side: Layer, attributes: &[(&str, String)]) -> Result<Option<Vec<u8>>> {
@@ -428,19 +524,25 @@ fn paste(board: &Board<'_>, side: Layer, attributes: &[(&str, String)]) -> Resul
             && crate::instances::ties::prints_paste(board.project, p.instance, p.terminal)
     }) {
         let t = pad.pad_transform();
-        let shrink = |by: f64| pad.pad.shape.grown(-by, CHECK_CHORD_MM);
-        let shapes: Vec<Shape> = match &pad.pad.paste {
+        let shrink = |by: f64| pad.pad.shape.offset_pieces(-by, CHECK_CHORD_MM);
+        let pieces: Vec<OffsetPiece> = match &pad.pad.paste {
             PasteRule::Inherit => match pad.pad.kind {
                 PadKind::Smd | PadKind::Mechanical if pad.pad.hole.is_none() => {
-                    shrink(board.paste_reduction).into_iter().collect()
+                    shrink(board.paste_reduction)
                 }
                 _ => Vec::new(),
             },
             PasteRule::None => Vec::new(),
-            PasteRule::Reduction(r) => shrink(r.to_mm_f64()).into_iter().collect(),
-            PasteRule::Windows(windows) => windows.iter().map(|w| w.shape.to_mm()).collect(),
+            PasteRule::Reduction(r) => shrink(r.to_mm_f64()),
+            PasteRule::Windows(windows) => windows
+                .iter()
+                .map(|w| OffsetPiece {
+                    outer: w.shape.to_mm(),
+                    holes: Vec::new(),
+                })
+                .collect(),
         };
-        for shape in &shapes {
+        for piece in &pieces {
             let exact = match (&pad.pad.shape, &pad.pad.paste) {
                 (PadShape::Custom { outline }, PasteRule::Reduction(r)) if r.get() == 0 => {
                     Some(outline)
@@ -452,7 +554,7 @@ fn paste(board: &Board<'_>, side: Layer, attributes: &[(&str, String)]) -> Resul
                 }
                 _ => None,
             };
-            land(&mut w, shape, exact, &t, None)?;
+            opening(&mut w, piece, exact, &t)?;
             any = true;
         }
     }
@@ -528,9 +630,10 @@ fn profile(project: &Project, attributes: &[(&str, String)]) -> Result<Vec<u8>> 
     let (start, segs) = outline_path(&board.outer, &Transform2::default());
     w.stroke(d, start, &segs)?;
     for cutout in &board.cutouts {
-        let routed = matches!(cutout.kind, CutoutKind::Slot { plated: true })
-            && super::drill::stadium(&cutout.outline).is_some();
-        if routed {
+        // The plated drill file routes a plated slot; one it cannot route
+        // is never milled here, unplated (`super::representable`).
+        if matches!(cutout.kind, CutoutKind::Slot { plated: true }) {
+            super::representable(project)?;
             continue;
         }
         let (start, segs) = outline_path(&cutout.outline, &Transform2::default());

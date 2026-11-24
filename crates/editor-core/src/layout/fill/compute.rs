@@ -492,8 +492,13 @@ impl<'a> Ctx<'a> {
         let hole_gap = |plated: bool| self.clearance(fill, CopperObject::hole(plated), None);
         let via_hole_gap = self.clearance(fill, CopperObject::ViaHole, None);
         for cut in &board.cutouts {
+            // A plated slot is an edge and a plated hole: the larger rule.
+            let gap = match cut.kind {
+                crate::model::board::CutoutKind::Slot { plated: true } => edge.max(hole_gap(true)),
+                _ => edge,
+            };
             if let Some(ring) = geom::ccw(cut.outline.flatten(tol)) {
-                regions.extend(geom::offset(&[vec![ring]], edge + tol, tol));
+                regions.extend(geom::offset(&[vec![ring]], gap + tol, tol));
             }
         }
         for h in &board.holes {
@@ -766,9 +771,11 @@ fn grown_shape(shape: &crate::geometry::Shape, by: f64, tol: f64) -> Vec<Ring> {
             let Some(ring) = geom::ccw(other.flatten(tol)) else {
                 return Vec::new();
             };
+            // Every ring of every piece: an outer ring and, clockwise, the
+            // holes in it (none, for the convex holes there are).
             geom::offset(&[vec![ring]], by + 2.0 * tol, tol)
                 .into_iter()
-                .filter_map(|mut r| (!r.is_empty()).then(|| r.remove(0)))
+                .flatten()
                 .collect()
         }
     }

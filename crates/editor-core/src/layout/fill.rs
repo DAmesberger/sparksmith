@@ -647,6 +647,58 @@ fn as_region(region: &crate::model::fill::FilledRegion) -> geom::Region {
         .collect()
 }
 
+/// The copper of `under` that lies in the holes of `over`: none where the
+/// two keep apart (one nested in the other's hole, or side by side).
+pub(crate) fn copper_in_holes(
+    under: &crate::model::fill::FilledRegion,
+    over: &crate::model::fill::FilledRegion,
+) -> Vec<crate::model::fill::FilledRegion> {
+    let Some(bounds) = geom::bounds([&under.outer]) else {
+        return Vec::new();
+    };
+    let mut index = None;
+    let holes: Vec<geom::Region> = over
+        .holes
+        .iter()
+        .filter(|h| geom::bounds([*h]).is_some_and(|b| geom::overlaps(bounds, b, 0.0)))
+        // Cheap first: a hole clear of every edge of `under` and not inside
+        // its copper holds none of it.
+        .filter(|h| {
+            let index =
+                index.get_or_insert_with(|| RegionIndex::filled(std::slice::from_ref(under)));
+            let inside = h.first().is_some_and(|p| index.region_at(*p).is_some());
+            inside
+                || geom::bounds([*h])
+                    .is_some_and(|[lo, hi]| index.edges_near(lo, hi).next().is_some())
+        })
+        .filter_map(|h| geom::ccw(h.clone()).map(|r| vec![r]))
+        .collect();
+    if holes.is_empty() {
+        return Vec::new();
+    }
+    let Some(outer) = geom::ccw(under.outer.clone()) else {
+        return Vec::new();
+    };
+    let mut region = vec![outer];
+    for hole in &under.holes {
+        if let Some(mut hole) = geom::ccw(hole.clone()) {
+            hole.reverse();
+            region.push(hole);
+        }
+    }
+    geom::intersect(&[region], &holes)
+        .into_iter()
+        // Less than a square 0.1 µm on a side is rounding.
+        .filter(|r| geom::region_area(r) > 1e-8)
+        .filter_map(|mut r| {
+            (!r.is_empty()).then(|| crate::model::fill::FilledRegion {
+                outer: r.remove(0),
+                holes: r,
+            })
+        })
+        .collect()
+}
+
 /// The union of fill regions and closed `rings` (copper outlines of either
 /// orientation): disjoint regions, each an outer boundary
 /// (counter-clockwise) and its holes. Each region keeps its holes as
