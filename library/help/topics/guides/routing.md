@@ -11,7 +11,9 @@
     "shove",
     "walkaround",
     "copper",
-    "airwires"
+    "airwires",
+    "track stops short",
+    "track stops before the pad"
   ],
   "kind": "guide",
   "related": [

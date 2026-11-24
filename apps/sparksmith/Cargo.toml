@@ -28,6 +28,7 @@ unreachable = "deny"
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
 sparksmith-core.workspace = true
+sparksmith-help-search.workspace = true
 sparksmith-io.workspace = true
 sparksmith-solidcraft.workspace = true
 sparksmith-automation.workspace = true

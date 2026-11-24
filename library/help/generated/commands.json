@@ -1616,7 +1616,9 @@
       "zone",
       "plane",
       "copper",
-      "area"
+      "area",
+      "copper",
+      "pour"
     ]
   },
   {

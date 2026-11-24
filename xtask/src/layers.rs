@@ -4,7 +4,8 @@
 //! - 0 `sparksmith-units-derive`: the core's compile-time derive of the
 //!   millimetre wire form of its nanometre records.
 //! - 1 `sparksmith-core`: document, commands, engine. Pure: no files, UI or Solidcraft.
-//! - 2 `sparksmith-io`: file effects. `sparksmith-kicad`: KiCad board import over the
+//! - 2 `sparksmith-io`: file effects. `sparksmith-help-search`: the one help search
+//!   over the core's help index (full text and embeddings; it reads no files). `sparksmith-kicad`: KiCad board import over the
 //!   command engine (it reads the bytes it is given). `sparksmith-solidcraft`: native 3D via `solidcraft-engine` only.
 //!   `sparksmith-firmware`: firmware pin-configuration emitters over the core IR (slice C4).
 //! - 3 `sparksmith-automation`: headless session, JSON-lines and MCP transports, and
@@ -36,6 +37,7 @@ const LAYERS: &[(&str, u8)] = &[
     ("sparksmith-units-derive", 0),
     ("sparksmith-core", 1),
     ("sparksmith-io", 2),
+    ("sparksmith-help-search", 2),
     ("sparksmith-kicad", 2),
     ("sparksmith-solidcraft", 2),
     ("sparksmith-firmware", 2),

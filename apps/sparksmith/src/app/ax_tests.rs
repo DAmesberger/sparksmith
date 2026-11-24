@@ -1151,6 +1151,36 @@ fn help_history_uses_the_focused_readers_effective_keys() -> Fallible {
     Ok(())
 }
 
+/// A question typed as a sentence lists its guide first, with its kind; one
+/// nothing answers says so and offers to copy the question (tests search by
+/// words alone).
+#[test]
+fn help_answers_a_sentence_and_says_when_it_cannot() -> Fallible {
+    let mut ax = Ax::new(Workspace::Pcb)?;
+    ax.app
+        .engine
+        .set_context(sparksmith_io::standards::shipped_context()?);
+    ax.app.run_command(&ax.ctx, "app.help");
+    ax.settle();
+    ax.type_text("why can't I export");
+    ax.settle();
+    assert!(ax.has(Role::Link, "Why Export is off"), "{}", ax.dump());
+    assert!(ax.texts.iter().any(|t| t == "Guide"), "{}", ax.dump());
+    let count = "why can't I export".len();
+    for _ in 0..count {
+        ax.key(Key::Backspace);
+    }
+    ax.type_text("zzzzqq");
+    ax.settle();
+    assert!(
+        ax.texts.iter().any(|t| t == "No topic answers this."),
+        "{}",
+        ax.dump()
+    );
+    assert!(ax.texts.iter().any(|t| t == "Copy the question"));
+    Ok(())
+}
+
 /// A help result in the command palette opens the same searchable shortcuts
 /// sheet as the menu command. The row uses the currently bound key.
 #[test]

@@ -2088,6 +2088,7 @@ impl eframe::App for App {
         self.record_key(&ctx);
         // The palette's keys come before any canvas sees them.
         self.early_keys(&ctx);
+        self.help.poll(&self.engine, &ctx);
         self.help.keys(&ctx);
         self.command_palette(&ctx);
         self.system_windows(&ctx);

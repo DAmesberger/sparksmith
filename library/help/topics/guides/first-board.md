@@ -1,10 +1,5 @@
 ---
 {
-  "id": "guide/first-board",
-  "kind": "guide",
-  "title": "Make your first board",
-  "summary": "Place two parts, wire their pins, and follow that connection onto the board.",
-  "since": "0.1.0",
   "covers": {
     "entry/component.place": "c33c11f7baa52915",
     "entry/layout.place": "29400de56d6ae471",
@@ -14,38 +9,40 @@
     "entry/schematic.connect": "b7e09bfd74ef037e",
     "entry/schematic.pins": "8649c33cede45de9"
   },
+  "id": "guide/first-board",
   "keywords": [
     "new project",
     "first PCB",
     "schematic to board",
     "build order",
-    "wire two parts"
+    "wire two parts",
+    "getting started",
+    "beginner",
+    "tutorial"
   ],
+  "kind": "guide",
   "related": [
     "guide/board-outline",
     "guide/libraries",
+    "guide/wiring",
+    "guide/update-pcb",
     "guide/routing",
     "guide/fab-profiles",
     "guide/fab-output",
     "panel/schematic",
     "panel/layout"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Start here: place two parts, wire them, and follow the connection onto the board.",
+  "title": "Make your first board"
 }
 ---
 
-Start a project with [[command/file.new]]. Its board starts with the Standard fab profile, or the default from your settings, so you can route at once. [[guide/fab-profiles]] explains how to choose your fabricator's own before you order. Save the project with [[command/file.save]] so you can return to it after each stage.
+Start a project with [[command/file.new]]. Its board starts with the Standard fab profile, or the default from your settings, so you can route at once.
 
-- In Schematic, choose Place and search for a component. For a simple exercise use two headers, or a header and a resistor. Choose a result with a footprint and place an instance of each on the sheet. For a resistor enter the required value on the instance.
-- Use Wire to connect one pin of each component. Select the wire to inspect the net and its members. Open [[panel/issues]] and check the schematic before placing the parts on the board.
-- Open PCB and choose Update PCB. Review the instances and connectivity in the preview, then apply the update. Set the board outline in Board shape and constrain it ([[guide/board-outline]]), then place the footprints inside it. An airwire shows the connection you made on the sheet.
-- Start Route at the first pad and finish on the matching pad. Check the connection in Layout and inspect the board in 3D. Save your work. Use [[guide/fab-output]] when you are ready to check a production set.
+- In Schematic, choose Place and type a package and a type, such as resistor 0603. A new project has no parts of its own: a generator makes the one you choose. Press Enter, then click the sheet. Place two parts. [[guide/libraries]] says more.
+- Choose Wire, click a pin of one part, then a pin of the other. Select the wire to see its net and members in Properties. [[guide/wiring]] says more.
+- Go to PCB and choose Update PCB. Read the review and press Apply update. Set the board outline in Board shape and constrain it ([[guide/board-outline]]), then drag the parts inside it. A thin line, the airwire, shows the connection. See [[guide/update-pcb]].
+- Choose Route, click the first pad, then the matching pad. Look at the board in the 3D tab, and read Issues. [[guide/routing]] and [[guide/issues]] help.
+- Save the project. [[guide/fab-output]] makes the files to order it.
 
-For automation, use [[entry/library.search]] to find the part, then [[entry/component.place]] with its physical choice and properties. Leave out position to let Sparksmith place the symbol in the next free space. Search again after making a generic component. Its value belongs on each instance.
-
-For a group of placed parts, read [[entry/schematic.pins]] with their designators. The rows give the instance, terminal, pad numbers, pin name and connected net. Identify the connections from the intended circuit. Batch the terminal-to-terminal calls to [[entry/schematic.connect]] at the revision you read. To extend a supply net, connect to a pin already on that net.
-
-```example
-{"entry":"entry/schematic.pins","params":{"designators":["J1","R1"]}}
-```
-
-After the schematic review, [[entry/layout.sync]] carries the placed parts and their nets to the board. Place the parts using [[entry/layout.place]], then route the required nets. A fill needs a net, layer and outline. Use [[entry/project.issues]] after each stage and resolve any finding that prevents the next step.

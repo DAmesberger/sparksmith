@@ -505,6 +505,54 @@ fn search_ranks_titles_then_words_then_scattered_letters() {
     assert_eq!(first("pcb").as_deref(), Some("workspace.pcb"));
 }
 
+/// The palette lists commands as the help search ranks them: keywords,
+/// sentences and a word being typed find them, commands of one title keep
+/// the active context first, and letters in order are left to the palette.
+#[test]
+fn the_palette_ranks_commands_as_the_help_search_does() -> Result<(), Box<dyn std::error::Error>> {
+    use sparksmith_core::help::HelpKind;
+    use sparksmith_help_search::{Audience, Search};
+    let registry = Registry::standard();
+    let context = sparksmith_io::standards::shipped_context()?;
+    let search = Search::new(context.help()?, None)?;
+    let found = |q: &str| -> Vec<String> {
+        search
+            .search(q, Audience::People, &[HelpKind::Command], 200)
+            .hits
+            .iter()
+            .map(|id| id.name().to_owned())
+            .collect()
+    };
+    let ranked = |q: &str, context| {
+        let active = active_contexts(context);
+        ids(registry.ranked(q, &found(q), &[], &active))
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    for (q, id) in [
+        ("route", "pcb.route"),
+        ("pour", "pcb.fill"),
+        ("save as", "file.save-as"),
+        ("import a kicad board", "file.import-kicad"),
+        ("kbdshrt", "app.shortcuts"),
+    ] {
+        let hits = ranked(q, Context::PcbLayout);
+        assert_eq!(hits.first().map(String::as_str), Some(id), "{q}: {hits:?}");
+    }
+    let hits = ranked("sav", Context::PcbLayout);
+    assert!(hits.iter().take(3).any(|id| id == "file.save"), "{hits:?}");
+    for (context, id) in [
+        (Context::PcbLayout, "pcb.select"),
+        (Context::Schematic, "schematic.select"),
+    ] {
+        let hits = ranked("select", context);
+        assert_eq!(hits.first().map(String::as_str), Some(id), "{hits:?}");
+    }
+    assert!(ranked("zzzzqq", Context::PcbLayout).is_empty());
+    Ok(())
+}
+
 #[test]
 fn an_empty_search_lists_recent_commands_first() {
     let registry = Registry::standard();

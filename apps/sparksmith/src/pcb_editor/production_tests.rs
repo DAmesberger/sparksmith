@@ -291,6 +291,11 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
             Some("Fix or waive the error first")
         );
     }
+    // The guide that clears it is one click away.
+    assert!(shown.iter().any(|t| t == WHY_OFF), "{shown:?}");
+    click(&mut editor, &engine, &ctx, WHY_OFF)?;
+    let asked = ctx.data_mut(|d| d.remove_temp::<String>(egui::Id::unique("open-help-topic")));
+    assert_eq!(asked.as_deref(), Some("guide/export-disabled"));
     // Readable without hovering Export (GUI check 1, item F6).
     assert!(
         shown.iter().any(|t| t == "Fix or waive the error first"),

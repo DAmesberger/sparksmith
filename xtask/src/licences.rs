@@ -64,8 +64,12 @@ struct Exception {
 }
 
 /// Exact package versions accepted after manual review. An entry that matches no resolved
-/// package is itself an error, so the list cannot go stale. Currently none are needed.
-const EXCEPTIONS: &[Exception] = &[];
+/// package is itself an error, so the list cannot go stale.
+const EXCEPTIONS: &[Exception] = &[Exception {
+    name: "model2vec-rs",
+    version: "0.4.0",
+    reason: "declares license-file only; its LICENSE is the MIT licence (The Minish Lab, 2025)",
+}];
 
 pub fn check() -> Result<()> {
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))

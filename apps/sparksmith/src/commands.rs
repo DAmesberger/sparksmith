@@ -1089,6 +1089,38 @@ impl Registry {
         out
     }
 
+    /// The runnable commands of `found` (ids, best first, as the help search
+    /// ranks them). Commands of one title share its best place, recent and
+    /// in-context ones first. An empty query lists as [`Self::search`] does,
+    /// and so does one that finds no command: letters in order ("kbdshrt")
+    /// are the palette's own.
+    pub fn ranked(
+        &self,
+        query: &str,
+        found: &[String],
+        recent: &[String],
+        active: &[Context],
+    ) -> Vec<&Command> {
+        let hits: Vec<&Command> = found
+            .iter()
+            .filter_map(|id| self.get(id))
+            .filter(|c| c.runnable())
+            .collect();
+        if query.trim().is_empty() || hits.is_empty() {
+            return self.search(query, recent, active);
+        }
+        let mut out = hits.clone();
+        // Stable: the search's order decides the rest.
+        out.sort_by_key(|c| {
+            (
+                hits.iter().position(|h| h.title == c.title),
+                recent.iter().position(|r| *r == c.id).unwrap_or(usize::MAX),
+                !active.contains(&c.context),
+            )
+        });
+        out
+    }
+
     /// Runnable commands matching `query`, best first. An empty query lists
     /// `recent` first (most recent first), then the commands of the active
     /// contexts, then the rest, each by title.
@@ -1882,7 +1914,7 @@ fn defaults() -> Vec<Command> {
         tool("pcb.fill", "Fill", C::PcbLayout, Workspace::Pcb, "fill")
             .chord(Chord::key(K::P))
             .icon("polygon")
-            .keywords("pour zone plane copper area"),
+            .keywords("pour zone plane copper area copper pour"),
         // Layout and 3D share one Dimension tool and its key.
         tool(
             "pcb.dimension",

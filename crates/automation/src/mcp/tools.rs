@@ -19,6 +19,7 @@ use super::lenient;
 use super::outcome;
 use crate::front::Call;
 use crate::session::discovery::{self, Call as Typed};
+use crate::session::help::catalog_search;
 use crate::session::metadata::{self, EntryMeta, Kind};
 use rmcp::ErrorData;
 use rmcp::model::{CallToolResult, JsonObject, Tool, ToolAnnotations};
@@ -26,7 +27,9 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
+use sparksmith_core::help::{HelpId, HelpKind};
 use sparksmith_core::{Class, MAX_BATCH};
+use sparksmith_help_search::{Audience, Found};
 use std::sync::{Arc, OnceLock};
 
 /// The longest `find` text, in characters.
@@ -440,8 +443,8 @@ fn too_long(what: &str, text: &str, max: usize) -> Option<Value> {
     })
 }
 
-/// `find`: the reachable entries whose name, title or summary match the
-/// most words of `text`, best first and then in catalog order.
+/// `find`: the reachable entries that answer `text`, as the help search
+/// ranks them for agents ([`catalog_search`]), best first.
 fn find(args: FindArgs, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
     if args.text.chars().count() > MAX_TEXT {
         return desk::failure(
@@ -456,17 +459,32 @@ fn find(args: FindArgs, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
             format!("limit is {limit}; give 1 to {MAX_FIND_LIMIT}"),
         );
     }
-    let wanted = words(&args.text);
-    let mut scored: Vec<(usize, &EntryMeta)> = catalog::reachable()
-        .filter(|e| reaches(e))
-        .filter(|e| args.kind.is_none_or(|kind| e.kind == Some(kind)))
-        .filter_map(|e| {
-            let score = score(&wanted, &args.text, e);
-            (score > 0).then_some((score, e))
-        })
+    let search = match catalog_search() {
+        Ok(search) => search,
+        Err(reason) => return desk::failure("find.unavailable", reason),
+    };
+    // A name alone is its entry's topic.
+    let asked = match catalog::entry(args.text.trim()) {
+        Some(entry) => format!("entry/{}", entry.name),
+        None => args.text.trim().to_owned(),
+    };
+    let found = if asked.is_empty() {
+        Found::default()
+    } else {
+        search.search(&asked, Audience::Agents, &[HelpKind::Entry], usize::MAX)
+    };
+    let reachable = |ids: Vec<HelpId>| -> Vec<&EntryMeta> {
+        ids.iter()
+            .filter_map(|id| catalog::entry(id.name()))
+            .filter(|e| reaches(e))
+            .filter(|e| args.kind.is_none_or(|kind| e.kind == Some(kind)))
+            .collect()
+    };
+    let scored = reachable(found.hits);
+    let nearest: Vec<&str> = reachable(found.nearest)
+        .iter()
+        .map(|e| e.name.as_str())
         .collect();
-    // Stable: equal scores keep catalog order.
-    scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
     let offset = args.offset.unwrap_or_default();
     if offset > scored.len() {
         return desk::failure(
@@ -480,7 +498,7 @@ fn find(args: FindArgs, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
         .into_iter()
         .skip(offset)
         .take(limit)
-        .map(|(_, entry)| entry.line_card())
+        .map(EntryMeta::line_card)
         .collect::<Result<Vec<_>, _>>();
     let hits = match hits {
         Ok(hits) => hits,
@@ -493,41 +511,15 @@ fn find(args: FindArgs, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
     }
     if hits_empty(&result) {
         result["hint"] = json!("nothing matched: try other words, or fewer");
+        if !nearest.is_empty() {
+            result["nearest"] = json!(nearest);
+        }
     }
     json!({"ok": true, "result": result})
 }
 
 fn hits_empty(result: &Value) -> bool {
     result["hits"].as_array().is_none_or(Vec::is_empty)
-}
-
-/// Lower-case words of letters and digits.
-fn words(text: &str) -> Vec<String> {
-    text.split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty())
-        .map(str::to_lowercase)
-        .collect()
-}
-
-/// Whether two words are the same but for an ending ("via", "vias").
-fn alike(a: &str, b: &str) -> bool {
-    a == b || (a.len().min(b.len()) >= 3 && (a.starts_with(b) || b.starts_with(a)))
-}
-
-fn score(wanted: &[String], text: &str, entry: &EntryMeta) -> usize {
-    if entry.name == text.trim() {
-        return 1000;
-    }
-    let name = words(&entry.name);
-    let title = words(entry.title);
-    let summary = words(&entry.summary);
-    wanted
-        .iter()
-        .map(|w| {
-            let has = |list: &[String]| list.iter().any(|x| alike(x, w));
-            usize::from(has(&name)) * 3 + usize::from(has(&title)) * 2 + usize::from(has(&summary))
-        })
-        .sum()
 }
 
 /// `describe`: `project.schema` of one reachable entry, through the gate,

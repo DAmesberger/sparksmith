@@ -111,3 +111,5 @@ Adapted source references, under the MIT option above:
 The core issue types and message-style checker (`crates/editor-core/src/issues.rs`, `issues/style.rs`) and the app's `issues.rs` are original.
 
 IBM Plex Sans and IBM Plex Mono are bundled in `crates/ui/assets/fonts`, each beside its `OFL.txt`. Their SIL Open Font License notices are also preserved in `licenses/ibm-plex-sans-OFL.txt` and `licenses/ibm-plex-mono-OFL.txt`. The installed Solidcraft 0.26.1 app was also inspected for visual comparison; implementation references remain pinned to the source revision above.
+
+The help search ships the embedding model potion-base-8M by the Minish Lab (MIT) in `library/help/model`, its weights as 8-bit integers; source, revision and notice are in `licenses/potion-base-8M-MIT.txt`.

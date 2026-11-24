@@ -1269,6 +1269,7 @@ pub struct Session {
     baseline: Option<reply::Baseline>,
     /// Help read from an explicit library or by a session without an engine context.
     help_index: std::sync::OnceLock<std::result::Result<sparksmith_core::help::Index, String>>,
+    help_search: std::sync::OnceLock<std::result::Result<sparksmith_help_search::Search, String>>,
     /// The shipped library, when the host gives it (else located).
     shipped: Option<sparksmith_io::shipped::ShippedLibrary>,
     /// Attached documents and working pinout documents (`assist.*`).
@@ -1327,6 +1328,7 @@ impl Session {
             on_page: false,
             baseline: None,
             help_index: Default::default(),
+            help_search: Default::default(),
             shipped: None,
             assist: assist::Assist::default(),
             turns: turns::Turns::default(),
