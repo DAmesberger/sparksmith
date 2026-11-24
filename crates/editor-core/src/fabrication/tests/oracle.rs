@@ -208,7 +208,7 @@ impl Area {
 
     /// With its lines filed by row, when it has many and no arc: distances
     /// past [`ROW_MM`] then read as that much.
-    fn filed(mut self) -> Self {
+    pub(crate) fn filed(mut self) -> Self {
         if self.edges.len() < 64 || self.edges.iter().any(|e| matches!(e, Edge::Arc { .. })) {
             return self;
         }

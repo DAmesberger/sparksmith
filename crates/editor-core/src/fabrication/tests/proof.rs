@@ -1517,6 +1517,106 @@ fn retained_copper_keeps_the_fills_own_and_a_pads_own_clearance() -> Fallible<()
     Ok(())
 }
 
+/// One pad's own fill clearance, the rules' fill clearance, and a pad's
+/// farther than any clearance rule reaches: each holds retained copper,
+/// and only where it applies.
+#[test]
+fn retained_copper_keeps_one_pads_and_the_rules_fill_clearance() -> Fallible<()> {
+    use crate::diagnostics::ObjectRef;
+    use crate::model::fill::{PadFillOverride, PadFillOverrideEntry};
+    let clean = board()?;
+    let id = clean.fills.first().ok_or("a fill")?.id;
+    let r1 = clean.placements.first().ok_or("R1")?.instance;
+    let found = |p: &mut Project| -> Fallible<Vec<(ObjectRef, String)>> {
+        let key = crate::layout::fill::inputs_key(p, id)?;
+        for f in p.fills.iter_mut().filter(|f| f.id == id) {
+            if let Some(c) = &mut f.computed {
+                c.key.clone_from(&key);
+            }
+        }
+        Ok(crate::layout::fill::findings(p)
+            .into_iter()
+            .filter(|f| f.code == "fill.clearance")
+            .filter_map(|f| match f.objects.as_slice() {
+                [ObjectRef::Fill { id: f_id }, other] if *f_id == id => Some((*other, f.message)),
+                _ => None,
+            })
+            .collect())
+    };
+    let set = |p: &mut Project, pad: u32, mm: f64| -> Fallible<()> {
+        let placement = p.placements.first_mut().ok_or("R1")?;
+        placement.pad_fill_overrides = vec![PadFillOverrideEntry {
+            pad: PadId(pad),
+            settings: PadFillOverride {
+                clearance: Some(nm(mm)),
+                ..PadFillOverride::default()
+            },
+        }];
+        Ok(())
+    };
+    // R1's D-shaped pad alone.
+    let d_shape = ObjectRef::Pad {
+        instance: r1,
+        pad: PadId(50),
+    };
+    let mut project = clean.clone();
+    set(&mut project, 50, 0.7)?;
+    let own = found(&mut project)?;
+    assert!(
+        matches!(own.as_slice(), [(o, m)] if *o == d_shape
+            && m.contains("needs 0.7 mm (the pad's fill override: clearance)")),
+        "{own:?}"
+    );
+    // The rules' fill clearance, over every copper pair it exceeds and no
+    // hole: the holes' own rules stay.
+    let mut project = clean.clone();
+    project
+        .rules
+        .overrides
+        .retain(|o| o.key != RuleKey::FillClearance);
+    project.rules.overrides.push(RuleOverride {
+        key: RuleKey::FillClearance,
+        value: RuleValue::Length(0.5),
+    });
+    let own = found(&mut project)?;
+    assert!(own.iter().any(|(o, _)| *o == d_shape), "{own:?}");
+    assert!(
+        own.iter()
+            .all(|(_, m)| m.contains("needs 0.5 mm (") && m.contains("fill clearance")),
+        "{own:?}"
+    );
+    // Copper 2.5 mm from R1's fiducial (a 1 mm disc at (15, 21)), which no
+    // rule of at most 0.45 mm looks for.
+    let mark = ObjectRef::Pad {
+        instance: r1,
+        pad: PadId(56),
+    };
+    for (mm, reported) in [(3.0, true), (2.4, false)] {
+        let mut project = clean.clone();
+        project.tracks.clear();
+        project.vias.clear();
+        set(&mut project, 56, mm)?;
+        for c in project
+            .fills
+            .iter_mut()
+            .filter(|f| f.id == id)
+            .filter_map(|f| f.computed.as_mut())
+        {
+            c.regions = vec![FilledRegion {
+                outer: vec![[18.0, 20.9], [19.0, 20.9], [19.0, 21.1], [18.0, 21.1]],
+                holes: Vec::new(),
+            }];
+        }
+        let own = found(&mut project)?;
+        assert_eq!(own.iter().any(|(o, _)| *o == mark), reported, "{own:?}");
+        assert!(
+            own.iter().all(|(o, m)| *o == mark && m.contains("is 2.5")),
+            "{own:?}"
+        );
+    }
+    Ok(())
+}
+
 /// The review's probe: the fill-to-via-hole minimum raised to 1 mm after
 /// the pour was computed, and its staleness waived. The stored copper is
 /// what would be made, so its gap to the drill blocks the export, naming
