@@ -99,8 +99,7 @@ pub const MAX_PACKAGE_DATUMS: usize = 32;
 pub const DIRECTION_TOLERANCE: f64 = 1e-6;
 
 /// Where a package datum came from. A datum the user authored or edited is
-/// never replaced by a part file or form; the others follow their source
-/// when it changes (`PackageDefinition::sync_datums`).
+/// never replaced by a part file's (`PackageDefinition::replace_datums`).
 #[derive(
     Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord,
 )]
@@ -112,8 +111,7 @@ pub enum PackageDatumOrigin {
     /// Declared in the package's part file (`opening-*` planes, `axis-*`
     /// axes) and copied when the part file is used.
     PartFile,
-    /// Emitted by the package's typed form from its datasheet values (a
-    /// USB-C receptacle's opening).
+    /// A datum a typed package form emitted. No command writes this origin.
     Form,
 }
 

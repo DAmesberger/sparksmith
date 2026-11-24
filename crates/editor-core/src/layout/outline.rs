@@ -815,7 +815,6 @@ pub(crate) fn commit(
         )));
     }
     let size = sketch_size(&evaluation.solved)?;
-    super::copper_fits(project, size)?;
     sketch.solve = evaluation.solve;
     sketch.solved = evaluation.solved;
     sketch.fault = evaluation.fault.map(bounded);

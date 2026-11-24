@@ -142,10 +142,7 @@ pub struct Context {
     /// keep references into it, so it lives as long as the program: a host
     /// makes one context at startup, not one per request.
     materials: std::result::Result<&'static MaterialLibrary, String>,
-    /// The shipped generator bundles, or why reading them failed: the 3D
-    /// build of a package whose family's in-code builder has given way to
-    /// a generator runs that generator and evaluates its part file
-    /// (docs/design/part-generation-plan.md, phase C).
+    /// The shipped generator bundles, or why reading them failed.
     generators: std::result::Result<Arc<Vec<ShippedGenerator>>, String>,
     /// The shipped part files (`library/parts/<name>.solidcraft`) by name,
     /// or why reading them failed: the 3D build of a package that stored a
@@ -908,8 +905,7 @@ pub mod fixture {
         }]
     }
 
-    /// The repository's shipped generator bundles a 3D build runs for a
-    /// family whose in-code builder is retired, as committed
+    /// The repository's shipped generator bundles, as committed
     /// (`sparksmith-io` reads and checks the installed folder).
     pub fn generators() -> Vec<ShippedGenerator> {
         macro_rules! bytes {

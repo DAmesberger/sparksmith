@@ -11,9 +11,9 @@ type Fallible<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[test]
 fn model_and_empty_row_drafts_cannot_publish() -> Fallible<()> {
     let mut engine = Engine::default();
-    // An empty model has no asset (`model.asset`); an empty row has no
-    // family (`package_row.family`). Valid ones publish (model3d and
-    // catalog/templates tests).
+    // An empty model has no asset (`model.asset`); an empty row names no
+    // generator (`package_row.generator`). Valid ones publish (the model3d
+    // and package_row tests).
     for kind in [DefinitionKind::Model, DefinitionKind::PackageRow] {
         let draft = new_draft(&mut engine, kind)?;
         let revision = engine.revision();

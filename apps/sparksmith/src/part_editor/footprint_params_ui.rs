@@ -5,16 +5,25 @@
 //! change is tried on the working copy first (a refusal keeps the text and
 //! shows why) and then sent as one `library.edit_footprint`
 //! (`SetParameter`, `RenameParameter`, `RemoveParameter`).
+//!
+//! The ribbon's Parameters tool ([`TOOL`], Constrain group) leads here from
+//! anywhere on the tab, as Solidcraft's sketch ribbon keeps its parameters
+//! one click away: a tool card or a pad's card would otherwise hold the
+//! subject slot.
 use std::collections::BTreeMap;
 
 use super::PartEditor;
 use super::footprint_params::{ParamRow, readers_phrase, unit_of, value_text};
-use crate::kit;
+use super::footprint_tools::FootprintTool;
+use crate::kit::{self, card::Subject};
 use sparksmith_core::library::footprint_source::{
     Expr, FootprintEdit, FootprintParam, ParamName, ParamUnit, package_values,
 };
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button};
+
+/// The ribbon tool that shows the Parameters section.
+pub const TOOL: &str = "fp-parameters";
 
 /// The panel's text buffers, rebuilt from the rows whenever the source
 /// changes; a refused edit keeps its text.
@@ -30,6 +39,9 @@ pub struct Panel {
     /// The row (or `None`: the new row) a refusal belongs to, and why.
     error: Option<(Option<ParamName>, String)>,
     stale: bool,
+    /// The ribbon asked for the section: open it and bring it into view
+    /// when it is drawn next.
+    reveal: bool,
 }
 
 impl Panel {
@@ -109,6 +121,48 @@ fn in_use_text(row: &ParamRow) -> Option<String> {
 }
 
 impl PartEditor {
+    /// Whether the Parameters section can be shown now, else why not: the
+    /// footprint needs a sketch, and a dialog or review keeps the subject
+    /// slot until it is answered.
+    fn footprint_parameters_reachable(&self) -> Result<(), &'static str> {
+        let sourced = self
+            .draft
+            .as_ref()
+            .is_some_and(|set| set.footprint.source.is_some());
+        if !sourced {
+            Err("Parameters belong to the footprint's sketch; place a pad or draw first")
+        } else if matches!(self.subject_kind(), Subject::Dialog | Subject::Review) {
+            Err("Finish or cancel the open dialog first")
+        } else {
+            Ok(())
+        }
+    }
+
+    /// The ribbon's Parameters tool, last in the Constrain group.
+    pub(super) fn parameters_tool(&self) -> crate::shell::Tool {
+        let reachable = self.footprint_parameters_reachable();
+        crate::shell::Tool::new(TOOL, "params", "Parameters")
+            .enabled(reachable.is_ok())
+            .tip(reachable.err().unwrap_or(
+                "Show the sketch's parameters in Properties: each name, expression and value, and what reads it",
+            ))
+    }
+
+    /// Parameters from the ribbon: the footprint card takes the subject
+    /// slot with its Parameters section open and in view. An armed tool
+    /// ends as with its Done (Shift+R arms it again) and a selected pad's
+    /// card gives way; the sketch selection stays.
+    pub(super) fn show_footprint_parameters(&mut self) {
+        if self.footprint_parameters_reachable().is_err() {
+            return;
+        }
+        if self.footprint_tool_armed().is_some() {
+            self.footprint_arm(FootprintTool::Select);
+        }
+        self.selected_pad = None;
+        self.footprint_dims.panel.reveal = true;
+    }
+
     /// The Parameters section of the Footprint card, for a sketched
     /// footprint: the package values (collapsed, read-only), each own
     /// parameter's name and expression with its value and readers, then
@@ -125,6 +179,10 @@ impl PartEditor {
         let package = rows.iter().filter(|r| r.read_only).count();
         let mut change = None;
         let mut hovered = None;
+        if std::mem::take(&mut self.footprint_dims.panel.reveal) {
+            kit::open_section(ui, "fp-parameters");
+            ui.scroll_to_cursor(Some(egui::Align::TOP));
+        }
         kit::section(ui, "fp-parameters", "Parameters", true, Some(own), |ui| {
             kit::form(ui, |ui| {
                 let t = Tokens::get();

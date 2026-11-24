@@ -141,7 +141,7 @@ pub fn edit(draft: DefinitionId, edits: Vec<PackageEdit>) -> Operation {
 }
 
 /// The confirmed fit of the draft's leads to its footprint's pads; the
-/// engine derives the pairs from the typed form.
+/// engine pairs the package's stored lead contacts with the pads.
 pub fn fit(draft: DefinitionId, rotation: FitRotation) -> Operation {
     Operation::Library(LibraryCommand::FitLeads {
         draft,

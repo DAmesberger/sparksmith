@@ -291,11 +291,13 @@ pub enum PinoutTarget {
     Draft { id: DefinitionId },
     /// New drafts: the component (designator prefix `U`), a block symbol
     /// with a pin per terminal, and per variant a package (terminals by
-    /// the variant's numbers; the form of the variant's row, else of
-    /// `row` for the first variant, else generic) and a binding mapping
-    /// them by number. No footprint: lands come from a template
-    /// (`library.footprint_from_template`) and are mapped through
-    /// `library.assign_terminals`.
+    /// the variant's numbers) and a binding mapping them by number. No
+    /// footprint: the package and its lands come from a generator
+    /// (`library.package_from_generator`) or a pad table
+    /// (`library.footprint_from_pads`). A `row` is refused
+    /// (`pinout.package_row`): make the package with
+    /// `library.generate_part` and import the pinout onto it
+    /// (`target: draft`).
     New {
         name: String,
         #[serde(default)]

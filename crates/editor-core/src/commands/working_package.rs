@@ -93,7 +93,7 @@ pub struct PackagePlan {
     pub findings: Vec<Finding>,
 }
 
-/// What `package_from_template` would change: the edits of existing
+/// What `library.package_from_generator` would change: the edits of existing
 /// drafts (package first), the footprint draft it creates, if any, and
 /// the plan.
 struct Candidate {

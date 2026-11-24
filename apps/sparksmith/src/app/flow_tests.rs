@@ -726,28 +726,38 @@ fn a_refusal_toast_names_the_action_and_the_part() -> Fallible {
     Ok(())
 }
 
-/// A board edit whose moved parts drag copper that the engine re-routes
-/// says so in one toast, with Undo: on the ESP32 board, 40 → 41 mm moves
-/// J1 and U3 and re-routes the USB pair as a pair.
+/// An edit whose moved parts drag copper that the engine re-routes says
+/// so in one toast, with Undo: on the ESP32 board, J1 moved 0.5 mm along
+/// the tab's edge by its dimension takes the parts held beside it along,
+/// and the USB pair is re-routed as a pair, with the regulator's and the
+/// power LED's routes. (A wider board moves the module with J1, so it
+/// re-routes nothing.)
 #[test]
 fn a_reroute_after_a_board_edit_is_one_toast() -> Fallible {
-    use sparksmith_core::layout::outline::{BoardCommand, BoardEdit};
-    use sparksmith_core::library::footprint_source::{Expr, FootprintParam, ParamName, ParamUnit};
+    use sparksmith_core::layout::dimensions::DimensionCommand;
+    use sparksmith_core::library::footprint_source::{DimValue, Expr};
+    use sparksmith_core::model::board::ConstraintTarget;
+    use sparksmith_core::model::dimension::{BoardRef, FeatureRef};
     let mut h = Harness::new()?;
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
     h.app.engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
-    let width = Operation::Board(BoardCommand::Edit {
-        edits: vec![BoardEdit::SetParameter {
-            param: FootprintParam {
-                name: ParamName("width".into()),
-                expr: Expr("41 mm".into()),
-                unit: ParamUnit::Mm,
-                comment: String::new(),
-            },
-        }],
-    });
-    h.app.apply(&h.ctx, Origin::Command, Some(width));
+    let project = h.app.engine.project();
+    let j1 = project.instance_by_designator("J1").ok_or("J1")?.id;
+    let mut dimension = project
+        .part_dimensions
+        .iter()
+        .find(|d| {
+            matches!(d.refs.first(), Some(BoardRef::Part(FeatureRef::Origin {
+                target: ConstraintTarget::Placement(p),
+            })) if *p == j1)
+                && matches!(d.refs.get(1), Some(BoardRef::Board(_)))
+        })
+        .cloned()
+        .ok_or("J1's dimension from the left edge")?;
+    dimension.value = Some(DimValue::Expr(Expr("width / 2 + 0.5 mm".into())));
+    let moved = Operation::Dimension(DimensionCommand::Edit { dimension });
+    h.app.apply(&h.ctx, Origin::Command, Some(moved));
     let shown: Vec<_> = h
         .app
         .toasts
@@ -757,7 +767,7 @@ fn a_reroute_after_a_board_edit_is_one_toast() -> Fallible {
     assert_eq!(
         shown,
         [(
-            "Re-routed 2 connections".to_owned(),
+            "Re-routed 4 connections".to_owned(),
             vec![ToastAction::Undo]
         )]
     );

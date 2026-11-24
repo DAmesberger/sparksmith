@@ -215,14 +215,6 @@
     "developer_only": false
   },
   {
-    "id": "term/package-form",
-    "title": "Package form",
-    "aliases": [],
-    "definition": "The authored, typed physical construction of a package (generic, chip, gull-wing, no-lead or pin header) with its dimensions; the only source of `pkg_*` values and of generated 3D models, never inferred from a designator or name.",
-    "avoid": [],
-    "developer_only": false
-  },
-  {
     "id": "term/physical-material",
     "title": "Physical material",
     "aliases": [],
@@ -231,10 +223,10 @@
     "developer_only": false
   },
   {
-    "id": "term/generated-model",
-    "title": "Generated model",
+    "id": "term/part-file",
+    "title": "Part file",
     "aliases": [],
-    "definition": "A package's parametric 3D model built from its package form by a family builder, with a body role and a physical material on every body; one shared native definition per package revision, used by every instance.",
+    "definition": "A parametric Solidcraft design used as a package's 3D body at literal parameter values, with a body role and a physical material on every body; packages with the same file and values share one native definition. A generator names the part file and the values of the part it makes.",
     "avoid": [],
     "developer_only": false
   },
@@ -435,7 +427,7 @@
     "id": "term/derived-courtyard",
     "title": "Derived courtyard",
     "aliases": [],
-    "definition": "A courtyard graphic a footprint source computes from its pad and body extents grown by a named excess (`CourtyardFromExtents`). It exists only because a template or the author added that role explicitly; nothing adds one automatically. An assembly outline from the package envelope is the same kind of explicit role.",
+    "definition": "A courtyard graphic a footprint source computes from its pad and body extents grown by a named excess (`CourtyardFromExtents`). It exists only because the author added that role explicitly; nothing adds one automatically. An assembly outline from the package envelope is the same kind of explicit role.",
     "avoid": [],
     "developer_only": false
   },
@@ -472,37 +464,28 @@
     "developer_only": true
   },
   {
-    "id": "term/footprint-template",
-    "title": "Footprint template",
-    "aliases": [],
-    "definition": "A parametric footprint family (2-terminal chip, gull-wing SOIC/SOP, QFN/DFN, pin header, tabbed SOT/DPAK, molded SOD/SMA/MELF, BGA/LGA, through-hole) that builds into an empty footprint draft as ordinary sketch edits, with dimensions bound to named parameters, in one undo step. Its land defaults are estimated unless a package row cites a land pattern.",
-    "avoid": [],
-    "developer_only": false
-  },
-  {
     "id": "term/package-row",
     "title": "Package row",
     "aliases": [],
-    "definition": "A revisioned library record holding one typed package form of a family, with aliases, a size code, a suggested skeleton, optional lands, provenance and a citation of the public outline drawing its values were typed from. A row without a citation is *estimated*. New from template and From template build from an exact published row revision, a folder row read with its bundle, or a built-in **starter row** (the compiled-in, read-only tables every install lists).",
+    "definition": "A revisioned library record naming a generator and its parameters, with aliases, a size code, provenance and a citation of the public outline drawing its values were typed from. A row without a citation is *estimated*.",
     "avoid": [
-      "Preset (test and sample data only)",
       "wizard"
     ],
     "developer_only": false
   },
   {
-    "id": "term/custom-entry",
-    "title": "Custom entry",
+    "id": "term/custom-values",
+    "title": "Custom values",
     "aliases": [],
-    "definition": "A family's built-in template entry of original typical values (estimated) that the author edits; listed with the rows, never a citation.",
+    "definition": "A generator's own row in the generator gallery: its default values, which the author edits before making the part. It is listed with the generator's presets and never carries a citation.",
     "avoid": [],
     "developer_only": false
   },
   {
-    "id": "term/template-gallery",
-    "title": "Template gallery",
+    "id": "term/generator-gallery",
+    "title": "Generator gallery",
     "aliases": [],
-    "definition": "The generator gallery: one searchable sheet over the shipped generators, their presets and custom values (`library.generators`), new-component scope from New and the start page, package scope from the package panel's Change package….",
+    "definition": "One searchable sheet over the shipped generators, their presets and custom values (`library.generators`): new-component scope from New, the start page and the Place palette, package scope from the Footprint tab's From generator and the package panel's Change package….",
     "avoid": [],
     "developer_only": false
   },
@@ -510,7 +493,7 @@
     "id": "term/start-page",
     "title": "Start page",
     "aliases": [],
-    "definition": "What the Component workspace shows when no component is open: catalog search, Recent and New from template…. The workspace never opens a component the user did not choose.",
+    "definition": "What the Component workspace shows when no component is open: catalog search, Recent, New from generator… and Create from datasheet…. The workspace never opens a component the user did not choose.",
     "avoid": [],
     "developer_only": false
   },

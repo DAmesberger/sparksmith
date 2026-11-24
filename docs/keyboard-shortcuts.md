@@ -18,7 +18,7 @@ A command runs the same event as its ribbon button, so document changes still go
 `cargo xtask raw-keys` (part of `cargo xtask ci`) parses the app and rejects raw key reads (`key_pressed`, `consume_key`, `consume_shortcut`, `key_down`, `key_released`, `num_presses`) outside the dispatch layer. The dispatch layer is `keys.rs`, `commands.rs`, `app/command_dispatch.rs`, `app/settings_window.rs` and `app/key_reveal.rs`. A counted, reasoned list allows the reads that are not command shortcuts. The check fails on a new site, on one more read in a listed file, and on a stale count. The kept exceptions are these:
 
 - **Text fields.** Enter commits and Esc reverts the value being typed: form rows, rule values, net class, track, placement and pin fields, schematic labels and footprint dimensions.
-- **Dialogs and lists.** Enter runs and Esc cancels a dialog. Arrows, Enter and Esc move through search sheets and the catalog. Tab moves between template gallery fields and pin-mux cells. ⌘D marks the highlighted Place palette row as a favourite.
+- **Dialogs and lists.** Enter runs and Esc cancels a dialog. Arrows, Enter and Esc move through search sheets and the catalog. Tab moves between generator gallery fields and pin-mux cells. ⌘D marks the highlighted Place palette row as a favourite.
 - **Navigation.** A held Space pans the 3D view and the symbol and footprint canvases. Pointer-modifier navigation stays in `navigation.rs` and the viewport.
 - **Gestures.** Esc ends a model triad drag.
 

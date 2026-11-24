@@ -468,7 +468,12 @@ fn overview_picks_land_on_edges_and_read_as_words() -> Fallible {
         .chain(board.outer.segments.iter().map(|s| s.to()))
         .collect();
     let bottom = outline.iter().map(|p| p[1]).fold(f64::INFINITY, f64::min);
-    let left = outline.iter().map(|p| p[0]).fold(f64::INFINITY, f64::min);
+    let tab_left = board
+        .edges
+        .iter()
+        .find(|e| e.name.0 == "bottom")
+        .map(|e| e.a[0].min(e.b[0]))
+        .ok_or("the bottom edge")?;
     let mut h = Harness::new(engine)?;
     h.until_shown()?;
     h.app
@@ -488,9 +493,10 @@ fn overview_picks_land_on_edges_and_read_as_words() -> Fallible {
         PICKS.load(Ordering::SeqCst),
     );
 
-    // The bottom edge, 8 mm in from the left, 3 points inside the board
-    // and 3 points below it: the edge lights either way.
-    let edge = screen(&h, [left + 8.0, bottom, seat])?;
+    // The bottom edge (the USB tab's), 0.4 mm in from its left end and so
+    // clear of J1, 3 points inside the board and 3 points below it: the
+    // edge lights either way.
+    let edge = screen(&h, [tab_left + 0.4, bottom, seat])?;
     for dy in [-3.0, 3.0] {
         h.frame(vec![egui::Event::PointerMoved(edge + egui::vec2(0.0, dy))]);
         assert!(

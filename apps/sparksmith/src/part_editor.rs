@@ -147,8 +147,7 @@ enum View {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Request {
     /// Tests: reserve five new lineages and fill them from a sample
-    /// template (people use the template gallery's
-    /// `library.new_from_template`).
+    /// set (people use the generator gallery).
     #[cfg(test)]
     Create(Template),
     /// Draft the lineages of a published component revision.
@@ -192,9 +191,9 @@ pub struct PartEditor {
     footprint_layers: footprint_canvas::Layers,
     /// The armed Footprint sketch tool and its pending points.
     footprint_tool: footprint_tools::ToolState,
-    /// The open "New from template" form.
+    /// The open Assign pads by number dialog.
     template_picker: footprint_template_picker::TemplatePicker,
-    /// Fit the Footprint view once a template's pads arrive.
+    /// Fit the Footprint view once the footprint's pads arrive.
     fit_on_build: bool,
     /// Footprint sketch dimensions, constraints, drags and parameters.
     footprint_dims: footprint_dims::DimsState,
@@ -721,7 +720,7 @@ impl PartEditor {
     }
 
     /// The Symbol tab's drawing ribbon: Select; Draw; Pins; Arrange; Grid
-    /// and Snap; then the component's templates and Publish.
+    /// and Snap; then the Component group (New, Open, Publish).
     fn symbol_groups(
         &self,
         has_draft: bool,
@@ -909,6 +908,10 @@ impl PartEditor {
                 footprint_dims::DimDetail::All => footprint_dims::DimDetail::Key,
                 footprint_dims::DimDetail::Key => footprint_dims::DimDetail::All,
             };
+            return None;
+        }
+        if tool == footprint_params_ui::TOOL {
+            self.show_footprint_parameters();
             return None;
         }
         if let Some(action) = symbol_canvas::Arrange::from_id(tool) {
@@ -1168,9 +1171,9 @@ impl PartEditor {
         Some(publish)
     }
 
-    /// Replace the working copy with a template; the next commit makes it
+    /// Replace the working copy with a sample set; the next commit makes it
     /// one undoable step. Without a working set the app creates the lineages.
-    /// The ribbon no longer offers this; tests drive templates with it.
+    /// Tests only: no ribbon command does this.
     #[cfg(test)]
     fn load_template(&mut self, template: Template) {
         match &mut self.draft {
@@ -2365,8 +2368,8 @@ fn component_of(engine: &Engine, id: DefinitionId) -> Option<DefinitionId> {
 }
 
 /// The first unit of a part built by hand: a one-module body with the
-/// designator above it and the component name below it, as the templates
-/// draw them. `ids` are the body, designator and name graphics.
+/// designator above it and the component name below it, as the sample
+/// parts draw them. `ids` are the body, designator and name graphics.
 fn first_unit(id: UnitId, ids: [GraphicId; 3]) -> Option<Unit> {
     let body = Bounds {
         min: [-SYMBOL_MODULE_MM, -SYMBOL_MODULE_MM],

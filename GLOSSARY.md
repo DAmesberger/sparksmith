@@ -84,14 +84,11 @@ A pin function that a particular device binding cannot provide. An instance whos
 A physical component body and its terminal arrangement, independent of the particular PCB land pattern used to mount it.
 _Avoid_: Footprint
 
-**Package form**:
-The authored, typed physical construction of a package (generic, chip, gull-wing, no-lead or pin header) with its dimensions; the only source of `pkg_*` values and of generated 3D models, never inferred from a designator or name.
-
 **Physical material**:
 A built-in material a 3D body is made of (epoxy mould compound, alumina, tin, gold, PBT, …), with cited or estimated optical values; never a colour or a vendor look.
 
-**Generated model**:
-A package's parametric 3D model built from its package form by a family builder, with a body role and a physical material on every body; one shared native definition per package revision, used by every instance.
+**Part file**:
+A parametric Solidcraft design used as a package's 3D body at literal parameter values, with a body role and a physical material on every body; packages with the same file and values share one native definition. A generator names the part file and the values of the part it makes.
 
 **Library model** (3D model):
 A revisioned library definition of a package's 3D model from a file (GLB for appearance, STEP for mechanical shape, `.solidcraft` for parametric): its packed asset by content hash, source frame, bounds, every body mapped explicitly to a role and material, lead tags with measured contacts, an optional marking area and provenance with redistribution. Packages share it by exact revision.
@@ -166,7 +163,7 @@ _Avoid_: Pin-1 dot (the marker, not the rule)
 The keep-out area a placed part and its assembly tools need, drawn as closed shapes on the courtyard layer. It is authored or explicitly generated, never inferred.
 
 **Derived courtyard**:
-A courtyard graphic a footprint source computes from its pad and body extents grown by a named excess (`CourtyardFromExtents`). It exists only because a template or the author added that role explicitly; nothing adds one automatically. An assembly outline from the package envelope is the same kind of explicit role.
+A courtyard graphic a footprint source computes from its pad and body extents grown by a named excess (`CourtyardFromExtents`). It exists only because the author added that role explicitly; nothing adds one automatically. An assembly outline from the package envelope is the same kind of explicit role.
 
 **Courtyard overlap**:
 The board check that two placements on the same side have courtyards sharing interior area. Touching edges is not overlap; a part without a courtyard is not checked.
@@ -180,21 +177,18 @@ How a footprint's solved pads and drawings were derived: an opaque sketch, param
 **Footprint evaluator**:
 The host component that interprets a footprint source: it applies sketch edits and solves the source into typed pads, drawings and the datum. The core never interprets a sketch; the desktop, CLI and MCP pass Solidcraft's sketch evaluator.
 
-**Footprint template**:
-A parametric footprint family (2-terminal chip, gull-wing SOIC/SOP, QFN/DFN, pin header, tabbed SOT/DPAK, molded SOD/SMA/MELF, BGA/LGA, through-hole) that builds into an empty footprint draft as ordinary sketch edits, with dimensions bound to named parameters, in one undo step. Its land defaults are estimated unless a package row cites a land pattern.
-
 **Package row**:
-A revisioned library record holding one typed package form of a family, with aliases, a size code, a suggested skeleton, optional lands, provenance and a citation of the public outline drawing its values were typed from. A row without a citation is *estimated*. New from template and From template build from an exact published row revision, a folder row read with its bundle, or a built-in **starter row** (the compiled-in, read-only tables every install lists).
-_Avoid_: Preset (test and sample data only), wizard
+A revisioned library record naming a generator and its parameters, with aliases, a size code, provenance and a citation of the public outline drawing its values were typed from. A row without a citation is *estimated*.
+_Avoid_: wizard
 
-**Custom entry**:
-A family's built-in template entry of original typical values (estimated) that the author edits; listed with the rows, never a citation.
+**Custom values**:
+A generator's own row in the generator gallery: its default values, which the author edits before making the part. It is listed with the generator's presets and never carries a citation.
 
-**Template gallery**:
-The generator gallery: one searchable sheet over the shipped generators, their presets and custom values (`library.generators`), new-component scope from New and the start page, package scope from the package panel's Change package….
+**Generator gallery**:
+One searchable sheet over the shipped generators, their presets and custom values (`library.generators`): new-component scope from New, the start page and the Place palette, package scope from the Footprint tab's From generator and the package panel's Change package….
 
 **Start page**:
-What the Component workspace shows when no component is open: catalog search, Recent and New from template…. The workspace never opens a component the user did not choose.
+What the Component workspace shows when no component is open: catalog search, Recent, New from generator… and Create from datasheet…. The workspace never opens a component the user did not choose.
 
 **Identity bar**:
 The strip above every Component workspace view naming the open component (source › name), its state (published, draft, new, read-only) and origin, with back, forward and Switch.

@@ -418,8 +418,8 @@ impl AssemblyRules {
 }
 
 /// Land-pattern estimator margins (original rules of thumb, not a
-/// land-pattern standard), read by `library::samples` and the footprint
-/// templates.
+/// land-pattern standard), which the generators read as project settings
+/// (`project.land.*`).
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LandRules {

@@ -31,6 +31,11 @@
 //!   as a remote agent under the server's [`Grant`]; or, live, the window,
 //!   whose own gate decides and asks the person.
 //!
+//! - **The record** of a run is opt-in: [`wirelog`] writes every line read
+//!   and written on the server's own pipes, byte for byte, and [`replay`]
+//!   turns such a log into the JSON-lines requests that rebuild the project
+//!   without a model.
+//!
 //! Requests are served concurrently, so replies can come back in another
 //! order than their requests; the desk runs them one at a time, and an edit
 //! names the revision it was made against, so a reordered edit is refused
@@ -41,10 +46,12 @@ pub mod fields;
 mod help;
 pub mod lenient;
 pub mod prompts;
+pub mod replay;
 mod tap;
 pub mod tools;
 pub mod trace;
 pub mod wire;
+pub mod wirelog;
 
 use crate::gate::Grant;
 use crate::live;
@@ -136,6 +143,9 @@ fn instructions_for(
 pub struct Server {
     desk: desk::Handle,
     bench: Option<(tap::Tap, crate::session::SchemaDetail)>,
+    /// How it was started, for a wire log's first row.
+    started: wirelog::Started,
+    wire: Option<wirelog::WireLog>,
     instructions: String,
     /// The workflows its prompts are made from.
     workflows: Vec<Loaded>,
@@ -156,9 +166,26 @@ impl Server {
         policy: Grant,
         new_session: desk::NewSession,
     ) -> Result<Self, String> {
+        let started = wirelog::Started {
+            live: false,
+            mode: Some(policy.mode.name().to_owned()),
+            folders: policy
+                .folders
+                .iter()
+                .map(|folder| folder.display().to_string())
+                .collect(),
+            project: session.path().map(|path| {
+                std::path::absolute(path)
+                    .unwrap_or_else(|_| path.to_path_buf())
+                    .display()
+                    .to_string()
+            }),
+        };
         Ok(Self {
             instructions: instructions(false)?,
             bench: None,
+            started,
+            wire: None,
             desk: Desk::start(session, policy, new_session)?,
             workflows: load::available(&load::host()),
         })
@@ -170,6 +197,11 @@ impl Server {
         Ok(Self {
             instructions: instructions(true)?,
             bench: None,
+            started: wirelog::Started {
+                live: true,
+                ..wirelog::Started::default()
+            },
+            wire: None,
             desk: Desk::start_live(client)?,
             workflows: load::available(&load::host()),
         })
@@ -182,6 +214,13 @@ impl Server {
         detail: crate::session::SchemaDetail,
     ) -> std::io::Result<Self> {
         self.bench = Some((tap::Tap::new(std::fs::File::create_new(path)?), detail));
+        Ok(self)
+    }
+
+    /// Record every line read from the client and written to it in a new
+    /// wire log at `path` ([`wirelog`]); an existing file is refused.
+    pub fn with_wire_log(mut self, path: &std::path::Path) -> std::io::Result<Self> {
+        self.wire = Some(wirelog::WireLog::create(path, &self.started)?);
         Ok(self)
     }
 
@@ -216,11 +255,26 @@ impl Server {
         R: AsyncRead + Send + Unpin + 'static,
         W: AsyncWrite + Send + Unpin + 'static,
     {
-        if let Some((tap, _)) = &self.bench {
-            let (read, write) = (tap.stream(read), tap.stream(write));
-            return self.serve_pipes(read, write).await;
+        use wirelog::Direction::{In, Out};
+        // The wire log sits on the pipes themselves, under the bench tap.
+        let wire = self.wire.clone();
+        let bench = self.bench.as_ref().map(|(tap, _)| tap.clone());
+        match (wire, bench) {
+            (None, None) => self.serve_pipes(read, write).await,
+            (Some(wire), None) => {
+                let (read, write) = (wire.stream(read, In), wire.stream(write, Out));
+                self.serve_pipes(read, write).await
+            }
+            (None, Some(tap)) => {
+                let (read, write) = (tap.stream(read), tap.stream(write));
+                self.serve_pipes(read, write).await
+            }
+            (Some(wire), Some(tap)) => {
+                let read = tap.stream(wire.stream(read, In));
+                let write = tap.stream(wire.stream(write, Out));
+                self.serve_pipes(read, write).await
+            }
         }
-        self.serve_pipes(read, write).await
     }
 
     async fn serve_pipes<R, W>(self, read: R, write: W) -> Result<(), String>

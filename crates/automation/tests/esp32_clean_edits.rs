@@ -1,10 +1,14 @@
 //! The ESP32-S31 dev board keeps its sole USB coverage warning through edits that
-//! move J1, the USB-C receptacle: its 3D dimension from the bottom edge
+//! move J1, the USB-C receptacle: its 3D dimension from the tab's edge
 //! 0 → 1 mm and back, the board's width 40 → 50 mm and back, and its height
-//! 64 → 70 mm. J1's ESD array and CC pull-downs are held at fixed offsets
-//! from it, so the cluster moves as one, and the routes leaving it keep
-//! their directions (`layout::dimensions::carry`): the USB pair stays
-//! coupled and its skew stays within its class limit.
+//! 64 → 70 mm. The parts beside J1 are held at fixed offsets from it, so
+//! the cluster moves as one, and the routes leaving it keep their
+//! directions (`layout::dimensions::carry`): the USB pair stays coupled and
+//! its skew stays within its class limit. The module and the parts beside
+//! it are held too, to the centre line and the top edge: a wider board
+//! moves every part with its centre line, so its routes move as they are,
+//! and a taller one stretches the buses and the pair between the two
+//! groups.
 //!
 //! After each edit the stale fills are refilled as the desktop's fill
 //! worker does (`compute_stale`, stored without an undo step); then the
@@ -153,9 +157,26 @@ fn the_board_widened_and_back_stays_clean() -> Fallible {
         &mut engine,
         "the board 50 mm wide",
         set_board("width", 50.0),
-        // Each carried path is 27.814494 mm, with 19.893243 mm coupled.
-        7.921_252,
+        // The module follows the centre line as J1 does, so the pair's
+        // paths move as they are.
+        USB_UNCOUPLED_MM,
     )?;
+    let moved = |designator: &str| -> Fallible<[f64; 2]> {
+        let id = |p: &Project| p.instance_by_designator(designator).map(|i| i.id);
+        let at = |p: &Project| id(p).and_then(|i| p.placement_of(i)).map(|p| p.position);
+        let (was, now) = (
+            at(&start.project).ok_or("placed")?,
+            at(engine.project()).ok_or("placed")?,
+        );
+        Ok([now[0] - was[0], now[1] - was[1]])
+    };
+    for part in ["J1", "U3", "U1", "J2", "J3", "SW2"] {
+        let by = moved(part)?;
+        assert!(
+            (by[0] - 5.0).abs() < 1e-6 && by[1].abs() < 1e-6,
+            "{part} moved {by:?}"
+        );
+    }
     let wide = clean_edit(
         &mut engine,
         "the board 40 mm wide again",

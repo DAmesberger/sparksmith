@@ -27,7 +27,7 @@ A Library row is a **lineage**: one identity with many immutable revisions.
 
 - **Component lineage** (exists): the generic electrical interface with its symbols and bindings.
 - **Package and footprint variants** (exist).
-- **Package row** and **Model** (exist): a cited package form a template builds from, and a 3D model file shared by packages; both are revisioned kinds published before packages.
+- **Package row** and **Model** (exist): a generator and its parameters with a citation or none, and a 3D model file shared by packages; both are revisioned kinds published before packages.
 - **`Part`** (S2): a revisioned lineage holding the manufacturer, the complete MPN, a pinned `ComponentRef` and `BindingRef`, rated specs as typed field values with a comparison meaning, references and provenance. The publish cascade grows to footprint → binding → component → Part. An instance's `PartRef` must agree with its own component and physical choice; a component update that leaves a Part pinned to the old revision raises a finding and an update choice and is never re-pointed silently. An "atomic part" in other tools is a component plus exactly one Part.
 - **Reference** (S2): datasheet or application note link with stable local ID, kind, title, URL, optional document revision, optional asset hash, licence and provenance. A link is not a copy.
 - **Distributor offer** (S2): distributor name, SKU, product URL, optional packaging. No price or stock.
@@ -98,7 +98,7 @@ Supplier terms reviewed for S5 forbid redistributing data or building a database
 
 1 November 2026. The catalog, templates, pin functions and 3D library work ([integration](component-model.md#catalog-templates-pin-functions-and-3d-library-integration)) adds two library kinds and pin data, all ordinary revisioned definitions that bundles, imports and the D1 ref rewrite carry like the rest:
 
-- **Package rows** (`PackageRowDefinition`): a generator and its parameters, with aliases, a size code, provenance and a citation or none (*estimated*). Since part generation D2 the typed forms and the built-in starter rows are gone; the generators' presets take their place ([D2](design/part-generation-plan.md#done-d2-the-in-code-templates-deleted-15-november-2026)).
+- **Package rows** (`PackageRowDefinition`): a generator and its parameters, with aliases, a size code, provenance and a citation or none (*estimated*).
 - **Models** (`ModelDefinition`): a GLB, STEP or `.solidcraft` asset packed by hash, its frame, bodies mapped to materials, lead tags and licence. `library.models` searches them with the generated families and ranks by fit to a package; a package names an exact revision with an explicit lead map ([D0–D6 as built](component-model.md#3d-model-library-project-container-and-markings-d0d6-as-built)). Its redistribution field travels with the model into folders.
 - **Pin data** on components (peripherals with kinds and signals, mux codes, GPIO, pin options and Rhai pin rules) is part of the component revision, so it is part of snapshot identity and of the impact preview of a library update; per-instance pin configuration is carried through updates and an update lists the configurations it drops ([pins as built](component-model.md#pin-functions-peripherals-rules-pinout-import-and-firmware-c1c7-as-built)).
 
