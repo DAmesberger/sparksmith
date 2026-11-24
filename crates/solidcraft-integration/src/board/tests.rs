@@ -134,6 +134,59 @@ fn board_parameters_drive_the_shape_and_board_size() -> Fallible<()> {
     Ok(())
 }
 
+/// An exported board parameter written as an expression over others is
+/// listed with the value this host evaluated for the board's solve, and
+/// follows the parameter it is written over; the value is stored with the
+/// solve, so the document read without a host lists it too.
+#[test]
+fn an_exported_expression_parameter_lists_its_evaluated_value() -> Fallible<()> {
+    use sparksmith_core::interface::{DatumGeometry, ExportTarget, InterfaceCommand};
+    let mut engine = sketched()?;
+    edit(
+        &mut engine,
+        vec![
+            set("width", "75 mm"),
+            set("height", "width / 3"),
+            set("margin", "(width - height) / 4"),
+        ],
+    )?;
+    for name in ["height", "margin"] {
+        apply(
+            &mut engine,
+            Operation::Interface(InterfaceCommand::Export {
+                target: ExportTarget::BoardParameter {
+                    name: ParamName(name.into()),
+                },
+                name: None,
+            }),
+        )?;
+    }
+    let listed = |engine: &Engine| -> Fallible<Vec<Option<DatumGeometry>>> {
+        let QueryResult::InterfaceList(list) = engine.query(Query::InterfaceList {})? else {
+            return Err("the interface".into());
+        };
+        ["board.parameter.height", "board.parameter.margin"]
+            .iter()
+            .map(|token| {
+                let row = list.datums.iter().find(|d| d.token == *token);
+                Ok(row.ok_or(*token)?.geometry.clone())
+            })
+            .collect()
+    };
+    let mm = |value: f64| {
+        Some(DatumGeometry::Parameter {
+            value,
+            unit: "mm".into(),
+        })
+    };
+    assert_eq!(listed(&engine)?, [mm(25.0), mm(12.5)]);
+    edit(&mut engine, vec![set("width", "90 mm")])?;
+    assert_eq!(listed(&engine)?, [mm(30.0), mm(15.0)]);
+    let reopened = Engine::from_file(format::decode(&format::encode(&engine.to_file())?)?)?;
+    assert_eq!(listed(&reopened)?, [mm(30.0), mm(15.0)]);
+    Ok(())
+}
+
 /// A parameter that names itself is refused in words, not as a cycle of
 /// one ("circular reference: height → height").
 #[test]

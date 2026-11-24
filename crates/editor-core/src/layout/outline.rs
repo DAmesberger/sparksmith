@@ -87,6 +87,10 @@ pub struct BoardEvaluation {
     /// curve or mounting hole ([`PARAM_IDLE`]).
     #[serde(default)]
     pub idle: Vec<ParamName>,
+    /// Each board parameter's value, as this evaluation read the
+    /// parameters ([`crate::model::board::BoardSketch::values`]).
+    #[serde(default)]
+    pub values: Vec<crate::model::board::ParameterValue>,
 }
 
 /// What [`BoardShapeEvaluator::fillet`] drew: the sketch and, per new
@@ -819,6 +823,7 @@ pub(crate) fn commit(
     sketch.solved = evaluation.solved;
     sketch.fault = evaluation.fault.map(bounded);
     sketch.idle = evaluation.idle;
+    sketch.values = evaluation.values;
     if let Some(blob) = evaluation.sketch_out {
         sketch.sketch = blob;
     }
@@ -976,6 +981,7 @@ fn validate_sketch(sketch: &BoardSketch) -> Result<()> {
     if sketch.edges.len() > MAX_NAMED_EDGES
         || sketch.parameters.len() > MAX_BOARD_PARAMETERS
         || sketch.idle.len() > MAX_BOARD_PARAMETERS
+        || sketch.values.len() > MAX_BOARD_PARAMETERS
     {
         return Err(Error::Limit("board.sketch: too many roles".into()));
     }
@@ -1024,6 +1030,13 @@ fn validate_sketch(sketch: &BoardSketch) -> Result<()> {
     }
     if sketch.idle.iter().any(|n| !params.contains(&n)) {
         return bad("idle parameters are board parameters");
+    }
+    if sketch
+        .values
+        .iter()
+        .any(|v| !params.contains(&v.name) || !v.value.is_finite())
+    {
+        return bad("evaluated values are finite and of board parameters");
     }
     for h in &sketch.holes {
         if !h.drill.valid() || h.pad_diameter.as_ref().is_some_and(|d| !d.valid()) {

@@ -435,6 +435,7 @@ fn sketched() -> Fallible<Project> {
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
+        values: Vec::new(),
     }));
     refill(&mut p)?;
     Ok(p)

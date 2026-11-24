@@ -14,8 +14,8 @@ use crate::library::footprint_source::{
 };
 use crate::library::{Segment, datum::DatumName};
 use crate::model::board::{
-    BoardFeatureId, BoardShape, BoardSketch, CutoutKind, CutoutRole, MountingHoleRole, SolvedBoard,
-    SolvedCutout, SolvedMountingHole,
+    BoardFeatureId, BoardShape, BoardSketch, CutoutKind, CutoutRole, MountingHoleRole,
+    ParameterValue, SolvedBoard, SolvedCutout, SolvedMountingHole,
 };
 use crate::model::dimension::{BoardRef, FeatureRef, FollowedFaceId, PadPoint};
 use crate::model::interface::{
@@ -128,59 +128,74 @@ fn sketched() -> Fallible<Engine> {
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
+        values: vec![ParameterValue {
+            name: ParamName("width".into()),
+            value: 60.0,
+        }],
     }));
     project.board_size = [60.0, 40.0];
     file.project = project;
     Ok(Engine::from_file(file)?)
 }
 
-/// A board parameter is exported with its value as the board sketch
-/// writes it, a number with its unit ("60 mm"). One written as an
-/// expression over others has no value here: the host's evaluator reads
-/// it.
+/// A board parameter is exported with the value the host evaluated for
+/// the board's last solve, a number and an expression over other
+/// parameters alike. One the host gave no value has none here: the core
+/// reads no expression.
 #[test]
-fn a_board_parameter_written_with_its_unit_is_exported_with_its_value() -> Fallible {
-    let mut file = sketched()?.to_file();
+fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
     let param = |name: &str, expr: &str| FootprintParam {
         name: ParamName(name.into()),
         expr: Expr(expr.into()),
         unit: ParamUnit::Mm,
         comment: String::new(),
     };
-    let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
-        return Err("a sketched board".into());
+    let listed = |values: Vec<ParameterValue>| -> Fallible<_> {
+        let mut file = sketched()?.to_file();
+        let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
+            return Err("a sketched board".into());
+        };
+        sketch.parameters = vec![
+            param("width", "60 mm"),
+            param("tab_x", "(width - 12 mm) / 2"),
+        ];
+        sketch.values = values;
+        let mut engine = Engine::from_file(file)?;
+        for name in ["width", "tab_x"] {
+            export(
+                &mut engine,
+                ExportTarget::BoardParameter {
+                    name: ParamName(name.into()),
+                },
+            )?;
+        }
+        list(&engine)
     };
-    sketch.parameters = vec![
-        param("width", "60 mm"),
-        param("tab_x", "(width - 12 mm) / 2"),
-    ];
-    let mut engine = Engine::from_file(file)?;
-    for name in ["width", "tab_x"] {
-        export(
-            &mut engine,
-            ExportTarget::BoardParameter {
-                name: ParamName(name.into()),
-            },
-        )?;
-    }
-    let listed = list(&engine)?;
-    let row = |token: &str| {
-        listed
+    let geometry = |listed: &InterfaceList, token: &str| -> Fallible<_> {
+        let row = listed
             .datums
             .iter()
             .find(|d| d.token == token)
-            .ok_or_else(|| format!("no datum {token}"))
+            .ok_or_else(|| format!("no datum {token}"))?;
+        assert_eq!(row.status, DatumStatus::Resolved, "{token}");
+        Ok(row.geometry.clone())
     };
-    assert_eq!(
-        row("board.parameter.width")?.geometry,
+    let mm = |value: f64| {
         Some(DatumGeometry::Parameter {
-            value: 60.0,
-            unit: "mm".into()
+            value,
+            unit: "mm".into(),
         })
-    );
-    let derived = row("board.parameter.tab_x")?;
-    assert_eq!(derived.geometry, None);
-    assert_eq!(derived.status, DatumStatus::Resolved);
+    };
+    let unevaluated = listed(Vec::new())?;
+    assert_eq!(geometry(&unevaluated, "board.parameter.width")?, None);
+    assert_eq!(geometry(&unevaluated, "board.parameter.tab_x")?, None);
+    let value = |name: &str, value: f64| ParameterValue {
+        name: ParamName(name.into()),
+        value,
+    };
+    let solved = listed(vec![value("width", 60.0), value("tab_x", 24.0)])?;
+    assert_eq!(geometry(&solved, "board.parameter.width")?, mm(60.0));
+    assert_eq!(geometry(&solved, "board.parameter.tab_x")?, mm(24.0));
     Ok(())
 }
 

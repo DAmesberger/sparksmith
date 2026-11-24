@@ -256,6 +256,18 @@ impl Values {
         Ok(v)
     }
 
+    /// Parameter `name`'s evaluated value in `unit` (millimetres, degrees
+    /// or a count), when it has a finite one of that kind.
+    pub(crate) fn of(&self, name: &str, unit: ParamUnit) -> Option<f64> {
+        let v = self.0.get(name)?;
+        let value = match unit {
+            ParamUnit::Mm => v.to_kind(Kind::Length).ok()?,
+            ParamUnit::Deg => v.to_kind(Kind::Angle).ok()?.to_degrees(),
+            ParamUnit::Count => v.to_kind(Kind::Unitless).ok()?,
+        };
+        value.is_finite().then_some(value)
+    }
+
     /// A signed length in mm within the coordinate range.
     pub(crate) fn signed_length(&self, text: &str) -> Outcome<f64> {
         let v = self.raw(text, Kind::Length)?;

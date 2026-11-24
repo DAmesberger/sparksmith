@@ -588,6 +588,7 @@ fn sketched(project: &mut Project, slot: bool) {
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
+        values: Vec::new(),
     }));
 }
 
@@ -784,6 +785,7 @@ fn with_hole(project: &mut Project, at: Point) {
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
+        values: Vec::new(),
     }));
 }
 

@@ -356,6 +356,20 @@ pub struct BoardSketch {
     /// them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub idle: Vec<ParamName>,
+    /// Each board parameter's value as the host evaluated the parameters
+    /// for the last solve, so what reads a parameter without the host (an
+    /// exported board parameter, `interface::list`) has it, of an
+    /// expression over other parameters too.
+    pub values: Vec<ParameterValue>,
+}
+
+/// A board parameter's evaluated value, in the parameter's own unit:
+/// millimetres, degrees or a count.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ParameterValue {
+    pub name: ParamName,
+    pub value: f64,
 }
 
 /// Points one [`ShapeFault`] names at most.

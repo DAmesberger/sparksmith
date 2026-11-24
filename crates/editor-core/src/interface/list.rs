@@ -209,20 +209,13 @@ fn parameter(project: &Project, name: &str) -> Option<Option<DatumGeometry>> {
         ParamUnit::Deg => "deg",
         ParamUnit::Count => "",
     };
-    // A number, alone or with the parameter's own unit as the board sketch
-    // writes it ("40 mm"), is its value; anything else is an expression,
-    // which the host's evaluator reads.
-    let text = param.expr.0.trim();
-    let number = text.strip_suffix(unit).map_or(text, str::trim_end);
-    Some(
-        number
-            .parse::<f64>()
-            .ok()
-            .map(|value| DatumGeometry::Parameter {
-                value,
-                unit: unit.into(),
-            }),
-    )
+    // What the host evaluated for the board's last solve: the core reads
+    // no expression, a plain number either.
+    let value = sketch.values.iter().find(|v| v.name.0 == name);
+    Some(value.map(|v| DatumGeometry::Parameter {
+        value: v.value,
+        unit: unit.into(),
+    }))
 }
 
 /// The kind a feature datum has: what its geometry is, or, when it is
