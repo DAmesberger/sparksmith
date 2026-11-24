@@ -43,4 +43,5 @@ mod tie_erc;
 mod ties;
 mod touching;
 mod variants;
+mod via_types;
 mod wire_commands;

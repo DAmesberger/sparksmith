@@ -158,6 +158,27 @@ pub fn describe(requirement: &Requirement, profile: Option<&RuleProfile>) -> Opt
                 text: format!("Needs a profile for {count}-layer boards"),
             }
         }
+        Requirement::ViaFill { fill } => {
+            let fill = super::ViaFill::ALL.into_iter().find(|f| f.id() == fill)?;
+            let words = fill.label().to_lowercase();
+            let verdict = profile.map(|p| super::drills::through_fill(&p.drill_rules, fill));
+            let source = match verdict {
+                Some(super::drills::Verdict::NotMade(source)) => source.to_owned(),
+                _ => String::new(),
+            };
+            Needed {
+                requirement: requirement.clone(),
+                rule: "via fill".into(),
+                measured: format!("{words} vias"),
+                limit: profile.map(|_| "open vias".into()),
+                source: match profile {
+                    Some(p) if source.trim().is_empty() => document(p),
+                    _ => source,
+                },
+                profile: name,
+                text: format!("Needs {words} vias"),
+            }
+        }
         Requirement::MaskColour { colour } => {
             let option = profile.and_then(|p| p.following(super::BoardSetting::MaskColour));
             Needed {

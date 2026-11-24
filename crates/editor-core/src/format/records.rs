@@ -206,7 +206,7 @@ pub const VIAS: Collection = Collection {
     type_field: None,
     sort: &["net", "id"],
     records: records!(&[
-        "id", "net", "span", "drill", "diameter", "position", "tented", "locked",
+        "id", "net", "span", "drill", "diameter", "position", "tented", "fill", "locked",
     ]),
     numbers: Numbers::FloatsAllowed,
 };

@@ -251,7 +251,13 @@ pub const NO_WAIVER: &[&str] = &[
     layout::outline::SHAPE_INVALID,
     "fabrication.no_footprint",
     crate::diagnostics::FindingCode::InstanceCheckFailed.as_str(),
+    // The fabricator does not make it, whoever accepts it.
+    layout::via_fill::NOT_MADE,
 ];
+
+/// Findings a waiver accepts only with a reason, whatever Settings say: the
+/// fabricator states nothing, so the reason is all there is.
+pub const NEEDS_REASON: &[&str] = &[layout::via_fill::NOT_STATED];
 
 /// A plated board slot the drill file cannot route (not a straight slot
 /// with round ends), with the slot's feature id after a dot. The only

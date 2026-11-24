@@ -36,7 +36,7 @@ pub use stackup::{
     MIN_COPPER_LAYERS, OUNCE_UM, PresetDielectric, Stackup, StackupPresets, Unsaved,
 };
 pub use variants::{AssemblyVariant, AssemblyVariants, Population, VariantOverride};
-pub use via::{Via, ViaSpan};
+pub use via::{Via, ViaFill, ViaSpan};
 
 /// Maximum JSON document size in a project container (see the file format).
 pub const DOCUMENT_BYTES: usize = 64 * 1024 * 1024;

@@ -410,6 +410,7 @@ pub(crate) fn copper(
             diameter: mm(via.size),
             span,
             tented: via.tenting.map_or(tented, |(front, back)| front && back),
+            fill: Default::default(),
         });
     }
     let refused = add(session, tracks, vias, report)?;

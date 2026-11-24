@@ -286,6 +286,7 @@ fn a_turned_part_carries_its_via_and_track_ends_rigidly() -> Fallible<()> {
         diameter: 0.6,
         span: ViaSpan::Through,
         tented: true,
+        fill: Default::default(),
         locked: false,
     });
     let mut after = with_via.clone();

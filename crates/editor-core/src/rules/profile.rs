@@ -310,6 +310,11 @@ pub struct RuleProfile {
     pub drill_files: DrillFiles,
     /// The boards its numbers are for, when it says.
     pub boards: Option<ProfileBoards>,
+    /// What the fabricator makes of a board's drills; none is a through
+    /// drill that stays open.
+    pub drill_rules: Vec<DrillRule>,
+    /// The charges it publishes.
+    pub charges: Vec<Charge>,
     /// The manufacturing options it offers, in shown order.
     options: Vec<FabOption>,
     /// The choice of every option.
@@ -353,6 +358,8 @@ impl RuleProfile {
             source,
             drill_files,
             boards: None,
+            drill_rules: Vec::new(),
+            charges: Vec::new(),
             options: Vec::new(),
             chosen: BTreeMap::new(),
             entries,
@@ -833,6 +840,7 @@ impl RuleProfile {
                 )));
             }
         }
+        super::drills::check(&self.drill_rules, &self.charges)?;
         self.check_options()?;
         if s.publisher.trim().is_empty() || !valid_date(&s.date) {
             return Err(Error::Invalid(format!(
@@ -904,6 +912,13 @@ pub struct ProfileData {
     /// "…"}`. Left out, no board is checked against it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boards: Option<ProfileBoards>,
+    /// What the fabricator makes of a board's drills, as rules over layers.
+    /// Left out, it makes through drills that stay open.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drill_rules: Vec<DrillRule>,
+    /// The charges it publishes, each with the boards it falls on.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub charges: Vec<Charge>,
     /// The manufacturing options it offers, in shown order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<FabOption>,
@@ -1035,6 +1050,8 @@ impl From<RuleProfile> for ProfileData {
             source: p.source,
             drill_files: p.drill_files,
             boards: p.boards,
+            drill_rules: p.drill_rules,
+            charges: p.charges,
             options: p.options,
             chosen: p.chosen,
             rules,
@@ -1110,6 +1127,8 @@ impl TryFrom<ProfileData> for RuleProfile {
         let mut profile = Self::new(&data.id, &data.name, data.source, data.drill_files, entries)?;
         profile.current_table = data.current_table;
         profile.boards = data.boards;
+        profile.drill_rules = data.drill_rules;
+        profile.charges = data.charges;
         profile.fabricator = data.fabricator;
         profile.validate()?;
         if data.options.is_empty() && cases.is_empty() && data.chosen.is_empty() {

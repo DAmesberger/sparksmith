@@ -84,6 +84,7 @@ fn add_via(project: &mut Project, net: Id, position: Point) -> Result<Id> {
         diameter: 0.6,
         span: ViaSpan::Through,
         tented: true,
+        fill: Default::default(),
         locked: false,
     });
     Ok(id)

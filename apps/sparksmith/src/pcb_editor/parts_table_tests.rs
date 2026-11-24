@@ -237,6 +237,7 @@ fn ten_thousand_vias_build_only_a_screenful() -> Fallible {
             diameter: 0.6,
             span: sparksmith_core::ViaSpan::Through,
             tented: true,
+            fill: Default::default(),
             locked: false,
         });
     }

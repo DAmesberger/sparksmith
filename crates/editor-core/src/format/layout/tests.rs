@@ -253,7 +253,7 @@ fn the_declared_orders_are_pinned() {
             &records::VIAS,
             None,
             &[
-                "id", "net", "span", "drill", "diameter", "position", "tented", "locked",
+                "id", "net", "span", "drill", "diameter", "position", "tented", "fill", "locked",
             ],
         ),
         (

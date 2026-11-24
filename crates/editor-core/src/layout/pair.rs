@@ -73,6 +73,7 @@ pub struct PairVias {
     pub drill: f64,
     pub diameter: f64,
     pub tented: bool,
+    pub fill: crate::model::ViaFill,
     /// Centre distance of the two vias.
     pub pitch: f64,
     pub layer: CopperLayer,
@@ -562,6 +563,7 @@ fn through(
             drill: vias.drill,
             diameter: vias.diameter,
             tented: vias.tented,
+            fill: vias.fill,
             net: *net,
             position,
             span: crate::model::ViaSpan::Through,
@@ -776,6 +778,7 @@ pub fn route(project: &Project, request: &PairRouteRequest) -> Result<RouteEditS
                 drill,
                 diameter,
                 tented: project.rules.effective().mask.tent_vias,
+                fill: crate::model::ViaFill::None,
                 pitch: via_pitch(project, nets, drill, diameter, s).max(via_pitch(
                     project,
                     nets,

@@ -91,6 +91,13 @@ pub fn apply(
                         .into(),
                 ));
             }
+            if reason.is_empty() && keys.iter().any(|k| needs_reason(code_of(k))) {
+                return Err(Error::Invalid(
+                    "fabrication.waiver_reason: the fabricator states nothing about this, so \
+                     accepting it needs a reason"
+                        .into(),
+                ));
+            }
             if keys.len() > MAX_WAIVE_KEYS
                 || reason.len() > MAX_WAIVER_TEXT
                 || reason.chars().any(char::is_control)
@@ -236,8 +243,17 @@ pub use crate::issues::{NO_WAIVER, SLOT_UNROUTABLE, can_waive};
 
 /// Whether the finding a waiver key names may not be waived.
 fn unwaivable(key: &str) -> bool {
-    let code = key.split_whitespace().next().unwrap_or_default();
-    !can_waive(code)
+    !can_waive(code_of(key))
+}
+
+/// The code a waiver key begins with.
+fn code_of(key: &str) -> &str {
+    key.split_whitespace().next().unwrap_or_default()
+}
+
+/// Whether a waiver of `code` always states its reason.
+pub fn needs_reason(code: &str) -> bool {
+    crate::issues::NEEDS_REASON.contains(&code)
 }
 
 /// What a waiver accepts of one key.
@@ -329,6 +345,9 @@ fn instead(code: &str) -> &'static str {
         "board.overlap" => "move the copper apart",
         "board.shape_unsolved" | layout::outline::SHAPE_OPEN | layout::outline::SHAPE_INVALID => {
             "make the board outline valid (Board shape)"
+        }
+        layout::via_fill::NOT_MADE => {
+            "choose a fab profile that makes it (fabrication.profile_suggestions), or change the via"
         }
         "fabrication.no_footprint" => {
             "choose a footprint for the part, or take it out of the design"

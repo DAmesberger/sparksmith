@@ -3,6 +3,7 @@
 use super::CopperLayer;
 use crate::geometry::Point;
 use crate::ids::Id;
+pub use crate::rules::ViaFill;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +33,9 @@ pub struct Via {
     pub span: ViaSpan,
     /// Soldermask covers the via on both sides; an open via shows its ring.
     pub tented: bool,
+    /// What closes its hole, whatever covers it.
+    #[serde(default, skip_serializing_if = "ViaFill::is_none")]
+    pub fill: ViaFill,
     pub locked: bool,
 }
 

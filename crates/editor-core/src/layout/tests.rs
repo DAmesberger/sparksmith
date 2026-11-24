@@ -1015,6 +1015,7 @@ fn a_track_too_close_to_a_via_hole_is_refused_with_the_hole_rule() -> Result<()>
                 diameter: 0.5,
                 span: crate::model::ViaSpan::Through,
                 tented: true,
+                fill: Default::default(),
             },
         },
     )?;

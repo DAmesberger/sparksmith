@@ -21,7 +21,7 @@ use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::Id;
 use crate::library::names::capitalised;
 use crate::model::board::BoardFeatureId;
-use crate::model::{CopperLayer, Project, Via, ViaSpan};
+use crate::model::{CopperLayer, Project, Via, ViaFill, ViaSpan};
 use crate::rules::{CopperObject, RuleKey};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -42,6 +42,9 @@ pub struct ViaRequest {
     pub diameter: f64,
     pub span: ViaSpan,
     pub tented: bool,
+    /// What closes its hole.
+    #[serde(default, skip_serializing_if = "ViaFill::is_none")]
+    pub fill: ViaFill,
 }
 
 impl ViaRequest {
@@ -55,6 +58,7 @@ impl ViaRequest {
             diameter: rules.holes.via_diameter_default,
             span: ViaSpan::Through,
             tented: rules.mask.tent_vias,
+            fill: ViaFill::None,
         }
     }
 
@@ -69,6 +73,7 @@ impl ViaRequest {
             diameter: 0.6,
             span: ViaSpan::Through,
             tented: true,
+            fill: ViaFill::None,
         }
     }
 }
@@ -106,6 +111,7 @@ fn via_of(id: Id, request: ViaRequest) -> Via {
         diameter: request.diameter,
         span: request.span,
         tented: request.tented,
+        fill: request.fill,
         locked: false,
     }
 }
@@ -245,6 +251,7 @@ pub(super) fn route_layer_change(project: &mut Project, request: LayerChangeRequ
         diameter: via.diameter,
         span: via.span,
         tented: via.tented,
+        fill: via.fill,
         locked: false,
     };
     if !probe.on(first.layer, &layers) || !probe.on(to_layer, &layers) {
@@ -965,6 +972,25 @@ pub(super) fn delete(project: &mut Project, id: Id) -> Result<()> {
 
 pub(super) fn set_tented(project: &mut Project, id: Id, tented: bool) -> Result<()> {
     unlocked(project, id)?.tented = tented;
+    Ok(())
+}
+
+/// Set the fill of `ids`, refused whole when one is unknown, locked or
+/// named twice.
+pub(super) fn set_fill(project: &mut Project, ids: &[Id], fill: ViaFill) -> Result<()> {
+    if ids.is_empty() {
+        return invalid("name the vias to change");
+    }
+    let mut named = BTreeSet::new();
+    for id in ids {
+        if !named.insert(*id) {
+            return invalid("a via is named twice");
+        }
+        unlocked(project, *id)?;
+    }
+    for via in project.vias.iter_mut().filter(|v| named.contains(&v.id)) {
+        via.fill = fill;
+    }
     Ok(())
 }
 

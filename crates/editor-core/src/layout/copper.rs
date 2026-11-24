@@ -537,6 +537,7 @@ impl BoardCopper {
                 let mut old = old.clone();
                 old.locked = new.locked;
                 old.tented = new.tented;
+                old.fill = new.fill;
                 old.drill = new.drill;
                 old == *new
             },

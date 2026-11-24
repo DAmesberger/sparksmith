@@ -37,6 +37,7 @@ fn via(id: Id, net: Id, position: Point, drill: f64, diameter: f64) -> Via {
         diameter,
         span: ViaSpan::Through,
         tented: true,
+        fill: Default::default(),
         locked: false,
     }
 }

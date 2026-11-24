@@ -56,6 +56,7 @@ pub mod several;
 pub mod showcase;
 pub mod staging;
 pub mod via;
+pub mod via_fill;
 pub use crate::rules::signal::CheckSettings;
 pub use arrange::part_envelope;
 pub use connectivity::{CopperGraph, NetCounts};
@@ -176,6 +177,13 @@ pub enum LayoutCommand {
     /// Cover a via with solder mask (`tented`) or leave it open.
     #[serde(rename = "layout.via_tent")]
     SetViaTented { id: Id, tented: bool },
+    /// Set what closes the holes of vias: `none` leaves them open, `capped`
+    /// fills and plates them over. One undo step, refused whole.
+    #[serde(rename = "layout.via_set")]
+    SetVias {
+        ids: Vec<Id>,
+        fill: crate::model::ViaFill,
+    },
     /// Lock or unlock a via.
     #[serde(rename = "layout.via_lock")]
     SetViaLock { id: Id, locked: bool },
@@ -322,6 +330,7 @@ declare_entries!(LayoutCommand in layout {
     MoveVia "layout.via_move" Edit "Move a via",
     DeleteVia "layout.via_delete" Edit "Delete a via",
     SetViaTented "layout.via_tent" Edit "Tent or untent a via",
+    SetVias "layout.via_set" Edit "Fill vias or leave them open" [since(2, 12)],
     SetViaLock "layout.via_lock" Edit "Lock or unlock a via",
     RouteLayerChange "layout.route_layer_change" Edit "Change layer while routing" [returns(via_added)],
     SetBoardSize "layout.set_board_size" Edit "Set the board size",
@@ -928,6 +937,7 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
         LayoutCommand::MoveVia { id, position } => via::move_to(project, id, position)?,
         LayoutCommand::DeleteVia { id } => via::delete(project, id)?,
         LayoutCommand::SetViaTented { id, tented } => via::set_tented(project, id, tented)?,
+        LayoutCommand::SetVias { ids, fill } => via::set_fill(project, &ids, fill)?,
         LayoutCommand::SetViaLock { id, locked } => via::set_lock(project, id, locked)?,
         LayoutCommand::RouteLayerChange { request } => {
             return via::route_layer_change(project, request).map(Some);
@@ -1798,10 +1808,12 @@ pub enum BoardCheck {
     Fiducials,
     /// Mask webs between the assembled board's openings ([`mask_web`]).
     MaskWeb,
+    /// Filled vias against the fab profile ([`via_fill`]).
+    ViaFills,
 }
 
 impl BoardCheck {
-    pub const ALL: [BoardCheck; 17] = [
+    pub const ALL: [BoardCheck; 18] = [
         Self::Unplaced,
         Self::Clearance,
         Self::Connectivity,
@@ -1819,6 +1831,7 @@ impl BoardCheck {
         Self::ProfileFit,
         Self::Fiducials,
         Self::MaskWeb,
+        Self::ViaFills,
     ];
 
     /// Whether the family reads the board's tracks or vias. A change to
@@ -1834,7 +1847,8 @@ impl BoardCheck {
             | Self::Fills
             | Self::Lengths
             | Self::Etch
-            | Self::Fiducials => true,
+            | Self::Fiducials
+            | Self::ViaFills => true,
             Self::Unplaced
             | Self::Courtyards
             | Self::Outline
@@ -1900,6 +1914,7 @@ impl BoardCheck {
             Self::ProfileFit => profile_fit::findings(project),
             Self::Fiducials => fiducial::findings(project),
             Self::MaskWeb => mask_web::findings(project),
+            Self::ViaFills => via_fill::findings(project),
         };
         (findings, false)
     }

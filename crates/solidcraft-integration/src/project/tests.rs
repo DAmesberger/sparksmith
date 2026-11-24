@@ -579,6 +579,7 @@ fn build_timings() -> Result<()> {
             diameter: 0.6,
             span: sparksmith_core::ViaSpan::Through,
             tented: k % 2 == 0,
+            fill: Default::default(),
             locked: false,
         });
         if k % 2 == 0 {
@@ -1893,6 +1894,7 @@ pub(super) fn via_board(count: usize) -> Result<Project> {
             diameter: 0.6,
             span: sparksmith_core::ViaSpan::Through,
             tented: k % 2 == 0,
+            fill: Default::default(),
             locked: false,
         });
         if k % stride == 0 && k % columns != columns - 1 {
@@ -2461,6 +2463,7 @@ pub(super) fn four_layer_shaped() -> Result<Project> {
         diameter: 0.6,
         span: sparksmith_core::ViaSpan::Through,
         tented: false,
+        fill: Default::default(),
         locked: false,
     });
     Ok(project)

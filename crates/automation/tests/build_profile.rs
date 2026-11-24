@@ -72,6 +72,7 @@ fn board() -> Project {
                     diameter: 0.6,
                     span: sparksmith_core::ViaSpan::Through,
                     tented: true,
+                    fill: Default::default(),
                     locked: false,
                 });
             }

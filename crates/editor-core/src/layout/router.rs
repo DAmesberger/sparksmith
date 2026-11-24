@@ -299,6 +299,7 @@ fn via_of(request: &ViaRequest) -> Via {
         diameter: request.diameter,
         span: request.span,
         tented: request.tented,
+        fill: request.fill,
         locked: false,
     }
 }

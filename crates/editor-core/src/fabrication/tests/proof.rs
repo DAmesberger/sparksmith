@@ -476,6 +476,7 @@ pub(super) fn board() -> Fallible<Project> {
             diameter: 0.6,
             span: ViaSpan::Through,
             tented,
+            fill: Default::default(),
             locked: false,
         });
     }
@@ -1079,6 +1080,7 @@ fn a_mask_opening_that_closes_round_a_cavity_keeps_the_mask_in_it() -> Fallible<
         diameter: 0.2,
         span: ViaSpan::Through,
         tented: false,
+        fill: Default::default(),
         locked: false,
     });
     let files = written(&project)?;

@@ -40,6 +40,7 @@ fn committed_routes_are_refused_as_the_whole_board_refuses_them() -> Fallible {
                 diameter: 0.6,
                 span: crate::model::ViaSpan::Through,
                 tented: true,
+                fill: Default::default(),
                 locked: false,
             };
             pieces.push(world::Piece::via(&via, &stack));
