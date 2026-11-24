@@ -34,6 +34,7 @@ A [[term/fab-profile]] records the manufacturer's process, layer count, rule val
 - Open the board's Rules controls. Inspect the profile, its options and the effective rules. A source row identifies where a limit came from. An author’s choice sets a working default for this profile.
 - Preview a profile change. Read the impact on existing overrides and net classes before applying it. A board can need a different profile or a stackup change if its layer count, finish or copper weight falls outside that process.
 - Follow a rule link from a finding to inspect the underlying value, source document, row and date. Compare it with the current requirements for your order.
+- A profile also says whether the fabricator fills and caps vias, and in which hole sizes. What it does not make cannot be waived. What it offers without stating can be waived, with the fabricator's answer as the reason.
 - Set design-specific restrictions with overrides or net classes. Review findings after changing them. Export against the profile you selected for production.
 
 [[entry/rules.fab_profiles]] lists available profiles. [[entry/rules.preview_fab_profile]] previews a change. [[entry/rules.effective]] reads the rules currently in effect on the board.

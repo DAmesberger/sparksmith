@@ -44,6 +44,15 @@ fn allowed(class: &NetClass) -> Option<u32> {
     if through { rule.max } else { Some(0) }
 }
 
+fn refused(project: &Project, net: Id, class: &NetClass, max: u32) -> Error {
+    Error::Invalid(format!(
+        "Net class {} allows {} on {}",
+        class.name,
+        vias(max),
+        project.net_name(net)
+    ))
+}
+
 /// Refuses vias on `net` past what its class allows, where the board had
 /// `before` of them before the edit: an edit that leaves no more than there
 /// were is never refused for them.
@@ -58,12 +67,7 @@ pub(super) fn check_vias(project: &Project, net: Id, before: usize) -> Result<()
     if now <= max as usize {
         return Ok(());
     }
-    Err(Error::Invalid(format!(
-        "{}: net class {} allows {}",
-        project.net_name(net),
-        class.name,
-        vias(max)
-    )))
+    Err(refused(project, net, class, max))
 }
 
 /// Refuses copper of `net` on a layer its class does not allow.
@@ -73,9 +77,9 @@ pub(super) fn check_layer(project: &Project, net: Id, layer: CopperLayer) -> Res
     };
     match &class.layers {
         Some(layers) if !layers.contains(&ClassLayer::from(layer)) => Err(Error::Invalid(format!(
-            "{}: net class {} does not allow {}",
-            project.net_name(net),
+            "Net class {} does not allow {} on {}",
             class.name,
+            project.net_name(net),
             layer.name()
         ))),
         _ => Ok(()),
@@ -96,12 +100,7 @@ pub fn check_change(project: &Project, net: Id, layer: CopperLayer, via: bool) -
     if now < max as usize {
         return Ok(());
     }
-    Err(Error::Invalid(format!(
-        "{}: net class {} allows {}",
-        project.net_name(net),
-        class.name,
-        vias(max)
-    )))
+    Err(refused(project, net, class, max))
 }
 
 pub fn findings(project: &Project) -> Vec<Finding> {

@@ -638,7 +638,7 @@ fn a_class_allows_its_nets_so_many_vias() -> Result<()> {
         let refused = apply(&mut engine, second).err().map(|e| e.to_string());
         assert_eq!(
             refused,
-            Some(format!("{name}: net class B-row allows 1 via"))
+            Some(format!("Net class B-row allows 1 via on {name}"))
         );
     }
     assert!(layout::via_class::findings(engine.project()).is_empty());
@@ -700,7 +700,7 @@ fn a_class_keeps_its_nets_on_its_layers() -> Result<()> {
     let refused = apply(&mut engine, route(CopperLayer::Bottom));
     assert_eq!(
         refused.err().map(|e| e.to_string()),
-        Some(format!("{name}: net class A-row does not allow Bottom"))
+        Some(format!("Net class A-row does not allow {name} on Bottom"))
     );
     let edited = |layers| {
         Operation::Rules(RulesCommand::EditNetClass {

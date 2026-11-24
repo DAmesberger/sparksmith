@@ -10,7 +10,7 @@
 use super::grid::BoundsGrid;
 use super::limits::{self, mm};
 use super::{CURVE_SLACK_MM, EPS};
-use crate::diagnostics::{Finding, FindingCode, ObjectRef, Requirement};
+use crate::diagnostics::{Finding, FindingCode, Measured, ObjectRef, Requirement, Unit};
 use crate::geometry::{Bounds, Shape};
 use crate::library::{PadKind, PasteRule};
 use crate::model::{Project, Via, ViaFill};
@@ -270,14 +270,23 @@ fn told(project: &Project, out: &mut Vec<Finding>) {
         if open == 0 || !filled.iter().any(|v| by_size(v.fill)) {
             continue;
         }
-        out.push(Finding::new(
-            FindingCode::BoardViaFillTold,
-            format!(
-                "Filled and open vias share {} mm; {} is told by hole size",
-                mm(first.drill),
-                fab.name
-            ),
-            objects(&filled),
-        ));
+        out.push(
+            Finding::new(
+                FindingCode::BoardViaFillTold,
+                format!(
+                    "Filled and open vias share {} mm; {} is told by hole size",
+                    mm(first.drill),
+                    fab.name
+                ),
+                objects(&filled),
+            )
+            // Accepted for as many filled vias as there are.
+            .measuring([Measured::at_most(
+                filled.len() as f64,
+                0.0,
+                Unit::Count,
+                1e-9,
+            )]),
+        );
     }
 }
