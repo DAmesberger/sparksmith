@@ -15,7 +15,7 @@ use sparksmith_core::{
     ids::{DefinitionRef, LibraryId, Revision, SourceLineageId},
     layout,
     layout::{
-        LayoutCommand,
+        self, LayoutCommand,
         fab_stackup::{self, PickOptions, StackupFilter},
     },
     library::{
