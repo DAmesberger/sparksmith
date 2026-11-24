@@ -266,8 +266,31 @@ mod tests {
             drill: 0.3,
             diameter: 0.6,
             tented,
+            capped: false,
             mask_opening: 0.7,
         }
+    }
+
+    /// Red when a capped via still shows a hole: in its finished land, as a
+    /// dark bore, or as a sag in its mask dome.
+    #[test]
+    fn a_capped_via_shows_no_hole() -> Result<()> {
+        let _context = crate::looks::test_context().map(|c| c.enter());
+        let board = board()?;
+        let capped = |tented| ViaMark {
+            capped: true,
+            ..via(tented)
+        };
+        let mut out = Vec::new();
+        via_layers(&mut out, &board, &capped(false))?;
+        assert!(out.is_empty(), "no bore");
+        let lands = capped(false).lands(&board);
+        assert_eq!(lands.len(), 2);
+        assert!(lands.iter().all(|l| l.bore.is_none()));
+        let height = |v: &ViaMark| tent_height(&board, v, Layer::Top, 0.0);
+        assert!(height(&capped(true)) > height(&via(true)));
+        assert_eq!(height(&capped(true)), board.crown(Layer::Top));
+        Ok(())
     }
 
     #[test]

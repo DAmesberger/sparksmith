@@ -90,6 +90,8 @@ pub enum PadPart {
 pub enum ViaPart {
     Barrel,
     Ring(CopperLayer),
+    /// What fills the bore of a capped via.
+    Fill,
 }
 
 /// Which slab of the laminate a body is, counted from the top.
@@ -764,7 +766,8 @@ fn tracks(project: &Project) -> Result<Vec<TrackPlan>> {
 /// Each via's plated barrel and its annular ring on every layer: outer
 /// rings cap the barrel; inner rings stand round it, in the circle the
 /// laminate's foil level leaves for them. A via without a bore (no drill)
-/// has neither barrel nor outer rings.
+/// has neither barrel nor outer rings. A capped via's bore is filled, and
+/// its outer rings are full discs over it.
 fn vias(project: &Project) -> Result<Vec<ViaPlan>> {
     let wall_mm = super::barrel_wall_mm(project)?;
     let layers = project.stackup.layers();
@@ -776,7 +779,8 @@ fn vias(project: &Project) -> Result<Vec<ViaPlan>> {
         .vias
         .iter()
         .map(|via| {
-            let name = format!("via_{}_{}", mm_slug(via.drill), mm_slug(via.diameter));
+            let name = super::via_name(via);
+            let capped = !via.fill.is_none();
             let drill = pad_outline::plated_drill_radius(via.drill, wall_mm);
             let bore = via.drill / 2.0;
             let ring = via.diameter / 2.0;
@@ -785,9 +789,13 @@ fn vias(project: &Project) -> Result<Vec<ViaPlan>> {
                 ..Frame::BOARD
             };
             let body = |name, part, layer, z, loops| {
+                let kind = match part {
+                    ViaPart::Fill => BodyKind::ViaFill,
+                    ViaPart::Barrel | ViaPart::Ring(_) => BodyKind::ViaCopper,
+                };
                 PlanBody::new(
                     name,
-                    BodyKind::ViaCopper,
+                    kind,
                     Origin::Via { via: via.id, part },
                     Some(via.net),
                     layer,
@@ -817,18 +825,32 @@ fn vias(project: &Project) -> Result<Vec<ViaPlan>> {
                     barrel,
                     vec![circle(drill), circle(bore)],
                 )?);
+                if capped {
+                    bodies.push(body(
+                        format!("{name}_fill"),
+                        ViaPart::Fill,
+                        None,
+                        barrel,
+                        vec![circle(bore)],
+                    )?);
+                }
             }
             for layer in layers.iter().filter(|l| via.on(**l, &layers)) {
                 if bore <= 0.0 && layer.side().is_some() {
                     continue;
                 }
-                let hole = if layer.side().is_some() { bore } else { drill };
+                let outer = layer.side().is_some();
+                let hole = if outer { bore } else { drill };
+                let mut loops = vec![circle(ring)];
+                if !(outer && capped) {
+                    loops.push(circle(hole));
+                }
                 bodies.push(body(
                     format!("{name}_ring_{}", super::layer_slug(*layer)),
                     ViaPart::Ring(*layer),
                     Some(*layer),
                     span(project, *layer)?,
-                    vec![circle(ring), circle(hole)],
+                    loops,
                 )?);
             }
             Ok(ViaPlan {
@@ -1025,12 +1047,13 @@ impl Compared {
 }
 
 /// The kinds of the board's flat bodies.
-const FLAT: [BodyKind; 5] = [
+const FLAT: [BodyKind; 6] = [
     BodyKind::Substrate,
     BodyKind::PadCopper,
     BodyKind::CopperTrack,
     BodyKind::ViaCopper,
     BodyKind::FillCopper,
+    BodyKind::ViaFill,
 ];
 
 /// Whether `kind` is one of the board's flat bodies, which the plan

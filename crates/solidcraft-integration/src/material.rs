@@ -97,10 +97,12 @@ pub enum BodyKind {
     /// A copper fill's computed copper on one layer (saved copper, under
     /// the mask).
     FillCopper,
+    /// The resin that fills a capped via's bore, between its end foils.
+    ViaFill,
 }
 
 impl BodyKind {
-    pub const ALL: [BodyKind; 24] = [
+    pub const ALL: [BodyKind; 25] = [
         BodyKind::Substrate,
         BodyKind::OpenLaminate,
         BodyKind::MaskTop,
@@ -125,6 +127,7 @@ impl BodyKind {
         BodyKind::ViaBore,
         BodyKind::Marking,
         BodyKind::FillCopper,
+        BodyKind::ViaFill,
     ];
 
     /// Board-level layers: the laminate and the mask over it
@@ -395,7 +398,7 @@ fn base_material(
         detail: Detail::NONE,
     };
     match kind {
-        BodyKind::Substrate | BodyKind::OpenLaminate => plain(&board.laminate),
+        BodyKind::Substrate | BodyKind::OpenLaminate | BodyKind::ViaFill => plain(&board.laminate),
         BodyKind::MaskTop | BodyKind::MaskBottom => mask(
             &mask_look.over_laminate_name,
             mask_body(

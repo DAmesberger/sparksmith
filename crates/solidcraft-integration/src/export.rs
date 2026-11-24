@@ -433,6 +433,7 @@ fn kind_name(kind: crate::material::BodyKind) -> &'static str {
         K::PadCopper => "pad copper",
         K::CopperTrack => "track copper",
         K::ViaCopper => "via copper",
+        K::ViaFill => "via fill",
         K::FillCopper => "fill copper",
         _ => "body",
     }
