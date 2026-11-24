@@ -28,14 +28,14 @@ type Key = [u8; 32];
 #[derive(Clone)]
 enum Answer {
     Description(Result<Description, Failure>),
-    Generated(Result<Generated, Failure>),
+    Generated(Box<Result<Generated, Failure>>),
 }
 
 impl Answer {
     fn refusal(&self) -> Option<&Failure> {
         match self {
             Self::Description(answer) => answer.as_ref().err(),
-            Self::Generated(answer) => answer.as_ref().err(),
+            Self::Generated(answer) => (**answer).as_ref().err(),
         }
     }
 }
@@ -212,10 +212,10 @@ impl GeneratorRuntime for Deferred {
         })?;
         let (bytes, request) = (module.to_vec(), request.clone());
         let answer = self.answer(key(b"generate", module, &wire), move |worker| {
-            Answer::Generated(worker.generate(&bytes, &request))
+            Answer::Generated(Box::new(worker.generate(&bytes, &request)))
         })?;
         match answer {
-            Answer::Generated(answer) => answer,
+            Answer::Generated(answer) => *answer,
             Answer::Description(_) => Err(mixed()),
         }
     }

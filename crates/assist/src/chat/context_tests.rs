@@ -291,13 +291,9 @@ fn a_summary_replaces_the_earlier_turns_with_the_record_and_keeps_the_latest() -
         user("Now route it."),
     ];
     let mut model = Summariser(None);
-    let done = summarise(
-        &mut history,
-        "Condense.",
-        1_000,
-        Duration::from_secs(5),
-        |request| model.send(request).ok(),
-    );
+    let done = summarise(&mut history, "Condense.", 1_000, |request| {
+        model.send(request).ok()
+    });
     let (turns, kept) = done.ok_or("no summary")?;
     assert_eq!(turns, 1);
     assert!(
@@ -313,13 +309,9 @@ fn a_summary_replaces_the_earlier_turns_with_the_record_and_keeps_the_latest() -
     // A later summary carries the earlier record's lines.
     history.push(answer("Routed."));
     history.push(user("Check it."));
-    let again = summarise(
-        &mut history,
-        "Condense.",
-        1_000,
-        Duration::from_secs(5),
-        |request| Summariser(None).send(request).ok(),
-    );
+    let again = summarise(&mut history, "Condense.", 1_000, |request| {
+        Summariser(None).send(request).ok()
+    });
     assert!(again.is_some_and(
         |(_, kept)| kept.contains("instance 12") && kept.contains("Build a 3.3 V supply.")
     ));

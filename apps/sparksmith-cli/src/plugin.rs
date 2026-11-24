@@ -6,7 +6,6 @@
 use super::Result;
 use sparksmith_core::ids::ContentHash;
 use sparksmith_core::product::SHORT_NAME as CLI;
-use sparksmith_generators::abi::GeneratorRuntime;
 use sparksmith_io::plugin_approvals::{Standing, read_approvals, write_approvals};
 use sparksmith_io::settings::UserDirs;
 use sparksmith_io::shipped::ShippedLibrary;
