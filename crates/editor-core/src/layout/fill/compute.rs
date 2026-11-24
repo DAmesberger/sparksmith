@@ -492,8 +492,13 @@ impl<'a> Ctx<'a> {
         let hole_gap = |plated: bool| self.clearance(fill, CopperObject::hole(plated), None);
         let via_hole_gap = self.clearance(fill, CopperObject::ViaHole, None);
         for cut in &board.cutouts {
+            // A plated slot is an edge and a plated hole: the larger rule.
+            let gap = match cut.kind {
+                crate::model::board::CutoutKind::Slot { plated: true } => edge.max(hole_gap(true)),
+                _ => edge,
+            };
             if let Some(ring) = geom::ccw(cut.outline.flatten(tol)) {
-                regions.extend(geom::offset(&[vec![ring]], edge + tol, tol));
+                regions.extend(geom::offset(&[vec![ring]], gap + tol, tol));
             }
         }
         for h in &board.holes {

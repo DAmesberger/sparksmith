@@ -304,7 +304,8 @@ fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) 
         .collect();
     // Material nested inside a hole, including another net, is added last.
     regions.sort_by(|a, b| b.0.total_cmp(&a.0));
-    for (_, net, region) in regions {
+    for (k, (_, net, region)) in regions.iter().enumerate() {
+        let net = *net;
         w.object(&[("N", board.net(net))]);
         w.polarity(true);
         polygon_region(&mut w, Some("Conductor"), &region.outer)?;
@@ -312,6 +313,24 @@ fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) 
             w.polarity(false);
             for hole in &region.holes {
                 polygon_region(&mut w, None, hole)?;
+            }
+            // Nets whose pours overlap (a violation the check reports, which
+            // may be waived) keep their copper in each other's holes: what
+            // the holes just cleared of a larger pour is drawn again.
+            for (_, other, under) in regions.iter().take(k).filter(|r| r.1 != net) {
+                let lost = layout::fill::copper_in_holes(under, region);
+                if lost.is_empty() {
+                    continue;
+                }
+                w.object(&[("N", board.net(*other))]);
+                w.polarity(true);
+                for piece in lost {
+                    polygon_region(
+                        &mut w,
+                        Some("Conductor"),
+                        &cut_in(piece.outer, piece.holes)?,
+                    )?;
+                }
             }
         }
     }
