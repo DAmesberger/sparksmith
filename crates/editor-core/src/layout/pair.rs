@@ -487,15 +487,31 @@ pub fn fan_width(project: &Project, positive: Id, ends: [Point; 2], width: f64) 
 
 /// The centre distance of a via pair: wide enough for both pads and the
 /// via clearance between the two halves, and for each half's coupled
-/// track to pass the other half's via at the track-to-via clearance;
-/// rounded up to the next 0.01 mm with at least 5 µm to spare, so the
-/// layout is not left exactly on a limit.
-pub fn via_pitch(project: &Project, nets: [Id; 2], diameter: f64, style: PairStyle) -> f64 {
+/// track to pass the other half's via at the track-to-via clearance, and
+/// the same three for the vias' drilled holes (hole to hole, pad to the
+/// other hole, track past the other hole), which a profile may hold
+/// farther off than copper; rounded up to the next 0.01 mm with at least
+/// 5 µm to spare, so the layout is not left exactly on a limit.
+pub fn via_pitch(
+    project: &Project,
+    nets: [Id; 2],
+    drill: f64,
+    diameter: f64,
+    style: PairStyle,
+) -> f64 {
     let limits = super::limits::BoardRules::of(project);
     let clearance = |a, b| limits.clearance(a, Some(nets[0]), b, Some(nets[1]));
-    let vias = diameter + clearance(CopperObject::Via, CopperObject::Via);
-    let passing = diameter + 2.0 * clearance(CopperObject::Track, CopperObject::Via) - style.gap;
-    let need = vias.max(passing).max(style.width + style.gap) + 0.005;
+    let (track, via, hole) = (
+        CopperObject::Track,
+        CopperObject::Via,
+        CopperObject::ViaHole,
+    );
+    let vias = diameter + clearance(via, via);
+    let passing = diameter + 2.0 * clearance(track, via) - style.gap;
+    let holes = (drill + clearance(hole, hole))
+        .max((diameter + drill) / 2.0 + clearance(via, hole))
+        .max(drill + 2.0 * clearance(track, hole) - style.gap);
+    let need = vias.max(passing).max(holes).max(style.width + style.gap) + 0.005;
     (need * 100.0).ceil() / 100.0
 }
 
@@ -590,6 +606,12 @@ pub fn route(project: &Project, request: &PairRouteRequest) -> Result<RouteEditS
     }
     let count = targets.len();
     for (index, (to_layer, to)) in targets.into_iter().enumerate() {
+        // A leg that starts where the last one ended only names the layer
+        // change: the via pair goes in with the leg's next point, which
+        // gives it the direction it lies across.
+        if index + 1 < count && distance(to, head.center) < MIN_SEGMENT_MM {
+            continue;
+        }
         let finish = if index + 1 == count {
             request.end
         } else {
@@ -602,7 +624,7 @@ pub fn route(project: &Project, request: &PairRouteRequest) -> Result<RouteEditS
                 drill,
                 diameter,
                 tented: project.rules.effective().mask.tent_vias,
-                pitch: via_pitch(project, nets, diameter, s),
+                pitch: via_pitch(project, nets, drill, diameter, s),
                 layer: to_layer,
                 style: s,
             }
