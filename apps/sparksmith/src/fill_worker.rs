@@ -22,12 +22,13 @@ type Computed = Result<Vec<(Id, FilledCopper)>, String>;
 
 enum Job {
     Stale(u64, Arc<Project>),
-    Refill(u64, Arc<Project>, RefillTarget),
+    /// Of one opening of the engine's, at a revision.
+    Refill(u64, u64, Arc<Project>, RefillTarget),
 }
 
 enum Done {
     Stale(u64, Computed),
-    Refill(u64, RefillTarget, Computed),
+    Refill(u64, u64, RefillTarget, Computed),
 }
 
 /// What one poll brought back.
@@ -47,8 +48,8 @@ pub struct FillWorker {
     sent: Option<u64>,
     /// The revision whose failure was last reported, so it is said once.
     reported: Option<u64>,
-    /// An explicit refill is running (its target).
-    refilling: Option<RefillTarget>,
+    /// The opening ([`Engine::opening`]) of the running explicit refill.
+    refilling: Option<u64>,
 }
 
 impl FillWorker {
@@ -66,15 +67,15 @@ impl FillWorker {
                     for job in std::iter::once(first).chain(inbox.try_iter()) {
                         match job {
                             Job::Stale(revision, project) => stale = Some((revision, project)),
-                            Job::Refill(revision, project, target) => {
-                                refills.push((revision, project, target));
+                            Job::Refill(opening, revision, project, target) => {
+                                refills.push((opening, revision, project, target));
                             }
                         }
                     }
                     let mut done = Vec::new();
-                    for (revision, project, target) in refills {
+                    for (opening, revision, project, target) in refills {
                         let computed = refill(&project, target).map_err(|e| e.to_string());
-                        done.push(Done::Refill(revision, target, computed));
+                        done.push(Done::Refill(opening, revision, target, computed));
                     }
                     if let Some((revision, project)) = stale {
                         let computed =
@@ -119,6 +120,7 @@ impl FillWorker {
     pub fn refill(&mut self, engine: &Engine, target: RefillTarget) -> bool {
         let sent = self.jobs.as_ref().is_some_and(|jobs| {
             jobs.send(Job::Refill(
+                engine.opening(),
                 engine.revision(),
                 engine.project_arc().clone(),
                 target,
@@ -126,7 +128,7 @@ impl FillWorker {
             .is_ok()
         });
         if sent {
-            self.refilling = Some(target);
+            self.refilling = Some(engine.opening());
         } else {
             self.jobs = None;
         }
@@ -140,6 +142,9 @@ impl FillWorker {
         let mut polled = Polled::default();
         let mut failure = None;
         let mut retry = None;
+        // A refill asked for in another project ends with it.
+        let opening = engine.opening();
+        self.refilling = self.refilling.filter(|o| *o == opening);
         if let Some(results) = &self.results {
             loop {
                 match results.try_recv() {
@@ -156,7 +161,8 @@ impl FillWorker {
                             failure = Some(format!("Fills could not be computed: {error}"));
                         }
                     }
-                    Ok(Done::Refill(revision, target, computed)) => {
+                    Ok(Done::Refill(of, ..)) if of != opening => {}
+                    Ok(Done::Refill(_, revision, target, computed)) => {
                         self.refilling = None;
                         match computed {
                             Ok(copper) if revision == engine.revision() => {
@@ -306,6 +312,23 @@ mod tests {
         }
         // The first may have started before the others came.
         assert!(answered == [4] || answered == [1, 4], "{answered:?}");
+        Ok(())
+    }
+
+    /// A refill asked for in one project never runs on the next one: it is
+    /// dropped, not computed again for the document opened meanwhile.
+    #[test]
+    fn a_refill_ends_with_the_project_it_was_asked_in() -> Result<(), Box<dyn std::error::Error>> {
+        let mut engine = Engine::showcase()?;
+        let mut worker = FillWorker::start(egui::Context::default());
+        assert!(worker.refill(&engine, RefillTarget::All));
+        engine.replace_document(Engine::showcase()?.to_file())?;
+        for _ in 0..400 {
+            let polled = worker.poll(&mut engine)?;
+            assert!(polled.refilled.is_none());
+            assert!(!worker.refilling());
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
         Ok(())
     }
 

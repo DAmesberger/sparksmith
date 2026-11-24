@@ -299,27 +299,29 @@ impl SchematicEditor {
     /// Another document replaced the last one (opened, recovered or new):
     /// start on its first page with nothing selected and the page framed.
     /// The frame waits for the next canvas frame, whenever Schematic shows.
+    /// Only what is named here is kept; everything else, a field added
+    /// later too, is the old document's and goes with it.
     pub fn document_opened(&mut self, project: &Project) {
-        self.palette.close();
-        let _ = self.palette.take_events();
-        self.tool = Tool::Select;
-        self.board_pick = None;
-        self.making = None;
-        self.template_sent = None;
-        self.template_form = None;
-        self.template_armed = None;
-        self.template_undo = None;
-        self.template_join = None;
-        self.place_values.clear();
-        self.library_update = None;
-        self.update = Default::default();
-        self.select(None, None, project);
-        self.wire = None;
-        self.draw_from = None;
-        self.frame_request = None;
-        self.sheet = project.sheets.first();
-        self.set_path(None);
-        self.fit_requested = true;
+        let mut old = std::mem::take(self);
+        old.palette.document_opened();
+        *self = Self {
+            trackpad: old.trackpad,
+            label_kind: old.label_kind,
+            wire_flipped: old.wire_flipped,
+            wire_arc: old.wire_arc,
+            wire_radius: old.wire_radius,
+            // A copy is for any project: its paste checks every library
+            // revision it names.
+            clipboard: old.clipboard,
+            view: old.view,
+            clear: old.clear,
+            palette: old.palette,
+            // The window's one report follows the open document itself.
+            reports: old.reports,
+            sheet: project.sheets.first(),
+            fit_requested: true,
+            ..Self::default()
+        };
     }
 
     /// Switch to `sheet` without fitting (a located object frames itself).

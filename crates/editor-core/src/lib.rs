@@ -820,6 +820,9 @@ pub struct Engine {
     /// or the history is cleared. An undo group joins only the step it
     /// made itself, while this has not moved ([`GroupMark`]).
     history: u64,
+    /// Which opening this is: a fresh value whenever a whole document comes
+    /// in ([`Engine::opening`]).
+    opening: u64,
     /// The undo group open now ([`Engine::begin_group`]).
     group: Option<Group>,
     /// `fabrication.waive` refuses a waiver without a reason (a host
@@ -983,6 +986,7 @@ impl Engine {
             redo: Vec::new(),
             last_step: None,
             history: next_history(),
+            opening: next_history(),
             group: None,
             waiver_reason_required: false,
             check_settings: layout::CheckSettings::default(),
@@ -1591,7 +1595,18 @@ impl Engine {
         self.redo.clear();
         self.last_step = None;
         self.history = next_history();
+        self.opening = next_history();
         Ok(())
+    }
+
+    /// Which opened document this is, unique in the process: the same
+    /// through every edit, undo and redo, another one once another document
+    /// is opened, started or recovered ([`Self::replace_document`]). What a
+    /// host keeps or computes for a document and may finish later (a draft,
+    /// a background job) holds the opening it was started for, so it never
+    /// reaches another document.
+    pub fn opening(&self) -> u64 {
+        self.opening
     }
 
     /// Apply one operation at an expected revision as one undo step. A
@@ -1751,6 +1766,7 @@ impl Engine {
             redo: self.redo.clone(),
             last_step: self.last_step,
             history: self.history,
+            opening: self.opening,
             group: None,
             waiver_reason_required: self.waiver_reason_required,
             check_settings: self.check_settings,

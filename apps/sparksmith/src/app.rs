@@ -86,7 +86,11 @@ impl SheetWork {
 }
 
 pub struct App {
+    ctx: egui::Context,
     engine: Engine,
+    /// The opening ([`Engine::opening`]) the editors' state belongs to:
+    /// nothing they hold is applied to another document (`apply`).
+    opening: u64,
     workspace: Workspace,
     part: part_editor::PartEditor,
     schematic: schematic_editor::SchematicEditor,
@@ -357,6 +361,8 @@ impl App {
         part.share_reports(reports.clone());
         part.set_shelf(&shelf);
         Self {
+            ctx: ctx.clone(),
+            opening: engine.opening(),
             scene: SceneController::new(ctx.clone(), viewport),
             fills: crate::fill_worker::FillWorker::start(ctx.clone()),
             sheet_work: None,
@@ -421,6 +427,15 @@ impl App {
         let Some(operation) = operation else {
             return;
         };
+        if self.opening != self.engine.opening() {
+            // Made for a document that is no longer the open one.
+            self.document_replaced();
+            self.say(
+                Level::Warning,
+                "Another project was opened; nothing was changed in it",
+            );
+            return;
+        }
         let origin = refusal::take_mark(ctx).unwrap_or(default);
         let action = refusal::take_action(ctx).or_else(|| refusal::titled_action(&operation));
         if self.files.busy() {
@@ -1317,22 +1332,104 @@ impl App {
     fn document_replaced(&mut self) {
         // One conversation per open project.
         self.assistant.document_opened();
+        self.assistant.session.set_online(
+            self.sources.online().map(|o| {
+                o.client() as Arc<dyn sparksmith_automation::session::online::OnlineSource>
+            }),
+        );
+        self.workflow_cards.document_opened();
+        self.workflow_pick = None;
+        self.asks.shown = None;
         self.editors_replaced();
     }
 
     /// [`Self::document_replaced`] but the conversation: the assistant
-    /// itself opened or started the project, so its turn carries on.
+    /// itself opened or started the project, so its turn carries on. Every
+    /// field is named, so a new one does not compile until it is said here
+    /// whether another document resets it.
     fn editors_replaced(&mut self) {
-        self.sources.forget_project();
-        self.part.discard_generator_requests();
-        self.pending_import = None;
+        let Self {
+            // The old document's: reset.
+            engine,
+            opening,
+            part,
+            schematic,
+            pcb,
+            scene,
+            sheet_work,
+            sources,
+            import_report,
+            live,
+            issues,
+            browser_component,
+            browser_menu,
+            pending_import,
+            after_commit,
+            updating,
+            launch_profile,
+            #[cfg(target_os = "macos")]
+            menu_runs,
+            ctx,
+            // Tied to the opening, epoch or revision themselves.
+            fills: _,
+            files: _,
+            help: _,
+            undo_revision: _,
+            history_toast: _,
+            // The conversation: `document_replaced`.
+            assistant: _,
+            workflow_cards: _,
+            workflow_pick: _,
+            asks: _,
+            // The window's and the person's.
+            workspace: _,
+            toasts: _,
+            messages: _,
+            messages_open: _,
+            system_windows: _,
+            system_fonts: _,
+            browser: _,
+            browser_visible: _,
+            browser_width: _,
+            parts_band: _,
+            parts_height: _,
+            closing: _,
+            now: _,
+            open_timing: _,
+            window_seen: _,
+            registry: _,
+            keymap_problems: _,
+            palette: _,
+            settings_window: _,
+            reveal: _,
+            #[cfg(target_os = "macos")]
+                native_menu: _,
+            #[cfg(target_os = "macos")]
+                menu_recent: _,
+            recent: _,
+            recent_seen: _,
+        } = self;
+        *opening = engine.opening();
+        sources.forget_project();
+        part.document_opened();
+        pcb.document_opened();
+        scene.document_opened();
+        schematic.document_opened(engine.project());
+        issues.document_opened();
+        live.document_opened();
+        // A sheet being expanded for the old document is cancelled.
+        *sheet_work = None;
+        *pending_import = None;
+        *browser_component = None;
+        *browser_menu = Default::default();
+        *after_commit = Default::default();
+        *updating = None;
+        #[cfg(target_os = "macos")]
+        menu_runs.clear();
         // Opened, recovered, new or imported: the launch's project is gone.
-        self.launch_profile = false;
-        self.import_report.clear();
-        self.pcb.set_selection(None, None, None);
-        self.pcb.document_opened();
-        self.scene.document_opened();
-        self.schematic.document_opened(self.engine.project());
+        *launch_profile = false;
+        import_report.clear();
+        forget_in_memory(ctx);
     }
 
     /// A KiCad project imported from `source` (File › Import KiCad
@@ -1884,6 +1981,35 @@ impl App {
     }
 }
 
+/// What the widgets keep in egui's memory for the document that was open:
+/// text being typed, selected rows and a command chosen this frame. The
+/// chat's composer belongs to the person and keeps its text and focus.
+fn forget_in_memory(ctx: &egui::Context) {
+    let composer = crate::assistant::Assistant::composer_id();
+    if let Some(id) = ctx.memory(|m| m.focused())
+        && id != composer
+    {
+        ctx.memory_mut(|m| m.surrender_focus(id));
+    }
+    // Typed text and its undo, so none commits to or returns in a field of
+    // the same id.
+    let typing = egui::text_edit::TextEditState::load(ctx, composer);
+    ctx.data_mut(|d| {
+        d.remove_by_type::<String>();
+        d.remove_by_type::<egui::text_edit::TextEditState>();
+    });
+    if let Some(typing) = typing {
+        typing.store(ctx, composer);
+    }
+    crate::kit::list::ListState::forget_rows(ctx);
+    crate::pin_mux::forget(ctx);
+    schematic_editor::forget_marking_text(ctx);
+    refusal::forget(ctx);
+    crate::context_menu::close_all(ctx);
+    let _ = library_sources::take_component_action(ctx);
+    let _ = browser_catalog::take_action(ctx);
+}
+
 /// ⌘Q (Ctrl+Q) is the registry's `app.quit`, rebindable and asking about
 /// unsaved work like every other quit; egui's own quit key, which closes
 /// the window directly, is turned off.
@@ -2096,6 +2222,9 @@ mod dimension_list_tests;
 #[cfg(test)]
 #[path = "app/flow_tests.rs"]
 mod flow_tests;
+#[cfg(test)]
+#[path = "app/open_project_tests.rs"]
+mod open_project_tests;
 #[cfg(test)]
 #[path = "app/parts_band_tests.rs"]
 mod parts_band_tests;

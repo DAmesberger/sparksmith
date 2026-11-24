@@ -213,6 +213,11 @@ struct Buffers {
     refused: Option<(egui::Id, String)>,
 }
 
+/// Another document was opened: text typed for the old one's parts goes.
+pub(crate) fn forget(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove_by_type::<Buffers>());
+}
+
 /// One text row of the section: Enter or focus loss commits a valid
 /// change, Esc reverts. Returns the text to commit.
 fn text_row(

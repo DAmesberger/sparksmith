@@ -840,6 +840,82 @@ fn an_edited_profile_is_checked_again() -> TestResult {
     Ok(())
 }
 
+/// A picked profile whose file is gone, renamed, damaged or in a folder
+/// that no longer reads blocks the check and the export and is named,
+/// however often Export is pressed: never the board's own rules instead.
+#[test]
+fn a_missing_profile_is_named_and_never_replaced_by_the_board_rules() -> TestResult {
+    type Break = fn(&std::path::Path) -> std::io::Result<()>;
+    let cases: [(&str, Break); 4] = [
+        ("deleted", |dir| std::fs::remove_file(dir.join("mine.json"))),
+        ("renamed", |dir| {
+            std::fs::rename(dir.join("mine.json"), dir.join("other.json"))
+        }),
+        ("damaged", |dir| std::fs::write(dir.join("mine.json"), b"{")),
+        ("unreadable folder", |dir| {
+            std::fs::remove_dir_all(dir)?;
+            std::fs::write(dir, b"not a folder")
+        }),
+    ];
+    for (case, broken) in cases {
+        let engine = Engine::showcase()?;
+        let tmp = tempfile::tempdir()?;
+        let dir = tmp.path().join("fab-profiles");
+        let library = ProfileLibrary::new(
+            dir.clone(),
+            sparksmith_io::shipped::ShippedLibrary::locate()?,
+        );
+        let mut profile = sparksmith_core::rules::fixtures::prototype()?;
+        profile.id = "mine".into();
+        profile.name = "My fab".into();
+        library.create(&profile)?;
+        let mut editor = PcbEditor::default();
+        editor.open_production_in(Some(library));
+        let ctx = context();
+        let out = tmp.path().join("out");
+        let d = dialog(&mut editor)?;
+        d.pick = Pick::User("mine".into());
+        d.picked_name = Some("My fab".into());
+        d.wait_check(&ctx, &engine);
+        broken(&dir)?;
+        for press in 0..3 {
+            let d = dialog(&mut editor)?;
+            d.start_export(
+                &ctx,
+                engine.document().clone(),
+                *engine.check_settings(),
+                out.clone(),
+                "board".into(),
+            );
+            assert!(!d.busy(), "{case}: export {press} started");
+            d.wait_check(&ctx, &engine);
+            let checked = d.current(&engine).cloned();
+            let Some(Err(why)) = checked else {
+                return Err(format!("{case}: checked under {checked:?}").into());
+            };
+            assert!(why.contains("‘My fab’"), "{case}: {why}");
+            let blocked = export_blocked(d, Some(&Err(why.clone())), true, Some(&out));
+            assert_eq!(blocked, Some(why), "{case}");
+            assert!(!out.exists(), "{case}: files were written");
+        }
+        // The dialog says it, and shows what is picked.
+        let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+        let shown = texts(&output);
+        for said in [
+            "‘My fab’ is no longer among your fab profiles. Pick another profile",
+            "My fab · missing",
+        ] {
+            assert!(shown.iter().any(|t| t == said), "{case}: {shown:?}");
+        }
+        // Another pick is checked again.
+        let d = dialog(&mut editor)?;
+        d.pick = Pick::Board;
+        d.wait_check(&ctx, &engine);
+        assert!(matches!(d.current(&engine), Some(Ok(_))), "{case}");
+    }
+    Ok(())
+}
+
 /// The test prototype as `id` of `fabricator`, its via annular ring
 /// minimum `ring` (its default via keeping it).
 fn ring_profile(

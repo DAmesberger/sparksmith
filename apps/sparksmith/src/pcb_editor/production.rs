@@ -112,6 +112,8 @@ pub(super) struct ProductionDialog {
     /// The user's fab profiles as last read.
     pub(super) user_profiles: Vec<RuleProfile>,
     pub(super) pick: Pick,
+    /// The picked profile's name, to name it once it is gone.
+    picked_name: Option<String>,
     pub(super) format: Format,
     /// The folder chosen to hold the output folder, or the ZIP file.
     pub(super) location: Option<PathBuf>,
@@ -146,6 +148,7 @@ impl ProductionDialog {
             library,
             user_profiles,
             pick: Pick::Board,
+            picked_name: None,
             format: Format::Folder,
             location: folder.filter(|f| f.is_dir()),
             options: FabricationOptions::default(),
@@ -163,11 +166,25 @@ impl ProductionDialog {
         }
     }
 
-    /// The profile `pick` names; `None` checks the board's own rules.
-    fn profile(&self) -> Option<RuleProfile> {
+    /// The profile `pick` names; `Ok(None)` checks the board's own rules.
+    /// A picked profile that is gone (its file deleted, renamed or no
+    /// longer readable) is an error that names it, never the board's own
+    /// rules: it blocks the check and the export until another is picked.
+    fn profile(&self) -> Result<Option<RuleProfile>, String> {
         match &self.pick {
-            Pick::Board => None,
-            Pick::User(id) => self.user_profiles.iter().find(|p| p.id == *id).cloned(),
+            Pick::Board => Ok(None),
+            Pick::User(id) => self
+                .user_profiles
+                .iter()
+                .find(|p| p.id == *id)
+                .cloned()
+                .map(Some)
+                .ok_or_else(|| {
+                    format!(
+                        "‘{}’ is no longer among your fab profiles. Pick another profile",
+                        self.picked_name.as_ref().unwrap_or(id)
+                    )
+                }),
         }
     }
 
@@ -181,20 +198,29 @@ impl ProductionDialog {
                 .iter()
                 .map(|p| (Pick::User(p.id.clone()), p.name.clone())),
         );
+        if let (Pick::User(id), Err(_)) = (&self.pick, self.profile()) {
+            let name = self.picked_name.as_ref().unwrap_or(id);
+            out.push((self.pick.clone(), format!("{name} · missing")));
+        }
         out
     }
 
-    /// What the current report must have been computed for.
+    /// What the current report must have been computed for. A missing
+    /// profile is a user pick without content, which no other state is.
     fn wanted(&self, engine: &Engine) -> Wanted {
-        (engine.report_key(), self.pick.clone(), self.profile())
+        (
+            engine.report_key(),
+            self.pick.clone(),
+            self.profile().ok().flatten(),
+        )
     }
 
     /// Read the user's profiles again, so a file edited while the dialog
     /// is open is what the next check and export use. A library that no
-    /// longer reads keeps the profiles last read.
+    /// longer reads has none: what was read before is not what is there.
     fn reload_profiles(&mut self) {
-        if let Some(listing) = self.library.as_ref().and_then(|l| l.list().ok()) {
-            self.user_profiles = listing.profiles;
+        if let Some(library) = &self.library {
+            self.user_profiles = library.list().map(|l| l.profiles).unwrap_or_default();
         }
     }
 
@@ -225,6 +251,13 @@ impl ProductionDialog {
         if current || self.checking.is_some() {
             return;
         }
+        let profile = match self.profile() {
+            Ok(profile) => profile,
+            Err(missing) => {
+                self.report = Some((wanted, Err(missing)));
+                return;
+            }
+        };
         let document = engine.document().clone();
         let checks = *engine.check_settings();
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -233,7 +266,7 @@ impl ProductionDialog {
         let spawned = std::thread::Builder::new()
             .name("sparksmith-preflight".into())
             .spawn(sparksmith_core::library::standards::carried(move || {
-                let report = preflight(&document, computed.2.as_ref(), &checks);
+                let report = preflight(&document, profile.as_ref(), &checks);
                 let _ = sender.send((computed, report));
                 repaint.request_repaint();
             }));
@@ -276,6 +309,9 @@ impl ProductionDialog {
         if !needs || current || self.suggesting.is_some() {
             return;
         }
+        let Ok(profile) = self.profile() else {
+            return;
+        };
         let document = engine.document().clone();
         let checks = *engine.check_settings();
         let library = self.library.clone();
@@ -287,7 +323,7 @@ impl ProductionDialog {
             .spawn(sparksmith_core::library::standards::carried(move || {
                 let suggested = crate::fab_suggestions::compute(
                     &document,
-                    computed.2.as_ref(),
+                    profile.as_ref(),
                     &checks,
                     library.as_ref(),
                 );
@@ -453,7 +489,12 @@ impl ProductionDialog {
         // only what the shown check passed.
         let checked = self.profile();
         self.reload_profiles();
-        if self.profile() != checked {
+        let Ok(profile) = self.profile() else {
+            // The dialog names the missing profile while it is picked.
+            self.refusal = None;
+            return;
+        };
+        if checked.as_ref() != Ok(&profile) {
             self.refusal = Some(
                 "The fab profile's file changed since the check; check the new rules, then export"
                     .into(),
@@ -463,7 +504,7 @@ impl ProductionDialog {
         let request = ExportRequest {
             output,
             zip: self.format == Format::Zip,
-            profile: self.profile(),
+            profile,
             options: FabricationOptions {
                 base_name: Some(stem),
                 ..self.options.clone()
@@ -661,14 +702,6 @@ impl PcbEditor {
         }
     }
 
-    /// Another project was opened: the Production dialog's check, folder
-    /// and written files were the previous project's, so it closes.
-    pub fn document_opened(&mut self) {
-        self.ask_profile = false;
-        self.production = None;
-        self.chosen_production_folder = None;
-    }
-
     /// Whether the Production dialog is open.
     #[cfg(test)]
     pub(crate) fn production_open(&self) -> bool {
@@ -717,7 +750,8 @@ impl PcbEditor {
             .progress
             .as_ref()
             .map(|p| format!("Step {} of {} · {}", p.step, p.total, p.label));
-        let refusal_text = dialog.refusal.clone();
+        // A missing profile is named for as long as it is picked.
+        let refusal_text = dialog.profile().err().or_else(|| dialog.refusal.clone());
         let panel = DialogPanel {
             kind: "Output",
             body_rows: 24.0,
@@ -785,6 +819,10 @@ fn body(
             let options = dialog.options_list(engine);
             let mut pick = dialog.pick.clone();
             if kit::choice_row(ui, "Fab profile", &mut pick, &options) && pick != dialog.pick {
+                dialog.picked_name = options
+                    .iter()
+                    .find(|(p, _)| *p == pick)
+                    .map(|(_, name)| name.clone());
                 dialog.pick = pick;
                 dialog.waiving = Waiving::default();
             }

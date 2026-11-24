@@ -1172,9 +1172,12 @@ impl LibrarySources {
         }
     }
 
-    /// Another document was opened: forget the project-only marks, whose
-    /// lineage ids meant something in the old project only.
+    /// Another document was opened: forget the project-only marks and an
+    /// open Promote card, whose lineage ids meant something in the old
+    /// project only.
     pub fn forget_project(&mut self) {
+        self.promote = None;
+        self.finished = None;
         if !self.session_favourites.is_empty() || !self.session_recent.is_empty() {
             self.session_favourites.clear();
             self.session_recent.clear();

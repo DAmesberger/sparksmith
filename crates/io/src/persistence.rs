@@ -425,6 +425,77 @@ impl StagedNew {
     }
 }
 
+/// New files that are published as one set, under names no other writer
+/// holds. Each is staged under its own file name in a folder beside its
+/// target (a project takes its identity from its file's name) and
+/// [`Self::publish`] puts them in place in the order they were staged.
+/// Dropping the set removes whatever was not published.
+pub struct NewSet {
+    folder: tempfile::TempDir,
+    /// Each staged file and where it goes.
+    files: Vec<(PathBuf, PathBuf)>,
+}
+
+impl NewSet {
+    /// A set whose files go beside `target`.
+    pub fn beside(target: &Path) -> Result<Self> {
+        let folder = tempfile::Builder::new()
+            .prefix(".sparksmith-set-")
+            .tempdir_in(parent_of(target))?;
+        Ok(Self {
+            folder,
+            files: Vec::new(),
+        })
+    }
+
+    /// The path to write `target`'s content to.
+    pub fn stage(&mut self, target: &Path) -> Result<PathBuf> {
+        let name = target
+            .file_name()
+            .ok_or_else(|| Error::Invalid("the output path has no file name".into()))?;
+        let staged = self.folder.path().join(name);
+        self.files.push((staged.clone(), target.to_path_buf()));
+        Ok(staged)
+    }
+
+    /// Put every staged file in place, refusing an existing one. The first
+    /// file claims the set's name: of two sets with the same files, one
+    /// gets past it. When a later file cannot be placed, the ones this set
+    /// placed are removed again, so nothing of it stays. Stopped half way
+    /// (a crash), the files placed so far stay and keep the name taken, so
+    /// another set never mixes with them; staged last, the file that
+    /// matters most is there only when the others are.
+    pub fn publish(self) -> Result<()> {
+        let mut placed: Vec<&Path> = Vec::new();
+        for (staged, target) in &self.files {
+            let placing = tempfile::TempPath::try_from_path(staged)
+                .map_err(Error::Io)
+                .and_then(|staged| persist(staged, target, false));
+            let error = match placing {
+                Ok(()) => {
+                    placed.push(target);
+                    continue;
+                }
+                Err(error) => error,
+            };
+            // Written, but its folder was not synchronized: it is in place.
+            if matches!(error, Error::Unsynced(_)) {
+                placed.push(target);
+            }
+            for path in placed {
+                let _ = std::fs::remove_file(path);
+            }
+            return Err(match error {
+                Error::Io(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Error::Invalid(
+                    format!("{} exists; choose a new output name", target.display()),
+                ),
+                other => other,
+            });
+        }
+        Ok(())
+    }
+}
+
 fn parent_of(path: &Path) -> &Path {
     path.parent()
         .filter(|p| !p.as_os_str().is_empty())

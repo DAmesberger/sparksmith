@@ -241,10 +241,14 @@ pub fn review_paths(out: &std::path::Path) -> [PathBuf; 2] {
     ]
 }
 
-/// Save the run's drafts as a new project at `out` (`project.save`) and
-/// write the review beside it as JSON and Markdown, refusing to replace
-/// any existing file. File effects, not document changes. Returns the
-/// review paths.
+/// Save the run's drafts as a new project at `out` (`project.save`) with
+/// the review beside it as JSON and Markdown, refusing to replace any
+/// existing file. The three are staged and then published as one set
+/// ([`sparksmith_io::persistence::NewSet`]), the project last: a run never
+/// replaces or joins another run's files, and one that loses the name to
+/// another leaves nothing. File effects, not document changes. The session's own
+/// file is then the staged one, which is gone: a later save names a path.
+/// Returns the review paths.
 pub fn write_outputs(
     session: &mut Session,
     out: &std::path::Path,
@@ -259,25 +263,35 @@ pub fn write_outputs(
             )));
         }
     }
-    let saved = session.dispatch(json!({"command": "project.save",
-        "params": {"path": out.to_string_lossy()}}));
+    let failed = |error: sparksmith_io::Error| match error {
+        sparksmith_io::Error::Io(error) => Error::Io(error),
+        other => Error::Config(other.to_string()),
+    };
+    let [json_path, md_path] = &reviews;
+    let mut set = sparksmith_io::persistence::NewSet::beside(out).map_err(failed)?;
+    let staged_json = set.stage(json_path).map_err(failed)?;
+    let staged_md = set.stage(md_path).map_err(failed)?;
+    let staged_out = set.stage(out).map_err(failed)?;
+    let mut saved = session.dispatch(json!({"command": "project.save",
+        "params": {"path": staged_out.to_string_lossy()}}));
     if saved["ok"] != true {
         return Err(Error::Config(format!("saving failed: {}", saved["error"])));
     }
+    saved["result"]["saved_path"] = json!(out.display().to_string());
     let json_report = json!({
         "report": outcome.report,
         "run": outcome.facts,
         "project": saved["result"],
     });
-    let [json_path, md_path] = &reviews;
     write_new(
-        json_path,
+        &staged_json,
         serde_json::to_string_pretty(&json_report)?.as_bytes(),
     )?;
     write_new(
-        md_path,
+        &staged_md,
         report::markdown(outcome.report.as_ref(), &outcome.facts).as_bytes(),
     )?;
+    set.publish().map_err(failed)?;
     Ok(reviews)
 }
 
