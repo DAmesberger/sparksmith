@@ -2192,7 +2192,7 @@
         "description": "The linked design file's hash now: `assembly.update` takes it as\n`expect_hash`, and is refused when the file changed since."
       },
       "findings": {
-        "description": "The two-way check after the update (slice B5): the linked design holds\nan older board, features on unexported faces, loops; and, when both\nchanged, that.",
+        "description": "The two-way check after the update (slice B5): the linked design holds\nan older board, features on unexported faces, loops; and, when both\nchanged, that. Also an outline the update leaves invalid: the board\nthen keeps its last valid shape, which `objects` compares.",
         "items": {
           "$ref": "#/$defs/Finding"
         },
@@ -4398,6 +4398,13 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "description": "`interface.list`: the board's interface as it stands.",
     "properties": {
+      "blocked": {
+        "description": "Why publishing would be refused, as [`PublishPreview::blocked`]. With\nan invalid outline the datums are of the board's last valid solve.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
       "changed": {
         "description": "Datums added, changed or retired since then (\"3 datums changed\nsince revision 14\").",
         "format": "uint",
@@ -4753,7 +4760,7 @@
     "description": "`interface.publish_preview`: what publishing would change.",
     "properties": {
       "blocked": {
-        "description": "Why the publish would be refused: each broken reference between the\nboard and the linked design, in the user's words. Publishing waits\nuntil they are resolved; nothing else does.",
+        "description": "Why the publish would be refused: an invalid board outline, and each\nbroken reference between the board and the linked design, in the\nuser's words. Publishing waits until they are resolved.",
         "items": {
           "type": "string"
         },
