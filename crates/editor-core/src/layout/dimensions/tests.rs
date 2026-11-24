@@ -390,3 +390,62 @@ fn model_references_read_as_sides_of_the_part() -> Fallible<()> {
     assert_eq!(words, format!("{designator} · front-left edge"));
     Ok(())
 }
+
+/// A part's plane via, carried and shoved clear, is still a stub in the
+/// graph without pours, with an elbow more: no connection is lost. A via
+/// that is gone, or no longer joined to its pads, is a lost one.
+#[test]
+fn a_board_edit_may_lay_a_plane_vias_stub_anew_but_not_lose_the_via() -> Fallible<()> {
+    use crate::layout::router::reroute::Rerouted;
+    use crate::layout::tests::SHARED;
+    use crate::layout::{LayoutCommand, RouteRequest, ViaRequest, apply};
+    use crate::model::CopperLayer::Top;
+    let mut before = crate::layout::tests::fixture()?;
+    let route = |p: &mut Project, start, end| {
+        apply(
+            p,
+            LayoutCommand::Route {
+                request: RouteRequest {
+                    net: SHARED,
+                    start,
+                    end,
+                    width: 0.3,
+                    layer: Top,
+                },
+            },
+        )
+    };
+    let pad = [11.2, 10.0];
+    route(&mut before, pad, [11.2, 14.0])?;
+    apply(
+        &mut before,
+        LayoutCommand::AddVia {
+            via: ViaRequest::fixture(SHARED, [11.2, 14.0]),
+        },
+    )?;
+    let check = |p: &Project| protect_connections(&before, p, &Rerouted::default());
+    check(&before)?;
+
+    let mut shoved = before.clone();
+    for t in shoved.tracks.iter_mut() {
+        t.end = [11.2, 13.0];
+    }
+    for v in shoved.vias.iter_mut() {
+        v.position = [11.7, 13.5];
+    }
+    route(&mut shoved, [11.2, 13.0], [11.7, 13.5])?;
+    check(&shoved)?;
+
+    let mut without = before.clone();
+    without.vias.clear();
+    without.tracks.clear();
+    let mut apart = before.clone();
+    for v in apart.vias.iter_mut() {
+        v.position = [11.2, 18.0];
+    }
+    for lost in [without, apart] {
+        let error = check(&lost).err().ok_or("accepted")?.to_string();
+        assert!(error.contains(lost.net_name(SHARED)), "{error}");
+    }
+    Ok(())
+}

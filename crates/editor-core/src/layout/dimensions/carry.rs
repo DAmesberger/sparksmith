@@ -840,15 +840,51 @@ pub(crate) fn protect_connections(
             lost.insert(pad.net);
         }
     }
-    let dangling = |code: &str| matches!(code, "board.track_dangling" | "board.via_dangling");
-    let prior: std::collections::HashSet<_> = a
-        .findings(&old)
+    // A via on those pads must be there still, and in their island: it may
+    // be all that joins them to a pour, which the bare graphs leave out.
+    let now_vias: BTreeMap<Id, usize> = b
+        .islands()
         .into_iter()
+        .enumerate()
+        .flat_map(|(i, island)| island.vias.into_iter().map(move |v| (v, i)))
+        .collect();
+    for (i, island) in a.islands().into_iter().enumerate() {
+        if let Some(pads) = islands.get(&i)
+            && island
+                .vias
+                .iter()
+                .any(|v| now_vias.get(v).copied() != *pads)
+        {
+            lost.extend(island.net);
+        }
+    }
+    let dangling = |code: &str| matches!(code, "board.track_dangling" | "board.via_dangling");
+    let copper = |o: &ObjectRef| match o {
+        ObjectRef::Track { id } | ObjectRef::Via { id } => Some(*id),
+        _ => None,
+    };
+    // A stub that dangled before may be laid anew: of the copper that was
+    // there before, all dangled, and some is still in it.
+    let had: BTreeSet<Id> = old
+        .tracks
+        .iter()
+        .map(|t| t.id)
+        .chain(old.vias.iter().map(|v| v.id))
+        .collect();
+    let prior: BTreeSet<Id> = a
+        .findings(&old)
+        .iter()
         .filter(|f| dangling(&f.code))
-        .map(|f| (f.code, f.objects))
+        .flat_map(|f| f.objects.iter().filter_map(copper))
         .collect();
     for finding in b.findings(&new).into_iter().filter(|f| dangling(&f.code)) {
-        let existed = prior.contains(&(finding.code, finding.objects.clone()));
+        let mut kept = finding
+            .objects
+            .iter()
+            .filter_map(copper)
+            .filter(|id| had.contains(id))
+            .peekable();
+        let existed = kept.peek().is_some() && kept.all(|id| prior.contains(&id));
         if !existed {
             lost.extend(finding.objects.iter().filter_map(|object| match object {
                 ObjectRef::Net { id } => Some(*id),
