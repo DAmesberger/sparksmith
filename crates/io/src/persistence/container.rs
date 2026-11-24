@@ -52,12 +52,16 @@ pub(crate) fn save_container(
     file: &EditorFile,
     expected: Option<super::DiskIdentity>,
 ) -> Result<super::DiskIdentity> {
+    super::replace_checked(stage(path, file)?, path, expected)
+}
+
+/// Encode `file` in a temporary file beside `path`.
+pub(crate) fn stage(path: &Path, file: &EditorFile) -> Result<tempfile::NamedTempFile> {
     let document = format::encode_container_document(file)?;
     check_total(&document, None, file)?;
-    let temporary = super::staged_with(path, super::Access::Shared, |target| {
+    super::staged_with(path, super::Access::Shared, |target| {
         fill(target, &document, None, file, Method::Deflated)
-    })?;
-    super::replace_checked(temporary, path, expected)
+    })
 }
 
 /// Encode `file` and create a container without replacing an existing file.

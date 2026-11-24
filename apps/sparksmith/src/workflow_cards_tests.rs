@@ -1001,7 +1001,8 @@ fn a_datasheet_picker_loads_the_current_project_folder_and_selects_its_file() ->
             json!([chat
                 .dir
                 .path()
-                .join("conversation/beta.pdf")
+                .join("conversation")
+                .join("beta.pdf")
                 .display()
                 .to_string()])
         );

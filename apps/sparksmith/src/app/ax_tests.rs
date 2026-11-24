@@ -848,6 +848,10 @@ fn issues_rows_show_in_the_pcb_workspace_at_a_small_window() -> Fallible {
     let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
     ax.window = SMALL;
     ax.app.issues.open();
+    // The report is made off the UI thread, at the machine's pace.
+    ax.until("the issues report", |ax| {
+        ax.seen.iter().any(|(text, _)| text == "Copy report")
+    })?;
     ax.settle();
     let scope = sparksmith_core::issues::IssueScope::Area {
         area: crate::issues::area(Workspace::Pcb),
