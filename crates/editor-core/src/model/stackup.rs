@@ -527,6 +527,14 @@ impl Stackup {
         d.dk.or_else(|| self.dk_estimates.0.get(d.glass))
     }
 
+    /// This stackup with solder mask `over_copper_um` over copper and
+    /// `over_laminate_um` over bare laminate.
+    pub fn with_mask(mut self, over_copper_um: f64, over_laminate_um: f64) -> Result<Self> {
+        self.mask_um = over_copper_um;
+        self.mask_laminate_nm = Nm::from_mm_f64_rounded(over_laminate_um / 1000.0)?;
+        Ok(self)
+    }
+
     /// This stackup with what a request left out (mask thicknesses of 0,
     /// no Dk estimates) taken from `current`, the board's stackup.
     pub fn keeping_unstated(mut self, current: &Stackup) -> Self {

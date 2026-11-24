@@ -8,7 +8,7 @@ use crate::layout::{limits::mm, profile_fit, via_class};
 use crate::model::{CopperLayer, Dielectric, DielectricKind, Project, Stackup};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// How a stackup is taken.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -237,7 +237,7 @@ pub fn pick(project: &Project, stackup: &FabStackup, options: &PickOptions) -> R
     let mut conflicts = made_for(project, stackup);
     conflicts.extend(said(&then).into_iter().filter(|m| !now.contains(m)));
     Ok(StackupPick {
-        changes: changes(project, &then, &draft, &edit),
+        changes: changes(project, &draft, &edit),
         refused,
         conflicts,
         open: open(stackup, options.average_dk, &edit.stackup),
@@ -300,12 +300,7 @@ fn dielectric(d: &Dielectric) -> String {
 }
 
 /// Every change of `edit`, in words.
-fn changes(
-    project: &Project,
-    then: &Project,
-    draft: &StackupDraft,
-    edit: &StackupEdit,
-) -> Vec<String> {
+fn changes(project: &Project, draft: &StackupDraft, edit: &StackupEdit) -> Vec<String> {
     let (old, new) = (&project.stackup, &edit.stackup);
     let mut out = Vec::new();
     if old.copper.len() != new.copper.len() {
@@ -372,28 +367,6 @@ fn changes(
             mm(old.mask_laminate_nm.to_mm_f64() * 1000.0),
             mm(new.mask_um),
             mm(new.mask_laminate_nm.to_mm_f64() * 1000.0)
-        ));
-    }
-    let moved = |p: &Project| -> BTreeSet<(String, String)> {
-        p.rules
-            .net_classes
-            .iter()
-            .flat_map(|c| {
-                c.moved_layers
-                    .iter()
-                    .map(|l| (c.name.clone(), format!("{l:?}")))
-            })
-            .collect()
-    };
-    let before = moved(project);
-    let classes: BTreeSet<String> = moved(then)
-        .into_iter()
-        .filter(|m| !before.contains(m))
-        .map(|(class, _)| class)
-        .collect();
-    for class in classes {
-        out.push(format!(
-            "Net class {class} names a layer that moves or goes; its list stays as it is"
         ));
     }
     out

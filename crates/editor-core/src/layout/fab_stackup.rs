@@ -11,7 +11,6 @@ use crate::model::{
     GlassStyle, MASK_UM_RANGE, MAX_COPPER_LAYERS, MIN_COPPER_LAYERS, OUNCE_UM, Stackup,
 };
 use crate::rules::ProfileSource;
-use crate::units::Nm;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -588,8 +587,8 @@ impl FabStackup {
             ..board.clone()
         };
         if let Some(mask) = &self.mask {
-            stackup.mask_um = round(mask.above_trace_mil * MIL_MM * 1000.0);
-            stackup.mask_laminate_nm = Nm::from_mm_f64_rounded(mask.above_substrate_mil * MIL_MM)?;
+            let um = |mil: f64| round(mil * MIL_MM * 1000.0);
+            stackup = stackup.with_mask(um(mask.above_trace_mil), um(mask.above_substrate_mil))?;
         }
         stackup.check()?;
         Ok(stackup)
