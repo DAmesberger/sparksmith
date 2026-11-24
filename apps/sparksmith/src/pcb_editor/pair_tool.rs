@@ -17,6 +17,7 @@ use super::route_tool::{Commit, Planned};
 use super::{PcbEditor, PlacedPad};
 use sparksmith_core::layout::pair::{self, PairHead, PairStepRequest, PairVias};
 use sparksmith_core::layout::{LayoutCommand, impedance};
+use sparksmith_core::model::CopperLayer;
 use sparksmith_core::rules::signal::DiffPairId;
 use sparksmith_core::{Id, Operation, Point, Project, Track, geometry};
 
@@ -42,12 +43,18 @@ pub(super) struct PairUndo {
 }
 
 impl PcbEditor {
-    /// The pad of `net` nearest `near`, preferring pads of `instance`.
-    fn partner_pad(&self, net: Id, near: Point, instance: Id) -> Option<&PlacedPad> {
+    /// The pad of `net` on `layer` nearest `near`, preferring pads of `instance`.
+    fn partner_pad(
+        &self,
+        net: Id,
+        near: Point,
+        instance: Id,
+        layer: CopperLayer,
+    ) -> Option<&PlacedPad> {
         self.board_pads
             .iter()
             .map(|b| &b.placed)
-            .filter(|p| p.net == Some(net) && p.on_copper(self.layer))
+            .filter(|p| p.net == Some(net) && p.on_copper(layer))
             .min_by(|a, b| {
                 let key =
                     |p: &PlacedPad| (p.instance != instance, geometry::distance(p.center(), near));
@@ -58,10 +65,10 @@ impl PcbEditor {
 
     /// The `[positive, negative]` pad centres for a click on a pad of the
     /// pair `nets` at `pad`.
-    fn pair_pads(&self, nets: [Id; 2], pad: &PlacedPad) -> Option<[Point; 2]> {
+    fn pair_pads(&self, nets: [Id; 2], pad: &PlacedPad, layer: CopperLayer) -> Option<[Point; 2]> {
         let net = pad.net?;
         let partner = if net == nets[0] { nets[1] } else { nets[0] };
-        let other = self.partner_pad(partner, pad.center(), pad.instance)?;
+        let other = self.partner_pad(partner, pad.center(), pad.instance, layer)?;
         Some(if net == nets[0] {
             [pad.center(), other.center()]
         } else {
@@ -70,21 +77,40 @@ impl PcbEditor {
     }
 
     /// Start a pair route when `at` is on a pad of a pair (and pair
-    /// routing is on). Returns whether it started.
+    /// routing is on), on the layer a single route from there would start
+    /// on. Returns whether the click is dealt with: the pair started, or
+    /// the card says why it cannot.
     pub(super) fn pair_start(&mut self, project: &Project, at: Point, scale: f32) -> bool {
         if self.route.single {
             return false;
         }
-        let Some(pad) = self.route_snap(at, scale).cloned() else {
+        let Some((net, _, layer)) = self.route_start_on(project, at, scale) else {
             return false;
         };
-        let Some(pair) = pad.net.and_then(|n| project.rules.pair_of(n)).cloned() else {
+        let seen = self.seen();
+        let Some(pad) = self
+            .route_snap(at, scale)
+            .or_else(|| self.pick_pad(at, |p| seen.pad(p)))
+            .filter(|p| p.net == Some(net) && p.on_copper(layer))
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(pair) = project.rules.pair_of(net).cloned() else {
             return false;
         };
         let nets = [pair.positive, pair.negative];
-        let Some([p, n]) = self.pair_pads(nets, &pad) else {
-            return false;
+        let Some([p, n]) = self.pair_pads(nets, &pad, layer) else {
+            let partner = if net == nets[0] { nets[1] } else { nets[0] };
+            self.route.refused = Some(format!(
+                "Can't start the pair here: {} has no pad on {}. Turn pair routing off (P) to route {} alone",
+                project.net_name(partner),
+                layer.name(),
+                project.net_name(net),
+            ));
+            return true;
         };
+        self.layer = layer;
         let head = PairHead::at(p, n);
         self.net = Some(pair.positive);
         self.route_highlight(self.net);
@@ -161,7 +187,7 @@ impl PcbEditor {
             p.net.is_some_and(|n| route.nets.contains(&n))
                 && geometry::distance(p.center(), end) < 1e-9
         });
-        match pad.and_then(|p| self.pair_pads(route.nets, p)) {
+        match pad.and_then(|p| self.pair_pads(route.nets, p, self.layer)) {
             Some(pads) if pads != route.head.ends => {
                 let mid = [
                     0.5 * (pads[0][0] + pads[1][0]),
