@@ -516,9 +516,13 @@ impl App {
         // One entry per workflow, from its data (assistant §3.2).
         let workflows = self.workflow_cards.listed().to_vec();
         let event = palette.show(ctx, |query| {
-            let mut rows: Vec<PaletteRow> = self
-                .registry
-                .search(query, &recent, &active)
+            let found = self.help.commands(&self.engine, query);
+            let commands = match found {
+                // The search is being made, or its library is missing.
+                None => self.registry.search(query, &recent, &active),
+                Some(found) => self.registry.ranked(query, found, &recent, &active),
+            };
+            let mut rows: Vec<PaletteRow> = commands
                 .into_iter()
                 .filter(|command| command.stackup_layer().is_none_or(|l| l.on(&stack)))
                 .map(|command| {

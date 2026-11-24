@@ -90,7 +90,7 @@ pub fn run(args: &[String]) -> Result<()> {
         }
         let name = folder.file_name();
         let name = name.to_str().ok_or("non-UTF-8 help folder")?;
-        if matches!(name, "generated" | "topics" | "media" | "en") {
+        if matches!(name, "generated" | "topics" | "media" | "en" | help::MODEL) {
             continue;
         }
         let localized = help::locale::load(&library, name)?;

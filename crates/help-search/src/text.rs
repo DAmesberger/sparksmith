@@ -99,12 +99,7 @@ impl Text {
     }
 
     /// The topics of `wanted` that match a word of `question`, best first.
-    pub(crate) fn ranked(
-        &self,
-        question: &str,
-        limit: usize,
-        wanted: &dyn Fn(usize) -> bool,
-    ) -> Vec<usize> {
+    pub(crate) fn ranked(&self, question: &str, wanted: &dyn Fn(usize) -> bool) -> Vec<usize> {
         let searcher = self.reader.searcher();
         let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
         let mut add = |query: Box<dyn Query>, boost: f32| {
@@ -162,7 +157,6 @@ impl Text {
                 usize::try_from(document.get_first(self.number)?.as_u64()?).ok()
             })
             .filter(|i| wanted(*i))
-            .take(limit)
             .collect()
     }
 }

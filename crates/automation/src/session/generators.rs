@@ -217,6 +217,7 @@ impl Session {
     /// elsewhere).
     pub fn set_shipped(&mut self, library: ShippedLibrary) {
         self.help_index.take();
+        self.help_search.take();
         self.shipped = Some(library);
         self.descriptions = std::sync::OnceLock::new();
     }

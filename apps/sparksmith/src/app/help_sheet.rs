@@ -12,38 +12,65 @@ use sparksmith_core::{
     help::{self, Block, Facts, HelpEntry, HelpId, HelpKind, Index, Inline},
     units::LengthUnit,
 };
+use sparksmith_help_search::{Audience, Found};
 use sparksmith_ui::ui_kit;
 
 pub(super) const PALETTE_PREFIX: &str = "help:";
 const PAGE_SIZE: usize = 12;
 
-/// The input changes much less often than egui repaints. Keep the ids
-/// for precisely this library context and search text across repaints.
+/// The most topics one question lists.
+const MAX_HITS: usize = 200;
+
+/// The input changes much less often than egui repaints. Keep what was
+/// found for precisely this library context and search text across repaints.
 #[derive(Default)]
 struct Matches {
+    searcher: search::Searcher,
     library: std::sync::Weak<sparksmith_core::library::standards::Context>,
     query: String,
-    ids: Vec<HelpId>,
+    found: Found,
+    /// The ids of the commands found, best first.
+    commands: Vec<String>,
 }
 
 impl Matches {
-    fn ids(
+    /// What `query` finds, or `None` while the search is being made.
+    fn find(
         &mut self,
         context: &std::sync::Arc<sparksmith_core::library::standards::Context>,
         index: &Index,
         query: &str,
-    ) -> &[HelpId] {
+    ) -> Option<Result<&Self, String>> {
+        let search = match self.searcher.search(context)? {
+            Ok(search) => search,
+            Err(why) => return Some(Err(why.clone())),
+        };
         let library = std::sync::Arc::downgrade(context);
         if !self.library.ptr_eq(&library) || self.query != query {
             self.library = library;
             query.clone_into(&mut self.query);
-            self.ids = help::search(index, query, &[], usize::MAX)
-                .into_iter()
-                .filter(visible)
-                .map(|e| e.id.clone())
+            let shown = |ids: Vec<HelpId>| {
+                let seen = |id: &HelpId| index.get(id).as_ref().is_some_and(visible);
+                ids.into_iter().filter(seen).collect::<Vec<_>>()
+            };
+            let limit = if query.trim().is_empty() {
+                usize::MAX
+            } else {
+                MAX_HITS
+            };
+            let found = search.search(query, Audience::People, &[], limit);
+            self.found = Found {
+                hits: shown(found.hits),
+                nearest: shown(found.nearest),
+            };
+            self.commands = search
+                .search(query, Audience::People, &[HelpKind::Command], MAX_HITS)
+                .hits
+                .iter()
+                .map(|id| id.name().to_owned())
                 .collect();
         }
-        &self.ids
+        Some(Ok(self))
     }
 }
 
@@ -95,9 +122,15 @@ impl HelpSheet {
             .strip_prefix(PALETTE_PREFIX)
             .unwrap_or(text)
             .trim();
-        self.matches
-            .ids(context, index, q)
+        let Some(Ok(matches)) = self.matches.find(context, index, q) else {
+            return vec![];
+        };
+        // The commands list themselves in the palette.
+        matches
+            .found
+            .hits
             .iter()
+            .filter(|id| id.kind() != HelpKind::Command)
             .take(PAGE_SIZE)
             .filter_map(|id| index.get(id))
             .map(|e| PaletteRow {
@@ -110,6 +143,24 @@ impl HelpSheet {
                 recent: false,
             })
             .collect()
+    }
+
+    /// Make the search ready, off the window's thread.
+    pub(super) fn poll(&mut self, engine: &Engine, ctx: &egui::Context) {
+        if let Some(context) = engine.context() {
+            self.matches.searcher.poll(context, ctx);
+        }
+    }
+
+    /// The commands `text` finds, best first, as the search ranks them;
+    /// `None` while it is being made, or without the shipped help.
+    pub(super) fn commands(&mut self, engine: &Engine, text: &str) -> Option<&[String]> {
+        let context = engine.context()?;
+        let index = context.help().ok()?;
+        match self.matches.find(context, index, text.trim())? {
+            Ok(matches) => Some(&matches.commands),
+            Err(_) => None,
+        }
     }
 
     pub(super) fn close(&mut self) {
@@ -334,19 +385,37 @@ impl HelpSheet {
         index: &Index,
         typing: bool,
     ) {
-        let hits = self.matches.ids(context, index, &self.page.query);
-        if hits.is_empty() {
-            kit::note(ui, "No help topics match.");
-            return;
+        let found = match self.matches.find(context, index, &self.page.query) {
+            None => {
+                kit::note(ui, "Preparing the search…");
+                return;
+            }
+            Some(Err(why)) => {
+                kit::refusal_wrapped(ui, &why);
+                return;
+            }
+            Some(Ok(matches)) => &matches.found,
+        };
+        let missing = found.hits.is_empty();
+        let hits = if missing { &found.nearest } else { &found.hits };
+        if missing {
+            kit::note(ui, "No topic answers this.");
+            let question = missing_topic(&self.page.query);
+            if kit::action_row(ui, "Copy the question", ASK) {
+                ui.ctx().copy_text(question);
+            }
+            if hits.is_empty() {
+                return;
+            }
+            heading(ui, "Nearest topics");
         }
-        // Keep the search rank inside each kind. The keyboard follows the
-        // same grouped order as the visible links.
+        // In the search's order, each with its kind.
         let limit = self.shown.max(PAGE_SIZE).min(hits.len());
-        let mut rows: Vec<_> = hits[..limit]
+        let rows: Vec<_> = hits[..limit]
             .iter()
             .filter_map(|id| index.get(id))
             .collect();
-        rows.sort_by_key(|e| e.id.kind());
+        let hits = hits.len();
         let keys = typing.then(|| std::mem::take(&mut self.navigation));
         if let Some(keys) = &keys {
             if keys.down {
@@ -356,16 +425,21 @@ impl HelpSheet {
                 self.selected = self.selected.saturating_sub(1);
             }
         }
-        let mut kind = None;
         let mut picked = None;
         for (i, entry) in rows.iter().enumerate() {
-            if kind != Some(entry.id.kind()) {
-                heading(ui, kind_label(entry.id.kind()));
-                kind = Some(entry.id.kind());
-            }
+            let t = sparksmith_ui::theme::Tokens::get();
             let response = ui
-                .selectable_label(typing && self.selected == i, &entry.title)
-                .on_hover_text(&entry.summary);
+                .horizontal(|ui| {
+                    let row = ui
+                        .selectable_label(typing && self.selected == i, &entry.title)
+                        .on_hover_text(&entry.summary);
+                    let kind = egui::RichText::new(kind_label(entry.id.kind()))
+                        .size(t.font_small)
+                        .color(t.text_dim);
+                    ui.add(egui::Label::new(kind).truncate());
+                    row
+                })
+                .inner;
             ui.ctx().accesskit_node_builder(response.id, |node| {
                 node.set_role(egui::accesskit::Role::Link);
                 node.set_label(entry.title.as_str());
@@ -378,10 +452,10 @@ impl HelpSheet {
                 response.scroll_to_me(None);
             }
         }
-        if limit < hits.len()
+        if limit < hits
             && kit::action_row(
                 ui,
-                &format!("Show more ({} remaining)", hits.len() - limit),
+                &format!("Show more ({} remaining)", hits - limit),
                 "Show the next group of matches",
             )
         {
@@ -393,18 +467,31 @@ impl HelpSheet {
     }
 }
 
+/// What to do with a question no topic answers.
+const ASK: &str = "Paste it into a bug report: it names the topic that is missing";
+
+/// The text that asks for the topic `question` did not find.
+fn missing_topic(question: &str) -> String {
+    format!(
+        "Help topic missing: “{}” ({} {})",
+        question.trim(),
+        sparksmith_core::product::NAME,
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
 fn kind_label(kind: HelpKind) -> &'static str {
     match kind {
-        HelpKind::Entry => "Surface entries",
-        HelpKind::Command => "Commands",
-        HelpKind::Finding => "Findings",
-        HelpKind::Generator => "Generators",
-        HelpKind::Guide => "Guides",
-        HelpKind::Panel => "Panels",
-        HelpKind::Rule => "Profile rules",
-        HelpKind::Setting => "Settings",
+        HelpKind::Entry => "For assistants",
+        HelpKind::Command => "Command",
+        HelpKind::Finding => "Finding",
+        HelpKind::Generator => "Generator",
+        HelpKind::Guide => "Guide",
+        HelpKind::Panel => "Panel",
+        HelpKind::Rule => "Profile rule",
+        HelpKind::Setting => "Setting",
         HelpKind::Term => "Glossary",
-        HelpKind::Workflow => "Workflows",
+        HelpKind::Workflow => "Workflow",
     }
 }
 
@@ -476,6 +563,7 @@ fn shortcuts(ui: &mut Ui, index: &Index, registry: &Registry, active: &[Context]
     }
 }
 mod media;
+mod search;
 
 fn display(value: &serde_json::Value) -> String {
     match value {

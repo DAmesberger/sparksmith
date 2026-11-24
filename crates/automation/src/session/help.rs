@@ -4,16 +4,19 @@ use crate::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sparksmith_core::help::{Block, Facts, HelpEntry, HelpId, HelpKind, Index, Inline, search};
+use sparksmith_core::help::{Block, Facts, HelpEntry, HelpId, HelpKind, Index, Inline};
 use sparksmith_core::{
     Error,
     rules::{RuleKey, RuleProfile, RuleValue, profile::ProfileSource},
 };
+use sparksmith_help_search::{Audience, Model, Search};
+use sparksmith_io::shipped::ShippedLibrary;
+use std::sync::OnceLock;
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SearchParams {
-    /// Words in the title, description, id or keywords. Empty lists the index.
+    /// A question or words. Empty lists the index.
     pub text: String,
     #[serde(default)]
     pub kinds: Vec<HelpKind>,
@@ -53,6 +56,10 @@ pub struct Hit {
 pub struct SearchReply {
     pub hits: Vec<Hit>,
     pub total: usize,
+    /// With no hits: the topics closest to the question, which may not
+    /// answer it.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub nearest: Vec<Hit>,
 }
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct ActiveRule {
@@ -80,6 +87,55 @@ pub struct TopicReply {
     pub uri: String,
 }
 
+/// The embedding model of `shipped`, or `None` without one the search can
+/// read: words alone then rank.
+fn model(shipped: Option<ShippedLibrary>) -> Option<Model> {
+    let files = sparksmith_io::help::model(&shipped?).ok()??;
+    Model::read(&files.tokenizer, &files.weights, &files.config).ok()
+}
+
+/// The search `find` reads: the shipped help, or the catalog alone where no
+/// library is installed. It belongs to no session.
+pub(crate) fn catalog_search() -> std::result::Result<&'static Search, String> {
+    static SEARCH: OnceLock<std::result::Result<Search, String>> = OnceLock::new();
+    let made = SEARCH.get_or_init(|| {
+        let shipped = ShippedLibrary::locate().ok();
+        let index = shipped
+            .as_ref()
+            .and_then(|s| sparksmith_io::help::load(s).ok())
+            .unwrap_or_default();
+        // An entry the installed help does not know is found all the same.
+        let index: Index = entries().chain(index).collect();
+        Search::new(&index, model(shipped).as_ref())
+    });
+    made.as_ref().map_err(Clone::clone)
+}
+
+/// The catalog's entries as topics.
+fn entries() -> impl Iterator<Item = (HelpId, HelpEntry)> {
+    super::metadata::entries().iter().filter_map(|e| {
+        let id: HelpId = format!("entry/{}", e.name).parse().ok()?;
+        let facts = Facts::Entry {
+            module: String::new(),
+            class: e.class,
+            entry_kind: None,
+            schema_digest: String::new(),
+            examples: Vec::new(),
+        };
+        let entry = HelpEntry {
+            id: id.clone(),
+            title: e.title.into(),
+            summary: e.summary.clone(),
+            since: String::new(),
+            facts,
+            body: Vec::new(),
+            related: Vec::new(),
+            keywords: Vec::new(),
+        };
+        Some((id, entry))
+    })
+}
+
 impl Session {
     fn help_index(&self) -> Result<&Index> {
         if self.shipped.is_none()
@@ -98,19 +154,35 @@ impl Session {
         if params.text.len() > 4096 {
             return Err(Error::Invalid("Help search text exceeds 4096 bytes".into()).into());
         }
-        let hits = search(self.help_index()?, &params.text, &params.kinds, usize::MAX);
-        let total = hits.len();
-        let hits = hits
-            .into_iter()
-            .take(params.limit.unwrap_or(total))
-            .map(|e| Hit {
-                id: e.id.clone(),
-                kind: e.id.kind(),
+        let index = self.help_index()?;
+        let found =
+            self.help_search()?
+                .search(&params.text, Audience::Agents, &params.kinds, usize::MAX);
+        let total = found.hits.len();
+        let hit = |id: HelpId| {
+            let e = index.get(&id)?;
+            Some(Hit {
+                kind: id.kind(),
+                id,
                 title: e.title.clone(),
                 summary: e.summary.clone(),
             })
-            .collect();
-        Ok(serde_json::to_value(SearchReply { hits, total })?)
+        };
+        let limit = params.limit.unwrap_or(total);
+        Ok(serde_json::to_value(SearchReply {
+            hits: found.hits.into_iter().take(limit).filter_map(hit).collect(),
+            total,
+            nearest: found.nearest.into_iter().filter_map(hit).collect(),
+        })?)
+    }
+
+    /// The search over this session's help index, made on first use.
+    fn help_search(&self) -> Result<&Search> {
+        let index = self.help_index()?;
+        let made = self
+            .help_search
+            .get_or_init(|| Search::new(index, model(self.shipped().ok()).as_ref()));
+        Ok(made.as_ref().map_err(|why| Error::Invalid(why.clone()))?)
     }
     pub(super) fn read_help(&self, params: TopicParams) -> Result<Value> {
         let index = self.help_index()?;

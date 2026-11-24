@@ -11,6 +11,7 @@ workspace = true
 [dependencies]
 sparksmith-core.workspace = true
 sparksmith-io.workspace = true
+sparksmith-help-search.workspace = true
 sparksmith-generators.workspace = true
 # The surface descriptors, `surface.lock` and the hash it records.
 sparksmith-generator-abi = { workspace = true, features = ["host-schema"] }

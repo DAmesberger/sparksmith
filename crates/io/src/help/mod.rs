@@ -226,6 +226,43 @@ pub fn source(path: &Path) -> Result<String> {
     String::from_utf8(bytes).map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))
 }
 
+/// The folder of the help search's embedding model.
+pub const MODEL: &str = "model";
+/// The largest model file read.
+const MAX_MODEL_BYTES: u64 = 64 * 1024 * 1024;
+
+/// The files of the help search's embedding model.
+pub struct ModelFiles {
+    pub tokenizer: Vec<u8>,
+    pub weights: Vec<u8>,
+    pub config: Vec<u8>,
+}
+
+/// The shipped embedding model of the help search, or `None` in a library
+/// without one: the search then ranks by words alone.
+pub fn model(shipped: &ShippedLibrary) -> Result<Option<ModelFiles>> {
+    let folder = shipped.shelf(Shelf::Help).join(MODEL);
+    if !folder.is_dir() {
+        return Ok(None);
+    }
+    let read = |name: &str| -> Result<Vec<u8>> {
+        let path = folder.join(name);
+        let size = fs::metadata(&path)?.len();
+        if size > MAX_MODEL_BYTES {
+            return Err(Error::Invalid(format!(
+                "{} has {size} bytes; at most {MAX_MODEL_BYTES}",
+                path.display()
+            )));
+        }
+        Ok(fs::read(&path)?)
+    };
+    Ok(Some(ModelFiles {
+        tokenizer: read("tokenizer.json")?,
+        weights: read("model.safetensors")?,
+        config: read("config.json")?,
+    }))
+}
+
 pub fn load(shipped: &ShippedLibrary) -> Result<Index> {
     let root = shipped.shelf(Shelf::Help);
     let manifest_path = root.join("manifest.json");

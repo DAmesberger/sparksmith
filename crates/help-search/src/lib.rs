@@ -17,7 +17,9 @@ use sparksmith_core::help::{Block, Facts, HelpEntry, HelpId, HelpKind, Index, In
 use std::collections::HashMap;
 pub use vectors::Model;
 
-/// Topics each ranking contributes to the joined one.
+/// Topics the ranking by meaning contributes: every topic has some
+/// similarity, so the far ones are left out. The full text ranks only what
+/// matches, all of it.
 const DEPTH: usize = 50;
 /// The rank constant of reciprocal rank fusion, as published (Cormack et
 /// al., 2009) and commonly used.
@@ -118,7 +120,7 @@ impl Search {
         }
         // Both rankings are of the wanted kinds only, so a filter leaves
         // the ranks of what it keeps as they were.
-        let text = self.text.ranked(question, DEPTH, &wanted);
+        let text = self.text.ranked(question, &wanted);
         let meaning = self
             .vectors
             .as_ref()
