@@ -44,10 +44,10 @@ use crate::diagnostics::Result;
 use crate::geometry::{Point, distance};
 use crate::ids::Id;
 use crate::layout::arrange::CopperMove;
-use crate::layout::connectivity::{CopperGraph, Meets, TrackEnd, keeps_joint, leaves_pour};
+use crate::layout::connectivity::{CopperGraph, Island, Meets, TrackEnd, keeps_joint, pours_met};
 use crate::layout::posture::MIN_SEGMENT_MM;
 use crate::layout::router::reroute::{self, Rerouted};
-use crate::model::{Placement, Project, Track};
+use crate::model::{CopperLayer, Placement, Project, Track};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// A rigid motion of the plane: turn by `turn_deg` about `from`, then put
@@ -233,12 +233,11 @@ pub fn carry(
         }
     }
     let mut dragged_vias = move_vias(before, project, &vias, &free_via);
-    let left = left_pours(before, project, &dragged_vias);
     dragged_vias.retain(|id| !loose_vias.contains(id));
     let dragged = move_tracks(before, project, &tracks, &edits, &free_track)?;
     let moved = motions.keys().copied().collect();
     let mut report = reroute::dragged(before, graph, project, &moved, &dragged, &dragged_vias)?;
-    for name in left {
+    for name in left_pours(before, project) {
         if !report.unrouted.contains(&name) {
             report.unrouted.push(name);
         }
@@ -246,15 +245,89 @@ pub fn carry(
     Ok(report)
 }
 
-/// The nets of the `moved` vias that stood in a drawn pour of their net and
-/// now stand outside it, where no refill can join them to it.
-fn left_pours(before: &Project, project: &Project, moved: &BTreeSet<Id>) -> BTreeSet<String> {
-    moved
+/// The nets of connections whose tracks and vias ran in a drawn pour of
+/// their net and now run outside it, where no refill joins them to it.
+fn left_pours(before: &Project, project: &Project) -> BTreeSet<String> {
+    let mut left = BTreeSet::new();
+    let poured: BTreeSet<Id> = before
+        .fills
         .iter()
-        .filter_map(|id| Some((before.via(*id)?, project.via(*id)?)))
-        .filter(|(old, new)| leaves_pour(before, old, new.position))
-        .map(|(old, _)| before.net_name(old.net).to_owned())
-        .collect()
+        .filter(|f| f.region.is_drawn())
+        .filter_map(|f| f.net)
+        .collect();
+    if poured.is_empty() {
+        return left;
+    }
+    let layers = before.stackup.layers();
+    let bare = |p: &Project| {
+        let mut p = p.clone();
+        p.fills.clear();
+        CopperGraph::of(&p)
+    };
+    // Its tracks and vias.
+    let copper = |island: &Island| -> BTreeSet<Id> {
+        island.tracks.iter().chain(&island.vias).copied().collect()
+    };
+    // The fills of `before` that `island`'s copper, as `p` has it, runs in.
+    let met = |p: &Project, island: &Island| -> BTreeSet<Id> {
+        let Some(net) = island.net else {
+            return BTreeSet::new();
+        };
+        let ids = copper(island);
+        let mut lines: BTreeMap<CopperLayer, Vec<(Point, Point)>> = BTreeMap::new();
+        for t in p.tracks.iter().filter(|t| ids.contains(&t.id)) {
+            lines.entry(t.layer).or_default().push((t.start, t.end));
+        }
+        for v in p.vias.iter().filter(|v| ids.contains(&v.id)) {
+            for l in layers.iter().filter(|l| v.on(**l, &layers)) {
+                lines.entry(*l).or_default().push((v.position, v.position));
+            }
+        }
+        lines
+            .iter()
+            .flat_map(|(layer, lines)| pours_met(before, net, *layer, lines))
+            .collect()
+    };
+    let (a, b) = (bare(before), bare(project));
+    let named = |g: &CopperGraph, island: &Island| -> BTreeSet<(Id, crate::ids::PadId)> {
+        island
+            .pads
+            .iter()
+            .filter_map(|p| g.pads().get(*p))
+            .map(|p| (p.instance, p.pad))
+            .collect()
+    };
+    let now: Vec<(Island, BTreeSet<(Id, crate::ids::PadId)>)> = b
+        .islands()
+        .into_iter()
+        .filter(|i| i.net.is_some_and(|n| poured.contains(&n)))
+        .map(|i| {
+            let pads = named(&b, &i);
+            (i, pads)
+        })
+        .collect();
+    for island in a.islands() {
+        let Some(net) = island.net.filter(|n| poured.contains(n)) else {
+            continue;
+        };
+        let was = met(before, &island);
+        if was.is_empty() {
+            continue;
+        }
+        // The same connection now: what shares a track, via or pad.
+        let (pads, ids) = (named(&a, &island), copper(&island));
+        let is: BTreeSet<Id> = now
+            .iter()
+            .filter(|(i, p)| {
+                i.tracks.iter().chain(&i.vias).any(|id| ids.contains(id)) || !p.is_disjoint(&pads)
+            })
+            .flat_map(|(i, _)| met(project, i))
+            .collect();
+        if !was.is_subset(&is) {
+            left.insert(before.net_name(net).to_owned());
+        }
+    }
+    left
 }
 
 /// One island's copper by index into the board's tracks and vias, and
