@@ -614,7 +614,7 @@ impl PartEditor {
             Err(_) => (None, Vec::new()),
         };
         if let Some(sent) = flow.sent
-            && engine.revision() != sent
+            && !engine.still_at(sent)
         {
             let rows = flow.plan.as_ref().map_or(0, |(d, _)| {
                 d.pins

@@ -165,7 +165,7 @@ impl FillWorker {
                     Ok(Done::Refill(_, revision, target, computed)) => {
                         self.refilling = None;
                         match computed {
-                            Ok(copper) if revision == engine.revision() => {
+                            Ok(copper) if engine.still_at(revision) => {
                                 polled.refilled = Some(copper);
                             }
                             // The board moved on while it ran: again.
@@ -202,6 +202,42 @@ impl FillWorker {
             Some(text) => Err(text),
             None => Ok(polled),
         }
+    }
+}
+
+/// A worker that computes nothing by itself, and the results a test hands it:
+/// copper is stored exactly when the test says.
+#[cfg(test)]
+pub struct Held(Sender<Done>);
+
+#[cfg(test)]
+impl Held {
+    /// The stale fills' copper of `engine`'s revision is ready: the next
+    /// [`FillWorker::poll`] stores it. Returns how many fills it has.
+    pub fn release(&self, engine: &Engine) -> Result<usize, String> {
+        let copper = compute_stale(engine.project(), &mut FillCache::default())
+            .map_err(|e| e.to_string())?;
+        let count = copper.len();
+        self.0
+            .send(Done::Stale(engine.revision(), Ok(copper)))
+            .map_err(|e| e.to_string())?;
+        Ok(count)
+    }
+}
+
+#[cfg(test)]
+impl FillWorker {
+    /// A worker whose results [`Held`] hands over.
+    pub fn held() -> (Self, Held) {
+        let (outbox, results) = mpsc::channel();
+        let worker = Self {
+            jobs: None,
+            results: Some(results),
+            sent: None,
+            reported: None,
+            refilling: None,
+        };
+        (worker, Held(outbox))
     }
 }
 

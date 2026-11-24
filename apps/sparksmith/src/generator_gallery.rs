@@ -484,7 +484,7 @@ impl GeneratorGallery {
             open.refusal = Some(why);
             return None;
         }
-        if engine.revision() != sent.revision {
+        if !engine.still_at(sent.revision) {
             let sent = sent.clone();
             let made = generators::made_component(engine, &self.shelf, &sent.request);
             let name = made

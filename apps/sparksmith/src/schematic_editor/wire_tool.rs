@@ -347,7 +347,7 @@ impl SchematicEditor {
             return;
         }
         if let Some((draft, revision)) = self.wire_review.take()
-            && revision == engine.revision()
+            && engine.still_at(revision)
         {
             self.tool = Tool::Wire;
             self.wire = Some(draft);

@@ -164,6 +164,32 @@ pub(crate) fn key_reaches(project: &Project) -> Vec<KeyReach> {
         .collect()
 }
 
+/// What of the solved board a fill's copper depends on, as [`Ctx::compute`]
+/// reads it: the outline, what each cutout cuts, and the mounting holes. Not
+/// the sketch behind them, nor its parameters, names and ids: an edit that
+/// moves none of these leaves the copper, and so the key.
+#[derive(Serialize)]
+struct Board<'b> {
+    outer: &'b crate::library::Outline,
+    cutouts: Vec<(&'b crate::library::Outline, crate::model::board::CutoutKind)>,
+    /// Where, drill, plated, pad diameter.
+    holes: Vec<(Point, f64, bool, Option<f64>)>,
+}
+
+impl<'b> Board<'b> {
+    fn of(board: &'b crate::model::board::SolvedBoard) -> Self {
+        Self {
+            outer: &board.outer,
+            cutouts: board.cutouts.iter().map(|c| (&c.outline, c.kind)).collect(),
+            holes: board
+                .holes
+                .iter()
+                .map(|h| (h.at, h.drill, h.plated, h.pad_diameter))
+                .collect(),
+        }
+    }
+}
+
 impl<'a> Ctx<'a> {
     pub(crate) fn new(project: &'a Project) -> Self {
         let pads = placed_pads(project);
@@ -378,7 +404,7 @@ impl<'a> Ctx<'a> {
                 &'b crate::model::fill::FillSettings,
             ),
             rules: &'b crate::rules::ProjectRules,
-            board: (&'b Point, &'b crate::model::BoardShape),
+            board: Board<'b>,
             layers: &'b [CopperLayer],
             pads: Vec<(&'b PlacedPad, Option<&'b str>)>,
             vias: Vec<&'b crate::model::Via>,
@@ -388,6 +414,7 @@ impl<'a> Ctx<'a> {
             bridges: Vec<(&'b crate::layout::PlacedBridge, Vec<Option<NetClassId>>)>,
             higher: Vec<(Id, String)>,
         }
+        let board = p.board();
         let inputs = Inputs {
             bridges: rel
                 .bridges
@@ -404,7 +431,7 @@ impl<'a> Ctx<'a> {
                 &fill.settings,
             ),
             rules: &rules,
-            board: (&p.board_size, &p.board_shape),
+            board: Board::of(&board),
             layers: &self.layers,
             pads: rel
                 .pads

@@ -178,7 +178,7 @@ impl PcbEditor {
         let assembly = project
             .instance(placement.instance)
             .and_then(|i| crate::variants::assembly_section(ui, project, i));
-        let edge = self.edge_section(ui, self.cached_revision.unwrap_or(0), project, placement);
+        let edge = self.edge_section(ui, project, placement);
         self.connections_section(ui, project, placement.instance);
         let fills = self.pad_fill_section(ui, project, placement);
         if action.is_none() {

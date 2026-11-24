@@ -302,7 +302,7 @@ impl App {
     fn undo_run(&mut self, run: &str) {
         let undoable = self.assistant.runs.iter().any(|done| {
             done.run == run
-                && done.after == self.engine.revision()
+                && self.engine.still_at(done.after)
                 && self.engine.undo_step().map(|s| s.line()).as_deref() == Some(done.label.as_str())
         });
         if undoable {

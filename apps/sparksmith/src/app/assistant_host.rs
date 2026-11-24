@@ -299,6 +299,7 @@ impl App {
             let (window, engine) = self.window_and_engine();
             let context = serde_json::to_value(window.context(engine)).unwrap_or_default();
             let now = Now {
+                content_revision: self.engine.content_revision(),
                 revision: self.engine.revision(),
                 undo_label: self.engine.undo_step().map(|step| step.line()),
                 context: assistant::context_line(&context),
@@ -395,7 +396,7 @@ impl App {
                 let undoable = self.assistant.conversation.summary(id).is_some_and(|card| {
                     card.after != card.before
                         && card.steps <= 1
-                        && card.after == self.engine.revision()
+                        && self.engine.still_at(card.after)
                         && self.engine.undo_step().map(|s| s.line()).as_deref()
                             == Some(card.label.as_str())
                 });

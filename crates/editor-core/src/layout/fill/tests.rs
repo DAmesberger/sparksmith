@@ -2102,3 +2102,40 @@ fn without_a_fab_profile_a_fill_is_refused_and_none_is_poured() -> Fallible<()> 
     assert_eq!(engine.to_file(), before);
     Ok(())
 }
+
+/// Copper computed and stored in the background is no one's change: an edit,
+/// undo, redo or join prepared before it still runs, with its one undo step;
+/// after a real change the old revision is stale as ever.
+#[test]
+fn a_background_store_makes_no_caller_stale() -> Fallible<()> {
+    let mut engine = showcase()?;
+    let gnd = net(&engine, "GND")?;
+    let drawn = |y: f64| spec(Some(gnd), CopperLayer::Bottom, rect(2.0, y, 20.0, y + 8.0));
+    let before_any = engine.revision();
+    add(&mut engine, drawn(2.0))?;
+    let seen = engine.revision();
+    assert_eq!(engine.refill_stale()?, 1);
+    assert_eq!(engine.revision(), seen + 1, "stored as its own revision");
+    assert_eq!(engine.content_revision(), seen);
+    assert!(engine.still_at(seen) && engine.still_at(seen + 1));
+    assert!(!engine.still_at(before_any) && !engine.still_at(seen + 2));
+
+    // An edit prepared before the store, and the join with the step before.
+    let second = Operation::Fill(FillCommand::Add {
+        fill: Box::new(drawn(12.0)),
+    });
+    engine.apply(seen, second.clone())?;
+    assert!(engine.apply(seen, second).is_err(), "a real change since");
+    engine.join_last_step(seen)?;
+    let joined = engine.revision();
+    assert_eq!(engine.refill_stale()?, 1);
+
+    // Undo and redo at the revision from before the store.
+    engine.undo_at(joined)?;
+    assert!(engine.project().fills.is_empty(), "the joined step, whole");
+    let undone = engine.revision();
+    engine.redo_at(undone)?;
+    assert_eq!(engine.project().fills.len(), 2);
+    assert!(engine.undo_at(joined).is_err(), "undone and redone since");
+    Ok(())
+}

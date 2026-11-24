@@ -1,26 +1,24 @@
 //! The document a deferred editor action was requested against.
-use sparksmith_core::{Engine, model::Project};
-use std::sync::{Arc, Weak};
+use sparksmith_core::Engine;
 
 #[derive(Debug)]
 pub struct DocumentVersion {
-    project: Weak<Project>,
+    opening: u64,
     revision: u64,
 }
 
 impl DocumentVersion {
     pub fn of(engine: &Engine) -> Self {
         Self {
-            project: Arc::downgrade(engine.project_arc()),
+            opening: engine.opening(),
             revision: engine.revision(),
         }
     }
 
-    /// An edit, undo or reopen invalidates the request. Holding the weak
-    /// reference keeps the allocation identity distinct even if the user
-    /// closes the project and another engine has the same revision.
+    /// An edit, undo or reopen invalidates the request; fill copper stored
+    /// meanwhile does not. The opening tells another project at the same
+    /// revision apart.
     pub fn is_current(&self, engine: &Engine) -> bool {
-        self.revision == engine.revision()
-            && self.project.as_ptr() == Arc::as_ptr(engine.project_arc())
+        self.opening == engine.opening() && engine.still_at(self.revision)
     }
 }

@@ -47,7 +47,8 @@ use sparksmith_solidcraft::footprint::view as sketch_view;
 /// leave free, for one document revision.
 #[derive(Clone, Debug, Default)]
 pub(super) struct EdgeEdit {
-    key: Option<(u64, Id)>,
+    /// The part and its dimensions as the rows show them.
+    key: Option<(Id, Vec<PartDimension>)>,
     /// The dimension whose value is being edited in its row, the text, and
     /// whether the field takes the keyboard this frame.
     editing: Option<(Id, String, bool)>,
@@ -440,7 +441,6 @@ impl PcbEditor {
     pub(super) fn edge_section(
         &mut self,
         ui: &mut Ui,
-        revision: u64,
         project: &Project,
         placement: &Placement,
     ) -> Option<Operation> {
@@ -457,20 +457,29 @@ impl PcbEditor {
         if dims.is_empty() {
             return None;
         }
-        let key = (revision, placement.instance);
         // Another part: its list starts bounded and not editing.
-        let fresh = self.edge.key.map(|k| k.1) != Some(placement.instance);
+        let shown = self.edge.key.as_ref();
+        let fresh = shown.map(|k| k.0) != Some(placement.instance);
         if fresh {
             self.edge.editing = None;
         }
-        if self.edge.key != Some(key) {
-            self.edge.key = Some(key);
-            // The document changed (an edit applied, an undo): no earlier
-            // text's error stands. A refused edit leaves the revision as it
-            // was, so its error is kept.
+        if fresh || shown.is_none_or(|k| k.1 != dims) {
+            // The value being typed stays while the one it replaces does.
+            let same = |id: Id| {
+                let of = |d: &[PartDimension]| d.iter().find(|d| d.id == id).cloned();
+                shown.is_some_and(|k| of(&k.1) == of(&dims))
+            };
+            let typed = self.edge.editing.as_ref();
+            let keep = self.edge.error.is_none() && typed.is_some_and(|e| same(e.0));
+            self.edge.key = Some((placement.instance, dims.clone()));
+            // They changed (an edit applied, an undo): no earlier
+            // text's error stands. A refused edit leaves them as they
+            // were, so its error is kept.
             self.edge.error = None;
             self.edge.sent = None;
-            self.edge.editing = None;
+            if !keep {
+                self.edge.editing = None;
+            }
         }
         let board = self
             .shape

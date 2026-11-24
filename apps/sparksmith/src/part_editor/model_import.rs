@@ -858,7 +858,7 @@ impl ModelImport {
             return None;
         };
         let refused = refusal::claim(ctx, Origin::Dialog(wizard_id()));
-        let changed = engine.revision() != *revision;
+        let changed = !engine.still_at(*revision);
         if refused.is_none() && !changed {
             return None;
         }

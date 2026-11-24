@@ -924,7 +924,7 @@ impl SchematicEditor {
                 return;
             }
             self.annotate_watch = None;
-            if engine.revision() == revision {
+            if engine.still_at(revision) {
                 return;
             }
             let text = if count == 1 {

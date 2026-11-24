@@ -229,7 +229,7 @@ impl PcbEditor {
     pub(super) fn board_setup(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Operation> {
         let project = engine.project();
         let setup = self.setup.as_mut()?;
-        if setup.sent.is_some_and(|sent| sent != engine.revision()) {
+        if setup.sent.is_some_and(|sent| !engine.still_at(sent)) {
             self.setup = None;
             return None;
         }
