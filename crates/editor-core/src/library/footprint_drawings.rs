@@ -408,7 +408,7 @@ mod tests {
             assert!(
                 found
                     .iter()
-                    .all(|f| f.code.to_string() != "footprint.silk_over_pad"),
+                    .all(|f| f.code != "footprint.silk_over_pad"),
                 "{}: {found:?}",
                 case.name
             );

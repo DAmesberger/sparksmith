@@ -390,7 +390,10 @@ impl BoardSketch {
     /// then not what the sketch and parameters say, and nothing is published
     /// or exported of the board until it is. `None` for a valid outline.
     pub fn invalid(&self) -> Option<&str> {
-        (!self.current).then(|| match &self.fault {
+        if self.current {
+            return None;
+        }
+        Some(match &self.fault {
             Some(fault) => fault.message.as_str(),
             None => "The board sketch does not solve.",
         })
