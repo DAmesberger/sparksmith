@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "datasheet",
+  "surface_view": {"strategy": "input", "full_on_request": true},
+  "reply_shape": {"strategy": "shorten", "reply_chars": 120000},
+  "condense": {
+    "strategy": "stubs-then-summary",
+    "keep_rounds": 2,
+    "bulky_chars": 1500,
+    "batch_chars": 12000,
+    "trigger": 0.7,
+    "target": 0.35,
+    "window_tokens": 80000
+  },
+  "nudge": {"after_tokens": 250000},
+  "recover": {"repeat_limit": 3}
+}

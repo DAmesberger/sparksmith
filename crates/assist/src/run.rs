@@ -60,8 +60,8 @@ pub struct RunConfig {
 
 impl RunConfig {
     /// A run of `profile` with the run profile it selects from `shipped`
-    /// and the user's profile `folder`, the default budget and policy. The
-    /// profile's declarations are set on the model.
+    /// and the user's profile `folder`, and no limits. The profile's
+    /// declarations are set on the model.
     pub fn new(
         shipped: &AssistLibrary,
         mut profile: ModelProfile,
@@ -560,8 +560,8 @@ pub(crate) struct Conversation<'a> {
     pub(crate) first_estimate: u64,
     /// The datasheets' tokens in the prompt, for the truncation warning.
     pub(crate) document_tokens: u64,
-    /// The conversation stops before the tally reaches this many requests.
-    pub(crate) max_requests: u32,
+    /// The conversation stops once the tally reaches this many requests.
+    pub(crate) max_requests: Option<u32>,
 }
 
 /// What drives conversations, shared by a workflow's model steps: the
@@ -635,8 +635,10 @@ pub(crate) fn converse(
             Ok(allowance) => allowance,
             Err(stop) => break stop.into(),
         };
-        if allowance.output < u64::from(limit) {
-            break Stop::Budget(format!("{} output tokens", budget.max_output_tokens));
+        if let (Some(left), Some(max)) = (allowance.output, budget.max_output_tokens)
+            && left < u64::from(limit)
+        {
+            break Stop::Budget(format!("{max} output tokens"));
         }
         // Near the context's end, earlier tool replies give way to stubs
         // naming their calls, as in the chat (`chat::context::condense`):
@@ -680,7 +682,7 @@ pub(crate) fn converse(
             tools: specs,
             messages: &messages,
             max_output_tokens: limit,
-            timeout: profile.request_timeout.min(allowance.duration),
+            timeout: allowance.timeout_within(profile.request_timeout),
         };
         let prompt_tokens = if first {
             // Count exactly when the backend can; otherwise the estimate.

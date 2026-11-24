@@ -34,9 +34,24 @@ impl From<Stopped> for crate::Stop {
     }
 }
 
+/// What the run has left; `None` is no limit.
 pub(crate) struct Allowance {
-    pub output: u64,
-    pub duration: Duration,
+    pub output: Option<u64>,
+    pub duration: Option<Duration>,
+}
+
+impl Allowance {
+    /// `limit` output tokens, or what is left when that is less.
+    pub fn output_within(&self, limit: u32) -> u32 {
+        self.output.map_or(limit, |left| {
+            u32::try_from(left).map_or(limit, |left| limit.min(left))
+        })
+    }
+
+    /// `timeout`, or the time left when that is less.
+    pub fn timeout_within(&self, timeout: Duration) -> Duration {
+        self.duration.map_or(timeout, |left| timeout.min(left))
+    }
 }
 
 pub(crate) struct Received {
@@ -53,33 +68,44 @@ impl Driver<'_> {
         if self.cancel.load(Ordering::Relaxed) {
             return Err(Stopped::Cancelled);
         }
-        if self.tally.requests >= self.budget.max_requests {
-            return Err(Stopped::Limit(
-                Hit::Requests,
-                format!("{} requests", self.budget.max_requests),
-            ));
+        if let Some(max) = self.budget.max_requests
+            && self.tally.requests >= max
+        {
+            return Err(Stopped::Limit(Hit::Requests, format!("{max} requests")));
         }
-        let duration = self
-            .budget
-            .max_duration
-            .saturating_sub(self.started.elapsed());
-        if duration.is_zero() {
-            return Err(Stopped::Limit(
+        let mut allowance = Allowance {
+            output: None,
+            duration: None,
+        };
+        if let Some(max) = self.budget.max_duration {
+            let left = max.saturating_sub(self.started.elapsed());
+            if left.is_zero() {
+                return Err(Stopped::Limit(
+                    Hit::Time,
+                    format!("{} seconds of run time", max.as_secs()),
+                ));
+            }
+            allowance.duration = Some(left);
+        }
+        if let Some(max) = self.budget.max_output_tokens {
+            let left = max.saturating_sub(self.tally.usage.output_tokens);
+            if left == 0 {
+                return Err(out_of_output(max));
+            }
+            allowance.output = Some(left);
+        }
+        Ok(allowance)
+    }
+
+    /// The time limit, once it has passed, in words for request `n`.
+    fn out_of_time(&self, n: u32) -> Option<Stopped> {
+        let max = self.budget.max_duration?;
+        (self.started.elapsed() >= max).then(|| {
+            Stopped::Limit(
                 Hit::Time,
-                format!("{} seconds of run time", self.budget.max_duration.as_secs()),
-            ));
-        }
-        let output = self
-            .budget
-            .max_output_tokens
-            .saturating_sub(self.tally.usage.output_tokens);
-        if output == 0 {
-            return Err(Stopped::Limit(
-                Hit::OutputTokens,
-                format!("{} output tokens", self.budget.max_output_tokens),
-            ));
-        }
-        Ok(Allowance { output, duration })
+                format!("{} seconds of run time, during request {n}", max.as_secs()),
+            )
+        })
     }
 
     /// Count the final chat prompt, including private summary requests,
@@ -120,23 +146,28 @@ impl Driver<'_> {
     ) -> std::result::Result<Received, Stopped> {
         let allowance = self.allowance()?;
         let output = u64::from(request.max_output_tokens);
-        if output == 0 || output > allowance.output {
-            return Err(Stopped::Limit(
-                Hit::OutputTokens,
-                format!("{} output tokens", self.budget.max_output_tokens),
+        if output == 0 {
+            return Err(Stopped::Failed(
+                "the request leaves the model no output tokens".into(),
             ));
+        }
+        if let Some(max) = self.budget.max_output_tokens
+            && allowance.output.is_some_and(|left| output > left)
+        {
+            return Err(out_of_output(max));
         }
         let used = self
             .tally
             .usage
             .prompt()
             .saturating_add(self.tally.usage.output_tokens);
-        if used.saturating_add(prompt).saturating_add(output) > self.budget.max_total_tokens {
+        if let Some(max) = self.budget.max_total_tokens
+            && used.saturating_add(prompt).saturating_add(output) > max
+        {
             return Err(Stopped::Limit(
                 Hit::Tokens,
                 format!(
-                    "{} tokens: {used} used, and the next request could take {}",
-                    self.budget.max_total_tokens,
+                    "{max} tokens: {used} used, and the next request could take {}",
                     prompt.saturating_add(output)
                 ),
             ));
@@ -146,7 +177,7 @@ impl Driver<'_> {
             tools: request.tools,
             messages: request.messages,
             max_output_tokens: request.max_output_tokens,
-            timeout: request.timeout.min(allowance.duration),
+            timeout: allowance.timeout_within(request.timeout),
         };
         let n = self.tally.requests.saturating_add(1);
         (self.events)(Event::Request {
@@ -181,16 +212,9 @@ impl Driver<'_> {
                 (self.events)(Event::Usage(meter(self.tally, self.budget, self.started)));
                 return Err(if self.cancel.load(Ordering::Relaxed) {
                     Stopped::Cancelled
-                } else if self.started.elapsed() >= self.budget.max_duration {
-                    Stopped::Limit(
-                        Hit::Time,
-                        format!(
-                            "{} seconds of run time, during request {n}",
-                            self.budget.max_duration.as_secs()
-                        ),
-                    )
                 } else {
-                    Stopped::Failed(error.to_string())
+                    self.out_of_time(n)
+                        .unwrap_or_else(|| Stopped::Failed(error.to_string()))
                 });
             }
         };
@@ -206,16 +230,8 @@ impl Driver<'_> {
         let terminal = if self.cancel.load(Ordering::Relaxed) {
             reply.stop = StopReason::Stopped;
             None
-        } else if self.started.elapsed() >= self.budget.max_duration {
-            Some(Stopped::Limit(
-                Hit::Time,
-                format!(
-                    "{} seconds of run time, during request {n}",
-                    self.budget.max_duration.as_secs()
-                ),
-            ))
         } else {
-            None
+            self.out_of_time(n)
         };
         Ok(Received {
             reply,
@@ -227,12 +243,16 @@ impl Driver<'_> {
     }
 }
 
+fn out_of_output(max: u64) -> Stopped {
+    Stopped::Limit(Hit::OutputTokens, format!("{max} output tokens"))
+}
+
 /// The run's use against its budget, for the chat's meter.
 fn meter(tally: &Tally, budget: &Budget, started: Instant) -> Meter {
     Meter {
         requests: Gauge {
             used: tally.requests.into(),
-            limit: budget.max_requests.into(),
+            limit: budget.max_requests.map(u64::from),
         },
         output_tokens: Gauge {
             used: tally.usage.output_tokens,
@@ -247,7 +267,7 @@ fn meter(tally: &Tally, budget: &Budget, started: Instant) -> Meter {
         },
         minutes: Gauge {
             used: started.elapsed().as_secs() / 60,
-            limit: budget.max_duration.as_secs().div_ceil(60),
+            limit: budget.max_duration.map(|d| d.as_secs().div_ceil(60)),
         },
         reported: tally.usage,
         usage_estimated: tally.usage_estimated,
@@ -296,8 +316,8 @@ mod tests {
         for fail in [false, true] {
             let mut model = Model { calls: 0, fail };
             let budget = Budget {
-                max_requests: 1,
-                max_duration: Duration::from_secs(2),
+                max_requests: Some(1),
+                max_duration: Some(Duration::from_secs(2)),
                 ..Budget::default()
             };
             let mut tally = Tally::default();
@@ -345,10 +365,10 @@ mod tests {
             };
             let mut budget = Budget::default();
             match case {
-                0 => budget.max_requests = 0,
-                1 => budget.max_output_tokens = 9,
-                2 => budget.max_total_tokens = 19,
-                3 => budget.max_duration = Duration::ZERO,
+                0 => budget.max_requests = Some(0),
+                1 => budget.max_output_tokens = Some(9),
+                2 => budget.max_total_tokens = Some(19),
+                3 => budget.max_duration = Some(Duration::ZERO),
                 _ => {}
             }
             let mut tally = Tally::default();

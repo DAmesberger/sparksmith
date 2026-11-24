@@ -8,7 +8,7 @@ A workflow is a refined process the chat finds, offers and runs, with typed cont
 
 ```
 library/assist/workflows/<id>/        shipped
-  workflow.json                       what it is for, inputs, steps, budget, reach, controls
+  workflow.json                       what it is for, inputs, steps, reach, controls
   method.md                           the judgement guide its model steps read
 <config>/assist/workflows/<id>/       a person's own, same format; replaces a shipped one of the same id
 ```
@@ -20,7 +20,7 @@ library/assist/workflows/<id>/        shipped
 
 - **Listed per host** (`load::host`): the shipped library's folder and the person's `<config>/assist/workflows/`, against this program's catalog.
 
-The first instance is `library/assist/workflows/datasheet-to-component/`: `workflow.json` and `method.md`; the skill and `AGENTS.md` point to it. Its inputs are the datasheets, the part name and optional notes; no one gives it page numbers. Its Read step reads every page, its Package step finds the pages with the pin layout, the drawing and the land pattern and names them in `package_plan.pages`, and the result card lists them as Pages used.
+The first instance is `library/assist/workflows/datasheet-to-component/`: `workflow.json` and `method.md`; the skill and `AGENTS.md` point to it. Its inputs are the datasheets, the part name and optional notes; no one gives it page numbers. It names the `datasheet` harness profile, whose replies reach the model up to 120 000 characters, so a long stretch of a datasheet is read whole. Its Read step reads every page, its Package step finds the pages with the pin layout, the drawing and the land pattern and names them in `package_plan.pages`, and the result card lists them as Pages used.
 
 The second is `library/assist/workflows/datasheet-to-body/`: a placed part's 3D body from its datasheets, its footprint kept. Its inputs are the datasheets, the part's designator, and optional photo references and notes; it offers itself on no signal (a dropped PDF stays the datasheet workflow's). Its steps: read the datasheets, describe the part (`library.body_fit` with the designator), list the generators, a model step that chooses the generator, preset and values from the mechanical drawing or says in `missing` why none makes the body, the fit (`library.body_fit`, which its model step's `check` names: a misfit or a `missing` reason goes back, at most twice, then ends the run naming it), the impact card from the fit's `change_counts` and findings, Apply as `library.make_body`, and the review report checked with `library.review_check {body}` ([a body for an existing part](generator-plugins.md#a-body-for-an-existing-part)). `sparksmith-cli design-body` runs it headless and writes the project only when a body was applied.
 
@@ -39,7 +39,7 @@ Unknown fields are refused, naming them. A field that does not apply to an input
 | `offer_when` | list of signals | At most 8: `{"attachment": "<media type>"}`, `{"workspace": "<name>"}`, `{"issue": "<rule code>"}`. Never text matching |
 | `needs` | list | `{"module", "major", "minor"?}`, 1–16, each module once, major ≥ 1 |
 | `reach` | object | Module → class (`read`, `show`, `edit`, `ask`). A run's grant is the smaller of the chat's and this; `never` is refused |
-| `budget` | object | `requests` (1–1000), `output_tokens`, `total_tokens`? (≥ `output_tokens`), `minutes` (1–1440). A run gets the smaller of this and Settings |
+| `budget` | object, optional | `requests` (1–1000), `output_tokens`, `total_tokens`? (≥ `output_tokens`), `minutes` (1–1440). A run gets the smaller of this and the person's limits in Settings; without one, only the person's limits hold it. The shipped workflows declare none |
 | `inputs` | object | Name → input (below), at most 24 |
 | `outputs` | object | Name → the answer shape of a model step (below), at most 16; each used by a step |
 | `steps` | list | 1–32 steps (below); the last is the one result step |
@@ -71,7 +71,7 @@ Every step has `id` (unique; `a–z`, `0–9`, `-`, `_`), `kind` and `title` (it
 |---|---|---|
 | `input` | `inputs` | Each input is asked for by exactly one input step, before any pointer reads it. The inputs of the input steps before the first other step are the start inputs: the chat's one confirmation shows them filled from the conversation (below) |
 | `tool` | `call`, `params`?, `each`?, `check`?, `retries`? | One `Surface::call`, no model. `each` points at a list; the call repeats per item, read as `/item` |
-| `model` | `goal`, `method`, `output`, `requests`?, `check`?, `retries`? | `method` is `method.md#<heading anchor>`; `output` names an `outputs` entry; the step ends with `assist.step_result`. `requests` (≤ the budget) caps the step |
+| `model` | `goal`, `method`, `output`, `requests`?, `check`?, `retries`? | `method` is `method.md#<heading anchor>`; `output` names an `outputs` entry; the step ends with `assist.step_result`. `requests` (1–1000, ≤ the budget's when there is one) caps the step; the shipped workflows give none |
 | `review` | `gate: "confirm"`: `control` (`impact`), `plan`, `then: {call, params}` | Waits through `Asker::review`; Apply makes `then` |
 | | `gate: "notify"`: `control` (an input control), `show`, `options`?, `change`? | A card with Change, and the run goes on. `options` (with `choice`) lists alternatives; `change` names the earlier model step a change sends the run back to |
 | `result` | `items: [{title, from}]`, `actions: [{title, call, params}]` | The last step. Actions are `show` entries (Open in editor) |
@@ -110,7 +110,7 @@ Field types: `text`, `integer`, `number`, `boolean`, `object`, `list`, `any`. `a
 - **review**, `confirm`: an `impact` card from the plan (its `change_counts`, or the length of each list; its findings); Apply makes `then`, Decline ends the run. `notify`: a `choice` card; Change sends the run back to `change` with the person's choice. In the chat the card waits for Continue (the choice stands) or Change, so a change goes back before anything is made from the choice; headless, no answer goes on.
 - **result**: the result card; a button whose entry the host lacks is left off.
 - **check and retries.** A tool step refuses when its call fails; one that a `check` names also refuses when its reply says `"accepted": false` or lists a finding that blocks (`blocks` or `blocking`). The run goes back to the checking step with the refusal's text in its brief, at most `retries` times, then fails.
-- **Budget.** The smaller of the workflow's `budget` and the configured limits, counted over all model steps; a `meter` event after each model step.
+- **Limits.** The smaller of the workflow's `budget`, when it declares one, and the person's limits, counted over all model steps. With neither, nothing limits the run: it goes on until it is done, fails, is declined or is stopped. The same refused call sent again and again still ends it (the harness profile's `repeat_limit`). A `meter` event after each model step, its limits left out when there are none.
 - **Refused before anything runs:** a workflow this host cannot run, an input it does not have or that does not pass, and a replay recorded with another workflow, version or digest.
 - **Recordings** of a run start with one line naming the workflow (`{"workflow": {"id", "version", "digest"}}`, `Recording::for_workflow`); a replay reads it and the runner compares it.
 
@@ -136,7 +136,7 @@ Markdown. Each model step reads one section, named by its heading's anchor (GitH
 | `page_ranges` | pages against the file's page count | yes |
 | `impact` | a plan's counts, findings and rows to leave out; Apply, Decline | no |
 | `progress` | current step, done of total; Stop | no |
-| `meter` | requests, tokens and minutes against the run's limits | no |
+| `meter` | requests, tokens and minutes, against the run's limits when it has any ("14 of 40 requests", else "14 requests") | no |
 | `result` | items, findings; Show, Open in editor, Undo run | no |
 
 ## The `assist.*` entries

@@ -212,10 +212,10 @@ impl ModelFlags {
             "--effort" => flags.effort = Some(value),
             "--request-timeout" => flags.request_timeout = Some(count(f, &value)?),
             "--profile" => flags.profile = Some(value),
-            "--max-requests" => budget.max_requests = count(f, &value)?,
-            "--max-tokens" => budget.max_total_tokens = count(f, &value)?,
+            "--max-requests" => budget.max_requests = Some(count(f, &value)?),
+            "--max-tokens" => budget.max_total_tokens = Some(count(f, &value)?),
             "--max-seconds" => {
-                budget.max_duration = Duration::from_secs(count(f, &value)?);
+                budget.max_duration = Some(Duration::from_secs(count(f, &value)?));
             }
             "--record" => self.record = Some(PathBuf::from(value)),
             "--replay" => self.replay = Some(PathBuf::from(value)),
@@ -706,7 +706,14 @@ mod tests {
         assert_eq!(p.output.per_request, 32_000);
         assert_eq!(parsed.connection.key, KeySource::None);
         assert!(parsed.connection.endpoint.is_loopback());
-        assert_eq!(parsed.config.budget.max_duration, Duration::from_secs(3600));
+        // Only what a flag sets is limited.
+        assert_eq!(
+            parsed.config.budget,
+            Budget {
+                max_duration: Some(Duration::from_secs(3600)),
+                ..Budget::default()
+            }
+        );
         Ok(())
     }
 
@@ -717,7 +724,7 @@ mod tests {
         assert_eq!(parsed.config.profile, defaults.profile);
         assert_eq!(parsed.config.run_profile, defaults.run_profile);
         assert_eq!(parsed.config.base_prompt, defaults.base_prompt);
-        assert_eq!(parsed.config.budget, defaults.budget);
+        assert_eq!(parsed.config.budget, Budget::default());
         // The run reaches what the shipped datasheet profile lets it: no
         // files, so it names no folder; the CLI writes the outputs itself.
         assert_eq!(parsed.config.reach, defaults.reach);

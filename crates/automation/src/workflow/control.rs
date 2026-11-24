@@ -172,11 +172,12 @@ pub struct Row {
     pub text: String,
 }
 
-/// One limit and how much of it is used.
+/// How much is used, and the limit when there is one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Gauge {
     pub used: u64,
-    pub limit: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
 }
 
 /// A titled value on the result card.

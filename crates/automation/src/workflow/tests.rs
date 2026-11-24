@@ -53,6 +53,7 @@ fn the_shipped_datasheet_workflow_passes_its_check() -> Fallible {
     let workflow = shipped()?;
     assert_eq!(workflow.id, DATASHEET);
     assert_eq!(workflow.version(), Some((1, 2)));
+    assert_eq!(workflow.harness_profile.as_deref(), Some("datasheet"));
     assert_eq!(
         workflow.offer_when,
         vec![Signal::Attachment("application/pdf".into())]
@@ -351,8 +352,44 @@ fn each_rule_names_its_field() -> Fallible {
             "/needs/0/major: modules start at 1.0",
         ),
         (
-            Box::new(|v| v["budget"]["minutes"] = json!(0)),
-            "/budget/minutes",
+            Box::new(|v| {
+                v["budget"] = json!({"requests": 1, "output_tokens": 1, "minutes": 0});
+            }),
+            "/budget/minutes: from 1 to 1440",
+        ),
+        (
+            Box::new(|v| {
+                v["budget"] = json!({"requests": 0, "output_tokens": 1, "minutes": 1});
+            }),
+            "/budget/requests: from 1 to 1000",
+        ),
+        (
+            Box::new(|v| {
+                v["budget"] =
+                    json!({"requests": 1, "output_tokens": 9, "total_tokens": 8, "minutes": 1});
+            }),
+            "/budget/total_tokens: from output_tokens",
+        ),
+        (
+            Box::new(|v| v["budget"] = json!({"requests": 1, "output_tokens": 1})),
+            "minutes",
+        ),
+        (
+            Box::new(|v| {
+                if let Some(step) = step_mut(v, "plan") {
+                    step["requests"] = json!(1001);
+                }
+            }),
+            "/requests: from 1 to 1000",
+        ),
+        (
+            Box::new(|v| {
+                v["budget"] = json!({"requests": 5, "output_tokens": 1, "minutes": 1});
+                if let Some(step) = step_mut(v, "plan") {
+                    step["requests"] = json!(6);
+                }
+            }),
+            "/requests: from 1 to 5",
         ),
         (
             Box::new(|v| v["offer_when"] = json!([{"attachment": "pdf"}])),
@@ -774,6 +811,29 @@ fn attachments_fill_the_files_inputs() -> Fallible {
     inputs.insert("datasheets".into(), json!(["given.pdf"]));
     workflow.fill_files(&mut inputs, &attached(&["a.pdf"]));
     assert_eq!(inputs["datasheets"], json!(["given.pdf"]));
+    Ok(())
+}
+
+/// A shipped workflow limits nothing: no budget, and no request cap on a
+/// step. One a person writes may declare both.
+#[test]
+fn no_shipped_workflow_declares_a_limit() -> Fallible {
+    let listed = load::list(Some(&shipped_folder()), None, &HostCatalog);
+    assert!(!listed.is_empty());
+    for workflow in load::available(&listed) {
+        let workflow = workflow.workflow;
+        assert_eq!(workflow.budget, None, "{}", workflow.id);
+        for step in &workflow.steps {
+            assert_eq!(step.requests, None, "{} {}", workflow.id, step.id);
+        }
+    }
+    let mut own: Value = serde_json::from_str(&shipped_text()?)?;
+    own["budget"] = json!({"requests": 40, "output_tokens": 200_000, "minutes": 45});
+    if let Some(step) = step_mut(&mut own, "plan") {
+        step["requests"] = json!(40);
+    }
+    let own = Workflow::parse(&own.to_string(), "own")?;
+    assert_eq!(own.budget.map(|b| b.requests), Some(40));
     Ok(())
 }
 

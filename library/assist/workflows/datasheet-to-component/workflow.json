@@ -2,6 +2,7 @@
   "format": 1,
   "id": "datasheet-to-component",
   "version": "1.2",
+  "harness_profile": "datasheet",
   "title": "Datasheet → component",
   "summary": "Draft a component, symbol, package, footprint, binding and 3D model from manufacturer datasheets, every value cited, for you to review and publish.",
   "intents": [
@@ -16,7 +17,6 @@
     {"module": "assist", "major": 1, "minor": 4}
   ],
   "reach": {"project": "read", "library": "edit", "generators": "edit", "assist": "edit", "view": "show"},
-  "budget": {"requests": 40, "output_tokens": 200000, "minutes": 45},
   "inputs": {
     "datasheets": {"type": "files", "title": "Datasheets", "accept": ["application/pdf"], "min": 1, "max": 4},
     "part": {"type": "text", "title": "Part name", "help": "The manufacturer and the complete part number, e.g. Texas Instruments TPS22990DMLR", "max": 64},

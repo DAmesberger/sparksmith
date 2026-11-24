@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 use sparksmith_assist::{
     board_script::{self, Scripted},
     chat,
-    model::{ModelBackend, ModelProfile, record::WorkflowMark},
+    model::{Budget, ModelBackend, ModelProfile, record::WorkflowMark},
 };
 use sparksmith_automation::{Mode, Session, session::SchemaDetail};
 use std::{
@@ -297,7 +297,7 @@ fn offline_arm(
         runner: runner.into(),
         backend,
         profile: ModelProfile::anthropic("claude-opus-5-5"),
-        budget: chat::unbounded(),
+        budget: Budget::default(),
         detail,
         reports_usage,
     }

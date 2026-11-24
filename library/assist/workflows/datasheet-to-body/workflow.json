@@ -16,7 +16,6 @@
     {"module": "assist", "major": 1, "minor": 4}
   ],
   "reach": {"project": "read", "library": "read", "generators": "edit", "assist": "edit", "view": "show"},
-  "budget": {"requests": 30, "output_tokens": 120000, "minutes": 30},
   "inputs": {
     "datasheets": {"type": "files", "title": "Datasheets", "accept": ["application/pdf"], "min": 1, "max": 4},
     "part": {"type": "text", "title": "Part", "help": "The placed part's designator, e.g. J16", "max": 64},

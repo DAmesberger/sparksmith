@@ -4,8 +4,9 @@
 //! a check sends a step back with the refusal, the run is one undo step,
 //! and a replay of another workflow version is refused.
 use super::*;
+use crate::model::Budget;
 use crate::model::record::{Replay, WorkflowMark};
-use crate::workflow::control::{ControlAnswer, ControlCard};
+use crate::workflow::control::{ControlAnswer, ControlCard, Gauge};
 use crate::workflow::event::{RunEnd, WorkflowEvent};
 use crate::workflow::runner::{self, Person, WorkflowOutcome, WorkflowRun};
 use crate::workflow::{Catalog, HostCatalog, Loaded, Source, load};
@@ -498,23 +499,259 @@ fn a_replay_of_another_workflow_version_is_refused() -> Fallible {
 
 #[test]
 fn a_run_gets_the_smaller_budget() {
+    use std::time::Duration;
     let workflow = crate::workflow::Budget {
         requests: 40,
         output_tokens: 200_000,
         total_tokens: None,
         minutes: 45,
     };
-    let limits = crate::model::Budget {
-        max_requests: 30,
-        max_output_tokens: 400_000,
-        max_total_tokens: 4_000_000,
-        max_duration: std::time::Duration::from_secs(30 * 60),
+    let limits = Budget {
+        max_requests: Some(30),
+        max_output_tokens: Some(400_000),
+        max_total_tokens: Some(4_000_000),
+        max_duration: Some(Duration::from_secs(30 * 60)),
     };
-    let got = runner::budget(&workflow, &limits);
-    assert_eq!(got.max_requests, 30);
-    assert_eq!(got.max_output_tokens, 200_000);
-    assert_eq!(got.max_total_tokens, 4_000_000);
-    assert_eq!(got.max_duration.as_secs(), 30 * 60);
+    assert_eq!(
+        runner::budget(Some(&workflow), &limits),
+        Budget {
+            max_output_tokens: Some(200_000),
+            ..limits
+        }
+    );
+    // Without the person's limits, the declared ones alone.
+    assert_eq!(
+        runner::budget(Some(&workflow), &Budget::default()),
+        Budget {
+            max_requests: Some(40),
+            max_output_tokens: Some(200_000),
+            max_total_tokens: None,
+            max_duration: Some(Duration::from_secs(45 * 60)),
+        }
+    );
+    // Without a declared budget, the person's alone; without both, none.
+    assert_eq!(runner::budget(None, &limits), limits);
+    assert_eq!(runner::budget(None, &Budget::default()), Budget::default());
+}
+
+/// A read that succeeds and changes nothing.
+fn read_page(id: &str) -> Value {
+    chat_call(
+        id,
+        "query",
+        &json!({"name": "assist.document_text", "params": {"document": "exr22.pdf", "pages": "1"}})
+            .to_string(),
+    )
+}
+
+/// Requests and output tokens on the run's last meter, with their limits.
+fn last_meter(person: &Scripted) -> Option<(Gauge, Gauge, Gauge)> {
+    person.events.iter().rev().find_map(|e| match e {
+        WorkflowEvent::Meter {
+            requests,
+            output_tokens,
+            minutes,
+            ..
+        } => Some((*requests, *output_tokens, *minutes)),
+        _ => None,
+    })
+}
+
+/// The package step alone makes fifty requests: nothing limits a run no one
+/// set limits on.
+#[test]
+fn a_run_without_limits_goes_on_until_it_is_done() -> Fallible {
+    let loaded = shipped()?;
+    let config = local_config(131_072)?;
+    assert_eq!(config.budget, Budget::default());
+    let dir = tempfile::tempdir()?;
+    let mut replies: Vec<Value> = (0..50).map(|n| read_page(&format!("r{n}"))).collect();
+    replies.extend(script());
+    let mut backend = openai(replies, &config);
+    let mut session = profiled_session();
+    let mut person = Scripted {
+        answers: vec![apply_import()],
+        ..Scripted::default()
+    };
+    let outcome = start(
+        &loaded,
+        &config,
+        inputs(&dir)?,
+        &mut backend,
+        &mut session,
+        &mut person,
+    )?;
+    assert_eq!(outcome.end, RunEnd::Done, "{:#?}", person.events);
+    assert_eq!(outcome.facts.requests, 53);
+    let (requests, tokens, minutes) = last_meter(&person).ok_or("a meter")?;
+    assert_eq!((requests.used, requests.limit), (53, None));
+    assert_eq!((tokens.limit, minutes.limit), (None, None));
+    Ok(())
+}
+
+/// The budget a workflow of the person's own declares stops its run, and
+/// the person's limits hold it.
+#[test]
+fn a_declared_budget_stops_its_run_within_the_persons_limits() -> Fallible {
+    let mut loaded = shipped()?;
+    loaded.workflow.budget = Some(crate::workflow::Budget {
+        requests: 5,
+        output_tokens: 10_000_000,
+        total_tokens: None,
+        minutes: 45,
+    });
+    let dir = tempfile::tempdir()?;
+    for (limit, stopped_at) in [(None, 5), (Some(3), 3), (Some(9), 5)] {
+        let mut config = local_config(131_072)?;
+        config.budget.max_requests = limit;
+        let replies = (0..50).map(|n| read_page(&format!("r{n}"))).collect();
+        let mut backend = openai(replies, &config);
+        let mut person = Scripted::default();
+        let outcome = start(
+            &loaded,
+            &config,
+            inputs(&dir)?,
+            &mut backend,
+            &mut profiled_session(),
+            &mut person,
+        )?;
+        assert_eq!(
+            outcome.end,
+            RunEnd::Limit {
+                why: format!("{stopped_at} requests")
+            }
+        );
+        assert_eq!(outcome.facts.requests, stopped_at);
+        let (requests, ..) = last_meter(&person).ok_or("a meter")?;
+        assert_eq!(requests.limit, Some(u64::from(stopped_at)));
+    }
+    Ok(())
+}
+
+/// Without limits, the same refused call sent again and again still ends
+/// the run.
+#[test]
+fn a_refused_call_repeated_ends_a_run_without_limits() -> Fallible {
+    let loaded = shipped()?;
+    let config = local_config(131_072)?;
+    let dir = tempfile::tempdir()?;
+    // Applying with nothing previewed is refused.
+    let apply = |n: usize| {
+        chat_call(
+            &format!("a{n}"),
+            "apply",
+            r#"{"expected_revision": 0, "operations": [{"op": "assist.pinout_apply", "params": {"base": "12"}}]}"#,
+        )
+    };
+    let mut backend = openai((0..50).map(apply).collect(), &config);
+    let outcome = start(
+        &loaded,
+        &config,
+        inputs(&dir)?,
+        &mut backend,
+        &mut profiled_session(),
+        &mut Scripted::default(),
+    )?;
+    let RunEnd::Failed { step, why } = &outcome.end else {
+        return Err(format!("{:?}", outcome.end).into());
+    };
+    assert_eq!(step, "plan");
+    assert!(why.contains("the same refused"), "{why}");
+    assert_eq!(outcome.facts.requests, 3);
+    Ok(())
+}
+
+/// A person who presses Stop while request `at` runs.
+struct Stopping<'a> {
+    at: u32,
+    cancel: &'a AtomicBool,
+}
+
+impl Person for Stopping<'_> {
+    fn event(&mut self, _: &WorkflowEvent) {}
+
+    fn model_event(&mut self, event: &Event) {
+        if matches!(event, Event::Request { n, .. } if *n == self.at) {
+            self.cancel
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    fn answer(&mut self, _: &str, _: &[ControlCard]) -> Option<ControlAnswer> {
+        None
+    }
+}
+
+/// A model that reads the same page for ever changes nothing and is refused
+/// nothing: Stop ends its run.
+#[test]
+fn stop_ends_a_looping_run_without_limits() -> Fallible {
+    let loaded = shipped()?;
+    let config = local_config(131_072)?;
+    let dir = tempfile::tempdir()?;
+    let replies = (0..100).map(|n| read_page(&format!("r{n}"))).collect();
+    let mut backend = openai(replies, &config);
+    let cancel = AtomicBool::new(false);
+    let outcome = runner::run_workflow(
+        WorkflowRun {
+            loaded: &loaded,
+            inputs: inputs(&dir)?,
+            grant: config.reach.grant(),
+            config: &config,
+        },
+        &mut backend,
+        &mut profiled_session(),
+        &mut Stopping {
+            at: 61,
+            cancel: &cancel,
+        },
+        &cancel,
+    )?;
+    assert_eq!(outcome.end, RunEnd::Stopped);
+    assert_eq!(outcome.facts.requests, 61);
+    Ok(())
+}
+
+/// The datasheet workflow reads with its own harness profile: a whole
+/// datasheet's text in one reply reaches the model uncut.
+#[test]
+fn the_datasheet_workflow_reads_long_replies_whole() -> Fallible {
+    let loaded = shipped()?;
+    let config = local_config(131_072)?;
+    let profile = config.harness_for(loaded.workflow.harness_profile.as_deref(), None)?;
+    assert_eq!(
+        (profile.name.as_str(), profile.policy().reply_chars),
+        ("datasheet", 120_000)
+    );
+    let dir = tempfile::tempdir()?;
+    let mut replies = vec![chat_call(
+        "r1",
+        "query",
+        &json!({"name": "assist.document_text", "params": {"document": "exr22.pdf", "pages": "1-30"}})
+            .to_string(),
+    )];
+    replies.extend(script());
+    let mut backend = openai(replies, &config);
+    let mut person = Scripted {
+        answers: vec![apply_import()],
+        ..Scripted::default()
+    };
+    let outcome = start(
+        &loaded,
+        &config,
+        long_inputs(&dir)?,
+        &mut backend,
+        &mut profiled_session(),
+        &mut person,
+    )?;
+    assert_eq!(outcome.end, RunEnd::Done, "{:#?}", person.events);
+    let second = backend.wire.posts.get(1).ok_or("a second request")?;
+    let sent = second.2["messages"].to_string();
+    for n in 1..=30u32 {
+        assert!(sent.contains(&format!("BODY p{n} l40 ")), "page {n}");
+    }
+    assert!(!sent.contains("_shortened"));
+    Ok(())
 }
 
 #[test]
@@ -641,7 +878,7 @@ fn a_run_stopped_by_its_limit_names_what_it_kept_with_undo() -> Fallible {
     let loaded = shipped()?;
     let mut config = local_config(131_072)?;
     // One request: the package step answers, the pinout step finds none.
-    config.budget.max_requests = 1;
+    config.budget.max_requests = Some(1);
     let dir = tempfile::tempdir()?;
     let mut backend = openai(script(), &config);
     let mut session = profiled_session();

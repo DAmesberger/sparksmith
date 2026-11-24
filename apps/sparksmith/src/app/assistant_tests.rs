@@ -360,8 +360,11 @@ fn the_chat_publishes_into_the_project_unasked_and_asks_to_publish_to_a_library(
     assert!(reach.unasked("library.publish"));
     assert!(!reach.unasked("library.promote"));
     assert!(!reach.unasked("library.publish_to_folder"));
-    // No per-turn caps on the chat's changes or calls.
-    assert_eq!(sparksmith_assist::chat::unbounded().max_requests, u32::MAX);
+    // No limits on a run the person set none on.
+    assert_eq!(
+        sparksmith_assist::settings::run_budget(None),
+        sparksmith_assist::model::Budget::default()
+    );
     Ok(())
 }
 

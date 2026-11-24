@@ -237,7 +237,7 @@ fn task_and_person_profiles_replace_all_model_harness_settings() -> Fallible {
     let chat = crate::chat::ChatConfig::with_profiles(
         &crate::chat::ChatLibrary::load(&lib)?,
         config.profile,
-        crate::chat::unbounded(),
+        crate::model::Budget::default(),
         Some(&run_dir),
     )?;
     assert_eq!(chat.policy.reply_chars, 73);

@@ -185,25 +185,24 @@ fn an_endpoint_gives_the_model_as_declared() -> Fallible {
     Ok(())
 }
 
-/// The chat runs unlimited unless the person sets limits; the datasheet
-/// workflow keeps its own budget, held within the person's limits.
+/// A run is unlimited unless the person sets limits, and then has each of
+/// theirs.
 #[test]
-fn a_run_budget_is_the_workflows_own_within_the_persons_limits() -> Fallible {
-    assert_eq!(run_budget(None, None), None, "the chat is not capped");
-    let library = ShippedLibrary::locate().map_err(|e| e.to_string())?;
-    let datasheet = workflow_budget(&library, "datasheet-to-component")?;
-    let own = run_budget(None, Some(&datasheet)).ok_or("a budget")?;
-    assert_eq!(own.max_requests, datasheet.requests);
+fn a_runs_limits_are_the_persons_or_none() -> Fallible {
+    let none = run_budget(None);
     assert_eq!(
-        own.max_duration,
-        Duration::from_secs(u64::from(datasheet.minutes) * 60)
+        (none.max_requests, none.max_output_tokens),
+        (None, None),
+        "nothing is capped"
     );
+    assert_eq!((none.max_total_tokens, none.max_duration), (None, None));
     let mut limits = Shipped::locate()?.limits_start;
     limits.minutes = 10;
-    let held = run_budget(Some(&limits), Some(&datasheet)).ok_or("a budget")?;
-    assert_eq!(held.max_duration, Duration::from_secs(10 * 60));
-    let chat = run_budget(Some(&limits), None).ok_or("the person's limits")?;
-    assert_eq!(chat.max_requests, limits.requests);
+    let own = run_budget(Some(&limits));
+    assert_eq!(own.max_requests, Some(limits.requests));
+    assert_eq!(own.max_output_tokens, Some(limits.output_tokens));
+    assert_eq!(own.max_total_tokens, Some(limits.total_tokens));
+    assert_eq!(own.max_duration, Some(Duration::from_secs(10 * 60)));
     Ok(())
 }
 
