@@ -13,7 +13,6 @@ use sparksmith_core::{
     format::EditorFile,
     geometry::Point,
     ids::{DefinitionRef, LibraryId, Revision, SourceLineageId},
-    layout,
     layout::{
         self, LayoutCommand,
         fab_stackup::{self, PickOptions, StackupFilter},
