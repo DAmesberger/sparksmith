@@ -237,9 +237,9 @@ fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible
         )?;
     }
     let mut session = Session::new(engine);
-    // Switched to a finer profile, the fills were computed under other
-    // rules: they are stale, an error that blocks production and cannot be
-    // waived.
+    // Switched to a finer profile, the board's own minimum kept, the fills
+    // were computed under other rules: they are stale, an error that blocks
+    // production and cannot be waived.
     let revision = session.engine().revision();
     ok(
         &mut session,
@@ -247,7 +247,8 @@ fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible
             "expected_revision": revision,
             "operation": {"editor": "Rules", "operation": {
                 "command": "rules.set_fab_profile",
-                "params": {"profile": sparksmith_core::rules::fixtures::fine()?}}},
+                "params": {"profile": sparksmith_core::rules::fixtures::fine()?,
+                    "keep_overrides": true}}},
         }}),
     )?;
     let out = dir.path().join("blocked");
@@ -262,15 +263,18 @@ fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible
         "query": "fabrication.preflight",
         "params": {},
     }});
-    let stale = ok(&mut session, preflight)?;
-    let stale: Vec<String> = stale["result"]["items"]
-        .as_array()
-        .ok_or("items")?
-        .iter()
-        .filter(|i| i["code"] == "fill.stale")
-        .filter_map(|i| i["key"].as_str().map(str::to_string))
-        .collect();
-    assert!(!stale.is_empty());
+    let found = ok(&mut session, preflight)?;
+    let of = |code: &str| -> Vec<String> {
+        found["result"]["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|i| i["code"] == code)
+            .filter_map(|i| i["key"].as_str().map(str::to_string))
+            .collect()
+    };
+    let (stale, narrow) = (of("fill.stale"), of("board.track_width"));
+    assert!(!stale.is_empty() && !narrow.is_empty(), "{found}");
     let revision = session.engine().revision();
     let refused = session.dispatch(json!({"command": "project.apply", "params": {
         "expected_revision": revision,
@@ -284,6 +288,27 @@ fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible
             .contains("fabrication.not_waivable"),
         "{refused}"
     );
+    // With the ones that may be waived waived, the stale fills still block.
+    ok(
+        &mut session,
+        json!({"command": "project.apply", "params": {
+            "expected_revision": revision,
+            "operation": {"editor": "Fabrication", "operation": {
+                "command": "fabrication.waive", "params": {"keys": narrow}}},
+        }}),
+    )?;
+    let refused = session.dispatch(export(&out, false, None));
+    assert!(
+        refused["error"].to_string().contains("fabrication.blocked"),
+        "{refused}"
+    );
+    assert!(!out.exists(), "nothing is written");
+    let now = session.engine().revision();
+    ok(
+        &mut session,
+        json!({"command": "project.undo", "params": {"expected_revision": now}}),
+    )?;
+    let revision = session.engine().revision();
     ok(
         &mut session,
         json!({"command": "project.apply", "params": {
