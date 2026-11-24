@@ -382,6 +382,16 @@ pub(crate) fn copper(
     let cleaned = clean_tiny(&mut tracks, &via_points);
     report.add_n(Case::TinyTrackCleaned, cleaned);
     let mut vias = Vec::with_capacity(board.items.vias.len());
+    // A fill is never guessed: what the file says is listed.
+    let mut unread: BTreeMap<&str, usize> = BTreeMap::new();
+    for setting in board.items.vias.iter().flat_map(|v| &v.unread) {
+        *unread.entry(setting).or_default() += 1;
+    }
+    for (setting, n) in unread {
+        let vias = if n == 1 { "via" } else { "vias" };
+        let path = format!("“{setting}” on {n} {vias}");
+        report.add_detail(Case::ViaSettingUnread, "", "", &path);
+    }
     for via in &board.items.vias {
         let Some(net) = nets.get(&via.net) else {
             report.add(Case::ViaWithoutNet);

@@ -259,6 +259,9 @@ pub enum Case {
     ViaRefused,
     /// Vias whose unused inner annular rings KiCad removes.
     ViaUnusedLayers,
+    /// Via settings the public file-format documentation does not describe
+    /// (one row for each setting as written): the vias come without them.
+    ViaSettingUnread,
     /// Zones imported as fills (one per copper layer).
     Zone,
     /// Rule areas imported with every restriction intact.
@@ -689,6 +692,11 @@ impl Case {
                 Approximate,
                 "vias without unused inner rings in KiCad, imported with rings on every layer",
             ),
+            Self::ViaSettingUnread => (
+                "R1",
+                Report,
+                "via settings this importer does not read; the vias are imported without them",
+            ),
             Self::Zone => (
                 "Z1",
                 Exact,
@@ -957,12 +965,13 @@ pub struct Counts {
 
 /// The cases whose occurrences [`Report::summary_named`] lists by name:
 /// what the import left for the person to resolve.
-pub const NAMED_CASES: [Case; 5] = [
+pub const NAMED_CASES: [Case; 6] = [
     Case::NetTie,
     Case::ImportedTie,
     Case::JumperSuggestion,
     Case::StackupMaskSides,
     Case::SymbolWithoutFootprint,
+    Case::ViaSettingUnread,
 ];
 
 /// Most private details kept (the rows still count every case).

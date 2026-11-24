@@ -80,6 +80,31 @@ fn pads_join_into_named_nets_through_labels() -> Fallible<()> {
     Ok(())
 }
 
+/// Red when a via setting the importer does not read is dropped without a
+/// word. The setting's name is made up: none is guessed at.
+#[test]
+fn a_via_setting_that_is_not_read_is_listed() -> Fallible<()> {
+    let plain = import(routed().text().as_bytes())?;
+    assert_eq!(plain.report.count(Case::ViaSettingUnread), 0);
+    let mut board = routed();
+    board.items = board.items.replace(
+        "(layers \"F.Cu\" \"B.Cu\") (net 1))",
+        "(layers \"F.Cu\" \"B.Cu\") (some_setting (side front) yes) (net 1))",
+    );
+    let imported = import(board.text().as_bytes())?;
+    assert_eq!(
+        imported
+            .report
+            .named(Case::ViaSettingUnread)
+            .collect::<Vec<_>>(),
+        ["“some_setting side front yes” on 1 via"]
+    );
+    let vias = &imported.engine.project().vias;
+    assert_eq!(vias.len(), 1);
+    assert!(vias.iter().all(|v| v.fill.is_none()));
+    Ok(())
+}
+
 #[test]
 fn tracks_and_vias_land_on_their_nets_and_layers() -> Fallible<()> {
     let imported = import(routed().text().as_bytes())?;
