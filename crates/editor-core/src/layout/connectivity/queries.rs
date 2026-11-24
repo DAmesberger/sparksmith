@@ -562,15 +562,29 @@ impl CopperGraph {
     }
 
     /// `fill.island_unconnected`: per fresh fill, the islands that join no
-    /// copper of its net. Fill compute removes these unless the fill keeps
-    /// every island; it decides by the same rule.
+    /// pad, via or track of its net, themselves or through other islands:
+    /// pours that touch only each other float together. A fill keeps such
+    /// an island only when it keeps every island.
     fn unjoined_islands(&self, project: &Project) -> Vec<Finding> {
+        let mut reaching = vec![false; self.islands];
+        for (i, e) in self.elements.iter().enumerate() {
+            if !matches!(e.kind, ElementKind::Fill { .. })
+                && let Some(slot) = self
+                    .island_of(self.vertices_of(i).start)
+                    .and_then(|island| reaching.get_mut(island))
+            {
+                *slot = true;
+            }
+        }
         let mut dead: Vec<(Id, usize)> = Vec::new();
         for (i, e) in self.elements.iter().enumerate() {
             let ElementKind::Fill { fill, .. } = e.kind else {
                 continue;
             };
-            let joined = self.vertices_of(i).any(|v| !self.neighbours(v).is_empty());
+            let joined = self
+                .island_of(self.vertices_of(i).start)
+                .and_then(|island| reaching.get(island).copied())
+                .unwrap_or(false);
             match dead.last_mut() {
                 Some((id, count)) if *id == fill => *count += usize::from(!joined),
                 _ => dead.push((fill, usize::from(!joined))),
