@@ -7,7 +7,7 @@ use crate::fabrication::readback;
 use crate::fabrication::{self, FabricationOptions, Identity, ProductionSnapshot};
 use crate::geometry::Point;
 use crate::ids::{Id, PadId};
-use crate::issues::can_waive;
+use crate::issues::{self, IssueReport, IssueScope, can_waive};
 use crate::layout::CopperGraph;
 use crate::layout::fill::{self, RefillTarget};
 use crate::layout::router::reroute::Rerouted;
@@ -19,6 +19,7 @@ use crate::{Engine, ObjectRef, format};
 use sparksmith_fabcheck::raster::{self, Bitmap};
 use sparksmith_fabcheck::{drills, excellon, gerber};
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 /// The rules of this layer, as its messages and mutants name them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -876,22 +877,50 @@ pub(super) fn reopened(project: &Seen, engine: &Engine, bytes: &[u8]) -> Fallibl
     Ok(out)
 }
 
+/// What an engine keeps between revisions.
+pub(super) struct Kept {
+    pub islands: Option<Islands>,
+    pub issues: Arc<IssueReport>,
+}
+
+impl Kept {
+    pub(super) fn of(engine: &Engine) -> Fallible<Self> {
+        let graph = engine.copper_graph();
+        Ok(Self {
+            islands: graph.complete().then(|| islands(&graph)),
+            issues: engine.issue_report()?,
+        })
+    }
+}
+
 /// [`Rule::Cache`]: what the engine keeps between revisions against the same
-/// made afresh.
-pub(super) fn cached(engine: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
+/// made afresh, in the engine's own context, which a report reads.
+pub(super) fn cached(kept: &Kept, engine: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
     let mut out = Vec::new();
-    let kept = engine.copper_graph();
-    if kept.complete().then(|| islands(&kept)) != seen.islands {
+    if kept.islands != seen.islands {
         out.push(broken(Rule::Cache, "the engine's copper graph is old"));
     }
-    let fresh = crate::issues::report(
+    let _context = engine.enter_context();
+    let fresh = issues::report(
         engine.project(),
         engine.drafts(),
-        &crate::issues::IssueScope::All,
+        &IssueScope::All,
         engine.check_settings(),
     )?;
-    if *engine.issue_report()? != fresh {
-        out.push(broken(Rule::Cache, "the engine's issues are old"));
+    if *kept.issues != fresh {
+        let (old, new) = (&kept.issues.rows, &fresh.rows);
+        let at = old.iter().zip(new).position(|(a, b)| a != b);
+        let at = at.unwrap_or(old.len().min(new.len()));
+        out.push(broken(
+            Rule::Cache,
+            format!(
+                "the engine's issues are old: row {at} of {} is {:?}, made afresh (of {}) {:?}",
+                old.len(),
+                old.get(at),
+                new.len(),
+                new.get(at)
+            ),
+        ));
     }
     Ok(out)
 }

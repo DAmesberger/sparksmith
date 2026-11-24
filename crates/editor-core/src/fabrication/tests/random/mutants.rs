@@ -5,7 +5,7 @@
 use super::Fallible;
 use super::build;
 use super::edits;
-use super::invariants::{self, Broken, Rule, Seen, State};
+use super::invariants::{self, Broken, Kept, Rule, Seen, State};
 use super::plan::{Atom, Case, Edit, Form, Opening, Pour};
 use crate::layout::fill;
 use crate::layout::router::reroute::Rerouted;
@@ -280,12 +280,22 @@ fn old_graph(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
     invariants::all(&old, PIXEL)
 }
 
-/// The engine asked about a board its graph and issues are not of.
+/// The engine asked about a board its graph is not of.
 fn old_engine(engine: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
     let project = after(&seen.project, |p| {
         p.tracks.remove(1);
     });
-    invariants::cached(engine, &Seen::board(&project)?)
+    invariants::cached(&Kept::of(engine)?, engine, &Seen::board(&project)?)
+}
+
+/// A track deleted, and the issues of before kept beside the graph of now.
+fn old_issues(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
+    let (before, after) = edited(engine)?;
+    let kept = Kept {
+        issues: Kept::of(&before)?.issues,
+        ..Kept::of(&after)?
+    };
+    invariants::cached(&kept, &after, &Seen::board(after.project())?)
 }
 
 /// RAIL1's stub laid over RAIL0's via.
@@ -346,7 +356,7 @@ fn redo_lost(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
     Ok(invariants::history(a, b, a, a).into_iter().collect())
 }
 
-const FAULTS: [(&str, &[Rule], Fault); 17] = [
+const FAULTS: [(&str, &[Rule], Fault); 18] = [
     (
         "the fill clearance too small",
         &[Rule::Clearance],
@@ -389,6 +399,7 @@ const FAULTS: [(&str, &[Rule], Fault); 17] = [
     ),
     ("an old copper graph", &[Rule::Connectivity], old_graph),
     ("an engine that kept its graph", &[Rule::Cache], old_engine),
+    ("an engine that kept its issues", &[Rule::Cache], old_issues),
     (
         "a short that no finding tells",
         &[Rule::Short],
@@ -440,10 +451,11 @@ fn pour_not_drawn(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
 #[test]
 fn every_seeded_fault_is_told_by_the_rules_that_must_tell_it() -> Fallible {
     let engine = board()?;
+    let _context = engine.enter_context();
     let seen = Seen::files(engine.project())?;
     // The board is right, and has what the faults are about.
     let mut clean = invariants::all(&seen, PIXEL)?;
-    clean.extend(invariants::cached(&engine, &seen)?);
+    clean.extend(invariants::cached(&Kept::of(&engine)?, &engine, &seen)?);
     clean.extend(invariants::reopened(
         &seen,
         &engine,
@@ -468,6 +480,10 @@ fn every_seeded_fault_is_told_by_the_rules_that_must_tell_it() -> Fallible {
             .map(|b| b.rule)
             .collect();
         eprintln!("{what}: told by {told:?}");
+        // The rule of what is kept tells what is kept, and nothing else.
+        if told.contains(&Rule::Cache) && !by.contains(&Rule::Cache) {
+            missed.push(format!("{what}: told by {:?} too", Rule::Cache));
+        }
         for rule in by {
             if !told.contains(rule) {
                 missed.push(format!("{what}: not told by {rule:?}, only by {told:?}"));

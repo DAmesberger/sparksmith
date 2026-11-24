@@ -900,6 +900,8 @@ pub struct ReportKey {
     project: usize,
     drafts: usize,
     checks: layout::CheckSettings,
+    /// The host's context, which findings and their help are read from.
+    context: usize,
 }
 
 /// The document, its revision and one shared undo history.
@@ -1072,7 +1074,8 @@ impl Engine {
     }
 
     /// What a check report of this engine is computed from: the document
-    /// state and the host's check settings. A view that caches findings
+    /// state, the host's check settings and its context. A view that caches
+    /// findings
     /// (Issues, the inspector's slot, the production check) keys them on
     /// this, so a settings change (the impedance tolerance) refreshes every
     /// view together, though it takes no revision.
@@ -1082,6 +1085,10 @@ impl Engine {
             project: Arc::as_ptr(&self.document.project) as usize,
             drafts: Arc::as_ptr(&self.document.drafts) as usize,
             checks: self.check_settings,
+            context: self
+                .context
+                .as_ref()
+                .map_or(0, |context| Arc::as_ptr(context) as usize),
         }
     }
 
@@ -3055,8 +3062,8 @@ impl Engine {
 
     /// The report of every issue of this state ([`issues::IssueScope::All`]),
     /// what `project.issues` answers and every view projects its scope
-    /// from ([`issues::IssueReport::scoped`]). Made once per state and
-    /// check settings, from the last report made on this engine or its
+    /// from ([`issues::IssueReport::scoped`]). Made once per state, check
+    /// settings and context, from the last report made on this engine or its
     /// forks: a state that changed only tracks and vias checks only what
     /// reads them ([`issues::incremental`]).
     pub fn issue_report(&self) -> Result<Arc<issues::IssueReport>> {

@@ -201,7 +201,7 @@ SPARKSMITH_RANDOM_CASE='17:0-3,9,22' cargo test -p sparksmith-core --lib random:
 
 The numbers are places in the seed's list of atoms: a change to the generator (`plan.rs`) makes other boards of the same seeds, so a case worth keeping becomes a test of its own.
 
-**Alive.** `every_seeded_fault_is_told_by_the_rules_that_must_tell_it` makes what was seen of one board wrong in 17 ways (a fill clearance, a drill position, a mirrored mask, a lost via, old copper and an old graph among them) and names the rules that must tell each. `the_generator_makes_everything_and_most_edits_are_taken` keeps the boards from being empty.
+**Alive.** `every_seeded_fault_is_told_by_the_rules_that_must_tell_it` makes what was seen of one board wrong in 18 ways (a fill clearance, a drill position, a mirrored mask, a lost via, old copper and an old graph among them) and names the rules that must tell each. `the_generator_makes_everything_and_most_edits_are_taken` keeps the boards from being empty.
 
 ## KiCad import comparison
 

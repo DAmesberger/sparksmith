@@ -20,6 +20,7 @@ use crate::layout::{
     GraphSource, Items, NetCounts,
 };
 use crate::library::Drafts;
+use crate::library::standards::Context;
 use crate::model::{CopperLayer, Project};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
@@ -63,6 +64,9 @@ pub struct Checked {
     project: Arc<Project>,
     drafts: Arc<Drafts>,
     settings: CheckSettings,
+    /// The context it was made in: its standards are read by findings
+    /// (what a tie's part is rated for), its help by rows (how to fix).
+    context: Option<Arc<Context>>,
     copper: Arc<BoardCopper>,
     component: Vec<Finding>,
     schematic: Vec<Finding>,
@@ -99,9 +103,19 @@ pub(super) struct Paths {
 }
 
 impl Checked {
-    /// Every check of `project` and `drafts` under `settings`. `graph`
-    /// gives the state's copper graph, asked for only when a check needs
-    /// it.
+    /// Whether the context current on this thread is the one it was made
+    /// in.
+    fn in_context(&self) -> bool {
+        match (&self.context, Context::current().ok()) {
+            (Some(made), Some(now)) => Arc::ptr_eq(made, &now),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    /// Every check of `project` and `drafts` under `settings`, in the
+    /// context current on this thread. `graph` gives the state's copper
+    /// graph, asked for only when a check needs it.
     pub fn full(
         project: &Arc<Project>,
         drafts: &Arc<Drafts>,
@@ -123,12 +137,14 @@ impl Checked {
         graph: &dyn Fn() -> Arc<CopperGraph>,
     ) -> Result<Self> {
         let change = change(&self.project, project);
-        let same_inputs = Arc::ptr_eq(&self.drafts, drafts) && self.settings == *settings;
+        let same_inputs =
+            Arc::ptr_eq(&self.drafts, drafts) && self.settings == *settings && self.in_context();
         if same_inputs && change == Change::None {
             return Ok(Self {
                 project: project.clone(),
                 drafts: drafts.clone(),
                 settings: *settings,
+                context: self.context.clone(),
                 copper: self.copper.clone(),
                 component: self.component.clone(),
                 schematic: self.schematic.clone(),
@@ -328,6 +344,7 @@ impl Checked {
             project: project.clone(),
             drafts: drafts.clone(),
             settings: *settings,
+            context: Context::current().ok(),
             copper,
             component,
             schematic,
@@ -346,7 +363,8 @@ impl Checked {
     }
 
     /// Whether this is the report of exactly this state: the same
-    /// project and drafts allocations and the same settings.
+    /// project and drafts allocations, the same settings and the context
+    /// current on this thread.
     pub fn describes(
         &self,
         project: &Arc<Project>,
@@ -356,6 +374,7 @@ impl Checked {
         Arc::ptr_eq(&self.project, project)
             && Arc::ptr_eq(&self.drafts, drafts)
             && self.settings == *settings
+            && self.in_context()
     }
 
     /// The report of every area.

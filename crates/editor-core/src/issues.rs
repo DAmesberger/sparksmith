@@ -184,6 +184,8 @@ pub struct IssueReport {
 /// board checks (Board). Rows are uncapped and sorted most severe first,
 /// grouped by [`IssueGroup`].
 /// `settings` are the host's values for limits the project leaves open.
+/// Reads the context current on this thread, as every check does: the
+/// engine's own report enters its context ([`crate::Engine::issue_report`]).
 pub fn report(
     project: &Project,
     drafts: &Drafts,
