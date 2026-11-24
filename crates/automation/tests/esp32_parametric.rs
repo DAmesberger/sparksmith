@@ -19,6 +19,7 @@ use esp32_preflight::{USB_UNCOUPLED_MM, assert_usb_preflight};
 use serde_json::{Value, json};
 use sparksmith_automation::Session;
 use sparksmith_core::geometry::Point;
+use sparksmith_core::issues::IssueScope;
 use sparksmith_core::layout::{self, CopperGraph};
 use sparksmith_core::library::footprint_source::SolveStatus;
 use sparksmith_core::library::{Outline, Segment};
@@ -740,4 +741,157 @@ fn a_parameter_change_that_breaks_the_design_is_reported() -> Fallible {
         item.title
     );
     Ok(())
+}
+
+/// GUI check K1: the board is made 30 mm wide, which its outline cannot
+/// be. The drawn outline crosses itself, so the board keeps its last valid
+/// shape, 40 by 64 mm, beside a width of 30. No way leads from there to
+/// files of the old outline: the waive command refuses, an export writes
+/// nothing, and a waiver a saved project holds counts for nothing, then and
+/// when the outline is made valid and invalid again.
+#[test]
+fn an_invalid_outline_is_never_waived_into_files_of_the_last_one() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let mut session = open(dir.path())?;
+    let invalid = "board.shape_invalid";
+    let report = |session: &mut Session| -> Fallible<Value> {
+        ok(
+            session,
+            json!({"command": "project.query", "params": {
+                "query": "fabrication.preflight", "params": {}}}),
+        )
+        .map(|r| r["result"].clone())
+    };
+    let items = |report: &Value, code: &str| -> Vec<Value> {
+        report["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|i| i["code"] == code)
+            .cloned()
+            .collect()
+    };
+    // Writes nothing, and says what it waits for.
+    let blocked = |session: &mut Session, out: &str| -> Fallible {
+        for zip in [false, true] {
+            let output = dir.path().join(if zip {
+                format!("{out}.zip")
+            } else {
+                out.to_owned()
+            });
+            let reply = session.dispatch(json!({"command": "project.export_fabrication",
+                "params": {"output": output.display().to_string(), "zip": zip}}));
+            assert_eq!(reply["ok"], false, "{reply}");
+            assert!(
+                reply["error"].to_string().contains("fabrication.blocked"),
+                "{reply}"
+            );
+            assert!(!output.exists(), "{} was written", output.display());
+        }
+        Ok(())
+    };
+    assert!(items(&report(&mut session)?, invalid).is_empty());
+    set(&mut session, &[("width", "30 mm")])?;
+    assert_eq!(session.engine().project().board_size, [40.0, 64.0]);
+    let found = report(&mut session)?;
+    let [outline] = &items(&found, invalid)[..] else {
+        return Err(format!("{found}").into());
+    };
+    assert!(outline.get("waiver").is_none() && outline["severity"] == "error");
+    assert!(outline["fix"].as_str().is_some_and(|f| !f.is_empty()));
+    blocked(&mut session, "fresh")?;
+
+    // The command refuses, by itself and among others, and changes nothing.
+    let keys: Vec<String> = found["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|i| i["key"].as_str().map(str::to_owned))
+        .collect();
+    let key = outline["key"].as_str().ok_or("a key")?.to_owned();
+    let revision = session.engine().revision();
+    for asked in [vec![key.clone()], keys.clone()] {
+        let reply = session.dispatch(json!({"command": "project.apply", "params": {
+            "expected_revision": revision,
+            "operation": {"editor": "Fabrication", "operation": {
+                "command": "fabrication.waive",
+                "params": {"keys": asked, "reason": "known"}}}}}));
+        assert!(
+            reply["error"]
+                .to_string()
+                .contains("fabrication.not_waivable"),
+            "{reply}"
+        );
+    }
+    assert_eq!(session.engine().revision(), revision);
+    assert!(session.engine().project().production.waivers.is_empty());
+
+    // A project saved with every finding waived, as one saved before the
+    // rule may be.
+    let mut file = session.engine().to_file();
+    let mut all = keys;
+    all.sort();
+    all.dedup();
+    file.project.production.waivers = all
+        .into_iter()
+        .map(|key| sparksmith_core::model::production::Waiver {
+            key,
+            reason: "known".into(),
+        })
+        .collect();
+    let saved = dir.path().join("waived.sparksmith");
+    let mut writer = Session::new(Engine::from_file(file)?);
+    ok(
+        &mut writer,
+        json!({"command": "project.save", "params": {"path": saved.display().to_string()}}),
+    )?;
+    let mut reopened = Session::new(Engine::default());
+    ok(
+        &mut reopened,
+        json!({"command": "project.open", "params": {"expected_revision": 0,
+            "path": saved.display().to_string()}}),
+    )?;
+    let held = |session: &mut Session, what: &str| -> Fallible {
+        let project = session.engine().project();
+        assert!(
+            project.production.waivers.iter().any(|w| w.key == key),
+            "{what}: the waiver is gone"
+        );
+        let found = report(session)?;
+        let [outline] = &items(&found, invalid)[..] else {
+            return Err(format!("{what}: {found}").into());
+        };
+        assert!(outline.get("waiver").is_none(), "{what}: {outline}");
+        assert_eq!(outline["severity"], "error", "{what}");
+        // Every other finding is waived: the outline alone blocks.
+        assert_eq!(found["blocking"], 1, "{what}: {found}");
+        let QueryResult::Issues(issues) = session.engine().query(Query::Issues {
+            scope: IssueScope::All,
+        })?
+        else {
+            return Err("not an issue report".into());
+        };
+        assert!(
+            issues.rows.iter().any(|r| r.group.code == invalid),
+            "{what}: not in Issues"
+        );
+        Ok(())
+    };
+    held(&mut reopened, "reopened")?;
+    blocked(&mut reopened, "reopened")?;
+    set(&mut reopened, &[("width", "40 mm")])?;
+    assert!(items(&report(&mut reopened)?, invalid).is_empty());
+    // Made valid and refilled, the same project writes its files.
+    refill(&mut reopened)?;
+    let output = dir.path().join("valid");
+    ok(
+        &mut reopened,
+        json!({"command": "project.export_fabrication",
+            "params": {"output": output.display().to_string(), "zip": false}}),
+    )?;
+    assert!(output.exists());
+    set(&mut reopened, &[("width", "30 mm")])?;
+    refill(&mut reopened)?;
+    held(&mut reopened, "invalid again")?;
+    blocked(&mut reopened, "again")
 }

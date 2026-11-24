@@ -589,7 +589,8 @@ const WAIVED_FOLD: &str = "\u{1f}waived";
 /// The project's waivers as the Waived group shows them: the objects each
 /// names (the key holds its code and objects) and its reason, computed
 /// once per document revision. Titles would need the production check,
-/// so the objects stand in for them.
+/// so the objects stand in for them. A saved waiver of a finding that may
+/// not be waived counts for nothing and is not shown.
 struct WaivedRows {
     at: sparksmith_core::ReportKey,
     /// The waiver keys, for Restore.
@@ -599,7 +600,12 @@ struct WaivedRows {
 
 fn waived_rows(engine: &Engine) -> WaivedRows {
     let project = engine.project();
-    let waivers = &project.production.waivers;
+    let waivers: Vec<_> = project
+        .production
+        .waivers
+        .iter()
+        .filter(|w| preflight::can_waive(w.key.split_whitespace().next().unwrap_or_default()))
+        .collect();
     let parsed: Vec<Vec<ObjectRef>> = waivers
         .iter()
         .map(|w| {

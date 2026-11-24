@@ -628,8 +628,18 @@ fn an_issue_is_waived_inline_with_a_reason_and_one_undo_restores_it() -> Fallibl
     let mut ax = Ax::new(Workspace::Pcb)?;
     ax.app.engine.require_waiver_reason(true);
     // The demo's own findings are unrouted connections, which cannot be
-    // waived: put R2 0.1 mm above R1 (their lands are 1.4 mm high) for pad
-    // clearance findings that can.
+    // waived: put R2 0.1 mm above R1 (their lands are 1.4 mm high), under a
+    // clearance of the board's own, for pad clearance findings that can.
+    ax.app.engine.apply(
+        ax.app.engine.revision(),
+        sparksmith_core::Operation::Rules(sparksmith_core::rules::RulesCommand::SetOverride {
+            key: sparksmith_core::rules::RuleKey::Clearance {
+                a: sparksmith_core::rules::CopperObject::Pad,
+                b: sparksmith_core::rules::CopperObject::Pad,
+            },
+            value: sparksmith_core::rules::RuleValue::Length(0.3),
+        }),
+    )?;
     let placements = ax.app.engine.project().placements.clone();
     let (first, second) = (
         placements.first().ok_or("no first part")?,

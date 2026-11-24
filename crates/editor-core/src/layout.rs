@@ -1957,8 +1957,7 @@ pub fn check_families(
                 !matches!(
                     f.code.as_str(),
                     "board.clearance" | "board.overlap" | "fill.clearance" | "fill.overlap"
-                )
-                    || !graph.get().accounts_for(&f.objects)
+                ) || !graph.get().accounts_for(&f.objects)
             });
         }
         out.push((check, findings));

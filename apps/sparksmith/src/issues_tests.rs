@@ -1291,3 +1291,28 @@ fn a_profile_limited_row_says_what_it_needs_and_offers_the_switch() -> Fallible<
     );
     Ok(())
 }
+
+/// A waiver a project saved before its finding could not be waived counts
+/// for nothing, so Issues does not list it as waived; the others stay.
+#[test]
+fn a_saved_waiver_of_what_cannot_be_waived_is_not_listed() -> Fallible<()> {
+    let mut file = Engine::demo()?.to_file();
+    let keys = [
+        "board.clearance []",
+        "board.overlap []",
+        "board.shape_invalid []",
+        "fabrication.slot_unroutable.3 []",
+        "fill.stale []",
+    ];
+    file.project.production.waivers = keys
+        .iter()
+        .map(|key| sparksmith_core::model::production::Waiver {
+            key: (*key).into(),
+            reason: String::new(),
+        })
+        .collect();
+    let engine = Engine::from_file(file)?;
+    assert_eq!(engine.project().production.waivers.len(), keys.len());
+    assert_eq!(waived_rows(&engine).keys, [keys[0]]);
+    Ok(())
+}

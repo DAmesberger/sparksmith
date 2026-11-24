@@ -210,7 +210,11 @@ pub fn report_on(
     report_in(project, drafts, scope, graph, settings)
 }
 
-/// Finding codes that block export and cannot be waived: an unrouted
+/// Finding codes that block export and cannot be waived (a waiver accepts a
+/// design rule that is not kept, never a short nor files that would not be
+/// the design; founder decision, 24 November 2026): copper of two nets that
+/// touches, stale or unfilled fills, an outline that is not a valid one, a
+/// part without a footprint or that does not resolve, an unrouted
 /// connection or a part not on the board (a waiver would make an
 /// unfinished board look finished and export it as if complete: route it,
 /// place it; a part to leave unassembled is placed and Not fitted in a

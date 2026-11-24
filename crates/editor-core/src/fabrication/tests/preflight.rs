@@ -25,8 +25,9 @@ fn waive(engine: &mut Engine, key: String) -> Fallible<()> {
 }
 
 /// The second part 1.5 mm above the first: their 1.0 by 1.4 mm lands are
-/// 0.1 mm apart, pad 1 from pad 1 and pad 2 from pad 2, under the 0.2 mm
-/// rule, and touch nowhere.
+/// 0.1 mm apart, pad 1 from pad 1 and pad 2 from pad 2, under the board's
+/// own 0.3 mm (a limit of the fab profile's is never waived), and touch
+/// nowhere.
 fn close_parts() -> Fallible<Engine> {
     let mut file = Engine::demo()?.to_file();
     let at = file
@@ -40,6 +41,16 @@ fn close_parts() -> Fallible<Engine> {
         .get_mut(1)
         .ok_or("second placement")?
         .position = [at[0], at[1] + 1.5];
+    crate::rules::apply(
+        &mut file.project.rules,
+        crate::rules::RulesCommand::SetOverride {
+            key: crate::rules::RuleKey::Clearance {
+                a: crate::rules::CopperObject::Pad,
+                b: crate::rules::CopperObject::Pad,
+            },
+            value: crate::rules::RuleValue::Length(0.3),
+        },
+    )?;
     Ok(Engine::from_file(file)?)
 }
 

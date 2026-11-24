@@ -4,8 +4,10 @@
 //! chosen fabrication profile) plus production findings: unrouted nets,
 //! unfilled or stale fills, parts without a footprint or placement, parts
 //! shown with only an envelope model, legend over pads or off the board and
-//! slots the drill file cannot route. Errors block export unless waived; waivers are saved
-//! in the project (`Project::production`).
+//! slots the drill file cannot route. Errors block export unless waived, and
+//! those whose files would not be the design, or would short two nets, may
+//! not be ([`NO_WAIVER`]); waivers are saved in the project
+//! (`Project::production`).
 use super::snapshot::ProductionSnapshot;
 use crate::diagnostics::{Error, ObjectRef, Result};
 use crate::geometry::{Bounds, Point, polyline_polygon_distance};
@@ -245,11 +247,13 @@ fn instead(code: &str) -> &'static str {
         }
         "fill.overlap" => "refill the fill, or move the copper apart",
         "board.overlap" => "move the copper apart",
-        "board.shape_unsolved" | "board.shape_open" | "board.shape_invalid" => {
-            "finish the board outline"
+        "board.shape_unsolved" | layout::outline::SHAPE_OPEN | layout::outline::SHAPE_INVALID => {
+            "make the board outline valid (Board shape)"
         }
-        "fabrication.no_footprint" => "choose a footprint for the part",
-        "instance.check_failed" => "repair the part",
+        "fabrication.no_footprint" => {
+            "choose a footprint for the part, or take it out of the design"
+        }
+        "instance.check_failed" => "restore what the part refers to",
         c if c.starts_with(SLOT_UNROUTABLE) => {
             "draw the plated slot as a straight slot with round ends, or make it unplated"
         }
@@ -444,7 +448,7 @@ fn production_findings(project: &Project, drafts: &Drafts, items: &mut Vec<Prefl
                 "fabrication.no_footprint",
                 Severity::Error,
                 format!("{} has no footprint", instance.designator),
-                Some("Choose a footprint for the part".into()),
+                Some("Choose a footprint for the part, or remove the part".into()),
                 objects,
             )),
             Some(physical) => {

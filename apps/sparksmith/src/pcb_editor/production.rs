@@ -658,13 +658,22 @@ pub(super) fn export_blocked(
                     .filter(|i| i.blocks())
                     .all(|i| !i.offers_waiver()) =>
         {
-            return Some("Fix the design or switch to a fab profile that allows it first".into());
+            return Some(unwaivable(report));
         }
         Some(Ok(report)) if report.blocking == 1 => {
             return Some("Fix or waive the error first".into());
         }
         Some(Ok(report)) if report.blocking > 1 => {
-            return Some(format!("Fix or waive the {} errors first", report.blocking));
+            let fixed_only = report
+                .items
+                .iter()
+                .filter(|i| i.blocks() && !i.offers_waiver())
+                .count();
+            let words = format!("Fix or waive the {} errors first", report.blocking);
+            return Some(match fixed_only {
+                0 => words,
+                n => format!("{words}; {n} cannot be waived"),
+            });
         }
         Some(Ok(_)) => {}
     }
@@ -675,6 +684,28 @@ pub(super) fn export_blocked(
         return Some("Choose where to save the files".into());
     }
     None
+}
+
+/// Why Export waits for errors that cannot be waived: what resolves them,
+/// when one thing does; a profile that allows the board only when the
+/// board's fab profile is what it asks more of.
+fn unwaivable(report: &PreflightReport) -> String {
+    let blocking = || report.items.iter().filter(|i| i.blocks());
+    if blocking().any(|i| i.needs.is_some()) {
+        return "Fix the design or switch to a fab profile that allows it first".into();
+    }
+    let mut fixes: Vec<&str> = blocking().filter_map(|i| i.fix.as_deref()).collect();
+    fixes.sort_unstable();
+    fixes.dedup();
+    match fixes.as_slice() {
+        [one] if blocking().all(|i| i.fix.is_some()) => {
+            format!("{one} first; this cannot be waived")
+        }
+        _ => format!(
+            "Fix the {} errors first; they cannot be waived",
+            report.blocking
+        ),
+    }
 }
 
 impl PcbEditor {
@@ -993,8 +1024,9 @@ impl Waiving {
 }
 
 /// A finding that can be waived now: an error or warning nobody waived,
-/// of a kind core offers a waiver for (never an unrouted connection, never
-/// a finding the board needs more of its fab profile for).
+/// of a kind core offers a waiver for (never an unrouted connection, copper
+/// of two nets that touches or files that would not be the design, never a
+/// finding the board needs more of its fab profile for).
 fn waivable(item: &PreflightItem) -> bool {
     item.waiver.is_none()
         && matches!(item.severity, Severity::Error | Severity::Warning)
@@ -1381,6 +1413,9 @@ fn row_tip(item: &PreflightItem) -> String {
     }
     if let Some(fix) = &item.fix {
         tip.push(fix.clone());
+    }
+    if item.blocks() && item.needs.is_none() && !item.offers_waiver() {
+        tip.push("Cannot be waived".to_owned());
     }
     tip.join("\n")
 }

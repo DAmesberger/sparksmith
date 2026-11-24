@@ -224,13 +224,18 @@ fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible
     )?;
     // Every track is narrower than the board's own minimum: design rule
     // errors a person may accept.
-    engine.apply(
-        engine.revision(),
-        sparksmith_core::Operation::Rules(sparksmith_core::rules::RulesCommand::SetOverride {
-            key: sparksmith_core::rules::RuleKey::TrackWidthMin,
-            value: sparksmith_core::rules::RuleValue::Length(0.4),
-        }),
-    )?;
+    for key in [
+        sparksmith_core::rules::RuleKey::TrackWidthDefault,
+        sparksmith_core::rules::RuleKey::TrackWidthMin,
+    ] {
+        engine.apply(
+            engine.revision(),
+            sparksmith_core::Operation::Rules(sparksmith_core::rules::RulesCommand::SetOverride {
+                key,
+                value: sparksmith_core::rules::RuleValue::Length(0.4),
+            }),
+        )?;
+    }
     let mut session = Session::new(engine);
     // Switched to a finer profile, the fills were computed under other
     // rules: they are stale, an error that blocks production and cannot be

@@ -1078,3 +1078,72 @@ fn suggestions_are_checked_off_the_ui_thread_against_the_installed_profiles() ->
     assert!(found.suggestions[0].same_fabricator);
     Ok(())
 }
+
+/// A short, or a finding whose files would not be the design, is not to be
+/// waived: its row offers no waiver and says so with what fixes it, and the
+/// disabled Export says the same, never to waive or to switch the profile.
+#[test]
+fn what_cannot_be_waived_says_what_to_do_instead() -> TestResult {
+    let engine = Engine::showcase()?;
+    let base = report_with_error(&engine);
+    let item = |code: &str, fix: &str| {
+        let mut item = base.items[0].clone();
+        item.key = format!("{code} []");
+        item.code = code.into();
+        item.fix = Some(fix.into());
+        item
+    };
+    let of = |items: Vec<PreflightItem>| PreflightReport {
+        errors: items.len(),
+        blocking: items.len(),
+        items,
+        ..base.clone()
+    };
+    for (code, fix) in [
+        ("board.overlap", "Move the copper apart"),
+        ("fill.overlap", "Refill the fill, or move the copper apart"),
+        ("fill.stale", "Refill the fill"),
+        ("fabrication.fill_unfilled", "Refill the fill"),
+        ("board.shape_invalid", "Fix the crossing"),
+        ("board.shape_open", "Join the open ends in Board shape"),
+        (
+            "fabrication.no_footprint",
+            "Choose a footprint for the part",
+        ),
+    ] {
+        let item = item(code, fix);
+        assert!(!item.offers_waiver() && !waivable(&item), "{code}");
+        assert_eq!(row_tip(&item), format!("{fix}\nCannot be waived"), "{code}");
+        assert_eq!(
+            unwaivable(&of(vec![item.clone(), item])),
+            format!("{fix} first; this cannot be waived"),
+            "{code}"
+        );
+    }
+    assert_eq!(
+        unwaivable(&of(vec![
+            item("fill.stale", "Refill the fill"),
+            item("board.shape_open", "Join the open ends in Board shape"),
+        ])),
+        "Fix the 2 errors first; they cannot be waived"
+    );
+    // Beside one that can be waived, Export counts the ones that cannot.
+    let mut editor = open(&engine)?;
+    let tmp = tempfile::tempdir()?;
+    let d = dialog(&mut editor)?;
+    d.location = Some(tmp.path().to_path_buf());
+    let mixed = of(vec![
+        base.items[0].clone(),
+        item("fill.stale", "Refill the fill"),
+    ]);
+    assert_eq!(
+        export_blocked(d, Some(&Ok(mixed)), true, d.output("x").as_ref()).as_deref(),
+        Some("Fix or waive the 2 errors first; 1 cannot be waived")
+    );
+    let only = of(vec![item("fill.stale", "Refill the fill")]);
+    assert_eq!(
+        export_blocked(d, Some(&Ok(only)), true, d.output("x").as_ref()).as_deref(),
+        Some("Refill the fill first; this cannot be waived")
+    );
+    Ok(())
+}
