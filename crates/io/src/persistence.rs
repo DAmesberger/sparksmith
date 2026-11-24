@@ -1,6 +1,7 @@
 //! Project files on disk. A project is a ZIP container (see [`container`]).
 //! Writes are atomic: a failed save leaves any existing file untouched and
-//! no temporary file behind.
+//! no temporary file behind. A save Windows refuses because another program
+//! has the file open keeps its version beside it and says so (`windows`).
 use crate::{Error, Result};
 use sparksmith_core::format::{self, EditorFile, MAX_FILE_BYTES};
 use sparksmith_core::{Document, FirstSave};
@@ -11,6 +12,8 @@ use std::{
 };
 
 pub mod container;
+#[cfg(windows)]
+mod windows;
 
 pub fn check_project_path(path: &Path) -> Result<()> {
     if !format::is_project_path(path) {
@@ -226,6 +229,7 @@ pub(crate) fn identity_of(file: &mut File) -> Result<DiskIdentity> {
 /// `expected` and replaced while the lock is held, so two saves of one
 /// file cannot both pass the check. On a mismatch the temporary file is
 /// published beside `path` instead ([`Conflict`]).
+#[cfg(not(windows))]
 pub(crate) fn replace_checked(
     mut temporary: tempfile::NamedTempFile,
     path: &Path,
@@ -263,7 +267,7 @@ pub(crate) fn replace_checked(
             && identity_of(&mut current)? != expected
         {
             drop(current);
-            return Err(keep_beside(temporary, path, identity));
+            return Err(keep_beside(temporary.into_temp_path(), path, identity));
         }
         temporary.persist(path).map_err(|e| Error::Io(e.error))?;
         // The lock is released once the new file is in place.
@@ -271,10 +275,78 @@ pub(crate) fn replace_checked(
         sync_directory(parent_of(path))?;
         return Ok(identity);
     }
-    Err(Error::Invalid(format!(
+    Err(keeps_changing(path))
+}
+
+/// What one try of a replacement on Windows found.
+#[cfg(windows)]
+enum Found {
+    Replaced,
+    Absent,
+    Changed,
+}
+
+/// The same on Windows, where a file that is open cannot be replaced: the
+/// writers' lock is a file beside it ([`windows::SaveLock`]), and the file
+/// itself is closed before the replacement.
+#[cfg(windows)]
+pub(crate) fn replace_checked(
+    mut temporary: tempfile::NamedTempFile,
+    path: &Path,
+    expected: Option<DiskIdentity>,
+) -> Result<DiskIdentity> {
+    let identity = identity_of(temporary.as_file_mut())?;
+    let mut temporary = temporary.into_temp_path();
+    let _saving = windows::SaveLock::hold(path)?;
+    // A bounded number of tries: each one that fails lost a race with a
+    // program that created or moved the file meanwhile.
+    for _ in 0..16 {
+        let staged = windows::Staged::new(temporary)?;
+        let replaced = windows::retrying(|| {
+            if path.is_dir() {
+                return Err(std::io::Error::from(std::io::ErrorKind::IsADirectory).into());
+            }
+            // Looked at again before each try of the replacement.
+            let mut current = match File::open(path) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    return Ok(Found::Absent);
+                }
+                Err(error) => return Err(error.into()),
+            };
+            if let Some(expected) = expected
+                && identity_of(&mut current)? != expected
+            {
+                return Ok(Found::Changed);
+            }
+            drop(current);
+            staged.rename_over(path).map(|()| Found::Replaced)
+        });
+        match replaced {
+            Ok(Found::Replaced) => return Ok(identity),
+            Ok(Found::Changed) => {
+                return Err(keep_beside(staged.into_temp_path(), path, identity));
+            }
+            Err(error) => return Err(windows::not_replaced(staged, path, error)),
+            // No file (a first save, or the opened one was moved away):
+            // this document takes the name without replacing anything.
+            Ok(Found::Absent) => match staged.into_temp_path().persist_noclobber(path) {
+                Ok(()) => return Ok(identity),
+                Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    temporary = error.path;
+                }
+                Err(error) => return Err(Error::Io(error.error)),
+            },
+        }
+    }
+    Err(keeps_changing(path))
+}
+
+fn keeps_changing(path: &Path) -> Error {
+    Error::Invalid(format!(
         "{} keeps changing while it is being saved; try again",
         path.display()
-    )))
+    ))
 }
 
 /// Whether the locked `file` is still the one `path` names.
@@ -309,11 +381,23 @@ pub(crate) fn still_at(_file: &File, path: &Path) -> Result<bool> {
 
 /// Publish `temporary` as a new file beside `path` ("board (conflict
 /// 1).sparksmith", the first free number) and say so.
-fn keep_beside(
-    mut temporary: tempfile::NamedTempFile,
-    path: &Path,
-    identity: DiskIdentity,
-) -> Error {
+fn keep_beside(temporary: tempfile::TempPath, path: &Path, identity: DiskIdentity) -> Error {
+    match beside(temporary, path, "conflict") {
+        Ok(kept) => {
+            let _ = sync_directory(parent_of(path));
+            Error::Conflict(Box::new(Conflict {
+                path: path.to_path_buf(),
+                kept,
+                identity,
+            }))
+        }
+        Err(error) => error,
+    }
+}
+
+/// Put `temporary` in place as a new file beside `path`: "board (`what`
+/// 1).sparksmith", the first free number.
+fn beside(mut temporary: tempfile::TempPath, path: &Path, what: &str) -> Result<PathBuf> {
     let stem = path
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
@@ -323,26 +407,19 @@ fn keep_beside(
         .map(|e| e.to_string_lossy().into_owned())
         .unwrap_or_else(|| format::EXTENSION.to_owned());
     for n in 1..=99 {
-        let kept = parent_of(path).join(format!("{stem} (conflict {n}).{extension}"));
+        let kept = parent_of(path).join(format!("{stem} ({what} {n}).{extension}"));
         match temporary.persist_noclobber(&kept) {
-            Ok(_) => {
-                let _ = sync_directory(parent_of(path));
-                return Error::Conflict(Box::new(Conflict {
-                    path: path.to_path_buf(),
-                    kept,
-                    identity,
-                }));
-            }
+            Ok(()) => return Ok(kept),
             Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
-                temporary = error.file;
+                temporary = error.path;
             }
-            Err(error) => return Error::Io(error.error),
+            Err(error) => return Err(Error::Io(error.error)),
         }
     }
-    Error::Invalid(format!(
-        "{} changed on disk since it was opened, and no free name was found beside it to keep this version; use Save As",
+    Err(Error::Invalid(format!(
+        "{} was not replaced, and no free name was found beside it to keep this version; use Save As",
         path.display()
-    ))
+    )))
 }
 
 /// Validate, encode and create a project without replacing another file,
@@ -577,13 +654,25 @@ pub(crate) fn write_with(
 /// The one publication primitive used by byte, container and path writers.
 fn persist(temporary: tempfile::TempPath, path: &Path, replace: bool) -> Result<()> {
     if replace {
-        temporary.persist(path).map_err(|e| Error::Io(e.error))?;
+        replace_with(temporary, path)?;
     } else {
         temporary
             .persist_noclobber(path)
             .map_err(|e| Error::Io(e.error))?;
     }
     sync_directory(parent_of(path))
+}
+
+#[cfg(not(windows))]
+fn replace_with(temporary: tempfile::TempPath, path: &Path) -> Result<()> {
+    temporary.persist(path).map_err(|e| Error::Io(e.error))
+}
+
+/// Windows refuses to replace a file that is open: see [`windows`].
+#[cfg(windows)]
+fn replace_with(temporary: tempfile::TempPath, path: &Path) -> Result<()> {
+    let staged = windows::Staged::new(temporary)?;
+    windows::retrying(|| staged.rename_over(path))
 }
 
 /// The sibling temporary file for `path`, with the permissions `path` should
