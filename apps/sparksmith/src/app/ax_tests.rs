@@ -96,16 +96,6 @@ fn wire_middle(ax: &Ax) -> Fallible<(sparksmith_core::Id, egui::Pos2)> {
 /// R1's body on the demo sheet, 12 mm left of the origin.
 const R1_BODY: Point = [-12.0, 0.0];
 
-/// The open Issues surface once it shows its report, which is made off the
-/// UI thread, at the machine's pace.
-fn issues_report(ax: &mut Ax) -> Fallible {
-    ax.until("the issues report", |ax| {
-        ax.seen.iter().any(|(text, _)| text == "Copy report")
-    })?;
-    ax.settle();
-    Ok(())
-}
-
 /// Run 8, finding 4: Copy report in Issues hands the whole report to the
 /// platform's clipboard. eframe delivers it only when built with its
 /// `clipboard` feature; that the macOS pasteboard receives it needs a run
@@ -114,7 +104,7 @@ fn issues_report(ax: &mut Ax) -> Fallible {
 fn copy_report_hands_the_whole_report_to_the_clipboard() -> Fallible {
     let mut ax = Ax::new(Workspace::Schematic)?;
     ax.app.issues.open();
-    issues_report(&mut ax)?;
+    until_checked(&mut ax, "the issues report")?;
     ax.button("Copy report")?;
     let scope = sparksmith_core::issues::IssueScope::Area {
         area: crate::issues::area(Workspace::Schematic),
@@ -858,7 +848,7 @@ fn issues_rows_show_in_the_pcb_workspace_at_a_small_window() -> Fallible {
     let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
     ax.window = SMALL;
     ax.app.issues.open();
-    issues_report(&mut ax)?;
+    until_checked(&mut ax, "the issues report")?;
     let scope = sparksmith_core::issues::IssueScope::Area {
         area: crate::issues::area(Workspace::Pcb),
     };
