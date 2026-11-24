@@ -885,6 +885,24 @@ fn a_copper_tool_without_a_profile_opens_the_question() -> TestResult {
         assert!(editor.rules.is_none(), "{id}");
         assert_eq!(editor.subject(), Subject::Properties, "{id}");
     }
+    // Edit shape asks too, from the ribbon and from the Board card.
+    let sentence = format!("Can't edit the shape: {}", refusal::shown_error(&error));
+    for card in [false, true] {
+        let mut editor = PcbEditor::default();
+        let (_dir, library) = library()?;
+        let sent = if card {
+            click(&mut editor, &engine, &ctx, "Edit shape…")?
+        } else {
+            editor.open_rules_in(Some(library), None);
+            editor.on_tool("board-shape", &engine)
+        };
+        assert!(sent.is_none(), "nothing is sent for the engine to refuse");
+        let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+        let shown = texts(&output);
+        for text in [sentence.as_str(), "Use profile"] {
+            assert!(shown.iter().any(|t| t == text), "{text}: {shown:?}");
+        }
+    }
     engine.apply(
         engine.revision(),
         Operation::Rules(RulesCommand::set_profile(

@@ -118,6 +118,8 @@ const REVEAL_MARGIN: f32 = 24.0;
 
 /// Scroll and pinch zoom limits, relative to the board fitting the canvas.
 const ZOOM_RANGE: std::ops::RangeInclusive<f32> = 0.2..=12.0;
+/// What [`PcbEditor::needs_profile`] says Edit shape could not do.
+const EDIT_SHAPE: &str = "Can't edit the shape";
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum Tool {
@@ -1307,6 +1309,9 @@ impl PcbEditor {
         self.sync(engine);
         self.discard_staged();
         self.anchor_pick = None;
+        if tool == "board-shape" && !self.needs_profile(&engine.project().rules, EDIT_SHAPE) {
+            return None;
+        }
         if let Some(operation) = self.shape_tool(tool, engine) {
             return operation;
         }
@@ -1724,6 +1729,13 @@ impl PcbEditor {
             Inspected::Board | Inspected::Review => {
                 let renamed = self.board_section(ui, project);
                 let shape = self.board_shape_section(ui, engine);
+                // Edit shape… on a board without a profile asks for one.
+                let starts = matches!(
+                    shape,
+                    Some(Operation::Board(layout::outline::BoardCommand::StartSketch))
+                );
+                let shape =
+                    shape.filter(|_| !starts || self.needs_profile(&project.rules, EDIT_SHAPE));
                 let interface = self.interface_section(ui, engine);
                 renamed.or(shape).or(interface)
             }
