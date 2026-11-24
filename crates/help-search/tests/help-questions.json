@@ -126,5 +126,13 @@
     {"set": "held", "for": "agent", "ask": "save the design to a file", "right": ["entry/project.save"]},
     {"set": "tune", "for": "agent", "ask": "add a via", "right": ["entry/layout.add_via"]},
     {"set": "held", "for": "agent", "ask": "which fabrication profile fits this board", "right": ["entry/fabrication.profile_suggestions", "entry/rules.fab_profiles"]}
+  ],
+  "nothing_fits": [
+    {"set": "tune", "ask": "zzzzqq"},
+    {"set": "held", "ask": "qwxv plmk"},
+    {"set": "tune", "ask": "how do I bake bread"},
+    {"set": "held", "ask": "football results yesterday"},
+    {"set": "tune", "ask": "capital city of France"},
+    {"set": "held", "ask": "book a hotel in Vienna"}
   ]
 }

@@ -14,6 +14,7 @@ members = [
     "crates/generators-probe",
     "crates/generators-fixture",
     "crates/fabcheck",
+    "crates/help-search",
     "crates/kicad",
     "generators/board-to-board",
     "generators/buzzer",
@@ -61,6 +62,7 @@ sparksmith-generator-sdk = { path = "crates/generator-sdk" }
 sparksmith-generators = { path = "crates/generators" }
 sparksmith-ui = { path = "crates/ui" }
 sparksmith-fabcheck = { path = "crates/fabcheck" }
+sparksmith-help-search = { path = "crates/help-search" }
 sparksmith-kicad = { path = "crates/kicad" }
 tempfile = "3"
 sha2 = "0.10"

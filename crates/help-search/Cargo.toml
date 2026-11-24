@@ -1,0 +1,24 @@
+[package]
+name = "sparksmith-help-search"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sparksmith-core.workspace = true
+# Full-text search (MIT): BM25, the English stemmer and stop words, prefixes
+# and misspellings. No file system, compression or C code.
+tantivy = { version = "0.27", default-features = false, features = ["stemmer", "stopwords"] }
+# Static word embeddings (MIT); `wasm` is its pure Rust build, without network,
+# C++ or progress bars, on every target. Exact: the licence gate reviewed it.
+model2vec-rs = { version = "=0.4.0", default-features = false, features = ["wasm"] }
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sparksmith-core = { workspace = true, features = ["test-fixtures"] }
+sparksmith-io.workspace = true
