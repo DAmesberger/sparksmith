@@ -85,15 +85,20 @@ fn profile(project: &Project, out: &mut Vec<Finding>) {
                     fill: fill.id().into(),
                 })),
             ),
-            Verdict::NotStated(_) => out.push(Finding::new(
-                FindingCode::BoardDrillNotStated,
-                format!(
-                    "{} does not state what it makes of {what} vias; the board has {}",
-                    fab.name,
-                    count(&vias)
-                ),
-                vec![ObjectRef::Board],
-            )),
+            Verdict::NotStated(_) => out.push(
+                Finding::new(
+                    FindingCode::BoardDrillNotStated,
+                    format!(
+                        "{} does not state what it makes of {what} vias; the board has {}",
+                        fab.name,
+                        count(&vias)
+                    ),
+                    vec![ObjectRef::Board],
+                )
+                .requiring(Some(Requirement::ViaFill {
+                    fill: fill.id().into(),
+                })),
+            ),
             Verdict::Made(_) => sizes(project, &vias, out),
         }
     }
@@ -112,7 +117,11 @@ pub fn given_for(
 ) -> Option<GivenFor> {
     use sha2::{Digest, Sha256};
     let fab = project.rules.profile.as_ref()?;
-    let unclear = requirement.and_then(|r| requirement::not_stated(r, Some(fab)));
+    // A via fill is the profile's statement on the board's vias; a limit is
+    // one on those the finding names.
+    let unclear = requirement
+        .filter(|r| !matches!(r, Requirement::ViaFill { .. }))
+        .and_then(|r| requirement::not_stated(r, Some(fab)));
     let concerned = |via: &&Via| match &unclear {
         Some(_) => objects.contains(&ObjectRef::Via { id: via.id }),
         None => matches!(

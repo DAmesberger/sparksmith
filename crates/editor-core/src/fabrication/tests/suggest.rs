@@ -217,6 +217,41 @@ fn the_same_fabricators_profile_is_suggested_first() -> Fallible<()> {
     Ok(())
 }
 
+/// A profile whose sources disagree on the need comes after every one that
+/// allows it, the board's own fabricator's too, and says what it does not
+/// state with the sources. Red when it is listed unmarked, first, or not at
+/// all.
+#[test]
+fn a_profile_that_does_not_state_the_need_comes_last_and_says_so() -> Fallible<()> {
+    let unclear = |id: &str, fabricator: &str, to: f64| -> Fallible<RuleProfile> {
+        let mut p = profile(id, fabricator, 0.2)?;
+        let mut entry = RuleEntry::value(RuleValue::Length(0.2), "Invented row");
+        entry.unclear = Some(crate::rules::profile::Unclear {
+            to,
+            source: "Page A says 0.2 mm, page B less.".into(),
+        });
+        p.set(key(), entry)?;
+        Ok(p)
+    };
+    let project = connector_board(profile("a1", "a", 0.2)?)?;
+    let candidates = [
+        unclear("a2", "a", 0.15)?,
+        unclear("a3", "a", 0.19)?,
+        profile("b1", "b", 0.15)?,
+    ];
+    let out = suggestions(&project, &candidates)?;
+    let ids: Vec<&str> = out.suggestions.iter().map(|s| s.id.as_str()).collect();
+    // a3's loosest source excludes it too.
+    assert_eq!(ids, ["b1", "a2"]);
+    assert!(out.suggestions[0].not_stated.is_empty());
+    let [said] = out.suggestions[1].not_stated.as_slice() else {
+        return Err(format!("{:#?}", out.suggestions[1]).into());
+    };
+    assert_eq!(said.rule, key().label());
+    assert_eq!(said.source, "Page A says 0.2 mm, page B less.");
+    Ok(())
+}
+
 /// With only another fabricator's profile allowing it, that one is
 /// suggested.
 #[test]

@@ -569,7 +569,7 @@ fn switch(
     let first = suggested.first()?;
     let operation = suggested.switch(engine, &first.id).ok()?;
     Some(Fix::Switch {
-        label: switch_label(&first.name),
+        label: crate::fab_suggestions::switch_label(first),
         operation: Box::new(operation),
     })
 }
@@ -580,10 +580,6 @@ fn static_label(fix: &Fix) -> &'static str {
         Fix::Apply { label, .. } | Fix::Open { label, .. } => label,
         Fix::Switch { .. } => "",
     }
-}
-
-fn switch_label(profile: &str) -> String {
-    format!("Switch to {profile}")
 }
 
 /// The waiver keys of every finding of a row, so waiving it removes the
@@ -1144,7 +1140,7 @@ impl Surface {
                 (!r.needs.is_empty())
                     .then(|| suggested.as_deref().and_then(|s| s.first()))
                     .flatten()
-                    .map(|f| switch_label(&f.name))
+                    .map(crate::fab_suggestions::switch_label)
             })
             .collect();
         let needs: Vec<String> = report

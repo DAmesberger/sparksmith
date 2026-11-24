@@ -44,7 +44,7 @@
               ],
               "source": "https://www.pcbway.com/orderonline.aspx (read 2026-11-24): \"Via in pad\", beside \"All vias filled with resin and capped\", which fills every via."
             },
-            "source": "PCBWay's pages disagree on the holes it fills (read 2026-11-24): \"Diameter range of resin-filled vias 0.254-6.5mm\" on its HDI page, \"Min.size can be plugged: 0.15mm(CNC)\", at most 0.7 mm, on its 2016-2018 roadmap."
+            "source": "PCBWay offers the fill but states no limit for conventional boards (read 2026-11-24). Its HDI page (https://www.pcbway.com/hdi-pcb.html) gives \"Diameter range of resin-filled vias 0.254-6.5mm\"; its 2016-2018 roadmap (https://www.pcbway.com/advanced-pcb-capabilities.html) gives \"Min.size can be plugged: 0.15mm(CNC)\" and at most 0.7 mm, which says only plugged and is no limit for filled and capped vias. No size is taken from either."
           }
         ]
       }

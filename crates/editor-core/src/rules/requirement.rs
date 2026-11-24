@@ -164,6 +164,7 @@ pub fn describe(requirement: &Requirement, profile: Option<&RuleProfile>) -> Opt
             let verdict = profile.map(|p| super::drills::through_fill(&p.drill_rules, fill));
             let source = match verdict {
                 Some(super::drills::Verdict::NotMade(source)) => source.to_owned(),
+                Some(super::drills::Verdict::NotStated(rule)) => rule.source.clone(),
                 _ => String::new(),
             };
             Needed {
@@ -203,11 +204,24 @@ pub fn describe(requirement: &Requirement, profile: Option<&RuleProfile>) -> Opt
 
 /// What `profile` does not state of `requirement`: what the board has lies
 /// past the rule's limit and within what the fabricator's own sources
-/// disagree on ([`super::profile::Unclear`]). The source quotes them.
+/// disagree on ([`super::profile::Unclear`]), or is a via fill it offers
+/// without stating it. The source quotes the fabricator.
 pub fn not_stated(requirement: &Requirement, profile: Option<&RuleProfile>) -> Option<Needed> {
     // A limit a source names is met by the same size entered.
     const SAME: f64 = 1e-9;
     let profile = profile?;
+    if let Requirement::ViaFill { fill } = requirement {
+        let fill = super::ViaFill::ALL.into_iter().find(|f| f.id() == fill)?;
+        let verdict = super::drills::through_fill(&profile.drill_rules, fill);
+        let need = describe(requirement, Some(profile))?;
+        return matches!(verdict, super::drills::Verdict::NotStated(_)).then(|| Needed {
+            text: format!(
+                "{} does not state what it makes of {}",
+                profile.name, need.measured
+            ),
+            ..need
+        });
+    }
     let (Requirement::AtMost { rule, value } | Requirement::AtLeast { rule, value }) = requirement
     else {
         return None;

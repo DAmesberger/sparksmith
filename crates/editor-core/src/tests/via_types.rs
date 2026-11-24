@@ -267,6 +267,9 @@ fn not_made_is_never_waived_and_not_stated_only_with_a_reason() -> Fallible<()> 
     let mut engine = filled(filling(false)?)?;
     let found = item(&engine, via_fill::NOT_STATED)?;
     assert!(found.blocks() && found.offers_waiver());
+    // What is quoted is the profile's own source.
+    let cited = found.not_stated.as_ref().map(|n| n.source.as_str());
+    assert_eq!(cited, Some("Test fixture."));
     // There is no number to accept.
     assert!(found.measured.is_empty());
     let refused = engine.apply(engine.revision(), waive(&found.key, " "));
