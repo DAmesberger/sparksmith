@@ -74,33 +74,7 @@ fn settings_round_trip_and_a_missing_file_is_empty() -> Fallible {
         ..AssistSettings::default()
     };
     write(&path, &settings)?;
-    let kept = read(&path)?;
-    assert_eq!(kept.endpoints[0].timeout_minutes, Some(Wait::Limit(90)));
-    let shipped = Shipped::locate()?;
-    let wait = |e: &EndpointSetting| {
-        e.waiting_profile(&shipped, &shipped.network)
-            .map(|p| p.silence.after)
-    };
-    let minutes = |n: u64| Some(Duration::from_secs(n * 60));
-    assert_eq!(wait(&kept.endpoints[0])?, minutes(90));
-
-    let mut value: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
-    value["endpoints"][0]["timeout_minutes"] = "no_limit".into();
-    std::fs::write(&path, value.to_string())?;
-    let unlimited = read(&path)?;
-    assert_eq!(wait(&unlimited.endpoints[0])?, None);
-    write(&path, &unlimited)?;
-    assert_eq!(read(&path)?, unlimited);
-
-    // Where nothing is said, as the presets say: here, and elsewhere.
-    let mut silent = local("Local");
-    assert_eq!(wait(&silent)?, minutes(90));
-    silent.base_url = "https://example.com/v1".into();
-    assert_eq!(wait(&silent)?, minutes(30));
-
-    value["endpoints"][0]["timeout_minutes"] = 0.into();
-    std::fs::write(&path, value.to_string())?;
-    assert!(read(&path).is_err_and(|e| e.to_string().contains("minutes")));
+    assert_eq!(read(&path)?, settings);
     // The assistant uses an agent; a model run takes the first endpoint.
     assert_eq!(
         settings.run_endpoint().map(|e| e.name.as_str()),
@@ -208,7 +182,32 @@ fn a_connections_wait_is_read_and_defaults_to_the_shipped_one() -> Fallible {
     let mut value = serde_json::to_value(&settings)?;
     value["endpoints"][0]["timeout_minutes"] = 90.into();
     std::fs::write(&path, value.to_string())?;
-    assert_eq!(read(&path)?, settings);
+    let kept = read(&path)?;
+    assert_eq!(kept.endpoints[0].timeout_minutes, Some(Wait::Limit(90)));
+    let shipped = Shipped::locate()?;
+    let wait = |e: &EndpointSetting| {
+        e.waiting_profile(&shipped, &shipped.network)
+            .map(|p| p.silence.after)
+    };
+    let minutes = |n: u64| Some(Duration::from_secs(n * 60));
+    assert_eq!(wait(&kept.endpoints[0])?, minutes(90));
+
+    value["endpoints"][0]["timeout_minutes"] = "no_limit".into();
+    std::fs::write(&path, value.to_string())?;
+    let unlimited = read(&path)?;
+    assert_eq!(wait(&unlimited.endpoints[0])?, None);
+    write(&path, &unlimited)?;
+    assert_eq!(read(&path)?, unlimited);
+
+    // Where nothing is said, as the presets say: here, and elsewhere.
+    let mut silent = local("Local");
+    assert_eq!(wait(&silent)?, minutes(90));
+    silent.base_url = "https://example.com/v1".into();
+    assert_eq!(wait(&silent)?, minutes(30));
+
+    value["endpoints"][0]["timeout_minutes"] = 0.into();
+    std::fs::write(&path, value.to_string())?;
+    assert!(read(&path).is_err_and(|e| e.to_string().contains("minutes")));
     Ok(())
 }
 

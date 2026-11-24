@@ -280,8 +280,8 @@ fn records(r: &mut Reading<'_, '_>, name: &str, header: &[&str]) -> Option<Vec<V
                 r.say(
                     name,
                     None,
-                    &format!("the columns {first:?}"),
-                    &format!("{header:?}"),
+                    &format!("the columns {}", first.join(", ")),
+                    &format!("the columns {}", header.join(", ")),
                 );
                 return None;
             }

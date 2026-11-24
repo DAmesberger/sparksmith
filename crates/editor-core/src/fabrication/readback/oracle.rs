@@ -526,7 +526,7 @@ fn window(shape: &ShapeNm) -> Fallible<Area> {
             let radii: Vec<f64> = radii_nm.iter().map(|r| r.to_mm_f64()).collect();
             Area::rounded(&points, &radii)
         }
-        other => return Err(format!("the oracle does not draw {other:?}").into()),
+        _ => return Err("the oracle does not draw this pad shape".into()),
     })
 }
 
@@ -890,7 +890,7 @@ fn letters(text: &str, at: Point, h: f64, half: f64, bottom: bool) -> Vec<Ink> {
                 filled: false,
                 frame: Frame::still([0.0; 2]),
                 letter: true,
-                what: format!("a stroke of {c:?} of {text:?}"),
+                what: format!("a stroke of ‘{c}’ in ‘{text}’"),
             });
         }
     }
@@ -929,7 +929,7 @@ pub(crate) fn legend(project: &Project, side: Layer) -> Fallible<(Vec<Ink>, Vec<
                         || placement.rotation_deg != 0.0
                         || content.contains('\n')
                     {
-                        return Err(format!("the oracle reads no turned text ({content:?})").into());
+                        return Err(format!("the oracle reads no turned text (‘{content}’)").into());
                     }
                     let at = frame.to_board(text.at.to_mm_f64());
                     let h = text.height_nm.to_mm_f64();
@@ -1000,7 +1000,7 @@ pub(crate) fn lettering(project: &Project, side: Layer) -> Vec<Ink> {
                 filled: false,
                 frame: Frame::still([0.0; 2]),
                 letter: true,
-                what: format!("the text {:?}", text.text),
+                what: format!("the text ‘{}’", text.text),
             });
         }
     }
@@ -1405,7 +1405,7 @@ fn flashed(template: &Template, at: Point) -> Fallible<Cover> {
                         center,
                         rotation,
                     } => (*on, box_at(*center, *width, *height, *rotation)),
-                    other => return Err(format!("the oracle does not read {other:?}").into()),
+                    _ => return Err("the oracle does not read this aperture part".into()),
                 };
                 parts.push((on, moved(area, at)));
             }
@@ -1434,7 +1434,7 @@ impl Image {
                         diameter,
                         hole: None,
                     } => Ok(diameter / 2.0),
-                    other => Err(format!("a draw with {other:?}").into()),
+                    _ => Err("a draw with an aperture that is no plain circle".into()),
                 }
             };
             let cover = match &object.kind {
