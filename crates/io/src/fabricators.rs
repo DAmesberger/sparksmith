@@ -224,7 +224,8 @@ mod tests {
         }
     }
 
-    /// Every shipped profile names a shipped fabricator, and every shipped
+    /// Every shipped profile names a shipped fabricator, but the one a new
+    /// board starts with, which is no fabricator's, and every shipped
     /// fabricator has a profile: the hierarchy is complete data.
     #[test]
     fn every_shipped_profile_names_a_shipped_fabricator() -> Result<()> {
@@ -233,6 +234,10 @@ mod tests {
         assert!(!records.is_empty());
         let profiles = shipped_profiles(&shipped)?;
         for p in &profiles {
+            if p.id == "standard" {
+                assert_eq!(p.fabricator, None, "no fabricator's own");
+                continue;
+            }
             let id = p.fabricator.as_deref().unwrap_or_default();
             assert!(
                 records.iter().any(|f| f.id == id),

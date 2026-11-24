@@ -1011,11 +1011,13 @@ mod tests {
                 "jlcpcb-2-layer",
                 "jlcpcb-4-layer",
                 "pcbway-2-layer",
-                "pcbway-4-layer"
+                "pcbway-4-layer",
+                "standard"
             ]
         );
         assert!(
             all.iter()
+                .filter(|p| p.id != "standard")
                 .all(|p| ["JLCPCB", "PCBWay"].contains(&p.source.publisher.as_str()))
         );
         let default = library.default_id()?;
@@ -1028,7 +1030,7 @@ mod tests {
         assert!(!library.dir().exists());
         // A saved copy is the user's own.
         let copy = library.save_as(&jlcpcb()?, "JLCPCB copy")?;
-        assert_eq!(library.list()?.builtins.len(), 4);
+        assert_eq!(library.list()?.builtins.len(), 5);
         assert_eq!(library.list()?.profiles, vec![copy]);
         // An import of the same file keeps its id and replaces the shipped one.
         let mut edited = jlcpcb()?;
@@ -1043,7 +1045,12 @@ mod tests {
                 .iter()
                 .map(|p| p.id.as_str())
                 .collect::<Vec<_>>(),
-            ["jlcpcb-4-layer", "pcbway-2-layer", "pcbway-4-layer"]
+            [
+                "jlcpcb-4-layer",
+                "pcbway-2-layer",
+                "pcbway-4-layer",
+                "standard"
+            ]
         );
         assert_eq!(library.get(default)?.name, "JLCPCB house rules");
         // Deleting the user's copy brings the shipped one back.

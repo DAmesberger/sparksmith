@@ -1,0 +1,340 @@
+{
+  "format": 1,
+  "fab_profile": {
+    "id": "standard",
+    "name": "Standard",
+    "source": {
+      "publisher": "Sparksmith, from fabricators' published limits",
+      "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+      "date": "2026-11-24",
+      "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+    },
+    "drill_files": {
+      "kind": "not_published",
+      "source": "The four fabricators differ. Eurocircuits: \"Tool lists for drill files are ALWAYS set as as the finished hole sizes (ENDSIZE)\" (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/drilled-holes/, read 2026-11-24). JLCPCB, PCBWay and OSH Park do not say on the pages this profile cites whether drill files list finished or drilled sizes."
+    },
+    "boards": {
+      "copper_layers": [
+        1,
+        2,
+        4,
+        6
+      ],
+      "source": "The counts each rule takes its rows for: JLCPCB's \"1-layer\", \"2-layer\" and \"Multilayer\" rows, PCBWay's tolerance table and its 4-layer inner rows, OSH Park's 2, 4 and 6 layer services, Eurocircuits' outer and inner class 6 rows (all read 2026-11-24). Every rule holds the strictest of them, so one value covers each count. JLCPCB's 1-layer boards plate no holes (\"1-layer (NPTH only)\")."
+    },
+    "rules": {
+      "aspect_ratio_max": {
+        "value": 8.0,
+        "source": "PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), Advanced PCB, row 6, normal process: \"Thickness to diameter ratio≤8\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, classification table: \"Aspect Ratio is 1:8 (Based on the TOOLSIZE)\". JLCPCB and OSH Park publish none."
+      },
+      "board_outline_fit": {
+        "value": 0.01,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "chip_gap_min": {
+        "value": 0.2,
+        "source": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles."
+      },
+      "clearance_board_edge_board_edge": {
+        "value": 0.0,
+        "source": "Not a meaningful pair: 0."
+      },
+      "clearance_board_edge_npth_hole": {
+        "value": 0.0,
+        "source": "None of the four fabricators publishes this limit: 0, not checked."
+      },
+      "clearance_board_edge_pth_hole": {
+        "value": 0.0,
+        "source": "None of the four fabricators publishes this limit: 0, not checked."
+      },
+      "clearance_board_edge_via_hole": {
+        "value": 0.0,
+        "source": "None of the four fabricators publishes this limit: 0, not checked."
+      },
+      "clearance_fill_board_edge": {
+        "value": 0.4,
+        "source": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm."
+      },
+      "clearance_fill_fill": {
+        "value": 0.2,
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\". PCBWay gives no copper-area-to-copper-area row; its pad-or-trace-to-copper-area row applies."
+      },
+      "clearance_fill_npth_hole": {
+        "value": 0.2,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row."
+      },
+      "clearance_fill_pth_hole": {
+        "value": 0.35,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm)."
+      },
+      "clearance_fill_via_hole": {
+        "value": 0.254,
+        "source": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer."
+      },
+      "clearance_npth_hole_npth_hole": {
+        "value": 0.45,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12)."
+      },
+      "clearance_pad_board_edge": {
+        "value": 0.4,
+        "source": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm."
+      },
+      "clearance_pad_fill": {
+        "value": 0.2,
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\"."
+      },
+      "clearance_pad_npth_hole": {
+        "value": 0.2,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row."
+      },
+      "clearance_pad_pad": {
+        "value": 0.15,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"SMD pad to pad clearance (different nets)\": \"0.15mm\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OPP and IPP 0.150 mm. Less strict: PCBWay \"Normal Width between pads\" 1OZ \"0.12MM\". OSH Park publishes trace spacing only."
+      },
+      "clearance_pad_pth_hole": {
+        "value": 0.35,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm)."
+      },
+      "clearance_pad_via": {
+        "value": 0.2,
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\"."
+      },
+      "clearance_pad_via_hole": {
+        "value": 0.254,
+        "source": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer."
+      },
+      "clearance_pth_hole_npth_hole": {
+        "value": 0.45,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12)."
+      },
+      "clearance_pth_hole_pth_hole": {
+        "value": 0.45,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\""
+      },
+      "clearance_track_board_edge": {
+        "value": 0.4,
+        "source": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm."
+      },
+      "clearance_track_fill": {
+        "value": 0.2,
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\"."
+      },
+      "clearance_track_npth_hole": {
+        "value": 0.2,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row."
+      },
+      "clearance_track_pad": {
+        "value": 0.1524,
+        "source": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Spacing\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTT-OTP-OPP and ITT-ITP-IPP 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Spacing\" row: \"strongly suggest to design spacing above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\". Pad to track rows: JLCPCB \"Pad to track clearance (1oz)\": \"0.1mm\"; PCBWay \"Normal Width between pad and trace\" 1OZ \"0.12MM\"."
+      },
+      "clearance_track_pth_hole": {
+        "value": 0.35,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm)."
+      },
+      "clearance_track_track": {
+        "value": 0.1524,
+        "source": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Spacing\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTT-OTP-OPP and ITT-ITP-IPP 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Spacing\" row: \"strongly suggest to design spacing above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\"."
+      },
+      "clearance_track_via": {
+        "value": 0.2,
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\"."
+      },
+      "clearance_track_via_hole": {
+        "value": 0.254,
+        "source": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer."
+      },
+      "clearance_via_board_edge": {
+        "value": 0.4,
+        "source": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm."
+      },
+      "clearance_via_fill": {
+        "value": 0.2,
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\"."
+      },
+      "clearance_via_hole_npth_hole": {
+        "value": 0.45,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12)."
+      },
+      "clearance_via_hole_pth_hole": {
+        "value": 0.45,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives a via-to-pad-hole row: the larger, the pad hole's."
+      },
+      "clearance_via_hole_via_hole": {
+        "value": 0.35,
+        "source": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/drilled-holes/, read 2026-11-24), \"The minimum drill hole to drill hole distance is 0.25mm (10mil), this is measured edge to edge of the drill TOOLSIZE\", and \"Plated Through Holes (PTH) TOOLSIZE = ENDSIZE + 0.100mm\": 0.25 + 2 × 0.05 = 0.35 mm between finished holes decides. Less strict: PCBWay Advanced PCB row 10, via (≤0.45mm) \"≥11MIL\" (0.2794 mm); JLCPCB \"Via Hole-to-Hole Spacing\": \"0.2mm\"; OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\""
+      },
+      "clearance_via_npth_hole": {
+        "value": 0.2,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row."
+      },
+      "clearance_via_pth_hole": {
+        "value": 0.35,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm)."
+      },
+      "clearance_via_via": {
+        "value": 0.2,
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\"."
+      },
+      "clearance_via_via_hole": {
+        "value": 0.254,
+        "source": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer."
+      },
+      "copper_angle_min": {
+        "value": 0.0,
+        "source": "None of the four fabricators publishes this limit: 0, not checked."
+      },
+      "courtyard_clearance": {
+        "value": 0.0,
+        "source": "None of the four fabricators publishes this limit: 0, not checked."
+      },
+      "drill_min": {
+        "value": 0.3,
+        "source": "The smallest drill without a surcharge. PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), \"Drill Sizes (CNC)\": \"Any holes greater than 6.3mm or smaller than 0.3mm will be subject to extra charges.\"; JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Min. Via hole size/diameter\": \"③ 0.1mm or 0.15mm hole size with any size via diameter, and 0.2mm or 0.25mm hole size with via diameter less than 0.45mm, will cost more.\", and \"1-layer: 0.3 – 6.3 mm\". Less strict: OSH Park 2 and 4 layer \"Minimum Drill Size\": \"10mil (0.254mm)\", 6 layer \"8mil (0.2032mm)\"; Eurocircuits drill class C, plated 0.25 mm."
+      },
+      "exposed_pad_clearance": {
+        "value": 0.2,
+        "source": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles."
+      },
+      "fiducial_count_min": {
+        "value": 3,
+        "source": "JLCPCB Help Center, \"How to Add Edge Rails and Fiducials for PCB Assembly Orders\" (https://jlcpcb.com/help/article/how-to-add-edge-rails-fiducials-for-pcb-assembly-order, last updated 2026-09-09, read 2026-11-21): \"Edge rails and fiducials are required for standard PCB assembly at JLCPCB.\" and \"Three to four fiducial markers should be placed along the board edges to ensure optimal placement accuracy.\" Per side: \"For a double-sided SMT assembly, you must have a set of global fiducials on both the top and bottom sides of the board.\" (JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21)). PCBWay asks as many (https://pcbway.com/helpcenter/design_instruction/PCB_Panelization__Breakaway_Rails__Fiducial_Marks__Tooling_Holes.html, read 2026-11-21): \"there should be at least three fiducial marks arranged in an L shape\". Checked on each side that carries surface-mount parts; boards no fabricator assembles need none."
+      },
+      "fiducials_asymmetric": {
+        "value": true,
+        "source": "JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21): \"They should be placed in an \"L\" configuration\" and, for round boards, \"in a non-symmetrical, non-linear \"L\" pattern.\" PCBWay (the page fiducial_count_min cites): \"with the diagonal fiducial marks asymmetrical about the center\". Checked as: the side's fiducials may not map onto themselves under a half turn about the board outline's centre."
+      },
+      "fill_clearance": {
+        "value": 0.2,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "fill_connection": {
+        "value": "thermal",
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "fill_width_min": {
+        "formula": "track_width_min",
+        "source": "The narrowest copper the profile etches (its track width)."
+      },
+      "gull_wing_toe_shift": {
+        "value": 0.1,
+        "source": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles."
+      },
+      "gull_wing_width_extra": {
+        "value": 0.2,
+        "source": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles."
+      },
+      "island_area_min": {
+        "value": 0.0,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "mask_expansion": {
+        "value": 0.0508,
+        "source": "PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), Advanced PCB, row 23, \"green solder mask opening（mil）\", normal process: \"≥2mil\" (0.0508 mm) decides. Less: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/soldermask/, read 2026-11-24), DI Soldermask, MAR 0.030 mm; JLCPCB \"Soldermask Expansion\": \"1:1\" (\"Pad size:soldermask opening can be 1:1\"). OSH Park gives an alignment only (\"Maximum soldermask alignment\": \"3mil (0.0762mm)\"). Eurocircuits asks 0.100 mm for white and transparent mask."
+      },
+      "mask_web_min": {
+        "value": 0.13,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Soldermask, \"Soldermask bridge\", 1oz: \"Min. pad spacing: 0.10 mm (green, red, yellow, blue, purple)\", \"Min. pad spacing: 0.13 mm (black, white)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/soldermask/, read 2026-11-24), Photo Imageable Soldermask, white, MSM 0.130 mm. One value for every colour, so the black and white one decides. Less strict: PCBWay Advanced PCB row 23 \"4（spacing between ICs is 8 mil, green oil），variegated or black oil≥4.5mil\" (0.1143 mm); OSH Park \"Minimum soldermask web\": \"4 mil (0.1016mm)\"; Eurocircuits DI MSM 0.075 mm."
+      },
+      "npth_annular_ring_min": {
+        "value": 0.45,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH pad annular ring\": \"≧0.45mm\", \"Recommended 0.45 mm or more.\" decides. Less strict: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"If you require copper pads on NPTH holes please use a minimum Outer Annular Ring (OAR) of 0.30mm (12mil)\". PCBWay and OSH Park publish none."
+      },
+      "pair_gap_tolerance": {
+        "value": 0.02,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "pair_gap_tolerance_share": {
+        "value": 0.1,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "paste_reduction": {
+        "value": 0.0,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "pth_annular_ring_min": {
+        "value": 0.25,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH annular ring\", under \"2-layer:\", \"1 oz: Recommended 0.25 mm or above; absolute minimum 0.18 mm\" decides (the recommended value). Less strict: JLCPCB \"Multilayer:\" \"1 oz: Recommended 0.20 mm or above\"; PCBWay \"Normal PTH pad single side width\" 1OZ \"0.2mm\"; Eurocircuits class 6 0.125 mm from the tool (0.175 mm from the finished hole); OSH Park \"5mil (0.127mm)\"."
+      },
+      "silk_edge_clearance": {
+        "value": 0.25,
+        "source": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"PCB edge\": \"0.250mm for routing\". JLCPCB, PCBWay and OSH Park publish none."
+      },
+      "silk_line_width_min": {
+        "value": 0.15,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Minimum Line Width\": \"≥0.15mm\"; PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), \"Minimum Character Width(Legend)\": \"0.15mm\". Less strict: OSH Park \"Silkscreen minimum line width\": \"5 mil (0.127mm) (recommended minimum)\"; Eurocircuits \"Minimum Legend Line Width: 0.10mm (4mil)\"."
+      },
+      "silk_pad_clearance": {
+        "value": 0.15,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Pad To Silkscreen\": \"0.15mm\" decides. Less strict: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"Exposed copper (or surface finished copper) : 0.100mm\". PCBWay and OSH Park publish none."
+      },
+      "silk_text_height_min": {
+        "value": 1.0,
+        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Minimum text height\": \"40 mil (1.0mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"Minimum Text Height (for good readability) : 1.00mm (39.5mil)\". Less strict: PCBWay \"Minimum Character Height (Legend)\": \"0.8mm\". OSH Park publishes none."
+      },
+      "silk_text_stroke_share": {
+        "formula": "silk_line_width_min / silk_text_height_min",
+        "source": "Text at the least height prints at the least line width."
+      },
+      "sliver_width_min": {
+        "value": 0.0,
+        "source": "None of the four fabricators publishes this limit: 0, not checked."
+      },
+      "tent_vias": {
+        "value": true,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "thermal_angle": {
+        "value": 0.0,
+        "source": "Profile author's choice (a default, not a fabricator's limit): spokes along the pad's axes on every pad that is not round, so the spokes of a fine-pitch rectangular pad run into the pour, not a neighbour's clearance."
+      },
+      "thermal_angle_round": {
+        "value": 45.0,
+        "source": "Profile author's choice (a default, not a fabricator's limit): diagonal spokes on round pads and vias."
+      },
+      "thermal_gap": {
+        "value": 0.25,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "thermal_spoke_count": {
+        "value": 4,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "thermal_spoke_width": {
+        "value": 0.3,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "tht_drill_clearance": {
+        "value": 0.3,
+        "source": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles."
+      },
+      "tht_land_extra": {
+        "value": 0.6,
+        "source": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles."
+      },
+      "tht_land_gap": {
+        "value": 0.25,
+        "source": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles."
+      },
+      "track_width_default": {
+        "value": 0.25,
+        "source": "Profile author's choice (a default, not a fabricator's limit)."
+      },
+      "track_width_min": {
+        "value": 0.1524,
+        "source": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Width\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTW and ITW 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Trace\" row: \"strongly suggest to design trace above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\"."
+      },
+      "via_annular_ring_min": {
+        "value": 0.15,
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal VIA pad single side width\", 1OZ: \"0.15mm\"; PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), \"Min Width of Annular Ring\": \"0.15mm(6mil)\" decides. Less strict: OSH Park 2 layer \"Minimum Annular Ring\": \"5mil (0.127mm)\", 4 and 6 layer \"4mil (0.1016mm)\"; Eurocircuits class 6 OAR and IAR 0.125 mm from the tool, which for a via it may reduce (\"All Via Holes may be reduced by up to 0.30mm to solve annular rings issues\", drilled-holes page); JLCPCB \"Via diameter should be 0.1mm(0.15mm preferred) larger than Via hole size\" (0.05 mm), 1-layer \"0.3 mm hole size / 0.5 mm via diameter\" (0.1 mm)."
+      },
+      "via_diameter_default": {
+        "formula": "via_drill_default + 2.0 * via_annular_ring_min",
+        "source": "A via pad with the least via ring on each side (0.6 mm for a 0.3 mm drill)."
+      },
+      "via_drill_default": {
+        "value": 0.3,
+        "source": "Profile author's choice (a default): the smallest drill the profile allows."
+      }
+    }
+  }
+}

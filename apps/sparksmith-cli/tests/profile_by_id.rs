@@ -78,7 +78,8 @@ fn the_production_check_resolves_a_profile_id_through_the_library() -> Fallible 
             "jlcpcb-2-layer",
             "jlcpcb-4-layer",
             "pcbway-2-layer",
-            "pcbway-4-layer"
+            "pcbway-4-layer",
+            "standard"
         ],
         "the user's profiles, then the shipped ones"
     );
@@ -161,7 +162,8 @@ fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Falli
             "jlcpcb-2-layer",
             "jlcpcb-4-layer",
             "pcbway-2-layer",
-            "pcbway-4-layer"
+            "pcbway-4-layer",
+            "standard"
         ],
         "{listed}"
     );
