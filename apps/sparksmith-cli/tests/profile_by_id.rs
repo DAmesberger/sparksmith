@@ -127,7 +127,8 @@ fn the_production_check_resolves_a_profile_id_through_the_library() -> Fallible 
 
 /// `project.new` never asks: without `profile` it takes the user's default
 /// (Settings), else the shipped default (`library/defaults/new-project.json`); `profile` names any
-/// library or shipped id. `rules.fab_profiles` lists the shipped ones.
+/// library or shipped id. `rules.fab_profiles` lists the board's own first,
+/// then the shipped ones.
 #[test]
 fn a_new_project_takes_the_shipped_standard_profile_unless_one_is_named() -> Fallible {
     let dir = tempfile::tempdir()?;
@@ -159,14 +160,15 @@ fn a_new_project_takes_the_shipped_standard_profile_unless_one_is_named() -> Fal
     assert_eq!(
         ids,
         [
+            "standard",
             "jlcpcb-2-layer",
             "jlcpcb-4-layer",
             "pcbway-2-layer",
-            "pcbway-4-layer",
-            "standard"
+            "pcbway-4-layer"
         ],
         "{listed}"
     );
+    assert_eq!(listed["result"]["result"][0]["board"], true, "{listed}");
     assert_eq!(named["ok"], true, "{named}");
     assert_eq!(second["result"]["value"], "jlcpcb-4-layer", "{second}");
     Ok(())

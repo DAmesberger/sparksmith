@@ -1669,6 +1669,14 @@ impl Engine {
         Ok(())
     }
 
+    /// Forget the undo and redo steps: what a host built step by step (an
+    /// import) is a document to start from, as an opened file is.
+    pub fn clear_history(&mut self) {
+        self.undo.clear();
+        self.redo.clear();
+        self.last_step = None;
+    }
+
     /// Which opened document this is, unique in the process: the same
     /// through every edit, undo and redo, another one once another document
     /// is opened, started or recovered ([`Self::replace_document`]). What a
