@@ -28,13 +28,16 @@ const MIN_BAND_MM: f64 = 1e-4;
 
 /// How strongly a glass style's weave shows at the edge (est.): the
 /// coarse, heavy 7628 yarns most, the fine 106 least; prepreg's resin-rich
-/// plies show their fabric fainter than a core's.
+/// plies show their fabric fainter than a core's. 2313 and 3313 lie between
+/// 1080 and 2116; glass no source names shows no weave.
 pub fn weave_strength(kind: DielectricKind, glass: GlassStyle) -> f64 {
     let style = match glass {
         GlassStyle::Style7628 => 1.0,
         GlassStyle::Style2116 => 0.8,
+        GlassStyle::Style2313 | GlassStyle::Style3313 => 0.7,
         GlassStyle::Style1080 => 0.6,
         GlassStyle::Style106 => 0.45,
+        GlassStyle::Unspecified => 0.0,
     };
     match kind {
         DielectricKind::Core => style,

@@ -128,7 +128,9 @@ pub enum DielectricKind {
 }
 
 /// E-glass fabric style (IPC-4412 designations), which sets the weave pitch
-/// the routed board edge shows.
+/// the routed board edge shows. `Unspecified`: the source names no one style
+/// (a core listed by thickness, plies of several styles between two foils),
+/// so it has no Dk estimate and shows no weave.
 #[derive(
     Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
@@ -137,7 +139,43 @@ pub enum GlassStyle {
     Style106,
     Style1080,
     Style2116,
+    Style2313,
+    Style3313,
     Style7628,
+    Unspecified,
+}
+
+impl GlassStyle {
+    /// Every style, finest first, `Unspecified` last.
+    pub const ALL: [Self; 7] = [
+        Self::Style106,
+        Self::Style1080,
+        Self::Style2313,
+        Self::Style3313,
+        Self::Style2116,
+        Self::Style7628,
+        Self::Unspecified,
+    ];
+
+    /// Its designation ("2116"); `None` when it names no style.
+    pub const fn designation(self) -> Option<&'static str> {
+        match self {
+            Self::Style106 => Some("106"),
+            Self::Style1080 => Some("1080"),
+            Self::Style2116 => Some("2116"),
+            Self::Style2313 => Some("2313"),
+            Self::Style3313 => Some("3313"),
+            Self::Style7628 => Some("7628"),
+            Self::Unspecified => None,
+        }
+    }
+
+    /// The style of a designation.
+    pub fn from_designation(text: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|g| g.designation() == Some(text))
+    }
 }
 
 /// One dielectric between two consecutive copper foils.
@@ -487,6 +525,14 @@ impl Stackup {
     /// ([`Stackup::dk_estimates`]); `None` when neither is known.
     pub fn permittivity(&self, d: &Dielectric) -> Option<f64> {
         d.dk.or_else(|| self.dk_estimates.0.get(d.glass))
+    }
+
+    /// This stackup with solder mask `over_copper_um` over copper and
+    /// `over_laminate_um` over bare laminate.
+    pub fn with_mask(mut self, over_copper_um: f64, over_laminate_um: f64) -> Result<Self> {
+        self.mask_um = over_copper_um;
+        self.mask_laminate_nm = Nm::from_mm_f64_rounded(over_laminate_um / 1000.0)?;
+        Ok(self)
     }
 
     /// This stackup with what a request left out (mask thicknesses of 0,

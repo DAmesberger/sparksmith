@@ -2,8 +2,8 @@
 //! each file loads, cites its source and the row of each value, belongs to a
 //! shipped fab profile that covers its copper count, is mirror-symmetric
 //! exactly where its flag says so, and states a thickness that equals the sum
-//! of its layers. No code reads these files yet (see the stackups report), so
-//! this test is what keeps them well-formed.
+//! of its layers. The raw JSON is read here, without the loader
+//! (`sparksmith_io::fab_stackups`), as a second opinion on it.
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

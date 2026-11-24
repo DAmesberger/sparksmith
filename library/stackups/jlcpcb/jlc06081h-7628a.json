@@ -37,7 +37,8 @@
       },
       {
         "role": "prepreg",
-        "glass": "S1000-2M",
+        "glass": "7628",
+        "brand": "S1000-2M",
         "material": "7628 RC50% 8.5mil",
         "thickness_mm": 0.2084,
         "dk": 4.46,
@@ -99,7 +100,8 @@
       },
       {
         "role": "prepreg",
-        "glass": "S1000-2M",
+        "glass": "7628",
+        "brand": "S1000-2M",
         "material": "7628 RC50% 8.5mil",
         "thickness_mm": 0.2084,
         "dk": 4.46,
@@ -135,7 +137,7 @@
       "note": "Flags as the data gives them; JLCPCB does not document them on the pages read. laminationType 1 is the stackup the display name marks 通用 (general) or 免费 (free), 2 the 特殊 (special) or unmarked others."
     },
     "disagreements": [
-      "The S1000-2M prepreg's name says 8.5mil (0.2159 mm) while its thickness is 0.2084 mm; the thickness is used.",
+      "The 7628 (brand S1000-2M) prepreg's name says 8.5mil (0.2159 mm) while its thickness is 0.2084 mm; the thickness is used.",
       "Core L2/L3 Dk 4.14 in the calculator data; the impedance page's \"Core dielectric constant\" says 4.6 for every core.",
       "2116 prepreg Dk 4.29 in the calculator data; the impedance page's prepreg table says 4.16. The data is used.",
       "The 2116 prepreg's name says 5mil (0.127 mm) while its thickness is 0.1118 mm; the thickness is used.",

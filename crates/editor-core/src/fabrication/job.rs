@@ -7,7 +7,7 @@
 use super::snapshot::Identity;
 use super::{FabFile, FabricationOptions, FileGroup};
 use crate::diagnostics::Result;
-use crate::model::{DielectricKind, GlassStyle, MaskColour, PadFinish, Project, SilkscreenColour};
+use crate::model::{DielectricKind, MaskColour, PadFinish, Project, SilkscreenColour};
 use crate::rules::CopperObject;
 use serde_json::{Value, json};
 
@@ -45,15 +45,6 @@ fn legend_colour(c: SilkscreenColour) -> &'static str {
         SilkscreenColour::White => "White",
         SilkscreenColour::Black => "Black",
         SilkscreenColour::Yellow => "Yellow",
-    }
-}
-
-pub fn glass(g: GlassStyle) -> &'static str {
-    match g {
-        GlassStyle::Style106 => "106",
-        GlassStyle::Style1080 => "1080",
-        GlassStyle::Style2116 => "2116",
-        GlassStyle::Style7628 => "7628",
     }
 }
 
@@ -130,13 +121,16 @@ pub fn file(
             }));
         }
         if let Some(d) = stackup.dielectrics.get(i) {
-            materials.push(json!({
+            let mut row = json!({
                 "Type": "Dielectric",
                 "Name": format!("{} {}", match d.kind { DielectricKind::Core => "Core", DielectricKind::Prepreg => "Prepreg" }, i + 1),
                 "Material": "FR4",
                 "Thickness": mm(d.thickness_mm),
-                "Notes": format!("{} glass", glass(d.glass)),
-            }));
+            });
+            if let (Some(glass), Some(row)) = (d.glass.designation(), row.as_object_mut()) {
+                row.insert("Notes".into(), json!(format!("{glass} glass")));
+            }
+            materials.push(row);
         }
     }
     if stackup.mask_bottom {

@@ -31,6 +31,7 @@ mod copper;
 pub mod courtyard;
 pub mod dimensions;
 pub mod etch;
+pub mod fab_stackup;
 pub mod fiducial;
 pub mod fill;
 pub mod grid;
@@ -166,6 +167,22 @@ pub enum LayoutCommand {
     /// on a layer the new stackup lacks refuses the edit.
     #[serde(rename = "layout.edit_stackup")]
     EditStackup(restack::StackupEdit),
+    /// Take a fabricator's stackup (an id `layout.stackups` lists) as one undo
+    /// step. `layout.stackups {id}` says first what it changes, what refuses
+    /// it and what the board's fab profile says of it. Copper layers keep
+    /// their place from the top and the bottom stays the bottom; `moves`
+    /// sends the copper of a layer the stackup lacks to one it has. A layer
+    /// whose plies state several Dk has none, or with `average_dk` their
+    /// average by thickness. A host with the stackup library carries this out
+    /// as `layout.edit_stackup`.
+    #[serde(rename = "layout.use_stackup")]
+    UseStackup {
+        stackup: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        moves: Vec<restack::LayerMove>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        average_dk: bool,
+    },
     /// Add a board via; the outcome names it (`Outcome::ViaAdded`).
     #[serde(rename = "layout.add_via")]
     AddVia { via: ViaRequest },
@@ -327,6 +344,7 @@ declare_entries!(LayoutCommand in layout {
     SetFabrication "layout.set_fabrication" Edit "Set fabrication settings",
     SetStackup "layout.set_stackup" Edit "Set the layer stackup" [since(2, 10)],
     EditStackup "layout.edit_stackup" Edit "Edit the layer stackup" [since(2, 10)],
+    UseStackup "layout.use_stackup" Edit "Use a fabricator's stackup" [since(3, 0)],
     AddVia "layout.add_via" Edit "Add a via" [returns(via_added)],
     MoveVia "layout.via_move" Edit "Move a via",
     DeleteVia "layout.via_delete" Edit "Delete a via",
@@ -934,6 +952,12 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
             },
         )?,
         LayoutCommand::EditStackup(edit) => restack::apply(project, edit)?,
+        LayoutCommand::UseStackup { stackup, .. } => {
+            return Err(Error::NotFound(format!(
+                "layout.stackup_unknown: no stackup {stackup} here; a host with the stackup \
+                 library takes it, or send its layers with layout.edit_stackup"
+            )));
+        }
         LayoutCommand::AddVia { via } => return via::add(project, via).map(Some),
         LayoutCommand::MoveVia { id, position } => via::move_to(project, id, position)?,
         LayoutCommand::DeleteVia { id } => via::delete(project, id)?,

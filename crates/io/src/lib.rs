@@ -5,6 +5,7 @@
 pub mod artwork;
 pub mod assembly_link;
 pub mod fab_drawings;
+pub mod fab_stackups;
 pub mod fabrication;
 pub mod fabricators;
 pub mod generated;

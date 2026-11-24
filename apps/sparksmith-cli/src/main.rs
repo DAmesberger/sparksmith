@@ -13,6 +13,7 @@ mod pinout;
 mod plugin;
 mod replay;
 mod review_diff;
+mod stackup;
 
 use serde_json::{Value, json};
 use sparksmith_automation::{Caller, Grant, Mode, Session, lines, live, mcp, session};
@@ -90,6 +91,7 @@ fn usage() -> String {
         pinout::USAGE,
         firmware::USAGE,
         fab_profile::USAGE,
+        stackup::USAGE,
         design_part::USAGE,
         design_body::USAGE,
         fab::USAGE,
@@ -420,6 +422,7 @@ fn run() -> Result<()> {
         [command, rest @ ..] if command == "pinout" => pinout::run(rest),
         [command, rest @ ..] if command == "firmware" => firmware::run(rest),
         [command, rest @ ..] if command == "fab-profile" => fab_profile::run(rest),
+        [command, rest @ ..] if command == "stackup" => stackup::run(rest),
         [command, rest @ ..] if command == "design-part" => design_part::run(rest),
         [command, rest @ ..] if command == "design-body" => design_body::run(rest),
         [command, rest @ ..] if command == "llm-key" => design_part::key(rest),

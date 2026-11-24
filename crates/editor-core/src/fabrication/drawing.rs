@@ -286,17 +286,14 @@ fn stackup_rows(project: &Project) -> Vec<StackupRow> {
                     ("prepreg", prepregs)
                 }
             };
-            let glass = match d.glass {
-                crate::model::GlassStyle::Style106 => "106",
-                crate::model::GlassStyle::Style1080 => "1080",
-                crate::model::GlassStyle::Style2116 => "2116",
-                crate::model::GlassStyle::Style7628 => "7628",
-            };
             let title = if kind == "core" { "Core" } else { "Prepreg" };
             rows.push(StackupRow {
                 name: format!("{title} {n}"),
                 kind: kind.into(),
-                material: format!("FR-4 {glass}"),
+                material: match d.glass.designation() {
+                    Some(glass) => format!("FR-4 {glass}"),
+                    None => "FR-4".into(),
+                },
                 thickness_mm: d.thickness_mm,
             });
         }

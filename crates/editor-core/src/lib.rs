@@ -435,6 +435,31 @@ pub enum Query {
     PreviewOptions {
         options: std::collections::BTreeMap<String, String>,
     },
+    /// The fabricators' stackups `layout.use_stackup` takes. Without `id`, a
+    /// row each, for the board's copper layers and the maker of its fab
+    /// profile (every maker when the profile names none); `copper_layers`,
+    /// `board_mm` (the thickness option it is listed under) and `fabricator`
+    /// choose others, and `all` lists every one. With `id`, that stackup as
+    /// published, with its sources and disagreements, the build a board takes
+    /// from it, and what taking it (with `moves` and `average_dk`) would
+    /// change, what refuses it and what the fab profile says of it.
+    #[serde(rename = "layout.stackups")]
+    Stackups {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        copper_layers: Option<usize>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        board_mm: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fabricator: Option<String>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        all: bool,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        moves: Vec<layout::restack::LayerMove>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        average_dk: bool,
+    },
     /// Every net class with its resolved width, via and clearance, and
     /// every net with its class and how it got it (explicit or pattern).
     #[serde(rename = "net_class.list")]
@@ -623,6 +648,7 @@ declare_entries!(Query in project {
     ImpedanceCalculate "impedance.calculate" Read "Calculate impedance" [in rules, returns(impedance)],
     ImpedanceTable "impedance.table" Read "Impedance table" [in rules, link, returns(impedance_table)],
     SuggestPairs "diff_pair.suggest" Read "Suggest differential pairs" [in layout, link, since(2, 9), returns(pair_suggestions)],
+    Stackups "layout.stackups" Read "List fabricators' stackups" [in layout, link, since(3, 0), returns(stackups, stackup)],
     LengthReport "layout.length_report" Read "Length report" [in layout, link, returns(length_report)],
     Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1), returns(pads)],
     RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link, returns(route_preview)],
@@ -677,6 +703,8 @@ pub enum QueryResult {
     Impedance(Box<layout::impedance::ImpedanceResult>),
     ImpedanceTable(Box<layout::impedance::ImpedanceTable>),
     PairSuggestions(Vec<rules::signal::PairSuggestion>),
+    Stackups(Box<layout::fab_stackup::StackupList>),
+    Stackup(Box<layout::fab_stackup::StackupReport>),
     LengthReport(Box<layout::length::LengthReport>),
     Pads(Vec<layout::PadRow>),
     TunePreview(Box<layout::meander::TunePreview>),
@@ -2510,6 +2538,9 @@ impl Engine {
             Query::RuleProfiles { id: Some(id) } => Ok(QueryResult::RuleProfile(Box::new(
                 rules::ProfileChoice::Id(id).resolve(&self.document.project.rules)?,
             ))),
+            Query::Stackups { .. } => Err(Error::Unsupported(
+                "layout.stackups: the stackup library is the host's; none is open here".into(),
+            )),
             Query::PreviewOptions { options } => {
                 let profile = rules::with_options(&self.document.project.rules, &options)?;
                 self.preview_profile(profile, true, rules::ChoiceCarry::default())
