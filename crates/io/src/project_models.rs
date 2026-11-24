@@ -36,6 +36,17 @@ pub fn library_reference(reference: &str) -> bool {
             .any(|p| p.eq_ignore_ascii_case("kicad"))
 }
 
+/// A relative path as a project file keeps it: its parts joined with `/`
+/// whatever the host's separator, so a project reads the same on every
+/// platform.
+pub fn portable(relative: &Path) -> String {
+    relative
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 fn step(path: &Path) -> bool {
     path.extension()
         .and_then(|s| s.to_str())
@@ -289,10 +300,7 @@ impl ProjectModels {
             return Ok(None);
         };
         let (bytes, source) = match location {
-            Location::File(path) => (
-                self.read(&path, MAX_MODEL_BYTES)?,
-                path.display().to_string(),
-            ),
+            Location::File(path) => (self.read(&path, MAX_MODEL_BYTES)?, portable(&path)),
             Location::Zip(path, n, member) => {
                 let archive = self.read(&path, MAX_ARCHIVE_BYTES)?;
                 let mut zip = zip::ZipArchive::new(Cursor::new(archive))
@@ -310,7 +318,7 @@ impl ProjectModels {
                     return Err(Error::Invalid("3D model ZIP changed during import".into()));
                 }
                 let bytes = self.consume(file, MAX_MODEL_BYTES)?;
-                let source = format!("{}!{member}", path.display());
+                let source = format!("{}!{member}", portable(&path));
                 (bytes, source)
             }
         };

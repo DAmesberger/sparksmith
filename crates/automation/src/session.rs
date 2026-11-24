@@ -1179,6 +1179,8 @@ pub struct HostFile {
     pub path: Option<PathBuf>,
     /// What that file held when the host opened or last saved it.
     pub identity: Option<sparksmith_io::DiskIdentity>,
+    /// The copy a refused save of the host's document left.
+    pub unsaved: Option<sparksmith_io::UnsavedCopy>,
     /// The engine revision the host's file (or its new project) holds, as
     /// the host recorded it when it opened, started or saved; `None` when
     /// no revision is. An edit past it is unsaved work, compared with the
@@ -1210,6 +1212,11 @@ pub enum FileChange {
         path: PathBuf,
         identity: sparksmith_io::DiskIdentity,
         revision: u64,
+    },
+    /// `project.save` was refused because another program has the file
+    /// open; the document's copy, if one could be written.
+    Refused {
+        unsaved: Option<sparksmith_io::UnsavedCopy>,
     },
 }
 
@@ -1245,6 +1252,8 @@ pub struct Session {
     /// What `path` held when this session opened or last saved it: a save
     /// there replaces it only while it still does (review finding 9).
     disk: Option<sparksmith_io::DiskIdentity>,
+    /// The copy a refused save of this document left.
+    unsaved: Option<sparksmith_io::UnsavedCopy>,
     /// Set while a host lends its engine: who owns the file lifecycle.
     hosting: Option<Hosting>,
     sources: sources::Sources,
@@ -1308,6 +1317,7 @@ impl Session {
             engine,
             path: None,
             disk: None,
+            unsaved: None,
             hosting: None,
             sources,
             compact: false,
@@ -1387,6 +1397,7 @@ impl Session {
         std::mem::swap(&mut self.engine, engine);
         self.path = file.path.clone();
         self.disk = file.identity;
+        self.unsaved = file.unsaved.clone();
         self.hosting = Some(Hosting {
             adopts,
             kept: file.kept,
@@ -1430,6 +1441,8 @@ impl Session {
                 FileChange::Opened { revision, .. }
                 | FileChange::New { revision }
                 | FileChange::Saved { revision, .. } => Some(*revision),
+                // Nothing was written: what the file holds is unchanged.
+                FileChange::Refused { .. } => hosting.kept,
             };
             hosting.changes.push(change);
         }
@@ -1609,6 +1622,7 @@ impl Session {
                     .replace_document(Engine::new_on(board, profile)?.to_file())?;
                 self.path = None;
                 self.disk = None;
+                self.unsaved = None;
                 self.host_changed(FileChange::New {
                     revision: self.engine.revision(),
                 });
@@ -1629,6 +1643,7 @@ impl Session {
                 let _ = self.engine.refill_stale();
                 self.path = Some(path.clone());
                 self.disk = Some(identity);
+                self.unsaved = None;
                 self.host_changed(FileChange::Opened {
                     path,
                     identity,
@@ -1661,28 +1676,41 @@ impl Session {
                 // A first save names and identifies the project
                 // (`sparksmith_core::first_save`). No nonce: a script saved
                 // under the same file name reproduces both.
-                let saved =
-                    match sparksmith_io::save_document(&path, self.engine.document(), expected, "")
-                    {
-                        Ok(saved) => saved,
-                        Err(sparksmith_io::Error::Conflict(conflict)) => {
-                            // Both versions are kept; this session's document
-                            // is in the new file, which is its file from now
-                            // on, so a later save never replaces the other.
-                            self.path = Some(conflict.kept.clone());
-                            self.disk = Some(conflict.identity);
-                            self.host_changed(FileChange::Saved {
-                                path: conflict.kept.clone(),
-                                identity: conflict.identity,
-                                revision: self.engine.revision(),
-                            });
-                            return Err(sparksmith_io::Error::Conflict(conflict).into());
-                        }
-                        Err(error) => return Err(error.into()),
-                    };
+                let saved = match sparksmith_io::save_document(
+                    &path,
+                    self.engine.document(),
+                    expected,
+                    "",
+                    self.unsaved.as_ref(),
+                ) {
+                    Ok(saved) => saved,
+                    Err(sparksmith_io::Error::InUse(in_use)) => {
+                        self.unsaved.clone_from(&in_use.copy);
+                        self.host_changed(FileChange::Refused {
+                            unsaved: in_use.copy.clone(),
+                        });
+                        return Err(sparksmith_io::Error::InUse(in_use).into());
+                    }
+                    Err(sparksmith_io::Error::Conflict(conflict)) => {
+                        self.unsaved = None;
+                        // Both versions are kept; this session's document
+                        // is in the new file, which is its file from now
+                        // on, so a later save never replaces the other.
+                        self.path = Some(conflict.kept.clone());
+                        self.disk = Some(conflict.identity);
+                        self.host_changed(FileChange::Saved {
+                            path: conflict.kept.clone(),
+                            identity: conflict.identity,
+                            revision: self.engine.revision(),
+                        });
+                        return Err(sparksmith_io::Error::Conflict(conflict).into());
+                    }
+                    Err(error) => return Err(error.into()),
+                };
                 let saved_path = path.display().to_string();
                 self.path = Some(path.clone());
                 self.disk = Some(saved.identity);
+                self.unsaved = None;
                 // The file holds the document the engine has now, name and
                 // identity included.
                 self.engine.adopt_first_save(&saved.first);

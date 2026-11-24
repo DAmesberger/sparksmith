@@ -29,8 +29,8 @@ pub mod shipped;
 pub mod standards;
 
 pub use persistence::{
-    Conflict, DiskIdentity, SavedDocument, create_project, open_project, read_project, same_file,
-    save_document, save_project, write_project,
+    Conflict, DiskIdentity, InUse, SavedDocument, UnsavedCopy, create_project, open_project,
+    read_project, same_file, save_document, save_project, write_project,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -58,6 +58,9 @@ pub enum Error {
         .0.kept.display()
     )]
     Conflict(Box<persistence::Conflict>),
+    /// A save could not replace its file: another program has it open.
+    #[error("{0}")]
+    InUse(Box<persistence::InUse>),
 }
 
 impl Error {
@@ -70,6 +73,7 @@ impl Error {
             Self::Io(_) => "io_error",
             Self::Json(_) => "malformed_file",
             Self::Conflict(_) => "file_conflict",
+            Self::InUse(_) => "file_in_use",
         }
     }
     pub fn diagnostic(&self) -> sparksmith_core::Diagnostic {
