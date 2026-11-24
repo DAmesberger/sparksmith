@@ -308,7 +308,12 @@ pub fn flash(template: &Template, at: Point) -> Fallible<Shapes> {
             vertices,
             rotation,
             hole,
-        } => with_hole(regular(at, diameter / 2.0, *vertices, *rotation), at, *hole),
+        } => {
+            if *vertices > 1000 {
+                return Err("polygons: a polygon aperture of too many sides".into());
+            }
+            with_hole(regular(at, diameter / 2.0, *vertices, *rotation), at, *hole)
+        }
         Template::Macro { primitives, .. } => {
             // Runs of exposure-on primitives are united at once; an
             // exposure-off primitive erases what came before it.
@@ -418,13 +423,9 @@ pub fn render(file: &GerberFile, keep: impl Fn(&Object) -> bool) -> Fallible<Sha
             image = flush(image, &mut run, dark);
             dark = object.dark;
         }
-        let shapes = object_shapes(file, object)?;
-        if dark {
-            run.extend(shapes);
-        } else {
-            // Clear objects are united first, then removed at once.
-            run = boolean(&run, &shapes, OverlayRule::Union);
-        }
+        // Overlapping shapes of a run add under the non-zero rule, dark or
+        // clear, so a pour's thousands of holes are removed at once.
+        run.extend(object_shapes(file, object)?);
     }
     Ok(flush(image, &mut run, dark))
 }

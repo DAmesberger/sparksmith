@@ -256,11 +256,11 @@ pub fn unescape(field: &str) -> String {
     let mut rest = field;
     while !rest.is_empty() {
         if let Some(hex) = rest.strip_prefix("\\u")
-            && hex.len() >= 4
-            && let Ok(unit) = u16::from_str_radix(&hex[..4], 16)
+            && let Some((digits, after)) = hex.split_at_checked(4)
+            && let Ok(unit) = u16::from_str_radix(digits, 16)
         {
             units.push(unit);
-            rest = &hex[4..];
+            rest = after;
             continue;
         }
         if !units.is_empty() {
@@ -513,7 +513,7 @@ impl State {
         let mut code = None;
         let mut rest = w;
         while let Some(letter) = rest.chars().next() {
-            let body = &rest[1..];
+            let body = &rest[letter.len_utf8()..];
             let end = body
                 .find(|c: char| !(c.is_ascii_digit() || c == '-' || c == '+'))
                 .unwrap_or(body.len());
@@ -712,6 +712,9 @@ fn evaluate_macro(body: &[String], parameters: &[f64], s: f64) -> Fallible<Vec<P
             },
             4 => {
                 let n = get(1)? as usize;
+                if n >= v.len() {
+                    return Err("gerber: an outline primitive lacks points".into());
+                }
                 let points = (0..=n)
                     .map(|k| Ok([get(2 + 2 * k)? * s, get(3 + 2 * k)? * s]))
                     .collect::<Fallible<Vec<Point>>>()?;

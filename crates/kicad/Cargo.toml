@@ -17,4 +17,4 @@ i_overlay.workspace = true
 
 [dev-dependencies]
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
-sparksmith-fabcheck.workspace = true
+sparksmith-fabcheck = { workspace = true, features = ["reference"] }
