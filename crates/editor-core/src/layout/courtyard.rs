@@ -170,14 +170,26 @@ fn bounded_findings(project: &Project, budget: Option<usize>) -> Vec<Finding> {
                     ),
                 )
             };
-            out.push(Finding::new(
-                code,
-                message,
-                vec![
-                    ObjectRef::Instance { id: a.instance },
-                    ObjectRef::Instance { id: b.instance },
-                ],
-            ));
+            // How far courtyards overlap is not measured.
+            let measured = (!overlap).then(|| {
+                crate::diagnostics::Measured::at_least(
+                    gap,
+                    reach,
+                    crate::diagnostics::Unit::Mm,
+                    1e-9,
+                )
+            });
+            out.push(
+                Finding::new(
+                    code,
+                    message,
+                    vec![
+                        ObjectRef::Instance { id: a.instance },
+                        ObjectRef::Instance { id: b.instance },
+                    ],
+                )
+                .measuring(measured),
+            );
         }
     }
     out

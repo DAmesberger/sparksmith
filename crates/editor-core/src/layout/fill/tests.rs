@@ -1795,6 +1795,7 @@ fn removed_spokes_are_reported_as_information() -> Fallible<()> {
         Operation::Fabrication(crate::fabrication::preflight::FabricationCommand::Waive {
             keys: vec![key],
             reason: "checked".into(),
+            profile: None,
         }),
     )?;
     let after = issues(&f.engine)?;

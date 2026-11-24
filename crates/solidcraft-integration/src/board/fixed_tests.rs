@@ -445,6 +445,7 @@ fn b5_a_loop_between_board_and_linked_design_blocks_fabrication() -> Fallible<()
         Operation::Fabrication(sparksmith_core::fabrication::FabricationCommand::Waive {
             keys: vec![item.key.clone()],
             reason: "known".into(),
+            profile: None,
         }),
     );
     assert!(waived.is_err(), "never waived");

@@ -16,7 +16,7 @@ use super::{
     BoardCopper, CopperRing, EPS, Error, Result, RouteEditSet, RouteRequest, WorldPad,
     check_pair_budget, distance, invalid,
 };
-use crate::diagnostics::{Finding, FindingCode, ObjectRef, Requirement};
+use crate::diagnostics::{Finding, FindingCode, Measured, ObjectRef, Requirement, Unit};
 use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::Id;
 use crate::library::names::capitalised;
@@ -674,7 +674,8 @@ impl<'a> ViaCx<'a> {
                     ),
                     vec![me],
                 )
-                .requiring(ring_min.at_most(via.annular_ring())),
+                .requiring(ring_min.at_most(via.annular_ring()))
+                .measuring([ring_min.measured(via.annular_ring())]),
             );
         }
         if let Some(max) = aspect_max
@@ -697,7 +698,13 @@ impl<'a> ViaCx<'a> {
                 limits.project(),
                 RuleKey::AspectRatioMax,
                 thickness / via.drill,
-            )));
+            ))
+            .measuring([Measured::at_most(
+                thickness / via.drill,
+                max,
+                Unit::Ratio,
+                1e-9,
+            )]));
         }
         if let EdgeVerdict::TooClose { gap, near } = self.edges.verdict(drill, edge) {
             let need = limits.clearance_need(hole, None, CopperObject::BoardEdge, None);
@@ -712,7 +719,8 @@ impl<'a> ViaCx<'a> {
                     ),
                     vec![me],
                 )
-                .requiring(need.at_most(gap)),
+                .requiring(need.at_most(gap))
+                .measuring([need.measured(gap)]),
             );
         }
         if drill.bounds.is_none() {
@@ -739,7 +747,8 @@ impl<'a> ViaCx<'a> {
                         ),
                         vec![me, shape.object],
                     )
-                    .requiring(need.at_most(gap)),
+                    .requiring(need.at_most(gap))
+                    .measuring([need.measured(gap)]),
                 );
             }
         }
@@ -763,7 +772,8 @@ impl<'a> ViaCx<'a> {
                         ),
                         vec![me, ObjectRef::Via { id: other.id }],
                     )
-                    .requiring(need.at_most(gap)),
+                    .requiring(need.at_most(gap))
+                    .measuring([need.measured(gap)]),
                 );
             }
         }
@@ -800,7 +810,7 @@ impl<'a> ViaCx<'a> {
         // A plated board slot is itself an edge of the board shape: the
         // outline check measures it against the others.
         if washer.is_some()
-            && let Some((text, needs)) = edge_text(&self.edges, ring, limits, kind)
+            && let Some((text, needs, measured)) = edge_text(&self.edges, ring, limits, kind)
         {
             issues.push(
                 Finding::new(
@@ -808,7 +818,8 @@ impl<'a> ViaCx<'a> {
                     format!("{name} {text}"),
                     vec![me],
                 )
-                .requiring(needs),
+                .requiring(needs)
+                .measuring(measured),
             );
         }
         if ring.bounds.is_none() {
@@ -838,7 +849,8 @@ impl<'a> ViaCx<'a> {
                         format!("{name} {how}; {}", need.text()),
                         vec![me, shape.object],
                     )
-                    .requiring(need.at_most(gap)),
+                    .requiring(need.at_most(gap))
+                    .measuring([need.measured(gap)]),
                 );
             }
         }
@@ -862,7 +874,8 @@ impl<'a> ViaCx<'a> {
                         ),
                         vec![me, ObjectRef::Via { id: via.id }],
                     )
-                    .requiring(need.at_most(gap)),
+                    .requiring(need.at_most(gap))
+                    .measuring([need.measured(gap)]),
                 );
             }
         }
@@ -891,7 +904,8 @@ impl<'a> ViaCx<'a> {
                         format!("{name} and {}: holes {how}; {}", other.name, need.text()),
                         vec![me, other.object()],
                     )
-                    .requiring(need.at_most(gap)),
+                    .requiring(need.at_most(gap))
+                    .measuring([need.measured(gap)]),
                 );
             }
         }
@@ -914,16 +928,17 @@ pub(super) fn edge_text(
     ring: &CopperRing,
     limits: &BoardRules<'_>,
     kind: CopperObject,
-) -> Option<(String, Option<Requirement>)> {
+) -> Option<(String, Option<Requirement>, Option<Measured>)> {
     let edge = limits.clearance(kind, None, CopperObject::BoardEdge, None);
     match edges.verdict(ring, edge) {
         EdgeVerdict::Clear => None,
-        EdgeVerdict::Outside => Some(("extends beyond the board edge".into(), None)),
+        EdgeVerdict::Outside => Some(("extends beyond the board edge".into(), None, None)),
         EdgeVerdict::Inside(kind) => Some((
             format!(
                 "lies in {}",
                 super::board_edge::EdgeLoopKind::Cutout(kind).describe()
             ),
+            None,
             None,
         )),
         EdgeVerdict::TooClose { gap, near } => {
@@ -936,6 +951,7 @@ pub(super) fn edge_text(
                     need.text()
                 ),
                 need.at_most(gap),
+                Some(need.measured(gap)),
             ))
         }
     }

@@ -1,7 +1,8 @@
 //! Production settings saved with the design: the pre-flight findings the
 //! user waived for fabrication output. Data only; `fabrication::preflight`
 //! matches waivers to findings and `fabrication::apply` edits them.
-use crate::diagnostics::ObjectRef;
+use crate::diagnostics::{Measured, ObjectRef, Sense, Unit};
+use crate::rules::requirement::number_against;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,23 +11,106 @@ use serde::{Deserialize, Serialize};
 pub const MAX_WAIVE_KEYS: usize = 4096;
 /// Bytes of a waiver key or reason.
 pub const MAX_WAIVER_TEXT: usize = 1024;
+/// Numbers one waiver accepts.
+pub const MAX_ACCEPTED: usize = 1024;
 
 /// One waived pre-flight finding: its stable key
 /// (`fabrication::PreflightItem::key`, the finding code and the objects it
-/// names) and why it is acceptable for this build.
+/// names), what was measured when it was accepted, and why it is
+/// acceptable for this build.
+///
+/// A waiver of a finding that measures something accepts the numbers it had
+/// and no worse ones ([`Production::acceptance`]). One without them (of a
+/// project saved before waivers held them) counts for nothing until given
+/// again. A finding that measures nothing is accepted by its key alone.
 ///
 /// The key is held as the text commands and findings use
 /// ([`waiver_key`]) and stored as JSON: the code
 /// and the objects as values ([`StoredKey`]), never as a string holding
 /// JSON. A key that is not a finding's key is refused
 /// ([`Production::within_bounds`]).
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Waiver {
     #[serde(with = "stored_key")]
     #[schemars(with = "StoredKey")]
     pub key: String,
     pub reason: String,
+    /// What the finding measured when it was accepted: the check's own
+    /// numbers, not rounded. Several when findings share the key.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub accepted: Vec<Measured>,
+}
+
+/// What a project's waivers say of a finding.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Acceptance<'a> {
+    /// No waiver names it.
+    None,
+    Holds(&'a Waiver),
+    /// A waiver names it and no longer holds; why, as a sentence without
+    /// its full stop.
+    Lapsed(&'a Waiver, String),
+}
+
+/// `value` of `unit` in words, told apart from `other` where they differ.
+fn words(value: f64, other: f64, unit: Unit) -> String {
+    let mut text = number_against(value, other);
+    // Never shown as equal to what it is not.
+    if value != other && text == number_against(other, value) {
+        text = value.to_string();
+    }
+    match unit {
+        Unit::Mm => format!("{text} mm"),
+        Unit::Degrees => format!("{text}°"),
+        Unit::Ratio => format!("{text}:1"),
+        Unit::Percent => format!("{text} %"),
+        Unit::Amperes => format!("{text} A"),
+        Unit::Count => text,
+    }
+}
+
+fn limit_words(m: &Measured, other: f64) -> String {
+    let sense = match m.sense {
+        Sense::AtLeast => "at least",
+        Sense::AtMost => "at most",
+    };
+    format!("{sense} {}", words(m.limit, other, m.unit))
+}
+
+/// What a waiver accepted, in words ("0.15 mm, needs at least 0.2 mm");
+/// `None` when it accepted no number.
+pub fn accepted_words(accepted: &[Measured]) -> Option<String> {
+    let each: Vec<String> = accepted
+        .iter()
+        .map(|m| {
+            let of = if m.of.is_empty() {
+                String::new()
+            } else {
+                format!("{}: ", m.of)
+            };
+            let (value, limit) = (words(m.value, m.limit, m.unit), limit_words(m, m.value));
+            format!("{of}{value}, needs {limit}")
+        })
+        .collect();
+    (!each.is_empty()).then(|| each.join("; "))
+}
+
+/// Why accepting `then` does not accept `now`.
+fn lapsed_words(then: &Measured, now: &Measured) -> String {
+    let (was, is) = (
+        words(then.value, now.value, then.unit),
+        words(now.value, then.value, now.unit),
+    );
+    if then.limit == now.limit {
+        format!("Was accepted at {was}, is now {is}")
+    } else {
+        format!(
+            "Was accepted at {was} (needs {}), is now {is} (needs {})",
+            limit_words(then, now.limit),
+            limit_words(now, then.limit)
+        )
+    }
 }
 
 /// A waiver key as a file holds it: the finding's code and the objects it
@@ -80,7 +164,7 @@ pub fn waiver_key(code: &str, objects: &[ObjectRef]) -> String {
     format!("{code} {objects}")
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Production {
     /// The project's identity, RFC 4122-shaped (`8-4-4-4-12` lower-case
@@ -109,8 +193,46 @@ impl Production {
             .and_then(|k| self.waivers.get(k))
     }
 
-    /// Text bounds, printable text, finding keys ([`StoredKey::parse`]),
-    /// unique and sorted.
+    /// Whether the waivers accept a finding of `key` that measures
+    /// `measured` now. Each number must be one the waiver accepted, or
+    /// better, and no farther from its limit, whatever the limit is now
+    /// ([`Measured::accepts`]).
+    pub fn acceptance(&self, key: &str, measured: &[Measured]) -> Acceptance<'_> {
+        let Some(waiver) = self.waiver(key) else {
+            return Acceptance::None;
+        };
+        let lapsed = |text: String| Acceptance::Lapsed(waiver, text);
+        if measured.is_empty() {
+            // It had a number and has none now: copper that touches, or
+            // lies outside.
+            return match waiver.accepted.first() {
+                None => Acceptance::Holds(waiver),
+                Some(then) => lapsed(format!(
+                    "Was accepted at {}, is now no such value",
+                    words(then.value, then.limit, then.unit)
+                )),
+            };
+        }
+        if waiver.accepted.is_empty() {
+            return lapsed("Was accepted without its value; accept it again".into());
+        }
+        for now in measured {
+            if waiver.accepted.iter().any(|then| then.accepts(now)) {
+                continue;
+            }
+            return lapsed(match waiver.accepted.iter().find(|then| then.alike(now)) {
+                Some(then) => lapsed_words(then, now),
+                None => format!(
+                    "Was accepted for another value, is now {}",
+                    words(now.value, now.limit, now.unit)
+                ),
+            });
+        }
+        Acceptance::Holds(waiver)
+    }
+
+    /// Text bounds, printable text, finite numbers, finding keys
+    /// ([`StoredKey::parse`]), unique and sorted.
     pub fn within_bounds(&self) -> bool {
         self.project_id.as_deref().is_none_or(is_guid)
             && self.waivers.iter().all(|w| {
@@ -119,6 +241,13 @@ impl Production {
                     && StoredKey::parse(&w.key).is_some()
                     && w.reason.len() <= MAX_WAIVER_TEXT
                     && !w.key.chars().chain(w.reason.chars()).any(char::is_control)
+                    && w.accepted.len() <= MAX_ACCEPTED
+                    && w.accepted.iter().all(|m| {
+                        m.value.is_finite()
+                            && m.limit.is_finite()
+                            && m.of.len() <= MAX_WAIVER_TEXT
+                            && !m.of.chars().any(char::is_control)
+                    })
             })
             && self.waivers.windows(2).all(|p| p[0].key < p[1].key)
     }

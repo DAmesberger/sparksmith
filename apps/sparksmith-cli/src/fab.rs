@@ -1,8 +1,9 @@
 //! `fab FILE.sparksmith OUT [--zip] [--profile ID] [--date ISO|none]`: write
 //! the production files through the `project.export_fabrication` request.
 //! A blocked export lists the findings that block it.
-use super::{Result, execute, open, print};
+use super::{Result, execute, interrupt, open, print};
 use serde_json::{Value, json};
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_automation::session::Session;
 use sparksmith_core::product::SHORT_NAME as CLI;
 
@@ -18,8 +19,17 @@ pub const USAGE: &str =
 /// Blocking findings printed by one refused export; the rest are counted.
 const MAX_LISTED: usize = 100;
 
+/// The subcommand, which Ctrl-C ends with nothing written.
+pub fn command(args: &[String]) -> Result<()> {
+    let cancel = interrupt::stop_on_ctrl_c(
+        "stopping: the export ends at the end of the step it computes and writes nothing. Ctrl-C \
+         again quits at once",
+    )?;
+    Cancel::from(cancel).scope(|| run(args))
+}
+
 /// Run the subcommand with the arguments after its name.
-pub fn run(args: &[String]) -> Result<()> {
+fn run(args: &[String]) -> Result<()> {
     let [project, output, rest @ ..] = args else {
         return Err(format!("usage: {CLI} {USAGE}").into());
     };
@@ -103,16 +113,19 @@ fn blocking_report(session: &mut Session, profile: Option<&str>) -> Result<Value
 /// the finding's title, at most [`MAX_LISTED`] and then how many remain.
 fn blocking_titles(report: &Value) -> String {
     let items = report["result"]["items"].as_array();
-    let titles: Vec<&str> = items
+    let titles: Vec<(&str, Option<&str>)> = items
         .into_iter()
         .flatten()
         .filter(|i| i["severity"] == "error" && i.get("waiver").is_none())
-        .filter_map(|i| i["title"].as_str())
+        .filter_map(|i| Some((i["title"].as_str()?, i["lapsed"]["text"].as_str())))
         .collect();
     let mut lines: Vec<String> = titles
         .iter()
         .take(MAX_LISTED)
-        .map(|title| format!("  {title}"))
+        .map(|(title, lapsed)| match lapsed {
+            Some(lapsed) => format!("  {title} ({lapsed})"),
+            None => format!("  {title}"),
+        })
         .collect();
     if let Some(more) = titles.len().checked_sub(MAX_LISTED).filter(|n| *n > 0) {
         lines.push(format!("  and {more} more"));
@@ -287,6 +300,38 @@ mod tests {
         Ok(())
     }
 
+    /// Ctrl-C (its flag is the call's cancellation) ends `fab` with nothing
+    /// written.
+    #[test]
+    fn a_cancelled_export_writes_nothing() -> super::Result<()> {
+        let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+        let dir = tempfile::tempdir()?;
+        let project = dir.path().join("board.sparksmith");
+        let out = dir.path().join("out");
+        let arg = |p: &std::path::Path| p.display().to_string();
+        let mut session =
+            sparksmith_automation::session::Session::new(sparksmith_automation::session::showcase(
+                sparksmith_core::library::standards::Context::fixture()?,
+                &sparksmith_core::StackupPresets::fixture()?,
+                sparksmith_core::rules::fixtures::prototype()?,
+            )?);
+        super::execute(
+            &mut session,
+            json!({"command": "project.save", "params": {"path": arg(&project)}}),
+        )?;
+        let cancel = super::Cancel::default();
+        let flag = cancel.clone();
+        sparksmith_io::fabrication::seeded::seed(&out, Box::new(move |_| flag.set()));
+        let error = cancel
+            .scope(|| run(&[arg(&project), arg(&out)]))
+            .err()
+            .ok_or("the export went on")?
+            .to_string();
+        assert!(error.contains("fabrication.stopped"), "{error}");
+        assert!(!out.exists());
+        Ok(())
+    }
+
     /// Warnings and waived errors do not block; a long list says how many
     /// it left out.
     #[test]
@@ -297,6 +342,16 @@ mod tests {
             {"severity": "warning", "title": "A warning"},
         ]}});
         assert_eq!(blocking_titles(&report), "  Fill GND is stale");
+        // One whose waiver no longer holds says what it was and is.
+        let lapsed = json!({"result": {"items": [
+            {"severity": "error", "title": "Track too narrow", "lapsed": {
+                "waiver": {"key": "k", "reason": "r"},
+                "text": "Was accepted at 0.2 mm, is now 0.15 mm"}},
+        ]}});
+        assert_eq!(
+            blocking_titles(&lapsed),
+            "  Track too narrow (Was accepted at 0.2 mm, is now 0.15 mm)"
+        );
         let many: Vec<Value> = (0..MAX_LISTED + 3)
             .map(|k| json!({"severity": "error", "title": format!("Finding {k}")}))
             .collect();

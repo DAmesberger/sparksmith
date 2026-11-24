@@ -31,10 +31,11 @@ use crate::refusal::{self, Origin};
 use egui::Ui;
 use sparksmith_core::fabrication::{
     self, BottomRotation, FabricationCommand, FabricationOptions, PlacementOrigin, PreflightItem,
-    PreflightReport,
+    PreflightReport, ProfileChoice,
 };
 use sparksmith_core::issues::Severity;
 use sparksmith_core::model::Document;
+use sparksmith_core::model::production::accepted_words;
 use sparksmith_core::rules::RuleProfile;
 use sparksmith_core::{Engine, Operation, ReportKey};
 use sparksmith_io::fabrication::{ExportReport, ExportRequest, Progress};
@@ -1276,6 +1277,7 @@ fn findings(
     report: &PreflightReport,
     required: bool,
 ) -> Option<Operation> {
+    let under = dialog.profile().ok().flatten();
     let w = &mut dialog.waiving;
     // Keep only ticks of findings that can still be waived.
     let can: BTreeSet<&str> = report
@@ -1335,6 +1337,7 @@ fn findings(
             }
             Some(Entry::Row(item, depth)) => {
                 let tip = row_tip(item);
+                let title = row_title(item);
                 let (level, tick, action) = if item.waiver.is_some() {
                     (Level::Ok, None, Some("Restore"))
                 } else if waivable(item) {
@@ -1352,7 +1355,7 @@ fn findings(
                     base.with(("row", &item.key)),
                     &PickRow {
                         level,
-                        title: &item.title,
+                        title: &title,
                         tip: &tip,
                         depth: *depth,
                         fold: None,
@@ -1437,6 +1440,8 @@ fn findings(
                 op = Some(Operation::Fabrication(FabricationCommand::Waive {
                     keys,
                     reason,
+                    // The numbers accepted are the ones shown.
+                    profile: under.map(|p| ProfileChoice::Profile(Box::new(p))),
                 }));
                 w.close();
             }
@@ -1445,6 +1450,14 @@ fn findings(
         (false, false) => {}
     }
     op
+}
+
+/// A row's title; of a finding whose waiver no longer holds, with why.
+fn row_title(item: &PreflightItem) -> String {
+    match &item.lapsed {
+        Some(lapsed) => format!("{} \u{b7} {}", item.title, lapsed.text),
+        None => item.title.clone(),
+    }
 }
 
 /// A row's hover after its title: what it needs of the fab profile, what
@@ -1464,6 +1477,10 @@ fn row_tip(item: &PreflightItem) -> String {
         } else {
             format!("Waived: {}", waiver.reason)
         });
+        tip.extend(accepted_words(&waiver.accepted).map(|a| format!("Accepted: {a}")));
+    }
+    if let Some(lapsed) = &item.lapsed {
+        tip.push(lapsed.text.clone());
     }
     if let Some(fix) = &item.fix {
         tip.push(fix.clone());

@@ -12,7 +12,9 @@
 //!
 //! [`ProfileBoards`]: crate::rules::ProfileBoards
 //! [`ChoiceRequires`]: crate::rules::ChoiceRequires
-use crate::diagnostics::{Error, Finding, FindingCode, ObjectRef, Requirement, Result};
+use crate::diagnostics::{
+    Error, Finding, FindingCode, Measured, ObjectRef, Requirement, Result, Unit,
+};
 use crate::model::{PadFinish, Project};
 
 /// The board's copper layer count is not one its fab profile is for.
@@ -88,6 +90,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
     let thickness = project.stackup.thickness_mm();
     let finish = project.fabrication.pad_finish;
     let (mut thin, mut finished) = (Vec::new(), Vec::new());
+    let mut thickest = Vec::new();
     for option in profile.options() {
         let chosen = profile.chosen().get(&option.id);
         let Some(choice) = option.choices.iter().find(|c| chosen == Some(&c.id)) else {
@@ -99,6 +102,10 @@ pub fn findings(project: &Project) -> Vec<Finding> {
         if let Some(max) = requires.board_thickness_max_mm
             && thickness > max + 1e-9
         {
+            thickest.push(
+                Measured::at_most(thickness, max, Unit::Mm, 1e-9)
+                    .of(format!("{}: {}", option.name, choice.name)),
+            );
             thin.push(format!(
                 "{}: {} needs a board {} mm or thinner; the board is {} mm",
                 option.name,
@@ -122,16 +129,14 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             ));
         }
     }
-    for (code, messages) in [
-        (FindingCode::BoardFabChoiceThickness, thin),
-        (FindingCode::BoardFabChoiceFinish, finished),
+    for (code, messages, measured) in [
+        (FindingCode::BoardFabChoiceThickness, thin, thickest),
+        (FindingCode::BoardFabChoiceFinish, finished, Vec::new()),
     ] {
         if !messages.is_empty() {
-            out.push(Finding::new(
-                code,
-                messages.join("; "),
-                vec![ObjectRef::Board],
-            ));
+            out.push(
+                Finding::new(code, messages.join("; "), vec![ObjectRef::Board]).measuring(measured),
+            );
         }
     }
     out

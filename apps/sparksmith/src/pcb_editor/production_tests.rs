@@ -177,6 +177,8 @@ fn report_with_error(engine: &Engine) -> PreflightReport {
             objects: Vec::new(),
             waiver,
             needs: None,
+            lapsed: None,
+            measured: Vec::new(),
         }],
         errors: 1,
         warnings: 0,
@@ -309,7 +311,7 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
     let op = click(&mut editor, &engine, &ctx, "Waive 1 finding")?.ok_or("no waiver edit")?;
     assert!(matches!(
         &op,
-        Operation::Fabrication(FabricationCommand::Waive { keys, reason })
+        Operation::Fabrication(FabricationCommand::Waive { keys, reason, .. })
             if keys == &[r#"board.clearance [{"kind":"track","id":1},{"kind":"track","id":2}]"#] && reason == "Vias are 0.18 mm apart by design"
     ));
     let before = engine.revision();
@@ -490,6 +492,8 @@ fn report_like_the_run(engine: &Engine) -> PreflightReport {
             objects: Vec::new(),
             waiver,
             needs: None,
+            lapsed: None,
+            measured: Vec::new(),
         }
     };
     let mut items = vec![item(
@@ -609,13 +613,14 @@ fn a_whole_group_is_waived_with_one_reason_in_one_undo_step() -> TestResult {
     let unreasoned = Operation::Fabrication(FabricationCommand::Waive {
         keys,
         reason: String::new(),
+        profile: None,
     });
     assert!(engine.apply(revision, unreasoned).is_err());
     assert_eq!(engine.revision(), revision);
     assert!(engine.project().production.waivers.is_empty());
     "prototype".clone_into(&mut dialog(&mut editor)?.waiving.reason);
     let op = click(&mut editor, &engine, &ctx, "Waive 12 findings")?.ok_or("no waiver edit")?;
-    let Operation::Fabrication(FabricationCommand::Waive { keys, reason }) = &op else {
+    let Operation::Fabrication(FabricationCommand::Waive { keys, reason, .. }) = &op else {
         return Err(format!("not a waiver: {op:?}").into());
     };
     assert_eq!(keys.len(), 12);
@@ -1280,5 +1285,41 @@ fn stop_ends_an_export_with_nothing_written() -> TestResult {
     let refusal = d.refusal.clone().ok_or("no refusal")?;
     assert!(refusal.contains("stopped"), "{refusal}");
     assert_eq!(std::fs::read_dir(tmp.path())?.count(), 0);
+    Ok(())
+}
+
+/// A finding whose waiver no longer holds says in its row what was accepted
+/// and what it is now, blocks, and can be waived again; one that holds says
+/// what it accepted when hovered.
+#[test]
+fn a_row_says_what_was_accepted_and_what_it_is_now() -> TestResult {
+    use sparksmith_core::diagnostics::{Measured, Unit};
+    use sparksmith_core::fabrication::preflight::Lapsed;
+    use sparksmith_core::model::production::Waiver;
+    let engine = Engine::showcase()?;
+    let mut item = report_with_error(&engine).items.remove(0);
+    let waiver = Waiver {
+        key: item.key.clone(),
+        reason: "taken".into(),
+        accepted: vec![Measured::at_least(0.15, 0.2, Unit::Mm, 0.0)],
+    };
+    item.waiver = Some(waiver.clone());
+    assert_eq!(row_title(&item), item.title);
+    let tip = row_tip(&item);
+    assert!(
+        tip.contains("Waived: taken\nAccepted: 0.15 mm, needs at least 0.2 mm"),
+        "{tip}"
+    );
+    item.waiver = None;
+    item.lapsed = Some(Lapsed {
+        waiver,
+        text: "Was accepted at 0.15 mm, is now 0.12 mm".into(),
+    });
+    assert!(item.blocks() && waivable(&item));
+    assert_eq!(
+        row_title(&item),
+        "Via on GND too close to via on VCC \u{b7} Was accepted at 0.15 mm, is now 0.12 mm"
+    );
+    assert!(row_tip(&item).contains("is now 0.12 mm"));
     Ok(())
 }

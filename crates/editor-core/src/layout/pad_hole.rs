@@ -484,7 +484,7 @@ impl<'a> PadHoleCx<'a> {
         }
         // Every pad hole keeps the hole kind's board-edge clearance inside
         // the board, whether or not its pad has copper (a bare NPTH).
-        if let Some((text, needs)) =
+        if let Some((text, needs, measured)) =
             super::via::edge_text(&self.edges, &hole.ring, limits, hole.kind)
         {
             issues.push(
@@ -493,7 +493,8 @@ impl<'a> PadHoleCx<'a> {
                     format!("{}: {} {text}", hole.name, hole.what),
                     vec![hole.object],
                 )
-                .requiring(needs),
+                .requiring(needs)
+                .measuring(measured),
             );
         }
         let mut pairs = 0usize;
@@ -529,7 +530,8 @@ impl<'a> PadHoleCx<'a> {
                     format!("{}: hole {how}; {}", hole.name, need.text()),
                     vec![hole.object, shape.object],
                 )
-                .requiring(need.at_most(gap)),
+                .requiring(need.at_most(gap))
+                .measuring([need.measured(gap)]),
             );
         }
         for other in near_holes
@@ -578,7 +580,8 @@ impl<'a> PadHoleCx<'a> {
             };
             issues.push(
                 Finding::new(FindingCode::BoardPadHoleSpacing, text, objects)
-                    .requiring(need.at_most(gap)),
+                    .requiring(need.at_most(gap))
+                    .measuring([need.measured(gap)]),
             );
         }
         Ok(pairs)
@@ -647,7 +650,8 @@ fn rings(
                     format!("{}: {}", name(pad), text(ring)),
                     vec![object],
                 )
-                .requiring(need.at_most(ring)),
+                .requiring(need.at_most(ring))
+                .measuring([need.measured(ring)]),
             );
         }
         let ring = ring_of(false);
@@ -663,7 +667,8 @@ fn rings(
                     ),
                     vec![object],
                 )
-                .requiring(npth_need.at_most(ring)),
+                .requiring(npth_need.at_most(ring))
+                .measuring([npth_need.measured(ring)]),
             );
         }
     }
@@ -684,7 +689,8 @@ fn rings(
                         feature: mount.id.0,
                     }],
                 )
-                .requiring(need.at_most(ring)),
+                .requiring(need.at_most(ring))
+                .measuring([need.measured(ring)]),
             );
         }
     }

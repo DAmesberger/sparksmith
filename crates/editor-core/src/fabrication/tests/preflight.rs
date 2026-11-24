@@ -19,6 +19,7 @@ fn waive(engine: &mut Engine, key: String) -> Fallible<()> {
         Operation::Fabrication(FabricationCommand::Waive {
             keys: vec![key],
             reason: "Reviewed this finding only".into(),
+            profile: None,
         }),
     )?;
     Ok(())
@@ -261,6 +262,7 @@ fn cannot_be_waived(engine: &mut Engine, keys: &[String], instead: &str) -> Fall
         .map(|key| crate::model::production::Waiver {
             key,
             reason: "Reviewed".into(),
+            accepted: Vec::new(),
         })
         .collect();
     let held = Engine::from_file(file)?;
@@ -365,6 +367,7 @@ fn an_unrouted_connection_cannot_be_waived() -> Fallible<()> {
         Operation::Fabrication(FabricationCommand::Waive {
             keys: unrouted.clone(),
             reason: "prototype".into(),
+            profile: None,
         }),
     );
     let message = refused.err().ok_or("the waiver was accepted")?.to_string();
@@ -378,6 +381,7 @@ fn an_unrouted_connection_cannot_be_waived() -> Fallible<()> {
         .map(|key| crate::model::production::Waiver {
             key: key.clone(),
             reason: "prototype".into(),
+            accepted: Vec::new(),
         })
         .collect();
     let engine = Engine::from_file(file)?;
@@ -451,6 +455,7 @@ fn an_unplaced_part_cannot_be_waived() -> Fallible<()> {
         Operation::Fabrication(FabricationCommand::Waive {
             keys: vec![key.clone()],
             reason: "prototype".into(),
+            profile: None,
         }),
     );
     let message = refused.err().ok_or("the waiver was accepted")?.to_string();
@@ -460,6 +465,7 @@ fn an_unplaced_part_cannot_be_waived() -> Fallible<()> {
     file.project.production.waivers = vec![crate::model::production::Waiver {
         key: key.clone(),
         reason: "prototype".into(),
+        accepted: Vec::new(),
     }];
     let engine = Engine::from_file(file)?;
     let after = report(&engine)?;

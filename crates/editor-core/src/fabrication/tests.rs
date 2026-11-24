@@ -23,6 +23,7 @@ mod second;
 mod suggest;
 mod ties;
 mod units;
+mod waivers;
 
 use super::readback::oracle;
 use sparksmith_fabcheck::excellon as excellon_reader;

@@ -9,7 +9,7 @@
 //! not be ([`NO_WAIVER`]); waivers are saved in the project
 //! (`Project::production`).
 use super::snapshot::ProductionSnapshot;
-use crate::diagnostics::{Error, ObjectRef, Result};
+use crate::diagnostics::{Error, Measured, ObjectRef, Result, Unit};
 use crate::geometry::{Bounds, Point, polyline_polygon_distance};
 use crate::ids::{DefinitionId, Id};
 use crate::issues::{IssueArea, IssueRow, Severity};
@@ -17,7 +17,9 @@ use crate::layout::board_edge::{BoardEdges, EdgeLoopKind, EdgeVerdict};
 use crate::layout::{self, BoardDrawing, CopperRing, PlacedItem};
 use crate::library::{Drafts, PackageModel};
 use crate::model::board::CutoutKind;
-use crate::model::production::{MAX_WAIVE_KEYS, MAX_WAIVER_TEXT, Production, Waiver};
+use crate::model::production::{
+    Acceptance, MAX_ACCEPTED, MAX_WAIVE_KEYS, MAX_WAIVER_TEXT, Production, Waiver,
+};
 use crate::model::{CopperLayer, Layer, Project, Track};
 use crate::rules::RuleProfile;
 use schemars::JsonSchema;
@@ -31,14 +33,19 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum FabricationCommand {
     /// Accept pre-flight findings for fabrication, by their keys, with one
     /// optional reason, as one undo step. Replaces earlier waivers of the
-    /// same keys. Refused whole, changing nothing, when any key is empty,
-    /// a key or the reason is too long or not printable, or the host
-    /// requires a reason and none is given.
+    /// same keys. What each finding measures now is kept: the waiver holds
+    /// while it measures the same or better. `profile` is the fab profile
+    /// the findings were read under (`fabrication.preflight`'s), the
+    /// board's own when left out. Refused whole, changing nothing, when any
+    /// key is empty, a key or the reason is too long or not printable, or
+    /// the host requires a reason and none is given.
     #[serde(rename = "fabrication.waive")]
     Waive {
         keys: Vec<String>,
         #[serde(default)]
         reason: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        profile: Option<ProfileChoice>,
     },
     /// Remove the waiver of a key.
     #[serde(rename = "fabrication.unwaive")]
@@ -52,16 +59,18 @@ declare_entries!(FabricationCommand in checks {
 });
 
 /// Apply one waiver command; `reason_required` refuses a waiver without a
-/// reason (a host setting). A refused command leaves `production`
-/// unchanged.
+/// reason (a host setting), and `accepted` is what the findings of a
+/// [`FabricationCommand::Waive`] measure ([`accepted`]). A refused command
+/// leaves `production` unchanged.
 pub fn apply(
     production: &mut Production,
     command: FabricationCommand,
     reason_required: bool,
+    accepted: &BTreeMap<String, Vec<Measured>>,
 ) -> Result<()> {
     let waivers = &mut production.waivers;
     match command {
-        FabricationCommand::Waive { keys, reason } => {
+        FabricationCommand::Waive { keys, reason, .. } => {
             let reason = reason.trim().to_string();
             let keys: BTreeSet<String> = keys.iter().map(|k| k.trim().to_string()).collect();
             if keys.is_empty() || keys.contains("") {
@@ -101,16 +110,23 @@ pub fn apply(
                     "fabrication.waiver_key: `{k}` is not a finding's key (its code, a space and the objects it names as JSON, as fabrication.preflight gives it)"
                 )));
             }
+            if let Some(k) = keys
+                .iter()
+                .find(|k| accepted.get(*k).is_some_and(|a| a.len() > MAX_ACCEPTED))
+            {
+                return Err(Error::Limit(format!(
+                    "fabrication.waiver_bounds: `{k}` measures more than {MAX_ACCEPTED} numbers"
+                )));
+            }
             for key in keys {
-                match waivers.binary_search_by(|w| w.key.as_str().cmp(&key)) {
-                    Ok(i) => waivers[i].reason.clone_from(&reason),
-                    Err(i) => waivers.insert(
-                        i,
-                        Waiver {
-                            key,
-                            reason: reason.clone(),
-                        },
-                    ),
+                let waiver = Waiver {
+                    accepted: accepted.get(&key).cloned().unwrap_or_default(),
+                    reason: reason.clone(),
+                    key,
+                };
+                match waivers.binary_search_by(|w| w.key.as_str().cmp(&waiver.key)) {
+                    Ok(i) => waivers[i] = waiver,
+                    Err(i) => waivers.insert(i, waiver),
                 }
             }
         }
@@ -143,9 +159,17 @@ pub struct PreflightItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fix: Option<String>,
     pub objects: Vec<ObjectRef>,
-    /// The saved waiver, when the user accepted this finding.
+    /// The saved waiver, when the user accepted this finding and it still
+    /// measures what was accepted, or better.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waiver: Option<Waiver>,
+    /// The saved waiver that no longer accepts this finding, and why.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lapsed: Option<Lapsed>,
+    /// What the check measured against its limits; none for a finding that
+    /// is a fact without a number, whose waiver goes by its key alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub measured: Vec<Measured>,
     /// What the board needs of the fab profile for this finding to clear,
     /// when the limit it breaks is the profile's own rule: the measured
     /// value, the profile's limit and its source. Such a finding is
@@ -154,6 +178,14 @@ pub struct PreflightItem {
     /// ([`Self::offers_waiver`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub needs: Option<crate::rules::requirement::Needed>,
+}
+
+/// A waiver that counts for nothing: what it accepted, and why it no longer
+/// holds ("Was accepted at 0.15 mm, is now 0.12 mm").
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct Lapsed {
+    pub waiver: Waiver,
+    pub text: String,
 }
 
 impl PreflightItem {
@@ -205,23 +237,38 @@ fn unwaivable(key: &str) -> bool {
     !can_waive(code)
 }
 
-/// Refuse waiving any of `keys` that names a finding `project` needs more
-/// of its fab profile for (`fabrication.not_waivable`, naming the need): a
-/// profile that allows it, or a change to the design, resolves it. The
-/// engine runs this before [`apply`] of a waiver.
-pub(crate) fn refuse_needed(
+/// What the findings of `keys` measure on `project` (a snapshot's), for the
+/// waivers that accept them: the numbers of every finding that shares a key,
+/// but for those another accepts too. Refuses a key that names a finding
+/// `project` needs more of its fab profile for (`fabrication.not_waivable`,
+/// naming the need): a profile that allows it, or a change to the design,
+/// resolves it. The engine runs this before [`apply`] of a waiver.
+pub fn accepted(
     project: &Project,
     drafts: &Drafts,
     settings: &crate::layout::CheckSettings,
     keys: &[String],
-) -> Result<()> {
+) -> Result<BTreeMap<String, Vec<Measured>>> {
     let keys: BTreeSet<&str> = keys.iter().map(|k| k.trim()).collect();
+    let mut out: BTreeMap<String, Vec<Measured>> = BTreeMap::new();
+    let mut take = |k: String, measured: &[Measured]| {
+        let all = out.entry(k).or_default();
+        for m in measured {
+            if !all.iter().any(|a| a.accepts(m)) {
+                all.retain(|a| !m.accepts(a));
+                all.push(Measured {
+                    within: 0.0,
+                    ..m.clone()
+                });
+            }
+        }
+    };
     for row in crate::issues::production_rows(project, drafts, settings)? {
-        let Some(requirement) = &row.finding.requirement else {
-            continue;
-        };
         let k = key(&row.finding.code, &row.finding.objects);
-        if keys.contains(k.as_str()) {
+        if !keys.contains(k.as_str()) {
+            continue;
+        }
+        if let Some(requirement) = &row.finding.requirement {
             let need =
                 crate::rules::requirement::describe(requirement, project.rules.profile.as_ref())
                     .map_or_else(String::new, |n| format!("{}; ", n.text));
@@ -229,8 +276,21 @@ pub(crate) fn refuse_needed(
                 "fabrication.not_waivable: `{k}` cannot be waived. {need}switch to a fab profile that allows it (fabrication.profile_suggestions) or change the design"
             )));
         }
+        take(k, &row.finding.measured);
     }
-    Ok(())
+    for (k, measured) in legend_measured(project) {
+        if keys.contains(k.as_str()) {
+            take(k, &measured);
+        }
+    }
+    Ok(out)
+}
+
+/// The production findings that measure something, by key.
+pub(super) fn legend_measured(project: &Project) -> Vec<(String, Vec<Measured>)> {
+    let mut items = Vec::new();
+    legend_against_the_board(project, &mut items);
+    items.into_iter().map(|i| (i.key, i.measured)).collect()
 }
 
 /// What resolves a finding of `code` instead of a waiver, for the refusal.
@@ -340,6 +400,7 @@ pub fn check(
             .requirement
             .as_ref()
             .and_then(|r| crate::rules::requirement::describe(r, p.rules.profile.as_ref()));
+        found.measured.clone_from(&row.finding.measured);
         items.push(found);
     }
     production_findings(p, drafts, &mut items);
@@ -355,17 +416,27 @@ pub fn check(
     for i in &mut items {
         // A saved waiver of a finding with needs is ignored, like one of an
         // unwaivable code: a profile that allows it or a design change clears it.
-        i.waiver = if unwaivable(&i.key) || i.needs.is_some() {
-            None
-        } else {
-            p.production.waiver(&i.key).cloned()
-        };
+        if unwaivable(&i.key) || i.needs.is_some() {
+            continue;
+        }
+        match p.production.acceptance(&i.key, &i.measured) {
+            Acceptance::None => {}
+            Acceptance::Holds(waiver) => i.waiver = Some(waiver.clone()),
+            Acceptance::Lapsed(waiver, text) => {
+                i.lapsed = Some(Lapsed {
+                    waiver: waiver.clone(),
+                    text,
+                });
+            }
+        }
     }
+    // Of findings that share a key, one nobody accepts stands for them.
     items.sort_by(|a, b| {
         a.severity
             .cmp(&b.severity)
             .then_with(|| a.code.cmp(&b.code))
             .then_with(|| a.key.cmp(&b.key))
+            .then_with(|| a.waiver.is_some().cmp(&b.waiver.is_some()))
     });
     items.dedup_by(|a, b| a.key == b.key);
     let count = |s: Severity| items.iter().filter(|i| i.severity == s).count();
@@ -394,6 +465,8 @@ fn item(
         fix,
         objects,
         waiver: None,
+        lapsed: None,
+        measured: Vec::new(),
         needs: None,
     }
 }
@@ -643,7 +716,7 @@ fn legend_against_the_board(project: &Project, items: &mut Vec<PreflightItem>) {
                 ),
             ),
         };
-        let finding = item(
+        let mut finding = item(
             code,
             Severity::Warning,
             title,
@@ -658,6 +731,9 @@ fn legend_against_the_board(project: &Project, items: &mut Vec<PreflightItem>) {
                 },
             ],
         );
+        if let LegendFault::Close { gap, .. } = fault {
+            finding.measured = vec![Measured::at_least(gap, limit, Unit::Mm, 1e-8)];
+        }
         items.push(finding);
     }
 }

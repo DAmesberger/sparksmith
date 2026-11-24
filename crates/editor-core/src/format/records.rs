@@ -16,7 +16,7 @@
 pub enum Numbers {
     IntegersOnly,
     /// Floats are still allowed: the file holds a field on the
-    /// `f64-lengths` allowlist.
+    /// `f64-lengths` allowlist, or numbers a check measured.
     FloatsAllowed,
 }
 
@@ -246,15 +246,16 @@ pub const DIMENSIONS: Collection = Collection {
     numbers: Numbers::FloatsAllowed,
 };
 
-/// Sorted by the waiver's key, which identifies it.
+/// Sorted by the waiver's key, which identifies it. What it accepted are a
+/// check's numbers as measured, of any unit: floats, never rounded.
 pub const WAIVERS: Collection = Collection {
     name: "waivers",
     path: "rules/waivers.jsonl",
     header: &[],
     type_field: None,
     sort: &["key"],
-    records: records!(&["key", "reason"]),
-    numbers: Numbers::IntegersOnly,
+    records: records!(&["key", "accepted", "reason"]),
+    numbers: Numbers::FloatsAllowed,
 };
 
 /// Every collection declared so far.

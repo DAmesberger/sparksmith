@@ -24,7 +24,7 @@ use super::fill::{self, FILL_CHORD_MM, RegionIndex};
 use super::grid::BoundsGrid;
 use super::limits::{cite, mm, mm_against};
 use crate::diagnostics::FindingCode;
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, Measured, ObjectRef, Unit};
 use crate::geometry::{Bounds, Point, distance, polygon_contains, segments_cross};
 use crate::ids::Id;
 use crate::model::{CopperLayer, Project};
@@ -118,7 +118,13 @@ fn acute(project: &Project, graph: &CopperGraph, below: f64, out: &mut Vec<Findi
                 &project.rules.source_of(RuleKey::CopperAngleMin),
                 RuleKey::CopperAngleMin,
                 w.angle_deg,
-            )),
+            ))
+            .measuring([Measured::at_least(
+                w.angle_deg,
+                below,
+                Unit::Degrees,
+                super::EPS,
+            )]),
         );
     }
 }
@@ -132,16 +138,19 @@ fn hatch_findings(project: &Project, rules: &crate::rules::DesignRules) -> Vec<F
         };
         let width = f.settings.width_min.unwrap_or(rules.fill.width_min);
         if h.width < width {
-            out.push(Finding::new(
-                FindingCode::BoardCopperSliver,
-                format!(
-                    "{}: hatch lines {} mm wide < its min fill width {} mm",
-                    crate::library::names::capitalised(&fill::fill_label(project, f)),
-                    mm(h.width),
-                    mm(width)
-                ),
-                vec![ObjectRef::Fill { id: f.id }],
-            ));
+            out.push(
+                Finding::new(
+                    FindingCode::BoardCopperSliver,
+                    format!(
+                        "{}: hatch lines {} mm wide < its min fill width {} mm",
+                        crate::library::names::capitalised(&fill::fill_label(project, f)),
+                        mm(h.width),
+                        mm(width)
+                    ),
+                    vec![ObjectRef::Fill { id: f.id }],
+                )
+                .measuring([super::limits::at_least_mm(h.width, width)]),
+            );
         }
     }
     out
@@ -473,7 +482,8 @@ fn slivers(project: &Project, graph: &CopperGraph, min: f64, out: &mut Vec<Findi
                             &project.rules.source_of(RuleKey::SliverWidthMin),
                             RuleKey::SliverWidthMin,
                             gap,
-                        )),
+                        ))
+                        .measuring([super::limits::at_least_mm(gap, min)]),
                     );
                 }
             }

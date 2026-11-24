@@ -297,6 +297,7 @@ fn the_engine_never_waives_a_profile_limited_finding() -> Fallible<()> {
             crate::Operation::Fabrication(crate::fabrication::FabricationCommand::Waive {
                 keys: vec![item.key],
                 reason: "Drawn to the datasheet".into(),
+                profile: None,
             }),
         )
         .err()

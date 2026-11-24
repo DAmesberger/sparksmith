@@ -25,7 +25,7 @@ use super::placed::{
     BoardDrawing, PlacedItem, opposite, placed_graphics, placed_keepouts, placed_pads,
 };
 use crate::diagnostics::FindingCode;
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, Measured, ObjectRef, Unit};
 use crate::geometry::{
     Point, distance, polygon_contains, polygons_overlap, polyline_polygon_distance,
 };
@@ -184,7 +184,13 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                     // Each side is its own finding: a waiver of one side's
                     // count never accepts the other's.
                     vec![ObjectRef::BoardSide { top }],
-                ));
+                )
+                .measuring([Measured::at_least(
+                    n as f64,
+                    f64::from(min),
+                    Unit::Count,
+                    0.0,
+                )]));
             }
         }
     }

@@ -12,7 +12,7 @@
 //! against each other, not against themselves. A package without stored
 //! lead contacts is listed, never guessed.
 use super::{model_to_board, placed_courtyards, placement_transform, seat_height};
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, Measured, ObjectRef, Unit};
 use crate::geometry::{Bounds, Point, Point3};
 use crate::ids::Id;
 use crate::instances;
@@ -311,6 +311,16 @@ pub fn checks(project: &Project) -> Vec<Finding> {
                 ),
                 vec![ObjectRef::Instance { id: b.instance }],
             )
+            .measuring([
+                Measured::at_most(b.off_pads as f64, 0.0, Unit::Count, 0.0).of("leads off"),
+                Measured::at_most(
+                    b.worst_miss_mm.unwrap_or(0.0),
+                    0.0,
+                    Unit::Mm,
+                    super::EPS,
+                )
+                .of("worst miss"),
+            ])
         })
         .collect()
 }

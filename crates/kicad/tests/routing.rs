@@ -265,6 +265,7 @@ fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
         Operation::Fabrication(FabricationCommand::Waive {
             keys: shorts.clone(),
             reason: "as imported".into(),
+            profile: None,
         }),
     );
     let refused = refused.err().ok_or("the short was waived")?;
@@ -285,6 +286,7 @@ fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
         .map(|key| sparksmith_core::model::production::Waiver {
             key,
             reason: "as imported".into(),
+            accepted: Vec::new(),
         })
         .collect();
     engine.replace_document(file)?;
