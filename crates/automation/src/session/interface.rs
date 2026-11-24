@@ -15,6 +15,7 @@ use sparksmith_core::interface::publish;
 use sparksmith_core::interface::{InterfaceCommand, PublishParams, PublishPreviewParams};
 use sparksmith_core::model::interface::Tier;
 use sparksmith_io::interface as files;
+use sparksmith_io::project_models::portable;
 use std::path::{Path, PathBuf};
 
 /// The linked design file a publish is bound to: where it is and what
@@ -81,17 +82,6 @@ fn resolved(path: &Path) -> PathBuf {
         (Ok(folder), Some(name)) => folder.join(name),
         _ => path.to_path_buf(),
     }
-}
-
-/// A relative path as the project file keeps it: its parts joined with `/`
-/// whatever the host's separator, so a project published on one platform
-/// reads the same on another.
-fn portable(relative: &Path) -> String {
-    relative
-        .components()
-        .map(|part| part.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
 }
 
 impl Session {

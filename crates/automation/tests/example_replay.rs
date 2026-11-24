@@ -77,14 +77,41 @@ fn the_committed_dev_board_is_what_its_replay_builds() -> Fallible {
     assert!(!film.contains("%TA.AperFunction,FiducialPad,Local*%"));
     let built = std::fs::read(&saved)?;
     let committed = std::fs::read(root.join(EXAMPLE))?;
+    let difference = || -> Fallible<String> {
+        let built = serde_json::to_value(sparksmith_io::read_project(&saved)?)?;
+        let committed = serde_json::to_value(sparksmith_io::read_project(&root.join(EXAMPLE))?)?;
+        Ok(first_difference("", &built, &committed)
+            .unwrap_or_else(|| "the document is equal; the container differs".into()))
+    };
     assert!(
         built == committed,
-        "{EXAMPLE} is not what its replay builds ({} bytes built, {} committed): run \
+        "{EXAMPLE} is not what its replay builds ({}; {} bytes built, {} committed): run \
          `sh examples/esp32-s31-devboard/regenerate.sh` (after \
          `python3 -B examples/esp32-s31-devboard/authoring/rebase.py` when a generator changed) \
          and commit the example",
+        difference().unwrap_or_else(|e| e.to_string()),
         built.len(),
         committed.len()
     );
     Ok(())
+}
+
+/// Where two documents first differ, and how.
+fn first_difference(at: &str, built: &Value, committed: &Value) -> Option<String> {
+    match (built, committed) {
+        (Value::Object(a), Value::Object(b)) if a.keys().eq(b.keys()) => a
+            .iter()
+            .zip(b)
+            .find_map(|((key, a), (_, b))| first_difference(&format!("{at}/{key}"), a, b)),
+        (Value::Array(a), Value::Array(b)) if a.len() == b.len() => a
+            .iter()
+            .zip(b)
+            .enumerate()
+            .find_map(|(n, (a, b))| first_difference(&format!("{at}/{n}"), a, b)),
+        (a, b) if a == b => None,
+        (a, b) => {
+            let short = |v: &Value| v.to_string().chars().take(200).collect::<String>();
+            Some(format!("{at}: built {}, committed {}", short(a), short(b)))
+        }
+    }
 }
