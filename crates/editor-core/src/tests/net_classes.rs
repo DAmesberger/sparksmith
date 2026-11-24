@@ -724,3 +724,86 @@ fn a_class_keeps_its_nets_on_its_layers() -> Result<()> {
     }
     Ok(())
 }
+
+/// Red when a stackup edit rewrites a class's layers, or moves or drops a
+/// layer it names without a word.
+#[test]
+fn a_class_that_names_a_moved_or_lost_layer_keeps_it_and_is_told() -> Result<()> {
+    use crate::layout::restack::{LayerMove, StackupEdit};
+    let mut engine = Engine::demo()?;
+    let four = crate::model::Stackup::preset(4)?;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::SetStackup(four.clone())),
+    )?;
+    let net = engine.project().nets.first().map(|n| n.id);
+    let net = net.ok_or_else(|| Error::NotFound("a net".into()))?;
+    let named = Some(vec![ClassLayer::Top, ClassLayer::Inner(1)]);
+    let spec = NetClassSpec {
+        name: "A-row".into(),
+        layers: named.clone(),
+        ..Default::default()
+    };
+    let class = add_class(&mut engine, spec)?;
+    assign(&mut engine, vec![net], Some(class))?;
+    let told = |engine: &Engine| -> Vec<String> {
+        layout::via_class::findings(engine.project())
+            .into_iter()
+            .map(|f| f.message)
+            .collect()
+    };
+    let now = |engine: &Engine| engine.project().rules.class(class).cloned();
+    let layers = |engine: &Engine| now(engine).and_then(|c| c.layers);
+    assert!(told(&engine).is_empty());
+    let (one, two) = (CopperLayer::Inner(1), CopperLayer::Inner(2));
+    let swap = StackupEdit {
+        stackup: four,
+        moves: vec![
+            LayerMove { from: one, to: two },
+            LayerMove { from: two, to: one },
+        ],
+        removed: Vec::new(),
+    };
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::EditStackup(swap)),
+    )?;
+    assert_eq!(layers(&engine), named);
+    assert_eq!(
+        told(&engine),
+        ["Net class A-row names Inner 1, which the stackup moved"]
+    );
+    // Another edit of the class does not settle it; confirming it does.
+    let moved = now(&engine).ok_or_else(|| Error::NotFound("the class".into()))?;
+    let edit = |class| Operation::Rules(RulesCommand::EditNetClass { class });
+    apply(
+        &mut engine,
+        edit(NetClass {
+            track_width: Some(0.3),
+            ..moved.clone()
+        }),
+    )?;
+    assert_eq!(told(&engine).len(), 1);
+    apply(
+        &mut engine,
+        edit(NetClass {
+            moved_layers: Vec::new(),
+            ..moved.clone()
+        }),
+    )?;
+    assert!(told(&engine).is_empty());
+    // An edit cannot say that a layer moved.
+    apply(&mut engine, edit(moved))?;
+    assert!(told(&engine).is_empty());
+    let two_layers = crate::model::Stackup::preset(2)?;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::SetStackup(two_layers)),
+    )?;
+    assert_eq!(layers(&engine), named);
+    assert_eq!(
+        told(&engine),
+        ["Net class A-row names Inner 1, which the board does not have"]
+    );
+    Ok(())
+}

@@ -1,5 +1,7 @@
 //! The vias and copper layers a net class allows: routing refuses what it
 //! does not, and [`findings`] tells what got in by import or a class edit.
+//! A class that names a layer the stackup moved or lacks is told too
+//! ([`LAYER`]); its list is never changed for it.
 use crate::diagnostics::{Error, Finding, FindingCode, Measured, ObjectRef, Result, Unit};
 use crate::ids::Id;
 use crate::model::{CopperLayer, Project};
@@ -7,8 +9,9 @@ use crate::rules::{ClassLayer, ClassSpan, NetClass};
 use std::collections::BTreeMap;
 
 pub const CLASS: &str = FindingCode::BoardViaClass.as_str();
+pub const LAYER: &str = FindingCode::BoardClassLayer.as_str();
 
-/// Tracks one finding names.
+/// Tracks or nets one finding names.
 const NAMED: usize = 16;
 
 fn class(project: &Project, net: Id) -> Option<&NetClass> {
@@ -113,6 +116,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
         return Vec::new();
     }
     let mut out = Vec::new();
+    layers_named(project, &mut out);
     let mut seen: BTreeMap<Id, usize> = BTreeMap::new();
     let mut classes: BTreeMap<Id, Option<&NetClass>> = BTreeMap::new();
     for via in &project.vias {
@@ -188,6 +192,53 @@ pub fn findings(project: &Project) -> Vec<Finding> {
         );
     }
     out
+}
+
+/// The layers a class names that a stackup edit moved or the board lacks.
+fn layers_named(project: &Project, out: &mut Vec<Finding>) {
+    let stack: Vec<ClassLayer> = project
+        .stackup
+        .layers()
+        .into_iter()
+        .map(ClassLayer::from)
+        .collect();
+    for class in &project.rules.net_classes {
+        for layer in class.layers.iter().flatten() {
+            let what = if !stack.contains(layer) {
+                "which the board does not have"
+            } else if class.moved_layers.contains(layer) {
+                "which the stackup moved"
+            } else {
+                continue;
+            };
+            let nets: Vec<ObjectRef> = project
+                .nets
+                .iter()
+                .filter(|n| super::net_class(project, n.id) == Some(class.id))
+                .take(NAMED)
+                .map(|n| ObjectRef::Net { id: n.id })
+                .collect();
+            let name = match layer {
+                ClassLayer::Top => "Top".to_owned(),
+                ClassLayer::Inner(n) => format!("Inner {n}"),
+                ClassLayer::Bottom => "Bottom".to_owned(),
+            };
+            // A waiver accepts this layer of this class, as it is now.
+            let of = format!("net class {}: {name}, {what}", class.id.0);
+            out.push(
+                Finding::new(
+                    FindingCode::BoardClassLayer,
+                    format!("Net class {} names {name}, {what}", class.name),
+                    if nets.is_empty() {
+                        vec![ObjectRef::Board]
+                    } else {
+                        nets
+                    },
+                )
+                .measuring([Measured::at_most(1.0, 0.0, Unit::Count, 1e-9).of(of)]),
+            );
+        }
+    }
 }
 
 #[cfg(test)]

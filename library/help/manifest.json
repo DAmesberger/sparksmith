@@ -36,6 +36,7 @@
     "findings/board.acute_copper.md",
     "findings/board.body_off_pads.md",
     "findings/board.check_limit.md",
+    "findings/board.class_layer.md",
     "findings/board.clearance.md",
     "findings/board.copper_sliver.md",
     "findings/board.courtyard_clearance.md",

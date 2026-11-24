@@ -127,6 +127,11 @@ pub struct NetClass {
     pub vias: Option<ClassVias>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layers: Option<Vec<ClassLayer>>,
+    /// The layers in `layers` a stackup edit moved or removed since the
+    /// list was set. The list itself is never changed for it. Setting other
+    /// `layers`, or leaving a layer out here, settles it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub moved_layers: Vec<ClassLayer>,
     #[serde(default)]
     pub diff_pair_width: Option<f64>,
     #[serde(default)]
@@ -150,6 +155,7 @@ impl NetClass {
             via_diameter: s.via_diameter,
             vias: s.vias,
             layers: s.layers,
+            moved_layers: Vec::new(),
             diff_pair_width: s.diff_pair_width,
             diff_pair_gap: s.diff_pair_gap,
             fill_connection: s.fill_connection,
@@ -365,9 +371,14 @@ pub(super) fn apply(rules: &mut ProjectRules, command: RulesCommand) -> Result<O
             rules.net_classes.push(NetClass::from_spec(id, class));
             return Ok(Some(id));
         }
-        RulesCommand::EditNetClass { class } => {
+        RulesCommand::EditNetClass { mut class } => {
             exists(rules, class.id)?;
             if let Some(slot) = rules.net_classes.iter_mut().find(|c| c.id == class.id) {
+                // Only a stackup edit moves layers; an edit only settles it.
+                let same = slot.layers == class.layers;
+                class
+                    .moved_layers
+                    .retain(|l| same && slot.moved_layers.contains(l));
                 *slot = class;
             }
         }

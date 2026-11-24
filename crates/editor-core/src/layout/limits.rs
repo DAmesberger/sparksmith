@@ -425,6 +425,7 @@ mod tests {
             via_diameter: None,
             vias: None,
             layers: None,
+            moved_layers: Vec::new(),
             diff_pair_width: None,
             diff_pair_gap: None,
             fill_connection: None,

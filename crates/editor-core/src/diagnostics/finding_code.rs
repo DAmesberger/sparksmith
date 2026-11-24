@@ -76,6 +76,7 @@ declare_findings! {
     BoardAcuteCopper => ("board.acute_copper", Warning, None, "Acute copper angles"),
     BoardBodyOffPads => ("board.body_off_pads", Warning, None, "Body leads off their pads"),
     BoardCheckLimit => ("board.check_limit", Error, None, "Board checks incomplete"),
+    BoardClassLayer => ("board.class_layer", Warning, None, "Net classes naming layers that moved or are gone"),
     BoardClearance => ("board.clearance", Error, None, "Clearance"),
     BoardCopperSliver => ("board.copper_sliver", Warning, None, "Unfilled slivers"),
     BoardCourtyardClearance => ("board.courtyard_clearance", Error, None, "Courtyards too close"),
