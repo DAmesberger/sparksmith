@@ -8,7 +8,9 @@
 //! `fill.stale` finding and is reported only where it overlaps other
 //! copper, a hole, a keepout or leaves the board. Gaps that merely miss a
 //! changed clearance (a profile switch, a class edit) are what the refill
-//! fixes, so they are not listed one by one.
+//! fixes, so they are not listed one by one. Once a production waiver
+//! accepts a fill's staleness no refill is coming and its stored copper is
+//! what gets made, so it is audited like fresh copper.
 //!
 //! Only fresh copper joins board copper ([`fresh`], read by the copper
 //! graph, which joins its islands by the one joining rule): an airwire
@@ -22,6 +24,7 @@ use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Point, polygon_contains, polygons_overlap};
 use crate::ids::Id;
+use crate::layout::limits::Need;
 use crate::layout::physical::{self, HoleFeature, HoleOwner};
 use crate::model::fill::FilledCopper;
 use crate::model::{CopperLayer, Fill, Project};
@@ -121,11 +124,13 @@ pub const AUDIT_SLACK_MM: f64 = FILL_CHORD_MM + 0.001;
 /// worker computed for, not that the regions it returned are right):
 ///
 /// - `fill.clearance`: other copper (any land without a net, other nets'
-///   pads, vias and tracks, other fills) and every hole it does not own,
-///   on its layer. A fresh fill's copper keeps the clearance rule of each
-///   pair (measured, within [`AUDIT_SLACK_MM`]); stale copper is reported
-///   only where it overlaps, since its refill cuts the gaps the rules now
-///   ask for.
+///   pads, vias and tracks, net tie bridges, other fills) and every hole it
+///   does not own (a via's drill on every layer it passes), on its layer. A
+///   fresh fill's copper keeps the clearance rule of each pair (measured,
+///   within [`AUDIT_SLACK_MM`]); stale copper is reported only where it
+///   overlaps, since its refill cuts the gaps the rules now ask for. A
+///   stale fill whose `fill.stale` is waived is measured like a fresh one:
+///   it is plotted as it is.
 /// - [`BOARD_EDGE`]: copper outside the board outline or in a cutout or
 ///   slot; for fresh copper also closer to an edge than the board-edge
 ///   rule.
@@ -182,7 +187,8 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             ));
         }
         if let Some(audit) = &audit {
-            audit.fill(&mut ctx, fill, &label, stale, &mut out);
+            let refills = stale && !stale_accepted(project, fill.id);
+            audit.fill(&mut ctx, fill, &label, stale, refills, &mut out);
         }
         if !stale {
             spokes_removed(&ctx, fill, copper, &label, &mut out);
@@ -192,13 +198,26 @@ pub fn findings(project: &Project) -> Vec<Finding> {
     out
 }
 
+/// Whether a production waiver accepts that `fill` is stale: its stored
+/// copper is then plotted as it is.
+fn stale_accepted(project: &Project, fill: Id) -> bool {
+    if project.production.waivers.is_empty() {
+        return false;
+    }
+    let key = crate::model::production::waiver_key(
+        FindingCode::FillStale.as_str(),
+        &[ObjectRef::Fill { id: fill }],
+    );
+    project.production.waiver(&key).is_some()
+}
+
 /// Where one audited object has copper.
 #[derive(Clone, Copy)]
 enum On {
     /// Every copper layer: a hole, a through land.
     All,
     One(CopperLayer),
-    /// The layers of via `k` of the project.
+    /// The layers via `k` of the project joins, which its drill passes.
     Via(usize),
 }
 
@@ -209,11 +228,18 @@ struct Obstacle {
     /// flattened within the fill chord.
     ring: Vec<Point>,
     kind: CopperObject,
-    net: Option<Id>,
+    /// Its net: several for a net tie's bridge, none for copper without
+    /// one.
+    nets: Vec<Id>,
     on: On,
-    /// A plated hole, drilled out of copper of its own net.
-    plated: bool,
+    /// Whether a fill of its own net may meet it: copper, and a plated
+    /// hole, drilled out of copper of its own net.
+    joins: bool,
 }
+
+/// A rule an object's gap is short of: the gap, the rule and the object's
+/// name in a message.
+type Short = (f64, Need, String);
 
 /// One stored fill's copper, prepared once for the audit.
 struct Stored {
@@ -356,12 +382,23 @@ impl<'a> Audit<'a> {
     fn new(ctx: &Ctx<'a>) -> Self {
         let project = ctx.project;
         let mut obstacles = Vec::new();
-        // Holes pass through every layer. Via drills lie inside their
-        // vias' copper, which is measured instead.
+        // Pad and board holes pass through every layer, a via's drill the
+        // layers of its span. A via's drill is measured as well as its
+        // copper: its rule may ask for more than the ring leaves.
+        let vias: std::collections::BTreeMap<Id, usize> = project
+            .vias
+            .iter()
+            .enumerate()
+            .map(|(k, v)| (v.id, k))
+            .collect();
         for hole in physical::holes_of(project, &ctx.pads) {
-            if matches!(hole.owner, HoleOwner::Via(_)) {
-                continue;
-            }
+            let (kind, on) = match hole.owner {
+                HoleOwner::Via(id) => (
+                    CopperObject::ViaHole,
+                    vias.get(&id).map_or(On::All, |k| On::Via(*k)),
+                ),
+                _ => (CopperObject::hole(hole.plated), On::All),
+            };
             let ring = match hole.feature {
                 HoleFeature::Round { at, diameter } => {
                     geom::circle(at, diameter / 2.0, FILL_CHORD_MM)
@@ -373,10 +410,10 @@ impl<'a> Audit<'a> {
             obstacles.push(Obstacle {
                 object: hole.object(),
                 ring,
-                kind: CopperObject::hole(hole.plated),
-                net: hole.net,
-                on: On::All,
-                plated: hole.plated,
+                kind,
+                nets: hole.net.into_iter().collect(),
+                on,
+                joins: hole.plated,
             });
         }
         // Every land: pads with or without a net, and mounting-hole washers.
@@ -385,13 +422,13 @@ impl<'a> Audit<'a> {
                 object: land.object(),
                 ring: land.outline.flatten(FILL_CHORD_MM),
                 kind: CopperObject::Pad,
-                net: land.net(),
+                nets: land.net().into_iter().collect(),
                 on: if land.through {
                     On::All
                 } else {
                     On::One(CopperLayer::from(land.layer))
                 },
-                plated: false,
+                joins: true,
             });
         }
         for (k, v) in project.vias.iter().enumerate() {
@@ -399,9 +436,9 @@ impl<'a> Audit<'a> {
                 object: ObjectRef::Via { id: v.id },
                 ring: geom::circle(v.position, v.diameter / 2.0, FILL_CHORD_MM),
                 kind: CopperObject::Via,
-                net: Some(v.net),
+                nets: vec![v.net],
                 on: On::Via(k),
-                plated: false,
+                joins: true,
             });
         }
         for t in &project.tracks {
@@ -409,9 +446,21 @@ impl<'a> Audit<'a> {
                 object: ObjectRef::Track { id: t.id },
                 ring: geom::stadium(t.start, t.end, t.width / 2.0, FILL_CHORD_MM),
                 kind: CopperObject::Track,
-                net: Some(t.net),
+                nets: vec![t.net],
                 on: On::One(t.layer),
-                plated: false,
+                joins: true,
+            });
+        }
+        // A net tie's bridge keeps clear of every fill, also of the nets it
+        // joins: a fill meeting it would join them a second time.
+        for b in crate::layout::placed_bridges(project) {
+            obstacles.push(Obstacle {
+                object: ObjectRef::Instance { id: b.instance },
+                ring: b.outline.flatten(FILL_CHORD_MM),
+                kind: CopperObject::Track,
+                nets: b.nets,
+                on: On::One(b.layer),
+                joins: false,
             });
         }
         let limits = crate::layout::limits::BoardRules::of(project);
@@ -445,13 +494,27 @@ impl<'a> Audit<'a> {
         }
     }
 
-    /// The audit of `fill`'s stored copper ([`findings`]).
+    /// The largest clearance of `fill` to an object of `kind` on `nets`.
+    fn need(&self, fill: &Fill, kind: CopperObject, nets: &[Id]) -> Need {
+        let need = |net| {
+            self.limits
+                .clearance_need(CopperObject::Fill, fill.net, kind, net)
+        };
+        nets.iter()
+            .map(|n| need(Some(*n)))
+            .max_by(|a, b| a.mm.total_cmp(&b.mm))
+            .unwrap_or_else(|| need(None))
+    }
+
+    /// The audit of `fill`'s stored copper ([`findings`]): overlap alone
+    /// when it `refills` (it is stale and no waiver accepts that).
     fn fill(
         &self,
         ctx: &mut Ctx<'_>,
         fill: &Fill,
         label: &str,
         stale: bool,
+        refills: bool,
         out: &mut Vec<Finding>,
     ) {
         let project = ctx.project;
@@ -479,21 +542,39 @@ impl<'a> Audit<'a> {
             }
         };
         // How a measured gap reads: overlap, or the gap against its rule.
-        let words = |gap: f64, need: &crate::layout::limits::Need, them: &str| {
-            if gap <= 0.0 {
-                format!("Overlap: {what} / {them}; refill it")
-            } else {
-                format!(
-                    "{} is {} mm from {them}; {}; refill it",
-                    crate::library::names::capitalised(&what),
-                    crate::layout::limits::mm_against(gap, need.mm),
-                    need.text()
-                )
+        // An object short of two rules (a via's copper and its drill) is
+        // one finding that says both: one waiver key names them.
+        let words = |hits: &[Short]| {
+            let over: Vec<&str> = hits
+                .iter()
+                .filter(|h| h.0 <= 0.0)
+                .map(|h| h.2.as_str())
+                .collect();
+            if !over.is_empty() {
+                return format!("Overlap: {what} / {}; refill it", over.join(", "));
             }
+            let gaps: Vec<String> = hits
+                .iter()
+                .map(|(gap, need, them)| {
+                    format!(
+                        "{} mm from {them}",
+                        crate::layout::limits::mm_against(*gap, need.mm)
+                    )
+                })
+                .collect();
+            let needs: Vec<String> = hits.iter().map(|h| h.1.text()).collect();
+            format!(
+                "{} is {}; {}; refill it",
+                crate::library::names::capitalised(&what),
+                gaps.join(" and "),
+                needs.join(", ")
+            )
         };
         let layers = project.stackup.layers();
         let mut near = Vec::new();
         self.grid.near(&stored.bounds, self.reach, &mut near);
+        let mut short: Vec<(ObjectRef, Vec<Short>)> = Vec::new();
+        let mut at_object = std::collections::HashMap::new();
         for o in near.iter().filter_map(|k| self.obstacles.get(*k)) {
             let on = match o.on {
                 On::All => true,
@@ -505,19 +586,30 @@ impl<'a> Audit<'a> {
             };
             // A plated hole of the fill's own net is drilled out of the
             // copper it joins; same-net copper is the fill's own.
-            if !on || !other(o.net) && (o.plated || !o.kind.is_hole()) {
+            if !on || o.joins && fill.net.is_some_and(|n| o.nets.contains(&n)) {
                 continue;
             }
-            let need = self
-                .limits
-                .clearance_need(CopperObject::Fill, fill.net, o.kind, o.net);
-            let Some(gap) = stored.meets(&o.ring, need.mm, stale) else {
+            let need = self.need(fill, o.kind, &o.nets);
+            let Some(gap) = stored.meets(&o.ring, need.mm, refills) else {
                 continue;
             };
+            let them = describe(project, &o.object);
+            let them = match (o.object, o.kind) {
+                (ObjectRef::Via { .. }, CopperObject::ViaHole) => format!("the drill of {them}"),
+                (ObjectRef::Instance { .. }, _) => format!("the net tie bridge of {them}"),
+                _ => them,
+            };
+            let at = *at_object.entry(o.object).or_insert(short.len());
+            match short.get_mut(at) {
+                Some((_, hits)) => hits.push((gap, need, them)),
+                None => short.push((o.object, vec![(gap, need, them)])),
+            }
+        }
+        for (object, hits) in &short {
             report(Finding::new(
                 FindingCode::FillClearance,
-                words(gap, &need, &describe(project, &o.object)),
-                vec![me, o.object],
+                words(hits),
+                vec![me, *object],
             ));
         }
         // Other fills on the layer, each pair once (from the lower id).
@@ -534,11 +626,12 @@ impl<'a> Audit<'a> {
             if !stored.bounds.inflated(self.reach).intersects(&them.bounds) {
                 continue;
             }
-            let fresh_pair = !stale
-                && theirs
-                    .computed
-                    .as_ref()
-                    .is_some_and(|c| ctx.key(theirs.id).ok().as_ref() == Some(&c.key));
+            let fresh_pair = !refills
+                && (stale_accepted(project, theirs.id)
+                    || theirs
+                        .computed
+                        .as_ref()
+                        .is_some_and(|c| ctx.key(theirs.id).ok().as_ref() == Some(&c.key)));
             let need = self.limits.clearance_need(
                 CopperObject::Fill,
                 fill.net,
@@ -562,7 +655,7 @@ impl<'a> Audit<'a> {
             if gap.is_finite() {
                 report(Finding::new(
                     FindingCode::FillClearance,
-                    words(gap, &need, &fill_label(project, theirs)),
+                    words(&[(gap, need, fill_label(project, theirs))]),
                     vec![me, ObjectRef::Fill { id: theirs.id }],
                 ));
             }
@@ -589,7 +682,7 @@ impl<'a> Audit<'a> {
                     ),
                     vec![me, ObjectRef::Board],
                 ));
-            } else if !stale
+            } else if !refills
                 && edge_limit > 0.0
                 && let Some(gap) = stored.distance(&self.outer, edge_limit)
             {
@@ -605,7 +698,7 @@ impl<'a> Audit<'a> {
             }
         }
         for (ring, object) in &self.cutouts {
-            if let Some(gap) = stored.meets(ring, edge.mm, stale) {
+            if let Some(gap) = stored.meets(ring, edge.mm, refills) {
                 report(Finding::new(
                     FindingCode::FillBoardEdge,
                     if gap <= 0.0 {
@@ -727,6 +820,9 @@ fn describe(project: &Project, object: &ObjectRef) -> String {
                 .instance(instance)
                 .map_or("component", |i| i.designator.as_str())
         ),
+        ObjectRef::Instance { id } => project
+            .instance(id)
+            .map_or_else(|| "a part".into(), |i| i.designator.clone()),
         ObjectRef::Board => "the board".into(),
         ObjectRef::BoardFeature { feature } => crate::layout::physical::feature_name(
             project,
