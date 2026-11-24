@@ -1441,6 +1441,8 @@ impl Session {
                 FileChange::Opened { revision, .. }
                 | FileChange::New { revision }
                 | FileChange::Saved { revision, .. } => Some(*revision),
+                // Nothing was written: what the file holds is unchanged.
+                FileChange::Refused { .. } => hosting.kept,
             };
             hosting.changes.push(change);
         }
