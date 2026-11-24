@@ -1641,18 +1641,32 @@ impl Engine {
         operations: Vec<Operation>,
         evaluators: Evaluators<'_>,
     ) -> Result<Vec<Outcome>> {
+        self.apply_all_resolved(expected_revision, operations, evaluators, |_, _, o| Ok(o))
+    }
+
+    /// [`apply_all_hosted`](Self::apply_all_hosted) with each operation read
+    /// by the host first: `resolve` takes its place in the batch (from 0)
+    /// and the project the operations before it made, so what it looks up
+    /// there (a fab profile id, a sheet's page) is what the same operation
+    /// sent alone would find. Its refusal leaves everything unchanged.
+    pub fn apply_all_resolved<E: From<Error>>(
+        &mut self,
+        expected_revision: u64,
+        operations: Vec<Operation>,
+        evaluators: Evaluators<'_>,
+        resolve: impl Fn(usize, &Project, Operation) -> std::result::Result<Operation, E>,
+    ) -> std::result::Result<Vec<Outcome>, E> {
         self.check_revision(expected_revision)?;
         self.rerouted = Default::default();
         let count = operations.len();
         if count == 0 {
-            return Err(Error::Invalid(
-                "a batch needs at least one operation".into(),
-            ));
+            return Err(Error::Invalid("a batch needs at least one operation".into()).into());
         }
         if count > MAX_BATCH {
             return Err(Error::Limit(format!(
                 "a batch takes at most {MAX_BATCH} operations, not {count}"
-            )));
+            ))
+            .into());
         }
         // One kind of operation names the step; a mix is several changes.
         let project = &self.document.project;
@@ -1691,6 +1705,7 @@ impl Engine {
         let mut outcomes = Vec::with_capacity(count);
         let mut rerouted = layout::router::reroute::Rerouted::default();
         for (index, operation) in operations.into_iter().enumerate() {
+            let operation = resolve(index, scratch.project(), operation)?;
             let at = scratch.revision;
             let outcome = scratch
                 .apply_inner(at, operation, evaluators)
