@@ -89,7 +89,7 @@ It fails when:
 
 ## 4. The view for people
 
-- **Help panel.** A docked sheet built from `kit` containers and tokens, like the Keyboard shortcuts sheet. It has a search field, results grouped by kind, and a reading pane with back and forward. It works offline. Search uses the palette's scorer (`commands.rs`) over titles, summaries, terms and keywords, so both searches rank the same way.
+- **Help panel.** A docked sheet built from `kit` containers and tokens, like the Keyboard shortcuts sheet. It has a search field, results in rank order with their kind, and a reading pane with back and forward. It works offline. The help search (`crates/help-search`) is one for Help, the command palette, `help.search` and `find`: full text (Tantivy) and a small embedding model (`library/help/model`), joined by rank. Both audiences read the same ranking; a topic's kind counts more or less by who asks (`Audience::weight`: guides first for people, catalog entries first for agents). Without the model the full text answers alone. The palette lists commands by letters in order only while the search is made or when it finds no command.
 - **Context.** F1 (a registry command, so it can be rebound) opens the entry for what has focus or is under the pointer: a ribbon button, a panel, a setting row, a property, a selected object's finding. Each issue row's disclosure gets "?", which opens `finding/<code>` with the cause, the fix, the Fix button and the rule's source. A setting row's "?" shows the default and where it came from. The palette gets a "Help: …" result group.
 - **Effective keys.** `{key:…}` renders the person's current binding, so a rebinding changes the help too. The Keyboard shortcuts sheet (⌘/) becomes one generated help view, and the hand-kept table in `docs/keyboard-shortcuts.md` is deleted.
 - **Values in the person's units.** Profile limits and setting defaults go through the units layer.
@@ -152,7 +152,7 @@ In a live session, the profile rule in `checks` is the board's own profile, take
 - **Stamp fatigue.** If stamping gets routine, people will stamp without rereading. Digests cover only the facts a topic depends on, not whole modules.
 - **Version drift on the website.** Mitigated by building per release, never from `main`.
 - **Bundle size** from screenshots. Keep in-app images few; the website can carry more.
-- **Search quality** without embeddings. Exact-term search plus glossary synonyms first; measure on real questions before adding more.
+- **Search quality** is a ratchet: `crates/help-search/tests/help-questions.json` holds the questions, half of them never used for tuning, and `tests/questions.rs` the number answered within the first three topics.
 
 ## 9. Founder decisions
 

@@ -108,7 +108,7 @@ A server whose state is "the one current project" would therefore mix up convers
 
 | Tool | Class | Annotations | What it does |
 |---|---|---|---|
-| `find {text, kind?, limit?, offset?}` | read | `readOnlyHint`, `idempotentHint`, closed world | Searches the catalog (§3.3) by what an entry does. Each hit carries `name`, `kind` (query, operation, action), `class`, a one-line summary and a link to `sparksmith://catalog/{name}` |
+| `find {text, kind?, limit?, offset?}` | read | `readOnlyHint`, `idempotentHint`, closed world | Searches the catalog (§3.3) by what an entry does, with the help search (`crates/help-search`); a question nothing answers gets `nearest` names. Each hit carries `name`, `kind` (query, operation, action), `class`, a one-line summary and a link to `sparksmith://catalog/{name}` |
 | `describe {name, def?}` | read | same | Returns one entry's exact input schema, an example and related skills, from the same bytes as the catalog resource. `guide:<topic>` returns the matching offline help topic |
 | `query {project?, name, params}` | read | same | Every read: `project.inspect`, `project.issues`, `library.search`, `functions.suggest`, the pin report, the BOM, **and dry runs**. Changes nothing |
 | `apply {project?, expected_revision, operations: [...], dry_run?}` | edit | `readOnlyHint: false`, `destructiveHint: false` (undoable), closed world | Typed document operations, including undo and redo, applied atomically as one undo step. `dry_run` returns the impact without changing anything. Operations whose impact the person owns go through review (§3.5) |
