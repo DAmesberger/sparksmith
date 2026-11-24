@@ -2111,6 +2111,24 @@
               "colour"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A board with vias of `fill` (`capped`): the profile must make it.",
+            "properties": {
+              "fill": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "via_fill",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "fill"
+            ],
+            "type": "object"
           }
         ]
       },
@@ -2877,6 +2895,24 @@
             "required": [
               "kind",
               "colour"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A board with vias of `fill` (`capped`): the profile must make it.",
+            "properties": {
+              "fill": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "via_fill",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "fill"
             ],
             "type": "object"
           }

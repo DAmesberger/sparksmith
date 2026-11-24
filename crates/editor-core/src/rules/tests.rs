@@ -25,6 +25,16 @@ fn every_key_round_trips_through_get_set_and_its_name() -> Result<()> {
     RuleKey::FiducialsAsymmetric.set(&mut base, RuleValue::Flag(true))?;
     assert_eq!(base.assembly.fiducial_count_min, Some(3));
     assert_eq!(base.assembly.fiducials_asymmetric, Some(true));
+    // So do the filled via hole sizes: unset, they read as 0, not checked.
+    for (key, mm) in [
+        (RuleKey::CappedDrillMin, 0.2),
+        (RuleKey::CappedDrillMax, 0.5),
+    ] {
+        assert!(!key.is_set(&base));
+        assert_eq!(key.get(&base), RuleValue::Length(0.0));
+        key.set(&mut base, RuleValue::Length(mm))?;
+        assert!(key.is_set(&base));
+    }
     for key in RuleKey::all() {
         let mut rules = base.clone();
         key.set(&mut rules, key.get(&base))?;
@@ -35,10 +45,11 @@ fn every_key_round_trips_through_get_set_and_its_name() -> Result<()> {
     // appended silkscreen-edge and land keys, the 2 etch-hazard keys, the
     // board outline fit, the legend stroke share and the pair gap
     // tolerance's minimum and share, the NPTH pad annular ring and the
-    // round-pad spoke angle, and the two fiducial rules.
+    // round-pad spoke angle, the two fiducial rules and the two filled via
+    // hole sizes.
     assert_eq!(
         RuleKey::all().len(),
-        2 + 36 + 25 + 5 + 2 + 1 + 3 + 1 + 1 + 2
+        2 + 36 + 25 + 5 + 2 + 1 + 3 + 1 + 1 + 2 + 2
     );
     let names: std::collections::BTreeSet<_> = RuleKey::all().iter().map(|k| k.name()).collect();
     assert_eq!(names.len(), RuleKey::all().len(), "names are unique");

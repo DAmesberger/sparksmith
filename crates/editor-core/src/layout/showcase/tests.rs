@@ -51,10 +51,20 @@ fn the_showcase_is_a_routed_four_layer_board_with_tented_and_open_vias() -> Resu
             .iter()
             .any(|t| t.net == gnd && t.layer == CopperLayer::Bottom && t.width >= 1.0)
     );
-    // Fully routed and clean: no board, via or electrical findings, no
-    // airwires. Connectivity runs through the vias.
+    // Fully routed and clean: no electrical findings, no airwires, and of
+    // the board only the open via in the QFN's exposed pad, which lies under
+    // its solder paste. Connectivity runs through the vias.
     let checks = layout::checks(project, &Default::default());
-    assert!(checks.is_empty(), "{checks:#?}");
+    assert_eq!(
+        checks
+            .iter()
+            .map(|f| (f.code.as_str(), f.message.as_str()))
+            .collect::<Vec<_>>(),
+        [(
+            layout::via_fill::IN_PAD_OPEN,
+            "Via on GND in U2 EP is open under solder paste"
+        )]
+    );
     assert!(layout::airwires(project).is_empty());
     let erc = erc::checks(project);
     assert!(erc.is_empty(), "{erc:#?}");
