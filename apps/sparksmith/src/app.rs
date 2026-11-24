@@ -427,6 +427,9 @@ impl App {
         let Some(operation) = operation else {
             return;
         };
+        // A dimension whose value defines a board parameter brings its edit.
+        let first = self.pcb.first.take();
+        let first = first.filter(|_| matches!(operation, Operation::Dimension(_)));
         if self.opening != self.engine.opening() {
             // Made for a document that is no longer the open one.
             self.document_replaced();
@@ -526,14 +529,28 @@ impl App {
                     .counts(),
             )
         });
-        match self.engine.apply_hosted(
-            self.engine.revision(),
-            operation,
-            sparksmith_core::Evaluators {
-                footprint: Some(&sparksmith_solidcraft::footprint::SketchEvaluator),
-                board: crate::pcb_editor::board_shape::host_evaluator(),
-            },
-        ) {
+        // With `first`, both or neither. Tried on a fork, so a refusal reads as
+        // the refused operation's own.
+        let evaluators = sparksmith_core::Evaluators {
+            footprint: Some(&sparksmith_solidcraft::footprint::SketchEvaluator),
+            board: crate::pcb_editor::board_shape::host_evaluator(),
+        };
+        let revision = self.engine.revision();
+        let applied = match first {
+            None => self.engine.apply_hosted(revision, operation, evaluators),
+            Some(first) => {
+                let mut fork = self.engine.fork();
+                let batch = vec![first.clone(), operation.clone()];
+                fork.apply_hosted(revision, first, evaluators)
+                    .and_then(|_| fork.apply_hosted(fork.revision(), operation, evaluators))
+                    .and_then(|outcome| {
+                        self.engine
+                            .apply_all_hosted(revision, batch, evaluators)
+                            .map(|_| outcome)
+                    })
+            }
+        };
+        match applied {
             Ok(outcome) => {
                 if let sparksmith_core::Outcome::Pasted { report } = &outcome {
                     self.schematic.select_pasted(self.engine.project(), report);

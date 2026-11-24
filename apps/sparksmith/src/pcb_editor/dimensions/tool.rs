@@ -98,11 +98,15 @@ impl PcbEditor {
         }
     }
 
-    /// The dimension the typed value makes, or why it makes none.
-    fn draft_spec(&self, project: &Project) -> Result<PartDimensionSpec, String> {
+    /// The dimension the typed value makes, after the board parameter it
+    /// defines (`name = expression`); or why it makes none.
+    fn draft_spec(
+        &self,
+        project: &Project,
+    ) -> Result<(PartDimensionSpec, Option<Operation>), String> {
         let text = self.dims.value.as_deref().unwrap_or_default();
-        let value = edge_card::length_value(project, text)?;
-        Ok(PartDimensionSpec {
+        let (value, define) = edge_card::typed_length(project, text)?;
+        let spec = PartDimensionSpec {
             kind: PartRelation::Dim(DimKind::Distance),
             refs: self
                 .dims
@@ -112,7 +116,8 @@ impl PcbEditor {
                 .collect(),
             value: Some(value),
             reference: false,
-        })
+        };
+        Ok((spec, define))
     }
 
     /// The pointer is over a drawn label or the draft's value field.
@@ -231,7 +236,8 @@ impl PcbEditor {
             return None;
         }
         match self.draft_spec(project) {
-            Ok(spec) => {
+            Ok((spec, define)) => {
+                self.first = define;
                 self.dims.sent = Some(spec.clone());
                 self.dims.clear();
                 refusal::mark(ui.ctx(), Origin::Field(field_id()));

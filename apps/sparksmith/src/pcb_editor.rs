@@ -368,6 +368,10 @@ struct DragAirwires {
 }
 
 pub struct PcbEditor {
+    /// The board edit the dimension operation returned this frame needs first
+    /// (the parameter its value defines): `App::apply` applies both in one
+    /// undo step, or neither.
+    pub(crate) first: Option<Operation>,
     /// Two-finger scrolling across frames.
     trackpad: crate::navigation::Trackpad,
     view_3d: bool,
@@ -601,6 +605,7 @@ pub struct PcbEditor {
 impl Default for PcbEditor {
     fn default() -> Self {
         Self {
+            first: None,
             trackpad: Default::default(),
             view_3d: false,
             tool: Tool::Select,

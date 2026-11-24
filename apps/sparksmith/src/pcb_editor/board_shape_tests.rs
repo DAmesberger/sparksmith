@@ -1605,7 +1605,7 @@ fn j1s_dimension_rows_name_their_axis() -> Fallible {
         .map(|d| {
             (
                 d.kind,
-                edge_card::name_parts(project, None, j1, d).join(" → "),
+                edge_card::name_parts(project, None, j1, d, &|_| true).join(" → "),
             )
         })
         .collect();
