@@ -680,6 +680,8 @@ pub fn data(
     settings: &crate::layout::CheckSettings,
 ) -> Result<DrawingData> {
     let project = snapshot.project();
+    // A plated slot is drawn as a hole, so one that is none would be lost.
+    super::representable(project)?;
     let board = project.board();
     let holes = super::drill::holes(project);
     let outline = drawing_outline(&board.outer, DRAWING_CHORD_MM, "board outline")?;

@@ -632,14 +632,16 @@ mod tests {
     /// grown sharp corner is rounded by `by` (a convex land of area A and
     /// perimeter P grows to A + P·by + π·by²); a shrunk one stays sharp.
     #[test]
-    fn grown_openings_are_true_offsets_with_round_corners() {
+    fn grown_openings_are_true_offsets_with_round_corners() -> crate::diagnostics::Result<()> {
+        let unexpected =
+            |s: Option<Shape>| crate::diagnostics::Error::Invalid(format!("not a polygon: {s:?}"));
         let tol = 1e-5;
         let by = 0.1;
         let rect = PadShape::Rect {
             size: pt([2.0, 1.0]),
         };
         let Some(Shape::Polygon { radii, .. }) = rect.grown(by, tol) else {
-            return assert!(rect.grown(by, tol).is_some());
+            return Err(unexpected(rect.grown(by, tol)));
         };
         assert_eq!(radii, vec![by; 4]);
         let grown = area(
@@ -671,7 +673,7 @@ mod tests {
             },
         };
         let Some(Shape::Polygon { radii, .. }) = d.grown(by, tol) else {
-            return assert!(d.grown(by, tol).is_some());
+            return Err(unexpected(d.grown(by, tol)));
         };
         assert_eq!(radii, vec![0.35, by, by, 0.35]);
         // A custom triangle: the same area rule, its vertices round.
@@ -697,6 +699,7 @@ mod tests {
         // inward along the bisectors (no larger than the mitred offset).
         let inner = triangle.flatten_grown(-by, tol);
         assert!(area(&inner) > 0.0 && area(&inner) < 1.0);
+        Ok(())
     }
 
     #[test]

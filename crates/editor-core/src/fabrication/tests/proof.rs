@@ -823,6 +823,30 @@ fn everything_the_files_hold_is_the_design() -> Fallible<()> {
     let files = written(&project)?;
     let found = check(&project, &files)?;
     assert!(found.is_empty(), "{found:#?}");
+    // The drawing holds the same holes and cutouts: the plated slot as a
+    // routed hole, every other cutout as a contour.
+    let drawing = fabrication::drawing::data(
+        &ProductionSnapshot::resolve(&project, None)?,
+        &Default::default(),
+        &Default::default(),
+    )?;
+    let design = oracle::holes(&project)?;
+    assert_eq!(drawing.holes.len(), design.len());
+    for h in &design {
+        let (w, p) = (h.width, h.plated);
+        assert!(
+            drawing.holes.iter().any(|d| d.plated == p
+                && (d.feature.diameter() - w).abs() < 1e-6
+                && match d.feature {
+                    crate::layout::physical::HoleFeature::Round { at, .. } =>
+                        near(at, h.from) && near(at, h.to),
+                    crate::layout::physical::HoleFeature::Slot { from, to, .. } =>
+                        near(from, h.from) && near(to, h.to) || near(from, h.to) && near(to, h.from),
+                }),
+            "{h:?} is not drawn"
+        );
+    }
+    assert_eq!(drawing.cutouts.len(), 4);
     // The check measured something: fill copper meets every kind at its
     // rule, within a chord and the fill's minimum width.
     let all = {
@@ -860,6 +884,10 @@ fn everything_the_files_hold_is_the_design() -> Fallible<()> {
         );
     }
     Ok(())
+}
+
+fn near(a: Point, b: Point) -> bool {
+    (a[0] - b[0]).hypot(a[1] - b[1]) < 1e-6
 }
 
 /// Fill copper by first principles: well clear of everything it must keep
@@ -1001,6 +1029,28 @@ fn a_paste_reduction_that_splits_a_pad_prints_every_island() -> Fallible<()> {
     ] {
         assert_eq!(image.dark(p), dark, "{p:?}");
     }
+    // Two islands, each the square less 0.08 mm a side and the corner the
+    // bar leaves: between its two round corners of 0.08 mm, 0.05 mm either
+    // side of the middle.
+    let (r, half): (f64, f64) = (0.08, 0.05);
+    let under = (half * (r * r - half * half).sqrt() + r * r * (half / r).asin()) / 2.0;
+    let area = 0.84 * 0.84 + 2.0 * (r * half - under);
+    let film = reader::parse(file(&files, "paste-top.gbr")?)?;
+    let islands: Vec<f64> = sparksmith_fabcheck::polygons::render(&film, |_| true)?
+        .iter()
+        .filter(|s| {
+            s.iter().flatten().all(|p| {
+                let (x, y) = (f64::from(p.x) / 1e6, f64::from(p.y) / 1e6);
+                (13.6..16.4).contains(&x) && (10.4..11.6).contains(&y)
+            })
+        })
+        .map(|s| sparksmith_fabcheck::polygons::area_mm2(std::slice::from_ref(s)))
+        .collect();
+    assert_eq!(islands.len(), 2, "{islands:?}");
+    assert!(
+        islands.iter().all(|a| (a - area).abs() < 1e-4),
+        "{islands:?}, {area}"
+    );
     Ok(())
 }
 
@@ -1207,14 +1257,28 @@ fn only_a_true_slot_or_circle_is_a_slot_or_circle() {
 /// route: as a profile outline it would be unplated.
 #[test]
 fn a_plated_slot_that_cannot_be_routed_is_never_written() -> Fallible<()> {
+    // Both ends inwards; one inwards and one outwards (the audit's probe,
+    // which a counting classifier drills as a slot); a plain 2 by 1 mm
+    // rectangle (the audit's other probe).
+    let mut one_inwards = concave(26.0, 20.0);
+    if let Some(Segment::Arc { bulge, .. }) = one_inwards.segments.get_mut(3) {
+        *bulge = 1.0;
+    }
+    for outline in [
+        concave(26.0, 20.0),
+        one_inwards,
+        lines(&[[26.0, 20.0], [28.0, 20.0], [28.0, 21.0], [26.0, 21.0]]),
+    ] {
+        unroutable(outline)?;
+    }
+    Ok(())
+}
+
+fn unroutable(outline: Outline) -> Fallible<()> {
     let mut engine = Engine::demo()?;
     let mut file = engine.to_file();
     let mut solved = SolvedBoard::rectangle(file.project.board_size);
-    solved.cutouts = vec![cutout(
-        9,
-        CutoutKind::Slot { plated: true },
-        concave(26.0, 20.0),
-    )];
+    solved.cutouts = vec![cutout(9, CutoutKind::Slot { plated: true }, outline)];
     file.project.board_shape = sketch(solved);
     engine = Engine::from_file(file)?;
     let preflight = |engine: &Engine| {
@@ -1268,6 +1332,188 @@ fn a_plated_slot_that_cannot_be_routed_is_never_written() -> Fallible<()> {
     let identity = Default::default();
     assert!(fabrication::artwork::layers(project, &identity, &options, "x").is_err());
     assert!(fabrication::excellon::files(project, &identity, &options, "x").is_err());
+    // Alone, too: the drawing has nowhere to show it.
+    assert!(fabrication::drawing::data(&snapshot, &identity, &Default::default()).is_err());
+    for (gerber, drill, drawings) in [
+        (true, false, false),
+        (false, true, false),
+        (false, false, true),
+    ] {
+        let options = FabricationOptions {
+            outputs: fabrication::Outputs {
+                gerber,
+                drill,
+                drawings,
+                assembly: false,
+            },
+            ..FabricationOptions::default()
+        };
+        assert!(fabrication::generate(&snapshot, &options, &Default::default()).is_err());
+    }
+    Ok(())
+}
+
+/// The audit's probe on the showcase: the fill-to-via-hole rule raised to
+/// 1 mm, both stale findings waived through the command and saved. The
+/// export stays blocked by the copper that would be made; a refill makes
+/// the gap, read back from the files.
+#[test]
+fn waiving_the_showcases_stale_fills_does_not_clear_a_raised_drill_rule() -> Fallible<()> {
+    use crate::layout::fill::{FillCommand, RefillTarget};
+    let mut engine = Engine::showcase()?;
+    let blocking = |engine: &Engine| -> Fallible<Vec<(String, String)>> {
+        let report = fabrication::preflight::report(
+            engine.project(),
+            engine.drafts(),
+            None,
+            engine.check_settings(),
+        )?;
+        Ok(report
+            .items
+            .iter()
+            .filter(|i| i.blocks())
+            .map(|i| (i.code.clone(), i.key.clone()))
+            .collect())
+    };
+    // The least gap between a pour and a drill of another net's via.
+    let least = |engine: &Engine| -> Fallible<f64> {
+        let set = fabrication::generate(
+            &ProductionSnapshot::resolve(engine.project(), None)?,
+            &FabricationOptions::default(),
+            &Default::default(),
+        )?;
+        let text = |part: &str| -> Fallible<Vec<String>> {
+            set.files
+                .iter()
+                .filter(|f| f.name.contains(part))
+                .map(|f| Ok(String::from_utf8(f.bytes.clone())?))
+                .collect()
+        };
+        let layers = text("-copper-")?
+            .iter()
+            .map(|t| reader::parse(t))
+            .collect::<Fallible<Vec<_>>>()?;
+        let plated = text("-plated.drl")?;
+        let plated = plated
+            .iter()
+            .filter(|t| t.contains("TF.FileFunction,Plated"))
+            .map(|t| excellon_reader::parse(t))
+            .collect::<Fallible<Vec<_>>>()?;
+        Ok(spacing::fill_spacings(
+            &layers.iter().collect::<Vec<_>>(),
+            &plated.iter().map(|f| (f, true)).collect::<Vec<_>>(),
+            2.0,
+        )?
+        .into_iter()
+        .filter(|s| s.against == Against::ViaHole)
+        .map(|s| s.gap_mm)
+        .fold(f64::INFINITY, f64::min))
+    };
+    let before = blocking(&engine)?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(crate::rules::RulesCommand::SetOverride {
+            key: RuleKey::Clearance {
+                a: CopperObject::Fill,
+                b: CopperObject::ViaHole,
+            }
+            .normalized(),
+            value: RuleValue::Length(1.0),
+        }),
+    )?;
+    let stale: Vec<String> = blocking(&engine)?
+        .into_iter()
+        .filter(|(code, _)| code == "fill.stale")
+        .map(|(_, key)| key)
+        .collect();
+    assert_eq!(stale.len(), 2);
+    engine.apply(
+        engine.revision(),
+        Operation::Fabrication(fabrication::FabricationCommand::Waive {
+            keys: stale.clone(),
+            reason: "accepted".into(),
+        }),
+    )?;
+    // Held by the document, as a saved file holds it.
+    assert_eq!(engine.project().production.waivers.len(), 2);
+    let short = blocking(&engine)?;
+    assert!(
+        short.iter().any(|(code, _)| code == "fill.clearance"),
+        "{short:?}"
+    );
+    let gap = least(&engine)?;
+    assert!((gap - 0.35).abs() < 0.01, "{gap}");
+    for key in stale {
+        engine.apply(
+            engine.revision(),
+            Operation::Fabrication(fabrication::FabricationCommand::Unwaive { key }),
+        )?;
+    }
+    engine.apply(
+        engine.revision(),
+        Operation::Fill(FillCommand::Refill {
+            target: RefillTarget::All,
+        }),
+    )?;
+    let gap = least(&engine)?;
+    assert!(gap > 1.0 - SPACING_SLACK_MM, "{gap}");
+    let after = blocking(&engine)?;
+    assert!(
+        !after.iter().any(|(code, _)| code.starts_with("fill.")),
+        "{after:?} {before:?}"
+    );
+    Ok(())
+}
+
+/// Copper kept as it was when a fill's own clearance, or a pad's, is
+/// raised: each is a rule the retained copper is held to.
+#[test]
+fn retained_copper_keeps_the_fills_own_and_a_pads_own_clearance() -> Fallible<()> {
+    use crate::diagnostics::ObjectRef;
+    let mut project = board()?;
+    let id = project.fills.first().ok_or("a fill")?.id;
+    let found = |p: &Project| -> Vec<String> {
+        crate::layout::fill::findings(p)
+            .into_iter()
+            .filter(|f| f.code == "fill.clearance" && f.objects.contains(&ObjectRef::Fill { id }))
+            .map(|f| f.message)
+            .collect()
+    };
+    // The stored copper under a current key, so only the audit can tell.
+    let keep = |p: &mut Project| -> Fallible<()> {
+        let key = crate::layout::fill::inputs_key(p, id)?;
+        for f in p.fills.iter_mut().filter(|f| f.id == id) {
+            if let Some(c) = &mut f.computed {
+                c.key.clone_from(&key);
+            }
+        }
+        Ok(())
+    };
+    assert!(found(&project).is_empty(), "{:?}", found(&project));
+    let clean = project.clone();
+    if let Some(f) = project.fills.iter_mut().find(|f| f.id == id) {
+        f.settings.clearance = Some(0.6);
+    }
+    keep(&mut project)?;
+    let own = found(&project);
+    assert!(
+        own.iter()
+            .any(|m| m.contains("needs 0.6 mm (the fill: clearance)")),
+        "{own:?}"
+    );
+    let mut project = clean;
+    let instance = project.placements.first().ok_or("R1")?.instance;
+    let Some(placement) = project.placements.first_mut() else {
+        return Err("R1".into());
+    };
+    placement.fill_override.clearance = Some(nm(0.7));
+    keep(&mut project)?;
+    let own = found(&project);
+    assert!(
+        own.iter()
+            .any(|m| m.contains("needs 0.7 mm (the pad's fill override: clearance)")),
+        "{own:?} {instance}"
+    );
     Ok(())
 }
 
