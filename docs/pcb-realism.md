@@ -48,6 +48,8 @@ Materials, heights and looks are in [materials](materials.md).
   bounds the per-layer work a hostile or mistaken file can ask for. `Stackup::preset(n)` gives a
   symmetric foil build for every even count (prepreg outside, cores inside, 1.6 mm of
   dielectric up to ten layers, then 0.16 mm a layer).
+- A stackup is also taken from a fabricator's published ones
+  ([fabricators' stackups](board-rules-and-shape.md#fabricators-stackups)).
 - A layer's identity is its name (`Inner(n)`), so a stackup that gains or loses layers renames
   the foils below the change. `layout.set_stackup` keeps every name; `layout.edit_stackup`
   (`restack::StackupEdit`) also moves copper: each `{from, to}` move takes every track, fill,
