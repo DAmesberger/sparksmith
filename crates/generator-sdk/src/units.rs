@@ -54,3 +54,19 @@ mod tests {
         assert_eq!(round_to(100, 50, true), Some(100));
     }
 }
+
+#[cfg(test)]
+mod mm_text_tests {
+    use super::mm_text;
+
+    /// Between -1 mm and 0 `nm / 1_000_000` is 0, which loses a sign taken
+    /// from the quotient; the text keeps it.
+    #[test]
+    fn mm_text_keeps_the_sign_of_a_length_below_one_millimetre() {
+        assert_eq!(mm_text(-500_000), "-0.50 mm");
+        assert_eq!(mm_text(-1), "-0.000001 mm");
+        assert_eq!(mm_text(-1_500_000), "-1.50 mm");
+        assert_eq!(mm_text(0), "0.00 mm");
+        assert_eq!(mm_text(i64::MIN), "-9223372036854.775808 mm");
+    }
+}
