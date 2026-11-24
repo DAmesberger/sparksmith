@@ -1208,9 +1208,7 @@ fn wait_for_generators(what: &str, ax: &mut Ax, done: impl FnMut(&Ax) -> bool) -
 }
 
 /// What a fresh read of the shipped generators answers: the library found
-/// (or not) and, for each module, what it offers or why it was refused (a
-/// `generator.timed_out` here means the machine was too slow for the
-/// worker's wall time, not that the module is wrong).
+/// (or not) and, for each module, what it offers or why it was refused.
 fn generators_diagnosis() -> String {
     let report = match sparksmith_automation::Session::lending().generators_report() {
         Ok(report) => report,

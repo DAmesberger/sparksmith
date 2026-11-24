@@ -19,8 +19,8 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::ThreadId;
 
-/// Answers kept for the window, the newest: enough for one request that
-/// describes every shipped module and makes a part.
+/// Answers [`Deferred::trim`] leaves, the newest: the shipped modules'
+/// descriptions and the parts made last.
 const KEPT: usize = 256;
 
 type Key = [u8; 32];
@@ -62,11 +62,6 @@ impl State {
             return;
         }
         self.order.push_back(key);
-        if self.order.len() > KEPT
-            && let Some(oldest) = self.order.pop_front()
-        {
-            self.answers.remove(&oldest);
-        }
     }
 }
 
@@ -112,6 +107,16 @@ impl Deferred {
     /// this was last asked, whatever the caller made of the refusal.
     pub fn take_met(&self) -> bool {
         std::mem::take(&mut self.state().met)
+    }
+
+    /// Drop old answers; for when no request waits for any.
+    pub fn trim(&self) {
+        let mut state = self.state();
+        while state.order.len() > KEPT
+            && let Some(oldest) = state.order.pop_front()
+        {
+            state.answers.remove(&oldest);
+        }
     }
 
     /// Cancel every call running for the window.

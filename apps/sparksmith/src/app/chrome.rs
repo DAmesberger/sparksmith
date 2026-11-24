@@ -15,7 +15,7 @@ use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::type_face;
 use sparksmith_ui::{
     toolbar::APP_BAR_HEIGHT,
-    ui_kit::{Container, Edge, Surface},
+    ui_kit::{self, Button, Container, Edge, Surface},
     window_chrome::TRAFFIC_LIGHTS,
 };
 
@@ -238,6 +238,12 @@ impl App {
                         kit::status_chip(ui, None, &text);
                         if let Some(wake) = wake {
                             ctx.request_repaint_after(wake);
+                        }
+                    }
+                    if let Some(work) = self.stoppable() {
+                        kit::status_chip(ui, None, work);
+                        if ui_kit::button(ui, "Stop", Button::Enabled(true)).clicked() {
+                            self.stop_work(&ctx);
                         }
                     }
                     self.live_indicator(ui);

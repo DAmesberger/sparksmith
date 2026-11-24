@@ -124,6 +124,7 @@ impl App {
                         .as_ref()
                         .is_some_and(|job| job.run.as_deref() == Some(run.as_str()))
                     {
+                        self.generators.stop_chat();
                         self.assistant.stop();
                     }
                 }

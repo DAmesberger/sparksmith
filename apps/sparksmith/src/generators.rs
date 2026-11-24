@@ -14,7 +14,7 @@ use crate::document_version::DocumentVersion;
 use sparksmith_automation::Session;
 use sparksmith_automation::session::generators::v1;
 use sparksmith_automation::session::generators::{
-    GeneratePartParams, GeneratorSummary, is_transient,
+    Cancel, GeneratePartParams, GeneratorSummary, is_transient,
 };
 use sparksmith_core::catalog::generic::GenericValue;
 use sparksmith_core::catalog::generic::generators::{self as catalog, GeneratorCandidate};
@@ -350,6 +350,14 @@ pub enum Into {
 pub struct Making {
     version: DocumentVersion,
     receiver: Receiver<Result<Operation, String>>,
+    cancel: Cancel,
+}
+
+/// A part nobody waits for is not made.
+impl Drop for Making {
+    fn drop(&mut self) {
+        self.cancel.set();
+    }
 }
 
 impl std::fmt::Debug for Making {
@@ -359,6 +367,11 @@ impl std::fmt::Debug for Making {
 }
 
 impl Making {
+    /// Stop making it: [`Self::poll`] then says so.
+    pub fn stop(&self) {
+        self.cancel.set();
+    }
+
     /// The command to apply once the part is made, or why it was not.
     pub fn poll(&mut self, engine: &Engine) -> Option<Result<Operation, String>> {
         if !self.version.is_current(engine) {
@@ -421,16 +434,19 @@ pub fn make(
     let fork = engine.fork();
     let (sender, receiver) = std::sync::mpsc::channel();
     let repaint = ctx.clone();
+    let cancel = Cancel::default();
+    let call = cancel.clone();
     std::thread::Builder::new()
         .name("sparksmith-make-part".into())
         .spawn(sparksmith_core::library::standards::carried(move || {
-            let _ = sender.send(command(&fork, &request, into));
+            let _ = sender.send(call.scope(|| command(&fork, &request, into)));
             repaint.request_repaint();
         }))
         .ok()?;
     Some(Making {
         receiver,
         version: DocumentVersion::of(engine),
+        cancel,
     })
 }
 
@@ -559,9 +575,8 @@ pub fn test_shelf() -> Shelf {
 }
 
 /// Only fixture initialization is shared, as with the previous OnceLock;
-/// tests run concurrently after loading. Other tests can temporarily own
-/// all worker permits, so retry a transient refusal within a watchdog and cache successes
-/// only. Neither a transient refusal nor a failed read poisons later tests.
+/// tests run concurrently after loading. A transient refusal is retried
+/// within a watchdog and successes only are cached. Neither a transient refusal nor a failed read poisons later tests.
 #[cfg(test)]
 fn test_offers(
     cache: &Mutex<Option<Vec<Offer>>>,
@@ -611,14 +626,14 @@ mod retry_tests {
     use super::*;
 
     #[test]
-    fn test_shelf_cache_retries_busy_and_never_caches_failures() {
+    fn test_shelf_cache_retries_a_transient_failure_and_never_caches_failures() {
         let cache = Mutex::new(None);
         assert!(test_offers(&cache, || Err(ReadFailure::Failed("unavailable".into()))).is_err());
         let mut calls = 0;
         let loaded = test_offers(&cache, || {
             calls += 1;
             if calls == 1 {
-                Err(ReadFailure::Transient("busy".into()))
+                Err(ReadFailure::Transient("cancelled".into()))
             } else {
                 Ok(Vec::new())
             }
@@ -634,15 +649,15 @@ mod retry_tests {
     }
 
     #[test]
-    fn a_shelf_read_that_timed_out_retries_once_when_due_then_keeps_the_complete_result() {
+    fn an_interrupted_shelf_read_retries_once_when_due_then_keeps_the_complete_result() {
         let shelf = Shelf::default();
         let now = Instant::now() + Duration::from_secs(3600);
-        let slow = || Err(ReadFailure::Transient("It did not finish.".into()));
-        finish_read(&shelf.loaded, slow(), now);
+        let interrupted = || Err(ReadFailure::Transient("It was cancelled.".into()));
+        finish_read(&shelf.loaded, interrupted(), now);
         assert!(shelf.offers().is_none());
         assert_eq!(
             shelf.status().as_deref(),
-            Some("The generators are not read yet; reading them again. It did not finish.")
+            Some("The generators are not read yet; reading them again. It was cancelled.")
         );
         assert!(!shelf.begin_retry(now));
         assert!(shelf.begin_retry(now + SHELF_RETRY));
@@ -680,8 +695,8 @@ mod retry_tests {
     fn replacing_the_shelf_abandons_old_results_and_retry_state() {
         let old = Shelf::default();
         let pending = Arc::downgrade(&old.loaded);
-        let busy = Err(ReadFailure::Transient("busy".into()));
-        finish_read(&old.loaded, busy, Instant::now());
+        let cancelled = Err(ReadFailure::Transient("cancelled".into()));
+        finish_read(&old.loaded, cancelled, Instant::now());
         let current = Shelf::with(Vec::new());
         drop(old);
         assert!(pending.upgrade().is_none());
