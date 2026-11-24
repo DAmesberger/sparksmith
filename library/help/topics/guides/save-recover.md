@@ -34,4 +34,6 @@ A project is one .sparksmith file. It holds the parts it uses, so it opens witho
 - Open a project with {key:file.open}, or a recent one from the File menu.
 - If you leave with unsaved changes, Sparksmith asks first.
 
-After a crash, start Sparksmith again. It asks “Recover an earlier session?”. Restore opens an unsaved copy, so save it. Keep for later asks again next time. Discard deletes the session. The original file is unchanged.
+“The project was not saved” means that another program has the file open, or it may not be written. The file is as it was, and the message says where your version is kept. Close the other program and press Try again, or press Save As….
+
+When you log out or the computer ends Sparksmith, unsaved work is kept for recovery. After that or after a crash, start Sparksmith again. It asks “Recover an earlier session?”. Restore opens an unsaved copy, so save it. Keep for later asks again next time. Discard deletes the session. The original file is unchanged.

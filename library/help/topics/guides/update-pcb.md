@@ -35,6 +35,7 @@ Parts and nets come to the board from the schematic. A part you added is not on 
 - Read the review: what is placed, what changes, and the new issues.
 - Press Apply update. New parts stand beside the board.
 - Drag a part into the outline, or select it and type its Position in Properties.
+- A part that moves takes its tracks along. The message says how many connections were re-routed, and which were left unrouted.
 - Turn it with {key:pcb.rotate} or Rotate 90°. Flip moves it to the other side.
 - The thin lines are airwires: connections still to route. [[guide/routing]] is next.
 

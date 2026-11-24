@@ -28,7 +28,7 @@ A dimension on the board holds a part at a distance. It is kept when the board c
 
 - In PCB Layout or 3D, choose Dimension.
 - Click a part's face, edge, hole or pad, then what to measure to: a board edge, a hole or another part.
-- The value field shows the distance now. Type the one you want, such as 2 mm, or width / 2 with a board parameter, and press Enter. Esc starts again.
+- The value field shows the distance now. Type the one you want, such as 2 mm, or width / 2 with a board parameter, and press Enter. On a board with a sketched shape, gap = 2 mm makes the parameter gap. Esc starts again.
 - Click a drawn dimension to select it. Double-click it to change the value. Delete removes it.
 
 A part that does not move and says it is held by its dimensions: edit or delete one of them. Free part in Properties does that when there is only one.

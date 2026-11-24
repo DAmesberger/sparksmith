@@ -31,6 +31,7 @@ A waiver says that you looked at one finding and accept it. It does not change t
 - Write the reason in the field, then confirm. The next reviewer reads it.
 - The finding moves to the Waived group. Restore puts it back.
 - A waiver accepts the value the finding has now. If the value gets worse, the waiver ends and the finding says what was accepted and what it is now.
-- Some findings have no Waive…: a short, a limit of the fab profile itself, a fill that is not filled, an outline that is not closed, a part that is not placed. Their files would not be your design. Fix those, or switch to a fab profile that allows the limit.
+- Some findings have no Waive…: a short, a limit of the fab profile itself, a via the fabricator does not make, a fill that is not filled, an outline that is not closed, a part that is not placed. Their files would not be your design, or could not be made. Fix those, or switch to a fab profile that allows the limit.
+- What the fabricator does not state can be waived, but only with a reason.
 
 Settings › Production can require a reason for waiving errors.
