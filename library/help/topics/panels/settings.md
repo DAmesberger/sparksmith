@@ -25,6 +25,6 @@
 
 Open Settings with {key:app.settings}. The Keyboard section records command bindings and controls the key-reveal display. Lists changes density and motion. Browser controls how components are grouped.
 
-Rules lets you choose a fab profile for new boards and the fallback tolerance for a net class’s impedance target. Open [[setting/impedance_tolerance_pct]] to inspect the shipped tolerance and its source. A class can set its own tolerance. See [[entry/rules.effective]] for the rules in the open design.
+Rules lets you choose a fab profile for new boards (the shipped default, Standard, until you choose one) and the fallback tolerance for a net class’s impedance target. Open [[setting/impedance_tolerance_pct]] to inspect the shipped tolerance and its source. A class can set its own tolerance. See [[entry/rules.effective]] for the rules in the open design.
 
 Use Libraries for online registry preferences and Library sources to add or enable local folders. AI holds the model connection settings for [[panel/assistant]].
