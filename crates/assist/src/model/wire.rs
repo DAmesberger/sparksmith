@@ -143,6 +143,9 @@ impl HttpWire {
 
     /// Run `request` on a thread of its own.
     fn start(&self, request: impl FnOnce(&Http) + Send + 'static) -> Result<()> {
+        if cancel::requested() {
+            return Err(Error::Http("the request was stopped".into()));
+        }
         let http = self.http.clone();
         std::thread::Builder::new()
             .name("model-request".into())
@@ -354,7 +357,7 @@ impl Http {
             .build()
             .header("content-type", "application/json");
         for (name, value) in headers {
-            request = request.header(name, value);
+            request = request.header(name.as_str(), value.as_str());
         }
         if let Some(key) = &self.key {
             request = match self.auth {
