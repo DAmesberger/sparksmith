@@ -103,6 +103,35 @@ fn the_showcase_exports_as_a_folder_and_a_zip() -> Fallible<()> {
     Ok(())
 }
 
+/// A fault in any file is refused through the request every automation and
+/// MCP client sends, as a folder and as a ZIP, and nothing is written.
+#[test]
+fn files_that_are_not_the_design_are_refused() -> Fallible<()> {
+    use sparksmith_io::fabrication::seeded;
+    let mut session = Session::new(showcase(
+        sparksmith_core::library::standards::Context::fixture()?,
+        &sparksmith_core::StackupPresets::fixture()?,
+        sparksmith_core::rules::fixtures::prototype()?,
+    )?);
+    for zip in [false, true] {
+        for (what, file, fault) in seeded::faults() {
+            let dir = tempfile::tempdir()?;
+            let output = dir.path().join(if zip { "fab.zip" } else { "fab" });
+            seeded::seed(&output, fault);
+            let refused = session.dispatch(export(&output, zip, None));
+            assert_eq!(refused["ok"], false, "{what}");
+            assert_eq!(
+                refused["error"]["rule"], "fabrication.readback_mismatch",
+                "{what}: {refused}"
+            );
+            let message = refused["error"]["message"].as_str().unwrap_or_default();
+            assert!(message.contains(file), "{what}: {message}");
+            assert_eq!(std::fs::read_dir(dir.path())?.count(), 0, "{what}");
+        }
+    }
+    Ok(())
+}
+
 /// `project.rename` over the JSON contract names every output, and one
 /// undo step takes it back.
 #[test]

@@ -249,6 +249,44 @@ mod tests {
         Ok(())
     }
 
+    /// A fault in any file is refused by `fab`, naming the file, and nothing
+    /// is written; without it the same command writes the files.
+    #[test]
+    fn files_that_are_not_the_design_are_refused() -> super::Result<()> {
+        use sparksmith_io::fabrication::seeded;
+        let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+        let dir = tempfile::tempdir()?;
+        let project = dir.path().join("board.sparksmith");
+        let arg = |p: &std::path::Path| p.display().to_string();
+        let mut session =
+            sparksmith_automation::session::Session::new(sparksmith_automation::session::showcase(
+                sparksmith_core::library::standards::Context::fixture()?,
+                &sparksmith_core::StackupPresets::fixture()?,
+                sparksmith_core::rules::fixtures::prototype()?,
+            )?);
+        super::execute(
+            &mut session,
+            json!({"command": "project.save", "params": {"path": arg(&project)}}),
+        )?;
+        for (k, (what, file, fault)) in seeded::faults().into_iter().enumerate() {
+            let out = dir.path().join(format!("out{k}"));
+            seeded::seed(&out, fault);
+            let error = run(&[arg(&project), arg(&out)])
+                .err()
+                .ok_or(what)?
+                .to_string();
+            assert!(
+                error.contains("fabrication.readback_mismatch") && error.contains(file),
+                "{what}: {error}"
+            );
+            assert!(!out.exists(), "{what} was written");
+        }
+        let out = dir.path().join("right");
+        run(&[arg(&project), arg(&out)])?;
+        assert!(out.is_dir());
+        Ok(())
+    }
+
     /// Warnings and waived errors do not block; a long list says how many
     /// it left out.
     #[test]

@@ -1188,3 +1188,97 @@ fn what_cannot_be_waived_says_what_to_do_instead() -> TestResult {
     );
     Ok(())
 }
+
+/// An export of the showcase into `folder`, up to its click.
+fn exporting(
+    engine: &Engine,
+    ctx: &egui::Context,
+    folder: &std::path::Path,
+) -> Result<PcbEditor, Box<dyn std::error::Error>> {
+    let mut editor = open(engine)?;
+    let d = dialog(&mut editor)?;
+    d.location = Some(folder.to_path_buf());
+    d.wait_check(ctx, engine);
+    let ready = d.current(engine).and_then(|r| r.as_ref().ok());
+    assert!(ready.is_some_and(PreflightReport::ready));
+    Ok(editor)
+}
+
+fn production_folder(
+    engine: &Engine,
+    tmp: &std::path::Path,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    Ok(tmp.join(format!(
+        "{}-production",
+        fabrication::base_name(engine.project(), &FabricationOptions::default())?
+    )))
+}
+
+/// A fault in a file is refused before anything is released: the dialog
+/// names the file, the place and both values, and the folder stays empty.
+#[test]
+fn files_that_are_not_the_design_are_refused_and_named() -> TestResult {
+    let engine = Engine::showcase()?;
+    let ctx = context();
+    for (what, file, fault) in sparksmith_io::fabrication::seeded::faults() {
+        let tmp = tempfile::tempdir()?;
+        let mut editor = exporting(&engine, &ctx, tmp.path())?;
+        let output = production_folder(&engine, tmp.path())?;
+        sparksmith_io::fabrication::seeded::seed(&output, fault);
+        click(&mut editor, &engine, &ctx, "Export")?;
+        dialog(&mut editor)?.wait(&ctx);
+        let d = dialog(&mut editor)?;
+        assert!(d.written.is_none(), "{what} was written");
+        let refusal = d.refusal.clone().ok_or(what)?;
+        assert!(
+            refusal.contains("do not match the design") && refusal.contains(file),
+            "{what}: {refusal}"
+        );
+        assert_eq!(std::fs::read_dir(tmp.path())?.count(), 0, "{what}");
+    }
+    Ok(())
+}
+
+/// Stop shows while the files are made and read back; it ends the export,
+/// which says so and writes nothing.
+#[test]
+fn stop_ends_an_export_with_nothing_written() -> TestResult {
+    let engine = Engine::showcase()?;
+    let ctx = context();
+    let tmp = tempfile::tempdir()?;
+    let mut editor = exporting(&engine, &ctx, tmp.path())?;
+    // The export waits where its files are made until it was stopped.
+    let go = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let waits = std::sync::Arc::clone(&go);
+    sparksmith_io::fabrication::seeded::seed(
+        &production_folder(&engine, tmp.path())?,
+        Box::new(move |_| {
+            for _ in 0..4000 {
+                if waits.load(std::sync::atomic::Ordering::Relaxed) {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }),
+    );
+    click(&mut editor, &engine, &ctx, "Export")?;
+    let mut shown = Vec::new();
+    for _ in 0..2000 {
+        let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+        shown = texts(&output);
+        if shown.iter().any(|t| t == "Stop") {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(shown.iter().any(|t| t == "Stop"), "{shown:?}");
+    click(&mut editor, &engine, &ctx, "Stop")?;
+    go.store(true, std::sync::atomic::Ordering::Relaxed);
+    dialog(&mut editor)?.wait(&ctx);
+    let d = dialog(&mut editor)?;
+    assert!(d.written.is_none());
+    let refusal = d.refusal.clone().ok_or("no refusal")?;
+    assert!(refusal.contains("stopped"), "{refusal}");
+    assert_eq!(std::fs::read_dir(tmp.path())?.count(), 0);
+    Ok(())
+}
