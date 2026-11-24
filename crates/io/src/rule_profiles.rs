@@ -859,6 +859,12 @@ mod tests {
                         .collect();
                     let chosen = choose(&p, &one)?;
                     for key in sparksmith_core::rules::RuleKey::all() {
+                        // It states no sizes of filled vias.
+                        use sparksmith_core::rules::RuleKey::{CappedDrillMax, CappedDrillMin};
+                        if matches!(key, CappedDrillMin | CappedDrillMax) {
+                            assert!(chosen.active(key).is_none(), "{name}: {}", key.name());
+                            continue;
+                        }
                         let (_, source) = chosen.active(key).ok_or_else(|| {
                             Error::Invalid(format!("{name}: {} has no entry", key.name()))
                         })?;

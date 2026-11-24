@@ -331,7 +331,7 @@ declare_entries!(LayoutCommand in layout {
     MoveVia "layout.via_move" Edit "Move a via",
     DeleteVia "layout.via_delete" Edit "Delete a via",
     SetViaTented "layout.via_tent" Edit "Tent or untent a via",
-    SetVias "layout.via_set" Edit "Fill vias or leave them open" [since(2, 12)],
+    SetVias "layout.via_set" Edit "Fill vias or leave them open" [since(3, 0)],
     SetViaLock "layout.via_lock" Edit "Lock or unlock a via",
     RouteLayerChange "layout.route_layer_change" Edit "Change layer while routing" [returns(via_added)],
     SetBoardSize "layout.set_board_size" Edit "Set the board size",

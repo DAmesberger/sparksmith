@@ -892,9 +892,13 @@ fn copper(board: &mut Board, lane: [u64; 2]) -> Fallible {
     for (net, contact) in [(lane[0], 2), (lane[1], 3)] {
         let reply = board.via(net, pad_at("J1", 'B', contact, NOTCH_DEPTH));
         assert_eq!(reply["ok"], true, "{reply}");
-        // In the pad of its own net, 0.5 mm from the next via: nothing to
-        // report under the absolute minimum values.
-        assert_eq!(reply["result"]["findings"]["new"], json!([]), "{reply}");
+        // In the pad of its own net, 0.5 mm from the next via: under the
+        // absolute minimum values nothing but its open hole under the paste.
+        let new: Vec<&str> = rows(&reply["result"]["findings"]["new"])?
+            .iter()
+            .filter_map(|f| f["code"].as_str())
+            .collect();
+        assert_eq!(new, ["board.via_in_pad_open"], "{reply}");
     }
     let reply = board.apply("Layout", "layout.route_pair", route(NOTCH_DEPTH))?;
     let new: Vec<&str> = rows(&reply["findings"]["new"])?
@@ -1007,6 +1011,18 @@ fn the_finished_board_passes_the_production_check() -> Fallible {
             // the plug's bottom row counts as an assembled side.
             "board.fiducials_too_few",
             "board.fiducials_too_few",
+            // Every via is an open hole in a pad: the pair's two, J1's four
+            // ground vias, and J2's two, each in a pad of either face.
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
+            "board.via_in_pad_open",
             "fabrication.envelope_model",
             "fabrication.envelope_model",
             "impedance.uncoupled",

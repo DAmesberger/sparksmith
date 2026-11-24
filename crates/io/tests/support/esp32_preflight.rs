@@ -6,6 +6,10 @@ use sparksmith_core::issues::Severity;
 /// Their parallel overlap at the 0.127 mm gap is 21.951411 mm per side.
 pub(super) const USB_UNCOUPLED_MM: f64 = 7.934_151;
 
+/// The module's exposed pad (U1) has nine ground vias, all open under its
+/// solder paste.
+const OPEN_IN_PAD: usize = 9;
+
 /// The actual project uses net 6 for USB_DP and net 5 for USB_DN. Assert the
 /// entire preflight so a missing coverage warning or any extra issue fails.
 pub(super) fn assert_usb_preflight(report: &PreflightReport, uncoupled_mm: f64) {
@@ -16,11 +20,29 @@ pub(super) fn assert_usb_preflight(report: &PreflightReport, uncoupled_mm: f64) 
             report.warnings,
             report.waived
         ),
-        (0, 0, 1, 0),
+        (0, 0, 1 + OPEN_IN_PAD, 0),
         "{report:?}"
     );
-    assert_eq!(report.items.len(), 1, "{report:?}");
-    let item = &report.items[0];
+    assert_eq!(report.items.len(), 1 + OPEN_IN_PAD, "{report:?}");
+    let (open, rest): (Vec<_>, Vec<_>) = report
+        .items
+        .iter()
+        .partition(|i| i.code == "board.via_in_pad_open");
+    let mut vias = std::collections::BTreeSet::new();
+    for item in &open {
+        assert_eq!(item.severity, Severity::Warning);
+        assert!(item.waiver.is_none());
+        assert_eq!(item.title, "Via on GND in U1 95 is open under solder paste");
+        let via = match item.objects[..] {
+            [ObjectRef::Via { id }, ObjectRef::Pad { instance: 124, .. }] => Some(id),
+            _ => None,
+        };
+        assert!(via.is_some(), "{item:?}");
+        vias.extend(via);
+    }
+    assert_eq!(vias.len(), OPEN_IN_PAD, "each via once");
+    assert_eq!(rest.len(), 1, "{report:?}");
+    let item = rest[0];
     assert_eq!(item.code, "impedance.uncoupled");
     assert_eq!(item.severity, Severity::Warning);
     assert!(item.waiver.is_none());

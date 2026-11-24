@@ -12,8 +12,8 @@
   ],
   "offer_when": [{"attachment": "application/pdf"}],
   "needs": [
-    {"module": "library", "major": 4, "minor": 0},
-    {"module": "generators", "major": 2, "minor": 0},
+    {"module": "library", "major": 5, "minor": 0},
+    {"module": "generators", "major": 3, "minor": 0},
     {"module": "assist", "major": 1, "minor": 4}
   ],
   "reach": {"project": "read", "library": "edit", "generators": "edit", "assist": "edit", "view": "show"},

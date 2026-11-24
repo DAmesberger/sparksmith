@@ -2,7 +2,7 @@
 
 Release plan step 5: a real ESP32-S31-WROOM-3 development board designed from components to Gerbers through Sparksmith's own command engine, as a CLI/MCP client would. The run, its friction and its gaps are in [docs/e2e-esp32-devboard.md](../../docs/e2e-esp32-devboard.md).
 
-**Status: an unreviewed design.** ERC is clear. The production check reports one warning and zero errors or waivers under PCBWay 4-layer. The 90 Ω check excludes 7.934 mm on each USB signal path. An independent Gerber parser cross-checked the fabrication outputs. No person has reviewed it, and no board has been built. Several limits are listed below. Do not order it unreviewed.
+**Status: an unreviewed design.** ERC is clear. The production check reports ten warnings and zero errors or waivers under PCBWay 4-layer. One is that the 90 Ω check excludes 7.934 mm on each USB signal path; nine are the ground vias in the module's exposed pad, whose holes are open under solder paste. An independent Gerber parser cross-checked the fabrication outputs. No person has reviewed it, and no board has been built. Several limits are listed below. Do not order it unreviewed.
 
 ## Files
 

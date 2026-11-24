@@ -61,6 +61,11 @@ fn every_rule_is_cited() -> Fallible {
     let p = standard()?;
     for key in RuleKey::all() {
         let name = key.name();
+        // It makes no filled vias, so it has no sizes for them.
+        if matches!(key, RuleKey::CappedDrillMin | RuleKey::CappedDrillMax) {
+            assert!(p.entry(key).is_none() && !key.is_set(p.rules()), "{name}");
+            continue;
+        }
         let entry = p.entry(key).ok_or_else(|| format!("no {name}"))?;
         assert!(entry.cases.is_empty(), "{name}");
         assert!(!entry.source.trim().is_empty(), "{name}");
@@ -98,6 +103,15 @@ fn every_limit_is_at_least_as_strict_as_the_fabricators_standard_ones() -> Falli
     for (id, other) in &profiles {
         for key in RuleKey::all() {
             let name = key.name();
+            // Standard makes no filled vias, stricter than any size of them.
+            if matches!(key, RuleKey::CappedDrillMin | RuleKey::CappedDrillMax) {
+                let fill = sparksmith_core::model::ViaFill::Capped;
+                assert!(matches!(
+                    sparksmith_core::rules::drills::through_fill(&own.drill_rules, fill),
+                    sparksmith_core::rules::drills::Verdict::NotMade(_)
+                ));
+                continue;
+            }
             let (ours, theirs) = (key.get(own.rules()), key.get(other.rules()));
             let strict = match (ours, theirs) {
                 (RuleValue::Length(a), RuleValue::Length(b)) => a + 1e-9 >= b,

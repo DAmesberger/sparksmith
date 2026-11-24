@@ -86,6 +86,9 @@ pub(super) struct ShapeMode {
     /// The dimension placed whose value is being typed.
     pub(super) draft: Option<Draft>,
     drag: Option<Drag>,
+    /// The opening and the revision of its last change other than fill
+    /// copper stored in the background, when the sketch was last looked at.
+    document: (u64, u64),
     loaded: Option<Loaded>,
     /// The host sketch engine (`board_shape::host_evaluator`).
     pub(super) evaluator: Option<&'static dyn BoardShapeEvaluator>,
@@ -112,6 +115,7 @@ impl Default for ShapeMode {
             dim_sent: false,
             draft: None,
             drag: None,
+            document: (0, 0),
             loaded: None,
             evaluator: shape::host_evaluator(),
             starting: None,
@@ -122,8 +126,9 @@ impl Default for ShapeMode {
     }
 }
 
-/// A refused parameter, why, and the board's key when it was refused.
-type Refused = (ParamName, String, Option<(u64, u64)>);
+/// A refused parameter, why, and the document it was refused on
+/// ([`ShapeMode::document`]).
+type Refused = (ParamName, String, (u64, u64));
 
 /// The parameters section's text buffers.
 #[derive(Default)]
@@ -188,6 +193,7 @@ impl ShapeMode {
 
     fn load(&mut self, engine: &Engine, board: &BoardSketch) {
         let key = (engine.opening(), engine.revision());
+        self.document = (engine.opening(), engine.content_revision());
         if let Some(l) = &mut self.loaded {
             if l.seen == key {
                 return;
@@ -1304,6 +1310,7 @@ impl PcbEditor {
             .as_ref()
             .map(|l| l.values.clone())
             .unwrap_or_default();
+        let document = self.shape.document;
         let rows = &mut self.shape.params;
         let key = self.shape.loaded.as_ref().map(|l| l.key);
         if rows.key != key {
@@ -1325,7 +1332,7 @@ impl PcbEditor {
         // A refusal is about the value that was refused: it goes when the
         // document changes or its row is edited again.
         if let Some((name, _, at)) = &rows.refused
-            && (*at != key
+            && (*at != document
                 || board.parameters.iter().any(|p| {
                     p.name == *name && rows.exprs.get(name).is_some_and(|t| t.trim() != p.expr.0)
                 }))
@@ -1704,8 +1711,7 @@ impl PcbEditor {
                 // A refused parameter keeps its stored, valid value: the
                 // row reloads it, and the reason shows in full.
                 Some(name) => {
-                    let key = self.shape.loaded.as_ref().map(|l| l.key);
-                    rows.refused = Some((name.clone(), text, key));
+                    rows.refused = Some((name.clone(), text, self.shape.document));
                     if rows
                         .error
                         .as_ref()

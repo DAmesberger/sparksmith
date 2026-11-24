@@ -328,7 +328,8 @@ fn a_track_across_the_pair_never_tears_it() -> Fallible {
 /// The switches now use the example's B3U-1000P part file, and the board's
 /// PCBWay 4-layer profile (at its minimum values) admits the GCT USB4105
 /// land pattern as drawn. Both reports now show one unwaived USB coverage
-/// warning for the uncoupled lengths on the connector-to-module paths.
+/// warning for the uncoupled lengths on the connector-to-module paths, and
+/// the module's nine ground vias open under its exposed pad's paste.
 /// Information is not counted: the production check leaves it out, and the
 /// only information on this board is the fills' removed thermal spokes
 /// (`fill.spokes_removed`, never blocking).
@@ -350,7 +351,11 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
         _ => return Err("preflight".into()),
     };
     assert_usb_preflight(&preflight, USB_UNCOUPLED_MM);
-    let usb = &preflight.items[0];
+    let usb = preflight
+        .items
+        .iter()
+        .find(|i| i.code == "impedance.uncoupled")
+        .ok_or("the USB warning")?;
     let (info, counted): (Vec<_>, Vec<_>) = issues
         .rows
         .iter()
@@ -361,10 +366,26 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
             issues.counts.warning,
             issues.counts.to_do
         ),
-        (0, 1, 0),
+        (0, 10, 0),
         "{:?}",
         issues.counts
     );
+    let (open, counted): (Vec<_>, Vec<_>) = counted
+        .into_iter()
+        .partition(|r| r.finding.code == "board.via_in_pad_open");
+    // The same vias in both, each its own row.
+    let listed: std::collections::BTreeSet<String> = open
+        .iter()
+        .map(|r| format!("{:?}", r.finding.objects))
+        .collect();
+    let checked: std::collections::BTreeSet<String> = preflight
+        .items
+        .iter()
+        .filter(|i| i.code == "board.via_in_pad_open")
+        .map(|i| format!("{:?}", i.objects))
+        .collect();
+    assert!(open.iter().all(|r| r.also.is_empty()), "{open:?}");
+    assert_eq!((open.len(), &listed), (9, &checked));
     assert_eq!(counted.len(), 1, "{counted:?}");
     let issue = counted[0];
     assert_eq!(issue.severity, usb.severity);

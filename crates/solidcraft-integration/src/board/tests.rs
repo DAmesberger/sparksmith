@@ -711,8 +711,15 @@ fn the_shipped_showcase_has_its_shape_classes_and_edge_held_header() -> Fallible
             .iter()
             .all(|f| !sparksmith_core::layout::fill::is_stale(project, f))
     );
+    // Clean but for the open via in the QFN's exposed pad, under its paste.
     let findings = sparksmith_core::layout::checks(project, &Default::default());
-    assert!(findings.is_empty(), "{findings:#?}");
+    assert_eq!(
+        findings
+            .iter()
+            .map(|f| f.message.as_str())
+            .collect::<Vec<_>>(),
+        ["Via on GND in U2 EP is open under solder paste"]
+    );
     let j1 = project
         .instance_by_designator("J1")
         .map(|i| i.id)

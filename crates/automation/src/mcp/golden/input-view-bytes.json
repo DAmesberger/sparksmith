@@ -126,6 +126,7 @@
   "layout.via_delete": 573,
   "layout.via_lock": 628,
   "layout.via_move": 698,
+  "layout.via_set": 869,
   "layout.via_tent": 700,
   "length_group.add": 734,
   "length_group.delete": 742,
