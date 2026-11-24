@@ -273,10 +273,10 @@ fn a_bad_value_is_refused_naming_its_field() {
         ),
         ("symmetric", Box::new(|s| s.symmetric = false)),
         ("copper_layers", Box::new(|s| s.copper_layers = 3)),
-        ("layers:", Box::new(|s| s.copper_layers = 6)),
+        ("layers lists", Box::new(|s| s.copper_layers = 6)),
         ("outer_copper_oz", Box::new(|s| s.outer_copper_oz = 0.0)),
-        ("id:", Box::new(|s| s.id = "Test 4".into())),
-        ("source.url", Box::new(|s| s.source.url.clear())),
+        ("id is", Box::new(|s| s.id = "Test 4".into())),
+        ("source.url needs", Box::new(|s| s.source.url.clear())),
         ("fab_profiles", Box::new(|s| s.fab_profiles.clear())),
         (
             "disagreements[0]",
@@ -473,9 +473,9 @@ fn an_outer_weight_the_profile_does_not_order_is_refused_before() -> Fallible<()
     heavy.outer_copper_oz = 2.0;
     let pick = pick(&project, &heavy, &PickOptions::default())?;
     assert!(
-        pick.refused
-            .as_ref()
-            .is_some_and(|r| r.contains("stackup.outer_copper")),
+        pick.refused.as_ref().is_some_and(
+            |r| r.contains("outer copper weight is 1 oz (35 µm)") && r.contains("stay 35 µm")
+        ),
         "{:?}",
         pick.refused
     );

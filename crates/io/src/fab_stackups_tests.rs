@@ -121,6 +121,8 @@ fn a_broken_file_is_refused_naming_the_field() -> Fallible<()> {
         said.contains("fab_stackup.") && said.contains("layers[1].thickness_mm"),
         "{said}"
     );
+    let said = broken(&|v| v["fab_stackup"]["source"]["url"] = "".into())?;
+    assert!(said.contains("fab_stackup.source.url needs"), "{said}");
     let said = broken(&|v| v["fab_stackup"]["nominal"]["board_mm"] = serde_json::Value::Null)?;
     assert!(said.contains("fab_stackup.nominal.board_mm"), "{said}");
     let said = broken(&|v| {

@@ -385,7 +385,7 @@ impl FabStackup {
             {
                 return Err(bad(
                     &field("glass"),
-                    &format!("{glass:?} is not a glass style"),
+                    &format!("‘{glass}’ is not a glass style"),
                 ));
             }
             match (layer.role, layer.dk) {
@@ -423,7 +423,7 @@ impl FabStackup {
                 return Err(bad(
                     "layers",
                     &format!(
-                        "dielectric {} is {} mm; {} to {} mm",
+                        "has dielectric {} at {} mm, not {} to {} mm",
                         i + 1,
                         d.thickness_mm(),
                         DIELECTRIC_MM_RANGE.start(),
@@ -610,8 +610,10 @@ impl FabStackup {
     }
 }
 
+/// No colon after the field: "source.url: " would read as a rule code, which
+/// the shown text leaves out (`diagnostics::split_rule`).
 fn bad(field: &str, why: &str) -> Error {
-    Error::Invalid(format!("{field}: {why}"))
+    Error::Invalid(format!("{field} {why}"))
 }
 
 #[cfg(test)]
