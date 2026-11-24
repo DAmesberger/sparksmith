@@ -14,6 +14,7 @@
   ],
   "kind": "panel",
   "related": [
+    "guide/board-outline",
     "guide/first-board",
     "guide/routing",
     "panel/model-3d"

@@ -333,6 +333,7 @@
     "findings/variant.substitute_unfit.md",
     "findings/variant.substitute_unmet.md",
     "findings/variant.substitute_unreviewed.md",
+    "guides/board-outline.md",
     "guides/fab-output.md",
     "guides/fab-profiles.md",
     "guides/first-board.md",
