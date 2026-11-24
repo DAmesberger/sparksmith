@@ -152,7 +152,7 @@ In a live session, the profile rule in `checks` is the board's own profile, take
 - **Stamp fatigue.** If stamping gets routine, people will stamp without rereading. Digests cover only the facts a topic depends on, not whole modules.
 - **Version drift on the website.** Mitigated by building per release, never from `main`.
 - **Bundle size** from screenshots. Keep in-app images few; the website can carry more.
-- **Search quality** is a ratchet: `crates/help-search/tests/help-questions.json` holds the questions, half of them never used for tuning, and `tests/questions.rs` the number answered within the first three topics.
+- **Search quality** is a ratchet: `crates/automation/tests/help-questions.json` holds the questions, half of them never used for tuning, and `help_questions.rs` beside it the number answered within the first three topics.
 
 ## 9. Founder decisions
 

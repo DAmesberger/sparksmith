@@ -88,7 +88,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "help",
-        (1, 0),
+        (1, 1),
         "Help",
         "Offline help for entries, findings, settings, commands and workflows.",
     ),

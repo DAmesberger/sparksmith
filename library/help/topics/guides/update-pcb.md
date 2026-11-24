@@ -1,14 +1,10 @@
 ---
 {
-  "id": "guide/update-pcb",
-  "kind": "guide",
-  "title": "Bring parts to the board",
-  "summary": "Update PCB places new parts and nets on the board; then move, turn and flip them.",
-  "since": "0.1.0",
   "covers": {
-    "entry/layout.sync": "0",
-    "entry/layout.place": "0"
+    "entry/layout.place": "29400de56d6ae471",
+    "entry/layout.sync": "8c0ca73827fa1a28"
   },
+  "id": "guide/update-pcb",
   "keywords": [
     "update pcb",
     "part missing on board",
@@ -20,12 +16,16 @@
     "flip",
     "schematic to board"
   ],
+  "kind": "guide",
   "related": [
     "guide/wiring",
     "guide/routing",
     "guide/board-shape",
     "panel/layout"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Update PCB places new parts and nets on the board; then move, turn and flip them.",
+  "title": "Bring parts to the board"
 }
 ---
 

@@ -1,13 +1,9 @@
 ---
 {
-  "id": "guide/schematic-pdf",
-  "kind": "guide",
-  "title": "Print the schematic",
-  "summary": "Write the schematic as a PDF, one page per sheet.",
-  "since": "0.1.0",
   "covers": {
-    "command/file.export-schematic-pdf": "0"
+    "command/file.export-schematic-pdf": "d0a8892885412603a9e803613ad33186aa986568f60096d83193411ff989849c"
   },
+  "id": "guide/schematic-pdf",
   "keywords": [
     "pdf",
     "print",
@@ -15,9 +11,13 @@
     "save as pdf",
     "share schematic"
   ],
+  "kind": "guide",
   "related": [
     "guide/fab-output"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Write the schematic as a PDF, one page per sheet.",
+  "title": "Print the schematic"
 }
 ---
 

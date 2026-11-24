@@ -7687,12 +7687,10 @@ version = "0.1.0"
 dependencies = [
  "model2vec-rs",
  "safetensors",
- "serde",
- "serde_json",
  "sparksmith-core",
- "sparksmith-io",
  "stop-words",
  "tantivy",
+ "uuid",
 ]
 
 [[package]]

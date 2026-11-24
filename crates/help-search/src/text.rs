@@ -12,10 +12,14 @@ use tantivy::{IndexReader, ReloadPolicy, SingleSegmentIndexWriter, TantivyDocume
 
 /// The analyzer topics are indexed with.
 const ENGLISH: &str = "help_en";
+/// The analyzer of the title as it is spelled.
+const SPELLED: &str = "help_spelled";
 /// Memory of the one-segment writer; the whole index is about 2 MB.
 const WRITER_BYTES: usize = 32 * 1024 * 1024;
 /// How much a match in each field counts: title, keywords, summary, body.
 const BOOSTS: [f32; 4] = [8.0, 4.0, 3.0, 1.0];
+/// How much a word of the title as it is spelled counts on top.
+const SPELLED_BOOST: f32 = 2.0;
 /// Fields a started word or a misspelling is looked up in: title, keywords.
 const LOOSE: usize = 2;
 
@@ -32,6 +36,8 @@ pub(crate) struct Ranked {
 pub(crate) struct Text {
     reader: IndexReader,
     fields: [Field; 4],
+    /// The title as it is spelled, stop words and all ("Save as").
+    spelled: Field,
     number: Field,
     english: TextAnalyzer,
     words: TextAnalyzer,
@@ -69,17 +75,21 @@ impl Text {
     pub(crate) fn new(topics: &[Topic]) -> Result<Self, String> {
         let fail = |e: tantivy::TantivyError| format!("The help index could not be built: {e}");
         let mut schema = Schema::builder();
-        let indexed = TextOptions::default().set_indexing_options(
-            TextFieldIndexing::default()
-                .set_tokenizer(ENGLISH)
-                .set_index_option(IndexRecordOption::WithFreqs),
-        );
+        let as_indexed = |analyzer: &str| {
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer(analyzer)
+                    .set_index_option(IndexRecordOption::WithFreqs),
+            )
+        };
         let fields = ["title", "keywords", "summary", "body"]
-            .map(|name| schema.add_text_field(name, indexed.clone()));
+            .map(|name| schema.add_text_field(name, as_indexed(ENGLISH)));
+        let spelled = schema.add_text_field("spelled", as_indexed(SPELLED));
         let number = schema.add_u64_field("number", tantivy::schema::STORED);
         let english = english()?;
         let tokenizers = TokenizerManager::default();
         tokenizers.register(ENGLISH, english.clone());
+        tokenizers.register(SPELLED, words());
         // One segment, written on this thread: no merges and no thread pool.
         let mut writer: SingleSegmentIndexWriter = tantivy::IndexBuilder::new()
             .schema(schema.build())
@@ -92,6 +102,7 @@ impl Text {
             for (field, text) in fields.iter().zip(texts) {
                 document.add_text(*field, text);
             }
+            document.add_text(spelled, &topic.title);
             document.add_u64(number, i as u64);
             writer.add_document(document).map_err(fail)?;
         }
@@ -103,6 +114,7 @@ impl Text {
                 .try_into()
                 .map_err(fail)?,
             fields,
+            spelled,
             number,
             english,
             words: words(),
@@ -146,6 +158,11 @@ impl Text {
                 }
             }
             known_words += usize::from(known);
+        }
+        for word in tokens(&self.words, question) {
+            let term = Term::from_field_text(self.spelled, &word);
+            let spelled = TermQuery::new(term, IndexRecordOption::WithFreqs);
+            add(Box::new(spelled), SPELLED_BOOST);
         }
         // The word being typed: what it is the start of.
         if let Some(last) = tokens(&self.words, question).pop()

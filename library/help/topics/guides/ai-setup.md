@@ -1,15 +1,11 @@
 ---
 {
-  "id": "guide/ai-setup",
-  "kind": "guide",
-  "title": "Set up the assistant",
-  "summary": "Connect a model for the chat, or let Claude or another assistant work on the project.",
-  "since": "0.1.0",
   "covers": {
-    "command/app.connect-assistants": "0",
-    "command/assistant.toggle": "0",
-    "entry/assist.workflows": "0"
+    "command/app.connect-assistants": "1116eb4f7144b081a521cfa9b34abcfadeff09bae2d12297d5e1ebc629241f3a",
+    "command/assistant.toggle": "0957b49d17077d65b96bfe0a54e7b1bc061c35de7fab2fde1d38359517dc87f6",
+    "entry/assist.workflows": "d2a6eaec77fd86c3"
   },
+  "id": "guide/ai-setup",
   "keywords": [
     "AI",
     "assistant",
@@ -22,10 +18,14 @@
     "codex",
     "connect"
   ],
+  "kind": "guide",
   "related": [
     "panel/assistant",
     "panel/settings"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Connect a model for the chat, or let Claude or another assistant work on the project.",
+  "title": "Set up the assistant"
 }
 ---
 

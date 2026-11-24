@@ -1,15 +1,11 @@
 ---
 {
-  "id": "guide/fills",
-  "kind": "guide",
-  "title": "Fill an area with copper",
-  "summary": "Draw a ground fill, refill it, and see why copper stays away from a pad.",
-  "since": "0.1.0",
   "covers": {
-    "entry/fill.add": "0",
-    "entry/fill.refill": "0",
-    "entry/keepout.add": "0"
+    "entry/fill.add": "dc27fe15e5c1dc6d",
+    "entry/fill.refill": "3995183b00d92f49",
+    "entry/keepout.add": "ecdadc61edde2063"
   },
+  "id": "guide/fills",
   "keywords": [
     "fill",
     "pour",
@@ -24,10 +20,14 @@
     "antenna",
     "keepout"
   ],
+  "kind": "guide",
   "related": [
     "guide/routing",
     "guide/issues"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Draw a ground fill, refill it, and see why copper stays away from a pad.",
+  "title": "Fill an area with copper"
 }
 ---
 

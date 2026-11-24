@@ -1,13 +1,9 @@
 ---
 {
-  "id": "guide/moving-around",
-  "kind": "guide",
-  "title": "Move around the view",
-  "summary": "Zoom, pan and fit the sheet or the board.",
-  "since": "0.1.0",
   "covers": {
-    "command/view.fit": "0"
+    "command/view.fit": "ebd836e8f9519df6500796424327f3df59ba8ed48a57faebecc9d12004f6bef4"
   },
+  "id": "guide/moving-around",
   "keywords": [
     "zoom",
     "pan",
@@ -18,10 +14,14 @@
     "mouse",
     "trackpad"
   ],
+  "kind": "guide",
   "related": [
     "guide/view-3d",
     "panel/layout"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Zoom, pan and fit the sheet or the board.",
+  "title": "Move around the view"
 }
 ---
 

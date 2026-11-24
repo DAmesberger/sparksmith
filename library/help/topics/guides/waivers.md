@@ -1,13 +1,9 @@
 ---
 {
-  "id": "guide/waivers",
-  "kind": "guide",
-  "title": "Accept a finding with a waiver",
-  "summary": "Mark a finding as reviewed and accepted, and see why a waiver ends.",
-  "since": "0.1.0",
   "covers": {
-    "entry/fabrication.waive": "0"
+    "entry/fabrication.waive": "e3f58b214de05103"
   },
+  "id": "guide/waivers",
   "keywords": [
     "waive",
     "waiver",
@@ -17,11 +13,15 @@
     "suppress",
     "restore"
   ],
+  "kind": "guide",
   "related": [
     "guide/issues",
     "guide/fab-output",
     "guide/export-disabled"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Mark a finding as reviewed and accepted, and see why a waiver ends.",
+  "title": "Accept a finding with a waiver"
 }
 ---
 

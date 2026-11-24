@@ -1,14 +1,10 @@
 ---
 {
-  "id": "guide/board-shape",
-  "kind": "guide",
-  "title": "Change the board's size and shape",
-  "summary": "Set the size, round corners, add slots, holes and cutouts.",
-  "since": "0.1.0",
   "covers": {
-    "entry/board.edit": "0",
-    "entry/board.start_sketch": "0"
+    "entry/board.edit": "61a6f30290e0b1f2",
+    "entry/board.start_sketch": "011f97f53f8e6cc2"
   },
+  "id": "guide/board-shape",
   "keywords": [
     "board size",
     "edge of the board",
@@ -24,11 +20,15 @@
     "height",
     "dimension"
   ],
+  "kind": "guide",
   "related": [
     "guide/parameters",
     "guide/dimensions",
     "guide/update-pcb"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Set the size, round corners, add slots, holes and cutouts.",
+  "title": "Change the board's size and shape"
 }
 ---
 

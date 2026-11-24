@@ -1,14 +1,10 @@
 ---
 {
-  "id": "guide/keyboard",
-  "kind": "guide",
-  "title": "Find commands and change keys",
-  "summary": "Run any command by name, see every shortcut and set your own.",
-  "since": "0.1.0",
   "covers": {
-    "command/app.palette": "0",
-    "command/app.shortcuts": "0"
+    "command/app.palette": "c025c5d1c935c698025c6ff3490f8c66d069c1b55b37c39409533861db8e70dc",
+    "command/app.shortcuts": "46685da13b77bd326256ea031dceee89c906e5604734202f3fc90b619f867b1a"
   },
+  "id": "guide/keyboard",
   "keywords": [
     "shortcut",
     "hotkey",
@@ -18,11 +14,15 @@
     "find command",
     "keys"
   ],
+  "kind": "guide",
   "related": [
     "panel/palette",
     "panel/keyboard-shortcuts",
     "panel/settings"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Run any command by name, see every shortcut and set your own.",
+  "title": "Find commands and change keys"
 }
 ---
 

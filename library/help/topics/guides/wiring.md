@@ -1,14 +1,10 @@
 ---
 {
-  "id": "guide/wiring",
-  "kind": "guide",
-  "title": "Wire the schematic",
-  "summary": "Connect pins with wires, name nets, and add power and ground.",
-  "since": "0.1.0",
   "covers": {
-    "entry/schematic.connect": "0",
-    "entry/schematic.pins": "0"
+    "entry/schematic.connect": "b7e09bfd74ef037e",
+    "entry/schematic.pins": "8649c33cede45de9"
   },
+  "id": "guide/wiring",
   "keywords": [
     "wire",
     "connect pins",
@@ -22,11 +18,15 @@
     "no connect",
     "unconnected"
   ],
+  "kind": "guide",
   "related": [
     "guide/first-board",
     "guide/update-pcb",
     "panel/schematic"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Connect pins with wires, name nets, and add power and ground.",
+  "title": "Wire the schematic"
 }
 ---
 

@@ -1,13 +1,9 @@
 ---
 {
-  "id": "guide/pairs",
-  "kind": "guide",
-  "title": "Route a differential pair",
-  "summary": "Make a pair, route both nets together and match lengths.",
-  "since": "0.1.0",
   "covers": {
-    "entry/layout.route_pair": "0"
+    "entry/layout.route_pair": "40b1d78f24bcca75"
   },
+  "id": "guide/pairs",
   "keywords": [
     "differential pair",
     "diff pair",
@@ -20,10 +16,14 @@
     "tune",
     "same length"
   ],
+  "kind": "guide",
   "related": [
     "guide/routing",
     "guide/fab-profiles"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Make a pair, route both nets together and match lengths.",
+  "title": "Route a differential pair"
 }
 ---
 

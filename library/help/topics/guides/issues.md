@@ -1,13 +1,9 @@
 ---
 {
-  "id": "guide/issues",
-  "kind": "guide",
-  "title": "Why is this error there",
-  "summary": "Read a finding in Issues: what it is, where it is and what to do.",
-  "since": "0.1.0",
   "covers": {
-    "entry/project.issues": "0"
+    "entry/project.issues": "8179456145cb1eba"
   },
+  "id": "guide/issues",
   "keywords": [
     "warnings on the board",
     "errors on the board",
@@ -20,11 +16,15 @@
     "ERC",
     "check"
   ],
+  "kind": "guide",
   "related": [
     "panel/issues",
     "guide/waivers",
     "guide/export-disabled"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Read a finding in Issues: what it is, where it is and what to do.",
+  "title": "Why is this error there"
 }
 ---
 

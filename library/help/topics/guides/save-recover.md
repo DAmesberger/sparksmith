@@ -1,14 +1,10 @@
 ---
 {
-  "id": "guide/save-recover",
-  "kind": "guide",
-  "title": "Save and recover your work",
-  "summary": "Save the project, reopen it, and restore a session after a crash.",
-  "since": "0.1.0",
   "covers": {
-    "entry/project.save": "0",
-    "entry/project.open": "0"
+    "entry/project.open": "7317cdb697af20e5",
+    "entry/project.save": "d6b27c72606417bf"
   },
+  "id": "guide/save-recover",
   "keywords": [
     "save",
     "open",
@@ -20,10 +16,14 @@
     "backup",
     "restore"
   ],
+  "kind": "guide",
   "related": [
     "panel/files",
     "guide/undo"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Save the project, reopen it, and restore a session after a crash.",
+  "title": "Save and recover your work"
 }
 ---
 

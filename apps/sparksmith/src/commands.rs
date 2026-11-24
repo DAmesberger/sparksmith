@@ -1914,7 +1914,7 @@ fn defaults() -> Vec<Command> {
         tool("pcb.fill", "Fill", C::PcbLayout, Workspace::Pcb, "fill")
             .chord(Chord::key(K::P))
             .icon("polygon")
-            .keywords("pour zone plane copper area"),
+            .keywords("pour zone plane copper area copper pour"),
         // Layout and 3D share one Dimension tool and its key.
         tool(
             "pcb.dimension",

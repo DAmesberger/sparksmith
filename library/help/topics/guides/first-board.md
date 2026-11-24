@@ -1,10 +1,5 @@
 ---
 {
-  "id": "guide/first-board",
-  "kind": "guide",
-  "title": "Make your first board",
-  "summary": "Start here: place two parts, wire them, and follow the connection onto the board.",
-  "since": "0.1.0",
   "covers": {
     "entry/component.place": "c33c11f7baa52915",
     "entry/layout.place": "29400de56d6ae471",
@@ -14,6 +9,7 @@
     "entry/schematic.connect": "b7e09bfd74ef037e",
     "entry/schematic.pins": "8649c33cede45de9"
   },
+  "id": "guide/first-board",
   "keywords": [
     "new project",
     "first PCB",
@@ -24,6 +20,7 @@
     "beginner",
     "tutorial"
   ],
+  "kind": "guide",
   "related": [
     "guide/libraries",
     "guide/wiring",
@@ -33,7 +30,10 @@
     "guide/fab-output",
     "panel/schematic",
     "panel/layout"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Start here: place two parts, wire them, and follow the connection onto the board.",
+  "title": "Make your first board"
 }
 ---
 

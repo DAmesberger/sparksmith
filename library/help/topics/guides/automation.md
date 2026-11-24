@@ -1,21 +1,31 @@
 ---
 {
-  "id": "guide/automation",
-  "kind": "guide",
-  "title": "Build a board through the tools",
-  "summary": "For assistants and scripts: the calls that take a circuit from parts to a routed board.",
-  "since": "0.1.0",
   "covers": {
-    "entry/component.place": "0",
-    "entry/layout.place": "0",
-    "entry/layout.sync": "0",
-    "entry/library.search": "0",
-    "entry/project.issues": "0",
-    "entry/schematic.connect": "0",
-    "entry/schematic.pins": "0"
+    "entry/component.place": "c33c11f7baa52915",
+    "entry/layout.place": "29400de56d6ae471",
+    "entry/layout.sync": "8c0ca73827fa1a28",
+    "entry/library.search": "b8b0cb4373806d60",
+    "entry/project.issues": "8179456145cb1eba",
+    "entry/schematic.connect": "b7e09bfd74ef037e",
+    "entry/schematic.pins": "8649c33cede45de9"
   },
-  "keywords": ["MCP", "agent", "script", "batch", "build order"],
-  "related": ["guide/first-board", "guide/ai-setup", "panel/assistant"]
+  "id": "guide/automation",
+  "keywords": [
+    "MCP",
+    "agent",
+    "script",
+    "batch",
+    "build order"
+  ],
+  "kind": "guide",
+  "related": [
+    "guide/first-board",
+    "guide/ai-setup",
+    "panel/assistant"
+  ],
+  "since": "0.1.0",
+  "summary": "For assistants and scripts: the calls that take a circuit from parts to a routed board.",
+  "title": "Build a board through the tools"
 }
 ---
 

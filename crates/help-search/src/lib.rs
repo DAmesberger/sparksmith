@@ -99,7 +99,7 @@ impl Search {
     }
 
     /// The topics of `kinds` (any kind when empty) that answer `question`,
-    /// best first, at most `limit`. A topic's exact id comes first. An
+    /// best first, at most `limit`. A topic's exact id or name comes first. An
     /// empty question lists every topic by id.
     pub fn search(
         &self,
@@ -120,6 +120,9 @@ impl Search {
                 nearest: Vec::new(),
             };
         }
+        // A topic's id, or its name alone ("route.width-next").
+        let named = |id: &HelpId| id.as_str() == question || id.name() == question;
+        let exact = (0..self.ids.len()).find(|i| wanted(*i) && self.ids.get(*i).is_some_and(named));
         // Both rankings are of the wanted kinds only, so a filter leaves
         // the ranks of what it keeps as they were.
         let text = self.text.ranked(question, &wanted);
@@ -129,7 +132,8 @@ impl Search {
             .map(|v| v.ranked(question, DEPTH, &wanted))
             .unwrap_or_default();
         let close = meaning.first().is_some_and(|(_, cosine)| *cosine >= FITS);
-        let fits = close || (text.most_known && !text.topics.is_empty());
+        let matched = text.most_known && !text.topics.is_empty();
+        let fits = close || matched || exact.is_some();
         let by_meaning = meaning.iter().map(|(i, _)| *i);
         let mut scores: HashMap<usize, f32> = HashMap::new();
         for ranking in [text.topics, by_meaning.collect()] {
@@ -149,11 +153,6 @@ impl Search {
                 nearest: self.named(ranked.take(NEAREST.min(limit))),
             };
         }
-        let exact = self
-            .ids
-            .iter()
-            .position(|id| id.as_str() == question)
-            .filter(|i| wanted(*i));
         let rest = ranked.filter(|i| Some(*i) != exact);
         Found {
             hits: self.named(exact.into_iter().chain(rest).take(limit)),

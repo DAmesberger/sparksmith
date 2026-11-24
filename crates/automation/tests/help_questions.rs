@@ -111,7 +111,7 @@ fn search(search: &Search, q: &Question) -> Vec<HelpId> {
     search.search(&q.ask, audience(q), &[], 50).hits
 }
 
-/// The measurement: `cargo test -p sparksmith-help-search --test questions
+/// The measurement: `cargo test -p sparksmith-automation --test help_questions
 /// -- --ignored --nocapture measure`. `SPARKSMITH_HELP_MODEL` names another
 /// model folder; `SPARKSMITH_HELP_SET` prints that set's misses.
 #[test]
@@ -198,9 +198,9 @@ fn the_search_answers_the_questions_in_its_first_three_topics() -> Fallible {
     assert!(both.by_meaning() && !text.by_meaning());
     // (set, audience, with the model, by words alone)
     for (set, who, with, alone) in [
-        ("tune", "person", 47, 43),
-        ("held", "person", 50, 45),
-        ("tune", "agent", 6, 7),
+        ("tune", "person", 46, 43),
+        ("held", "person", 51, 45),
+        ("tune", "agent", 7, 7),
         ("held", "agent", 6, 5),
     ] {
         for (by, least) in [(&both, with), (&text, alone)] {

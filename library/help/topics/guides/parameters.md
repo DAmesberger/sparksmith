@@ -1,14 +1,10 @@
 ---
 {
-  "id": "guide/parameters",
-  "kind": "guide",
-  "title": "Use parameters for the board",
-  "summary": "Name a value, use it in other dimensions, and change the board in one place.",
-  "since": "0.1.0",
   "covers": {
-    "entry/board.edit": "0",
-    "entry/board.shape": "0"
+    "entry/board.edit": "61a6f30290e0b1f2",
+    "entry/board.shape": "2c692f52f8c0092b"
   },
+  "id": "guide/parameters",
   "keywords": [
     "parameter",
     "variable",
@@ -19,10 +15,14 @@
     "holes follow",
     "move with board"
   ],
+  "kind": "guide",
   "related": [
     "guide/board-shape",
     "guide/dimensions"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Name a value, use it in other dimensions, and change the board in one place.",
+  "title": "Use parameters for the board"
 }
 ---
 

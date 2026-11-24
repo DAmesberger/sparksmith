@@ -1,13 +1,9 @@
 ---
 {
-  "id": "guide/dimensions",
-  "kind": "guide",
-  "title": "Dimension a part",
-  "summary": "Hold a part at a distance from an edge, a hole or another part.",
-  "since": "0.1.0",
   "covers": {
-    "entry/layout.dimension_add": "0"
+    "entry/layout.dimension_add": "3e44b6de33f1ea93"
   },
+  "id": "guide/dimensions",
   "keywords": [
     "dimension",
     "distance",
@@ -17,10 +13,14 @@
     "held by its dimensions",
     "align connector"
   ],
+  "kind": "guide",
   "related": [
     "guide/parameters",
     "guide/update-pcb"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Hold a part at a distance from an edge, a hole or another part.",
+  "title": "Dimension a part"
 }
 ---
 

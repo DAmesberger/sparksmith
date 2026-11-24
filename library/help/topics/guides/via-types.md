@@ -1,13 +1,9 @@
 ---
 {
-  "id": "guide/via-types",
-  "kind": "guide",
-  "title": "Choose how vias are made",
-  "summary": "Open, tented, or filled and capped: what each is for and what your fabricator makes.",
-  "since": "0.1.0",
   "covers": {
-    "entry/layout.add_via": "0"
+    "entry/layout.add_via": "2e922e92b9ef7774"
   },
+  "id": "guide/via-types",
   "keywords": [
     "via",
     "filled",
@@ -19,11 +15,15 @@
     "drill size",
     "plugged"
   ],
+  "kind": "guide",
   "related": [
     "guide/routing",
     "guide/fab-profiles",
     "finding/board.via_in_pad_open"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Open, tented, or filled and capped: what each is for and what your fabricator makes.",
+  "title": "Choose how vias are made"
 }
 ---
 

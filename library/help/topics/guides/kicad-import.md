@@ -1,13 +1,9 @@
 ---
 {
-  "id": "guide/kicad-import",
-  "kind": "guide",
-  "title": "Open a KiCad project",
-  "summary": "Import a board and its schematic as a new project and read the report.",
-  "since": "0.1.0",
   "covers": {
-    "command/file.import-kicad": "0"
+    "command/file.import-kicad": "4ca41ceec9a75e287333df2929cf08d58a30570bb03e50782bb2f6857915c314"
   },
+  "id": "guide/kicad-import",
   "keywords": [
     "kicad",
     "import",
@@ -17,10 +13,14 @@
     "migrate",
     "other program"
   ],
+  "kind": "guide",
   "related": [
     "guide/fab-profiles",
     "guide/issues"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Import a board and its schematic as a new project and read the report.",
+  "title": "Open a KiCad project"
 }
 ---
 

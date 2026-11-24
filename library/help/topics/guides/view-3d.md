@@ -1,14 +1,10 @@
 ---
 {
-  "id": "guide/view-3d",
-  "kind": "guide",
-  "title": "See the board in 3D",
-  "summary": "Look at the finished board, turn it, and export a 3D model.",
-  "since": "0.1.0",
   "covers": {
-    "command/pcb.3d": "0",
-    "command/file.export": "0"
+    "command/file.export": "1e5a172112459c6083e7542687e73704c3ab6026488b53a9b26c1f7cfe5affae",
+    "command/pcb.3d": "9504e6b0b2fef4da7581cd861e4e9412d975f0f0f1f102bbf07c6ad42da188d7"
   },
+  "id": "guide/view-3d",
   "keywords": [
     "3d",
     "render",
@@ -18,11 +14,15 @@
     "solidcraft",
     "orbit"
   ],
+  "kind": "guide",
   "related": [
     "panel/model-3d",
     "guide/moving-around",
     "guide/dimensions"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Look at the finished board, turn it, and export a 3D model.",
+  "title": "See the board in 3D"
 }
 ---
 
