@@ -219,7 +219,11 @@ fn findings_line(project: &sparksmith_core::Project) -> String {
     format!("  findings         {total} | {}\n", list.join(", "))
 }
 
-/// Import a board onto the shipped new board and fab profile. The gates
+/// Import a board onto the shipped new board and the shipped JLCPCB
+/// 2-layer profile: an import's zones are filled at its profile's
+/// clearances, so a comparison names one instead of following the person's
+/// default.
+/// The gates
 /// never build Solidcraft, so only with the `sketch` feature is there a
 /// board sketch engine (the outline imports as a sketch, as in the app and
 /// the CLI); without it the outline is the rectangle around it.
@@ -229,7 +233,7 @@ fn import(
     schematic: Option<&sparksmith_io::kicad_files::SchematicFiles>,
 ) -> Result<sparksmith_kicad::Imported> {
     let defaults = sparksmith_io::new_project::shipped()?;
-    let profile = sparksmith_io::rule_profiles::for_new_board_from_env(None)?;
+    let profile = sparksmith_io::rule_profiles::for_new_board_from_env(Some("jlcpcb-2-layer"))?;
     Ok(sparksmith_kicad::import(
         bytes,
         &sparksmith_kicad::Setup {

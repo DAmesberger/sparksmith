@@ -418,7 +418,7 @@ fn install_place_publish_update_delete_and_reopen_offline() -> TestResult {
             6,
             &sparksmith_core::NewBoard::fixture(),
         )?,
-        drafts: Drafts::default(),
+        drafts: Default::default(),
     })?);
     let sample = publish_library(&mut author, &folder_text, "Team library")?;
     let library = sample["library"].clone();

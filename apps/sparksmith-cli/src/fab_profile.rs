@@ -145,6 +145,7 @@ mod tests {
                 pair("jlcpcb-4-layer", "shipped"),
                 pair("pcbway-2-layer", "shipped"),
                 pair("pcbway-4-layer", "shipped"),
+                pair("standard", "shipped"),
             ],
             "the shipped profiles, with an empty user library"
         );
@@ -169,6 +170,7 @@ mod tests {
                 pair("jlcpcb-4-layer", "shipped"),
                 pair("pcbway-2-layer", "shipped"),
                 pair("pcbway-4-layer", "shipped"),
+                pair("standard", "shipped"),
             ],
             "the user's copy replaces the shipped profile of its id"
         );

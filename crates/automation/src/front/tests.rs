@@ -741,11 +741,6 @@ fn without_a_profile_what_needs_rules_is_refused_by_name() -> Fallible {
                     "layer": "Top"}}}}))?,
         )?;
     }
-    let part = engine
-        .project()
-        .placements
-        .first()
-        .map_or(0, |p| p.instance);
     let mut file = engine.to_file();
     let rules = std::mem::take(&mut file.project.rules);
     let tracks: Vec<_> = file.project.tracks.iter().map(|t| t.id).collect();
@@ -763,8 +758,6 @@ fn without_a_profile_what_needs_rules_is_refused_by_name() -> Fallible {
     let route = json!({"net": net, "start": from, "end": to, "width": 0.0, "layer": "Top"});
     let step = json!({"net": net, "head": from, "to": to, "width": 0.0, "layer": "Top"});
     let drag = json!({"track": track, "offset": 0.5});
-    let origin = json!({"part": {"feature": "origin",
-        "target": {"kind": "placement", "id": part}}});
     let before = session.engine().to_file();
     let revision = session.engine().revision();
     for (entry, params) in [
@@ -780,11 +773,6 @@ fn without_a_profile_what_needs_rules_is_refused_by_name() -> Fallible {
         (
             "fill.add",
             json!({"fill": {"net": net, "layer": "Bottom", "region": "board"}}),
-        ),
-        (
-            "layout.dimension_add",
-            json!({"dimension": {"kind": {"dim": "distance"}, "value": {"fixed": 1.0},
-                "refs": [origin, origin]}}),
         ),
         ("layout.route_preview", json!({"request": step})),
         ("layout.track_drag_preview", json!({"request": drag})),

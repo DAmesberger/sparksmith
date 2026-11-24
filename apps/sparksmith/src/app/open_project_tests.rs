@@ -8,11 +8,10 @@ use egui::accesskit::Role;
 use sparksmith_core::schematic::SchematicCommand;
 
 /// The buttons that commit a dialog, card or review.
-const COMMITS: [&str; 14] = [
+const COMMITS: [&str; 13] = [
     "OK",
     "Apply",
     "Use",
-    "Use profile",
     "Use these limits",
     "Place",
     "Export",

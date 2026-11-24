@@ -956,6 +956,33 @@ fn showcase_on(profile: RuleProfile) -> Result<Engine, Box<dyn std::error::Error
     Ok(engine)
 }
 
+/// A check under the shipped default, which is no fabricator's, says to
+/// choose one before ordering, and blocks nothing; under a fabricator's own
+/// profile it says nothing.
+#[test]
+fn a_check_under_the_shipped_default_says_to_choose_a_fabricator() -> TestResult {
+    let shipped = sparksmith_io::rule_profiles::shipped_from_env()?;
+    let said = "Checked against Standard; choose your fabricator's profile before ordering";
+    for (id, says) in [("standard", true), ("jlcpcb-4-layer", false)] {
+        let profile = shipped.iter().find(|p| p.id == id).ok_or(id)?.clone();
+        let engine = showcase_on(profile)?;
+        let mut editor = open(&engine)?;
+        let ctx = context();
+        let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+        let shown = texts(&output);
+        assert_eq!(shown.iter().any(|t| t == said), says, "{id}: {shown:?}");
+        let clean = PreflightReport {
+            blocking: 0,
+            items: Vec::new(),
+            ..report_with_error(&engine)
+        };
+        let out = PathBuf::from("out");
+        let blocked = export_blocked(dialog(&mut editor)?, Some(&Ok(clean)), true, Some(&out));
+        assert_eq!(blocked, None, "{id}");
+    }
+    Ok(())
+}
+
 /// A finding the board needs more of its fab profile for states what it
 /// needs, offers no Waive…, and "Switch to …" sends the one rules edit the
 /// production check resolved the suggested profile with; Export says to

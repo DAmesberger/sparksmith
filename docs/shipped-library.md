@@ -18,7 +18,7 @@ If none is found, the message lists every folder searched and names the variable
 
 | Shelf | Folder | Holds |
 |---|---|---|
-| Profiles | `profiles/` | Fab profiles, one JSON each, with sources; each names its fabricator's record |
+| Profiles | `profiles/` | Fab profiles, one JSON each, with sources; each names its fabricator's record, but `standard`, the one a new board starts on, which is no fabricator's |
 | Fabricators | `fabricators/` | Fabricator records the profiles name (`<id>.json`: id, name, website, source); a user's `fabricators/` folder adds or replaces them |
 | Stackups | `stackups/` | Layer stackups and their materials |
 | Materials | `materials/` | Body, board, finish and mask materials |

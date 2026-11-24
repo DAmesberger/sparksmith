@@ -816,6 +816,22 @@ impl PcbEditor {
     }
 }
 
+/// What the dialog says of a check under the shipped default, which is no
+/// fabricator's own profile: to choose one before ordering. It blocks
+/// nothing.
+fn no_fabricators(dialog: &ProductionDialog, engine: &Engine) -> Option<String> {
+    let shipped = sparksmith_io::new_project::shipped().ok()?.fab_profile;
+    let picked = dialog.profile().ok()?;
+    let profile = picked
+        .as_ref()
+        .or(engine.project().rules.profile.as_ref())
+        .filter(|p| p.id == shipped && p.fabricator.is_none())?;
+    Some(format!(
+        "Checked against {}; choose your fabricator's profile before ordering",
+        profile.name
+    ))
+}
+
 /// The dialog's body; returns a waiver edit.
 fn body(
     dialog: &mut ProductionDialog,
@@ -842,6 +858,14 @@ fn body(
                     .map(|(_, name)| name.clone());
                 dialog.pick = pick;
                 dialog.waiving = Waiving::default();
+            }
+            if let Some(text) = no_fabricators(dialog, engine) {
+                kit::hint(
+                    ui,
+                    &text,
+                    "It holds limits common to several fabricators. Yours can allow more or ask \
+                     for more: choose its profile in Board › Rules.",
+                );
             }
             match report {
                 None => {

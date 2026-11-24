@@ -10,7 +10,7 @@ The Gerber writer follows Ucamco's public Gerber Layer Format Specification. The
 - **CLI:** `sparksmith fab FILE.sparksmith OUT_DIR|OUT.zip [--zip] [--profile ID] [--date ISO|none]`. Files are named after the project file. `--profile` needs a value; without one the command is refused, never run under the saved profile. A blocked export prints the title of each unwaived error, up to 100 and then how many remain.
 - **MCP:** the same request reaches MCP through the generic catalog.
 - **Desktop:** PCB workspace → ribbon Output → Production, or "Production files…" in the command palette.
-  - The dialog shows a profile picker, Folder or ZIP output, an output toggle for each group and the placement convention.
+  - The dialog shows a profile picker (under it, for a check under the shipped default profile, one information line: "Checked against Standard; choose your fabricator's profile before ordering"), Folder or ZIP output, an output toggle for each group and the placement convention.
   - It lists the pre-flight report, computed on a worker, grouped by kind of finding. Tick findings (Shift-click ticks a run, a group's box ticks the whole group), or use a row's or a group's Waive…. The reason form opens under that row or group, and Waive applies one optional reason to every ticked finding as one undo step. A waived finding offers Restore.
   - Export runs on a worker and shows progress; the result lists the written files.
 - **Shared path:** all of these call `sparksmith_io::fabrication::export`. The pure generation is `sparksmith_core::fabrication::generate`, the PDF drawings are `sparksmith_io::fab_drawings`, and `sparksmith_io::pdf` is a small generic PDF canvas that schematic printing can reuse.

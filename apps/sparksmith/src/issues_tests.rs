@@ -1304,7 +1304,9 @@ fn a_board_without_a_profile_is_not_shown_as_passed() -> Fallible<()> {
         let (_, painted) = h.frame(Vec::new(), |ui| surface.card(ui, engine, workspace, &[]));
         painted.into_iter().map(|(t, _)| t).collect::<Vec<_>>()
     };
-    let engine = Engine::default();
+    let mut file = Engine::profiled()?.to_file();
+    file.project.rules = Default::default();
+    let engine = Engine::from_file(file)?;
     let shown = passed(&engine, Workspace::Pcb);
     assert!(shown.iter().any(|t| t == NO_PROFILE), "{shown:?}");
     assert!(shown.iter().any(|t| t == CHOOSE_PROFILE), "{shown:?}");

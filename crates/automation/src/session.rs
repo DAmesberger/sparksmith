@@ -15,7 +15,6 @@ use sparksmith_core::{
     ids::{DefinitionRef, LibraryId, Revision, SourceLineageId},
     layout,
     library::{
-        Drafts,
         graphics::{GraphicTarget, SILK_STROKE_MM, SYMBOL_STROKE_MM},
         import::{OtherRevision, PlaceSource},
     },
@@ -1606,20 +1605,9 @@ impl Session {
                     }
                     None => sparksmith_io::rule_profiles::for_new_board_from_env(None)?,
                 };
-                let mut project = Project::new(&sparksmith_io::new_project::shipped()?.board);
-                sparksmith_core::rules::apply(
-                    &mut project.rules,
-                    sparksmith_core::rules::RulesCommand::set_profile(profile, false),
-                )?;
-                sparksmith_core::layout::restack::reconcile_rules(
-                    &mut project,
-                    sparksmith_core::layout::restack::Foils::Follow,
-                )?;
-                self.engine.replace_document(EditorFile {
-                    version: sparksmith_core::format::FILE_VERSION,
-                    project,
-                    drafts: Drafts::default(),
-                })?;
+                let board = &sparksmith_io::new_project::shipped()?.board;
+                self.engine
+                    .replace_document(Engine::new_on(board, profile)?.to_file())?;
                 self.path = None;
                 self.disk = None;
                 self.host_changed(FileChange::New {

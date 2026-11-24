@@ -121,9 +121,9 @@ impl Operation {
         }
     }
 
-    /// Whether this makes or reshapes copper, or places a part by a
-    /// dimension: work at the widths and clearances of a fab profile. The
-    /// engine refuses it on a board without one
+    /// Whether this makes or reshapes copper: work at the widths and
+    /// clearances of a fab profile. The engine refuses it on a board without
+    /// one
     /// ([`rules::ProjectRules::require`]), as the desktop's tools do;
     /// taking copper away needs none.
     fn needs_profile(&self) -> bool {
@@ -148,10 +148,6 @@ impl Operation {
                 | L::TrackDrag { .. },
             ) => true,
             Self::Fill(layout::fill::FillCommand::Add { .. }) => true,
-            Self::Dimension(
-                layout::dimensions::DimensionCommand::Add { .. }
-                | layout::dimensions::DimensionCommand::Edit { .. },
-            ) => true,
             _ => false,
         }
     }
@@ -1084,6 +1080,22 @@ impl Engine {
             project: Arc::new(Project::new(board)),
             drafts: Arc::default(),
         })
+    }
+
+    /// [`Self::new`] on `profile`: its rules, the stackup's outer foils
+    /// where it orders them, and nothing to undo, so no undo leaves the
+    /// board without a profile.
+    pub fn new_on(board: &NewBoard, profile: rules::RuleProfile) -> Result<Self> {
+        let mut project = Project::new(board);
+        rules::apply(
+            &mut project.rules,
+            rules::RulesCommand::set_profile(profile, false),
+        )?;
+        layout::restack::reconcile_rules(&mut project, layout::restack::Foils::Follow)?;
+        Ok(Self::with_document(Document {
+            project: Arc::new(project),
+            drafts: Arc::default(),
+        }))
     }
 
     /// An engine for an already validated file, with empty history. A file

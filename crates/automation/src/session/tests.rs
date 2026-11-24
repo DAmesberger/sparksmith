@@ -518,7 +518,7 @@ fn parts_session() -> std::result::Result<Session, Box<dyn std::error::Error>> {
             24,
             &sparksmith_core::NewBoard::fixture(),
         )?,
-        drafts: Drafts::default(),
+        drafts: Default::default(),
     };
     Ok(Session::new(Engine::from_file(file)?))
 }
