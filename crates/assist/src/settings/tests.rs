@@ -84,6 +84,7 @@ fn settings_round_trip_and_a_missing_file_is_empty() -> Fallible {
     let minutes = |n: u64| Some(Duration::from_secs(n * 60));
     assert_eq!(wait(&kept.endpoints[0])?, minutes(90));
 
+    let mut value: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
     value["endpoints"][0]["timeout_minutes"] = "no_limit".into();
     std::fs::write(&path, value.to_string())?;
     let unlimited = read(&path)?;
