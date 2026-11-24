@@ -528,9 +528,10 @@ fn profile(project: &Project, attributes: &[(&str, String)]) -> Result<Vec<u8>> 
     let (start, segs) = outline_path(&board.outer, &Transform2::default());
     w.stroke(d, start, &segs)?;
     for cutout in &board.cutouts {
-        let routed = matches!(cutout.kind, CutoutKind::Slot { plated: true })
-            && super::drill::stadium(&cutout.outline).is_some();
-        if routed {
+        // The plated drill file routes a plated slot; one it cannot route
+        // is never milled here, unplated (`super::representable`).
+        if matches!(cutout.kind, CutoutKind::Slot { plated: true }) {
+            super::representable(project)?;
             continue;
         }
         let (start, segs) = outline_path(&cutout.outline, &Transform2::default());

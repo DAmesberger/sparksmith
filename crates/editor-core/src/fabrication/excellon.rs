@@ -63,6 +63,7 @@ pub fn files(
     options: &FabricationOptions,
     stem: &str,
 ) -> Result<Vec<FabFile>> {
+    super::representable(project)?;
     let holes = drill::holes(project);
     let table = drill::table(&holes);
     let layers = project.stackup.copper.len();

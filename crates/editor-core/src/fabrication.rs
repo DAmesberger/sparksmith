@@ -215,14 +215,16 @@ pub fn base_name(project: &Project, options: &FabricationOptions) -> Result<Stri
 /// does not.
 ///
 /// Generation does not check the design; run [`preflight::check`] on the
-/// same snapshot first. It fails only on input it cannot represent (a
-/// coordinate past the format, an output past the bounds).
+/// same snapshot first. It fails only on input it cannot represent
+/// ([`representable`], a coordinate past the format, an output past the
+/// bounds), whatever was waived.
 pub fn generate(
     snapshot: &ProductionSnapshot<'_>,
     options: &FabricationOptions,
     settings: &crate::layout::CheckSettings,
 ) -> Result<FabricationSet> {
     let project = snapshot.project();
+    representable(project)?;
     let stem = base_name(project, options)?;
     let undated = FabricationOptions {
         creation_date: None,
@@ -293,6 +295,34 @@ pub fn generate(
         set.push(file)?;
     }
     Ok(set)
+}
+
+/// Refuses a board the files cannot hold, where another board would be
+/// written instead: a plated slot the drill file cannot route (on the
+/// profile it would be milled unplated), and a via that does not pass
+/// through the whole board (every drill in the files does).
+pub fn representable(project: &Project) -> Result<()> {
+    use crate::model::board::CutoutKind;
+    for cutout in &project.board().cutouts {
+        if cutout.kind == (CutoutKind::Slot { plated: true })
+            && drill::stadium(&cutout.outline).is_none()
+        {
+            return Err(Error::Unsupported(format!(
+                "{}: a plated board slot is not a straight slot the drill file can route; draw it with two parallel sides and round ends",
+                preflight::SLOT_UNROUTABLE
+            )));
+        }
+    }
+    if project
+        .vias
+        .iter()
+        .any(|v| v.span != crate::model::ViaSpan::Through)
+    {
+        return Err(Error::Unsupported(
+            "fabrication.via_span: the drill files hold through vias only".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// The Gerber, drill and job files of `options`' outputs, stating

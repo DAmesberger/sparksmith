@@ -230,12 +230,25 @@ pub const NO_WAIVER: &[&str] = &[
     // Violations a fill's audit found but does not list: a waiver could
     // not say which copper it accepts.
     layout::fill::CLEARANCE_UNLISTED,
+    // The files cannot hold the design: no drill file routes the slot, and
+    // milled on the profile it would be unplated.
+    SLOT_UNROUTABLE,
 ];
 
-/// Whether a finding of `code` may be waived (it is not in [`NO_WAIVER`]).
-/// A saved waiver of one that may not is ignored.
+/// A plated board slot the drill file cannot route (not a straight slot
+/// with round ends), with the slot's feature id after a dot. The only
+/// other file that could hold the slot is the profile, which is unplated,
+/// so `fabrication::generate` refuses such a board.
+pub const SLOT_UNROUTABLE: &str = "fabrication.slot_unroutable";
+
+/// Whether a finding of `code` may be waived: neither it nor the code it is
+/// a numbered instance of (`fabrication.slot_unroutable.3`) is in
+/// [`NO_WAIVER`]. A saved waiver of one that may not is ignored.
 pub fn can_waive(code: &str) -> bool {
-    !NO_WAIVER.contains(&code)
+    !NO_WAIVER.iter().any(|no| {
+        code.strip_prefix(no)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+    })
 }
 
 /// Every raw finding, with its own severity and wording, including findings
