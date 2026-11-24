@@ -1508,10 +1508,10 @@ impl App {
                     source,
                     report,
                 } => self.imported(*document, source, *report),
-                Effect::FirstSave { given, saved } => match self.engine.adopt_first_save(&given) {
-                    Ok(()) => self.files.first_saved(&self.engine, saved),
-                    Err(error) => self.say(Level::Error, format!("Rename failed: {error}")),
-                },
+                Effect::FirstSave { given, saved } => {
+                    self.engine.adopt_first_save(&given);
+                    self.files.first_saved(&self.engine, saved);
+                }
                 Effect::Close => {
                     self.closing = true;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);

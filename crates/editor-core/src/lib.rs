@@ -790,6 +790,26 @@ impl FirstSave {
     pub fn is_empty(&self) -> bool {
         self.name.is_none() && self.id.is_none()
     }
+
+    /// `project` with what it lacks of this; `None` when it lacks nothing.
+    fn given_to(&self, project: &Project) -> Option<Project> {
+        let name = self.name.as_ref().filter(|_| project.name == UNTITLED);
+        let id = self
+            .id
+            .as_ref()
+            .filter(|_| project.production.project_id.is_none());
+        if name.is_none() && id.is_none() {
+            return None;
+        }
+        let mut project = project.clone();
+        if let Some(name) = name {
+            project.name.clone_from(name);
+        }
+        if let Some(id) = id {
+            project.production.project_id = Some(id.clone());
+        }
+        Some(project)
+    }
 }
 
 /// Every save to `file` starts here, on the copy to be written: a project
@@ -848,7 +868,7 @@ fn identify_by_file(
 pub struct ReportKey {
     revision: u64,
     /// The document's identity: a state can change without a revision (a
-    /// first save's project identity), never without a new allocation.
+    /// first save's name and identity), never without a new allocation.
     project: usize,
     drafts: usize,
     checks: layout::CheckSettings,
@@ -2834,17 +2854,10 @@ impl Engine {
     /// slot and datum counters keep their highest values, so a slot or id
     /// handed out once is never handed out again
     /// (`interface::auto::carry`).
-    ///
-    /// The project's identity ([`model::production::Production::project_id`])
-    /// stays too: given once, it names the project in every state.
     fn carry_interface(current: &Document, restored: &mut Document) -> Result<()> {
         if let Some(table) = interface::auto::carry(&current.project.interface, &restored.project)?
         {
             Arc::make_mut(&mut restored.project).interface = table.into();
-        }
-        let id = &current.project.production.project_id;
-        if id.is_some() && restored.project.production.project_id != *id {
-            Arc::make_mut(&mut restored.project).production.project_id = id.clone();
         }
         Ok(())
     }
@@ -2857,27 +2870,34 @@ impl Engine {
     }
 
     /// Take what a save gave the copy it wrote ([`first_save`]), once the
-    /// file holds it; a failed or conflicted write gives nothing. The
-    /// identity names the project, not a state of it: no revision, no undo
-    /// step, and undo and redo keep it. The name is a `project.rename`, its
-    /// own undo step (undo never takes back a file). An identity or a name
-    /// the project took meanwhile stays.
-    pub fn adopt_first_save(&mut self, given: &FirstSave) -> Result<()> {
-        if let Some(id) = &given.id
-            && self.document.project.production.project_id.is_none()
-        {
-            Arc::make_mut(&mut self.document.project)
-                .production
-                .project_id = Some(id.clone());
+    /// file holds it; a failed or conflicted write gives nothing. A save is
+    /// not an edit: no revision and no undo step, and the history stays.
+    /// Name and identity are the project's, not a state's, so every state
+    /// of the history that lacks them takes them too and no undo or redo
+    /// takes them back; a state with a name someone chose keeps it. A state
+    /// that takes one is a new allocation, which tells a host that keeps
+    /// something by state ([`ReportKey`]).
+    pub fn adopt_first_save(&mut self, given: &FirstSave) {
+        // Each project replaced, and what replaced it: states that share
+        // one go on sharing one.
+        let mut taken: Vec<(Arc<Project>, Arc<Project>)> = Vec::new();
+        let states = std::iter::once(&mut self.document)
+            .chain(self.undo.iter_mut().map(|(document, _)| document))
+            .chain(self.redo.iter_mut().map(|(document, _)| document));
+        for document in states {
+            let known = taken
+                .iter()
+                .rev()
+                .find(|(was, _)| Arc::ptr_eq(was, &document.project))
+                .map(|(_, now)| Arc::clone(now));
+            if let Some(now) = known {
+                document.project = now;
+            } else if let Some(project) = given.given_to(&document.project) {
+                let now = Arc::new(project);
+                let was = std::mem::replace(&mut document.project, Arc::clone(&now));
+                taken.push((was, now));
+            }
         }
-        if let Some(name) = &given.name
-            && self.document.project.name == UNTITLED
-        {
-            let name = name.clone();
-            let rename = Operation::Schematic(schematic::SchematicCommand::RenameProject { name });
-            self.apply(self.revision, rename)?;
-        }
-        Ok(())
     }
 
     /// Fold the latest undo step into the one before it, so one undo takes

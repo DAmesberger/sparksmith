@@ -822,7 +822,7 @@ impl Request {
             entry!(
                 Save,
                 "Save the project atomically to a .sparksmith file, by default its current path.",
-                "Atomically save to a .sparksmith file (defaults to the current path). Not undoable. The first save identifies the project and names an Untitled one after the file, its own undo step: continue at the reply's revision.",
+                "Atomically save to a .sparksmith file (defaults to the current path). Not undoable. The first save identifies the project and names an Untitled one after the file; a save leaves the revision, undo and redo as they are.",
             ),
             entry!(
                 PreviewUpdate,
@@ -1204,9 +1204,8 @@ pub enum FileChange {
     },
     /// `project.new`: a new project at `revision`, which no file holds.
     New { revision: u64 },
-    /// `project.save`: the document at `revision` (after the name a first
-    /// save gave it) is in this file (on a conflict, the new file that
-    /// kept it).
+    /// `project.save`: the document at `revision` is in this file (on a
+    /// conflict, the new file that kept it).
     Saved {
         path: PathBuf,
         identity: sparksmith_io::DiskIdentity,
@@ -1686,14 +1685,13 @@ impl Session {
                 self.disk = Some(saved.identity);
                 // The file holds the document the engine has now, name and
                 // identity included.
-                let adopted = self.engine.adopt_first_save(&saved.first);
+                self.engine.adopt_first_save(&saved.first);
                 let revision = self.engine.revision();
                 self.host_changed(FileChange::Saved {
                     path,
                     identity: saved.identity,
                     revision,
                 });
-                adopted?;
                 return Ok(json!({"revision": revision, "saved_path": saved_path}));
             }
             Request::PreviewUpdate(params) => {
