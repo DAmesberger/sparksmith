@@ -1907,7 +1907,7 @@ impl App {
         f(&crate::menu_bar::Now {
             registry: &self.registry,
             active: &active,
-            typing: ctx.egui_wants_keyboard_input(),
+            typing: ctx.text_edit_focused(),
             recording: self.settings_window.is_recording(),
             browser_shown: self.browser_visible,
             issues_shown: self.issues.expanded(),
