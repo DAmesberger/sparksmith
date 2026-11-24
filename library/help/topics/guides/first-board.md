@@ -37,7 +37,7 @@
 }
 ---
 
-Start a project with [[command/file.new]]. Its board starts with the Standard fab profile, or the default from your settings, so you can route at once. If a Fab profile card asks for one instead, press Use profile.
+Start a project with [[command/file.new]]. Its board starts with the Standard fab profile, or the default from your settings, so you can route at once.
 
 - In Schematic, choose Place and type a package and a type, such as resistor 0603. A new project has no parts of its own: a generator makes the one you choose. Press Enter, then click the sheet. Place two parts. [[guide/libraries]] says more.
 - Choose Wire, click a pin of one part, then a pin of the other. Select the wire to see its net and members in Properties. [[guide/wiring]] says more.

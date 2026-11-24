@@ -913,6 +913,18 @@ pub(crate) fn region(ui: &Ui, rect: egui::Rect, topic: &str, specificity: u8) {
     });
 }
 
+/// Open `topic` in Help after this frame.
+pub(crate) fn ask(ctx: &egui::Context, topic: &str) {
+    ctx.data_mut(|d| d.insert_temp(Id::unique("open-help-topic"), topic.to_owned()));
+}
+
+/// A refused action's link to the guide that clears it.
+pub(crate) fn guide_row(ui: &mut Ui, action: &str, guide: &str) {
+    if kit::action_row(ui, action, "Open the guide in Help") {
+        ask(ui.ctx(), guide);
+    }
+}
+
 /// A Settings control and its question button share one id and one row.
 pub(super) fn setting<R>(
     ui: &mut Ui,
@@ -933,7 +945,7 @@ pub(super) fn setting<R>(
                 egui::WidgetInfo::labeled(egui::Role::Button, true, format!("Help for {label}"))
             });
             if button.clicked() {
-                ui.data_mut(|d| d.insert_temp(Id::unique("open-help-topic"), topic.to_owned()));
+                ask(ui.ctx(), topic);
             }
             value
         })

@@ -20,6 +20,7 @@
 //! computed again; an
 //! export keeps the snapshot it started from.
 use super::PcbEditor;
+use crate::app::help_sheet;
 use crate::kit::{
     self, PickResponse, PickRow, Tick,
     card::{CardResponse, Subject},
@@ -663,6 +664,9 @@ pub fn report_summary(report: &PreflightReport) -> String {
     }
 }
 
+/// The link to the guide that says how to clear what disables Export.
+const WHY_OFF: &str = "Why is Export off?";
+
 /// Why Export is disabled, or `None` when it can run.
 pub(super) fn export_blocked(
     dialog: &ProductionDialog,
@@ -922,6 +926,9 @@ fn body(
                 Some(Err(_)) => {}
                 Some(Ok(report)) => {
                     kit::value_row(ui, "Result", &report_summary(report));
+                    if report.blocking > 0 {
+                        help_sheet::guide_row(ui, WHY_OFF, "guide/export-disabled");
+                    }
                     op = findings(dialog, ui, report, engine.waiver_reason_required());
                     if let Some(switch) = needs(dialog, ui, engine, report) {
                         op = Some(switch);
