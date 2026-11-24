@@ -67,6 +67,6 @@ The core adds `part_file.model` (a model that is missing or not of format `solid
 | CLI | `sparksmith part check FILE or --builtin NAME [--set NAME=VALUE[mm or deg]]... [--json] [--materials]` | The report; exit status 1 on a blocking finding. `part list` lists the shipped part files (`apps/sparksmith-cli/src/part.rs:9`). |
 | MCP and assistant | `library_check_part_file`, `library_use_part_file`, `library_set_part_values`, `library_part_files` | The automation requests as tools. |
 
-The desktop's part-file chooser and the Body section's **Part file...** use the same operation builders (`use_part_file_operation`, `set_part_values_operation`); see [mechanical parts](mechanical-parts.md#desktop).
+The desktop's part-file chooser and the Model section's **Part file...** use the same operation builders (`use_part_file_operation`, `set_part_values_operation`); see [mechanical parts](mechanical-parts.md#desktop).
 
 The shipped part files are original work (MIT OR Apache-2.0), authored through Solidcraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`crates/solidcraft-integration/tests/author_parts.rs`).
