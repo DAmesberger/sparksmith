@@ -13,8 +13,13 @@ pub(super) fn mm(value: f64) -> String {
     format!("{} mm", kit::number_text((value * 1000.0).round() / 1000.0))
 }
 
+/// "50.0 Ω", or "—" where no impedance follows (a track without a width).
 pub(super) fn ohms(value: f64) -> String {
-    format!("{value:.1} Ω")
+    if value.is_finite() {
+        format!("{value:.1} Ω")
+    } else {
+        "—".to_owned()
+    }
 }
 
 /// "Microstrip · h 0.2 mm · Dk 4.3".
@@ -175,4 +180,17 @@ pub(super) fn route_rows(
         kit::value_row(ui, "Target", &derived_text(&derived));
     }
     limit_rows(ui, &derived);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A track without a width has no impedance: a dash, never NaN.
+    #[test]
+    fn no_impedance_shows_a_dash() {
+        assert_eq!(ohms(50.0), "50.0 Ω");
+        assert_eq!(ohms(f64::NAN), "—");
+        assert_eq!(ohms(f64::INFINITY), "—");
+    }
 }

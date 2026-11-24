@@ -335,6 +335,20 @@ fn nothing_selected(summary: &Summary, workspace: Workspace) -> String {
     }
 }
 
+/// What an empty list says.
+struct EmptyText {
+    /// The Selection scope with nothing selected.
+    idle: String,
+    /// Nothing found: "No issues", or why they could not be.
+    none: &'static str,
+}
+
+/// In place of "No issues" on the bar and in the list: a board without a
+/// fab profile has no limits to check, so finding nothing is not a pass.
+const NO_PROFILE: &str = "No fab profile";
+const CHOOSE_PROFILE: &str =
+    "No fab profile, so no clearance is checked: choose one (Board › Rules)";
+
 /// Shown on the bar while the issues cannot be counted, in place of counts.
 const NOT_COUNTED: &str = "Not counted";
 
@@ -875,7 +889,10 @@ impl Surface {
             )
         });
         let elsewhere = checking.as_deref().or(elsewhere);
-        let mut bar = kit::issues_bar(ui, counts, self.expanded, elsewhere);
+        let unprofiled = engine.project().rules.profile.is_none();
+        let unchecked =
+            (unprofiled && workspace == Workspace::Pcb && tip.is_none()).then_some(NO_PROFILE);
+        let mut bar = kit::issues_bar(ui, counts, self.expanded, elsewhere, unchecked);
         if let Some(tip) = tip {
             bar = bar.on_hover_text(tip);
         }
@@ -891,7 +908,14 @@ impl Surface {
             self.toolbar(ui, workspace);
         });
         let answer = self.listed(engine, workspace, selection);
-        let idle = nothing_selected(&summary, workspace);
+        let empty = EmptyText {
+            idle: nothing_selected(&summary, workspace),
+            none: match self.scope {
+                Scope::All if unprofiled => CHOOSE_PROFILE,
+                Scope::Workspace if unprofiled && workspace == Workspace::Pcb => CHOOSE_PROFILE,
+                _ => "No issues",
+            },
+        };
         // Below the toolbar: the list, then the footer as tall as its
         // wrapped coverage note was last frame. Too short a card gives the
         // list no room first; nothing is painted above the room it has.
@@ -918,7 +942,7 @@ impl Surface {
                 Answer::Pending => hint(ui, "Checking the design", CHECKING),
                 Answer::Report(report) => {
                     let (asked, height) =
-                        self.list(ui, engine, report, selection, &idle, body.height());
+                        self.list(ui, engine, report, selection, &empty, body.height());
                     request = asked;
                     height
                 }
@@ -1024,7 +1048,7 @@ impl Surface {
         engine: &Engine,
         report: &Arc<IssueReport>,
         selection: &[ObjectRef],
-        idle: &str,
+        empty: &EmptyText,
         height: f32,
     ) -> (Option<Request>, f32) {
         let current = self.has_current_report(engine);
@@ -1046,14 +1070,14 @@ impl Surface {
         };
         if groups.is_empty() && waived_rows.is_empty() {
             self.waiving = None;
-            let empty = match (self.scope, self.filter, report.rows.is_empty()) {
-                (Scope::Selection, _, _) if selection.is_empty() => idle.to_owned(),
+            let text = match (self.scope, self.filter, report.rows.is_empty()) {
+                (Scope::Selection, _, _) if selection.is_empty() => empty.idle.clone(),
                 (_, Some(_), false) => {
                     "None of this kind; choose Every kind to see the rest".to_owned()
                 }
-                _ => "No issues".to_owned(),
+                _ => empty.none.to_owned(),
             };
-            return (None, hint(ui, &empty, &report.coverage));
+            return (None, hint(ui, &text, &report.coverage));
         }
         let views: Vec<IssueGroupView> = groups
             .iter()

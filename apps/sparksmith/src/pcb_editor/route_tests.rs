@@ -1048,14 +1048,15 @@ fn the_track_card_ends_name_what_each_end_joins() -> TestResult {
 }
 
 /// Run 4, finding 2: the Route card's via size follows the rules. Without
-/// a profile the size is 0 mm and marked; once a profile is set, the card
-/// shows its via size and no error.
+/// a profile Route is refused and no card shows a 0 mm size; once a profile
+/// is set, the card shows its via size and no error.
 #[test]
 fn the_route_card_via_size_follows_a_profile_set_later() -> TestResult {
     let mut engine = Engine::default();
     let canvas = Canvas::new();
     let mut editor = PcbEditor::default();
     editor.on_tool("route", &engine);
+    assert!(editor.tool == Tool::Select, "not armed without a profile");
     let card = |editor: &mut PcbEditor, engine: &Engine| {
         let mut output = canvas.ctx.run_ui(
             egui::RawInput {
@@ -1083,7 +1084,9 @@ fn the_route_card_via_size_follows_a_profile_set_later() -> TestResult {
     let error = "Enter 0.1 to 6 mm";
     card(&mut editor, &engine);
     let shown = card(&mut editor, &engine);
-    assert!(shown.iter().any(|t| t == error), "{shown:?}");
+    assert!(!shown.iter().any(|t| t == error), "{shown:?}");
+    assert!(!shown.iter().any(|t| t.contains("0 mm")), "{shown:?}");
+    assert!(shown.iter().any(|t| t == "Use profile"), "{shown:?}");
     engine.apply(
         engine.revision(),
         Operation::Rules(RulesCommand::set_profile(
@@ -1091,6 +1094,10 @@ fn the_route_card_via_size_follows_a_profile_set_later() -> TestResult {
             false,
         )),
     )?;
+    // The set profile closes the question; Route now starts.
+    card(&mut editor, &engine);
+    editor.on_tool("route", &engine);
+    assert!(editor.tool == Tool::Route);
     card(&mut editor, &engine);
     let shown = card(&mut editor, &engine);
     assert!(!shown.iter().any(|t| t == error), "{shown:?}");

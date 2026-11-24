@@ -493,8 +493,10 @@ impl App {
             return;
         }
         // An explicit refill computes on the fill worker; its copper comes
-        // back as one undoable `fill.store_all` (`refill_fills`).
+        // back as one undoable `fill.store_all` (`refill_fills`). Without a
+        // fab profile the engine refuses it before anything is computed.
         if let Operation::Fill(FillCommand::Refill { target }) = &operation
+            && self.engine.project().rules.profile.is_some()
             && self.fills.available()
             && !matches!(target, RefillTarget::One(id) if self.engine.project().fill(*id).is_none())
         {

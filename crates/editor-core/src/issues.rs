@@ -428,7 +428,8 @@ fn board_coverage(project: &Project) -> String {
     use crate::rules::{CopperObject, RuleKey};
     let rules = &project.rules;
     if rules.profile.is_none() {
-        return "Connectivity, outline and courtyards; no fab profile, so no clearance is checked"
+        return "No fab profile, so no clearance is checked: choose one (Board › Rules); \
+                connectivity, outline and courtyards are checked"
             .into();
     }
     let key = RuleKey::Clearance {

@@ -1,6 +1,7 @@
 //! The Design rules panel: live per-field overrides with reset, the
 //! previewed profile switch as one undo step, saving the rules as a user
 //! profile, and "Show rule" from a board finding.
+use super::super::Tool;
 use super::*;
 use egui::{Pos2, Shape};
 use sparksmith_core::Engine;
@@ -847,6 +848,81 @@ fn later_closes_the_question_and_a_profiled_board_is_not_asked() -> TestResult {
     editor.ask_for_profile();
     frame(&mut editor, &profiled, &ctx, vec![]);
     assert!(editor.rules.is_none(), "not asked");
+    Ok(())
+}
+
+/// GUI check 1, U1: without a fab profile Route, Via, Tune, Fill and
+/// Dimension are refused before anything is drawn. Each opens the Fab
+/// profile dialog with the sentence every other refusal uses; Cancel leaves
+/// Select armed; with a profile each arms, and losing the profile (undo)
+/// ends a copper tool.
+#[test]
+fn a_copper_tool_without_a_profile_opens_the_question() -> TestResult {
+    let mut engine = Engine::default();
+    let ctx = context();
+    let tools = [
+        ("route", "Can't route", Tool::Route),
+        ("via", "Can't place a via", Tool::Via),
+        ("tune", "Can't tune a track", Tool::Tune),
+        ("fill", "Can't draw a fill", Tool::Fill),
+        ("dimension", "Can't dimension a part", Tool::Dimension),
+    ];
+    let error = ProjectRules::default().require().err().ok_or("refused")?;
+    for (id, what, _) in tools {
+        let mut editor = PcbEditor::default();
+        let (_dir, library) = library()?;
+        editor.open_rules_in(Some(library), None);
+        assert!(editor.on_tool(id, &engine).is_none());
+        assert!(editor.tool == Tool::Select, "{id}");
+        let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+        let shown = texts(&output);
+        let sentence = format!("{what}: {}", refusal::shown_error(&error));
+        for text in [sentence.as_str(), "JLCPCB 2-layer", "Use profile"] {
+            assert!(shown.iter().any(|t| t == text), "{text}: {shown:?}");
+        }
+        assert!(!shown.iter().any(|t| t.contains("NaN")), "{shown:?}");
+        assert!(click(&mut editor, &engine, &ctx, "Cancel")?.is_none());
+        assert!(editor.rules.is_none(), "{id}");
+        assert_eq!(editor.subject(), Subject::Properties, "{id}");
+    }
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::set_profile(
+            fixtures::jlcpcb_example()?,
+            false,
+        )),
+    )?;
+    for (id, _, tool) in tools {
+        let mut editor = PcbEditor::default();
+        editor.on_tool(id, &engine);
+        assert!(editor.tool == tool, "{id}");
+        assert!(editor.rules.is_none(), "{id} asks nothing");
+    }
+    let mut editor = PcbEditor::default();
+    editor.on_tool("route", &engine);
+    engine.undo()?;
+    frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(editor.tool == Tool::Select, "the profile was undone");
+    Ok(())
+}
+
+/// Without a profile no rule has a value, so the panel lists none: no row
+/// of zeros stands under "nothing is checked".
+#[test]
+fn a_board_without_a_profile_lists_no_rule_values() -> TestResult {
+    let ctx = context();
+    let shown = |engine: &Engine| -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let mut editor = PcbEditor::default();
+        let (_dir, library) = library()?;
+        editor.open_rules_in(Some(library), None);
+        let (output, _) = frame(&mut editor, engine, &ctx, vec![]);
+        Ok(texts(&output))
+    };
+    let header = |shown: &[String]| shown.iter().any(|t| t == "Rule · profile");
+    let unprofiled = shown(&Engine::default())?;
+    assert!(!header(&unprofiled), "{unprofiled:?}");
+    let profiled = shown(&Engine::profiled()?)?;
+    assert!(header(&profiled), "{profiled:?}");
     Ok(())
 }
 
