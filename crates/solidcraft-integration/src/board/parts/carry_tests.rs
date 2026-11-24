@@ -4,13 +4,14 @@
 //! step.
 #![allow(clippy::unwrap_used)]
 
-use super::super::tests::{Fallible, apply, close, edit, set, sketched};
+use super::super::tests::{Fallible, apply, close, created_curves_of, edit, set, sketched};
 use sparksmith_core::geometry::Point;
 use sparksmith_core::ids::Id;
 use sparksmith_core::layout::connectivity::CopperGraph;
 use sparksmith_core::layout::dimensions::{DimensionCommand, carry};
+use sparksmith_core::layout::outline::BoardEdit;
 use sparksmith_core::layout::{self, LayoutCommand, RouteEditSet, RouteRequest, WorldPad};
-use sparksmith_core::library::footprint_source::{DimKind, DimValue, Expr, SketchRef};
+use sparksmith_core::library::footprint_source::{DimKind, DimValue, Expr, SketchEdit, SketchRef};
 use sparksmith_core::model::board::{BoardShape, ConstraintTarget};
 use sparksmith_core::model::dimension::{BoardRef, FeatureRef, PartDimensionSpec, PartRelation};
 use sparksmith_core::{CopperLayer, Engine, Operation, Project, Via, ViaSpan};
@@ -451,5 +452,132 @@ fn the_layout_board_size_alias_also_refuses_lost_copper() -> Fallible<()> {
     );
     assert_eq!(engine.to_file(), before);
     assert_eq!(engine.revision(), revision);
+    Ok(())
+}
+
+/// Draw a circle off the board: two regions are no board, so its solve is no
+/// longer current.
+fn invalidate(engine: &mut Engine) -> Fallible<BoardEdit> {
+    let circle = created_curves_of(edit(
+        engine,
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::AddCircle {
+                center: [150.0, 20.0],
+                radius: 2.0,
+                construction: false,
+            },
+        }],
+    )?);
+    assert!(engine.project().board_shape.invalid().is_some());
+    Ok(BoardEdit::Sketch {
+        edit: SketchEdit::Delete {
+            ids: circle.into_iter().map(SketchRef::Curve).collect(),
+        },
+    })
+}
+
+/// While the outline is invalid a changed parameter moves no part, track or
+/// via; they stay with the stored shape. The edit that makes it valid moves
+/// them as the parameter's own edit does on a valid board, in one undo step.
+#[test]
+fn a_held_part_and_its_copper_wait_for_a_valid_outline() -> Fallible<()> {
+    let (mut engine, r2) = held_and_routed()?;
+    let on_pad = pad(engine.project(), r2, 0)?;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::AddVia {
+            via: layout::ViaRequest::fixture(on_pad.net, on_pad.position),
+        }),
+    )?;
+    let start = engine.project().clone();
+    let mut direct = Engine::from_file(engine.to_file())?;
+    edit(&mut direct, vec![set("width", "80 mm")])?;
+    let same = |a: &Project, b: &Project| {
+        assert_eq!(a.board_size, b.board_size);
+        assert_eq!(a.placements, b.placements);
+        assert_eq!(a.tracks, b.tracks);
+        assert_eq!(a.vias, b.vias);
+    };
+
+    let fix = invalidate(&mut engine)?;
+    edit(&mut engine, vec![set("width", "80 mm")])?;
+    same(engine.project(), &start);
+    let waiting = engine.to_file();
+
+    edit(&mut engine, vec![fix])?;
+    let (now, want) = (engine.project(), direct.project());
+    assert!(now.board_shape.invalid().is_none());
+    let at = now.placement_of(r2).ok_or("placement")?.position;
+    assert!((at[0] - 40.0).abs() < 1e-6, "{at:?}");
+    let pose = |p: &Project| p.placement_of(r2).map(|p| p.position);
+    assert!(close(at, pose(want).ok_or("direct")?));
+    assert_eq!(now.tracks.len(), want.tracks.len());
+    for (a, b) in now.tracks.iter().zip(want.tracks.iter()) {
+        assert!(
+            close(a.start, b.start) && close(a.end, b.end),
+            "{a:?} {b:?}"
+        );
+    }
+    let vias = |p: &Project| p.vias.iter().map(|v| v.position).collect::<Vec<_>>();
+    let (a, b) = (vias(now), vias(want));
+    assert!(a.len() == b.len() && a.iter().zip(&b).all(|(a, b)| close(*a, *b)));
+    assert_eq!(unrouted(now), 0);
+
+    engine.undo()?;
+    assert_eq!(engine.to_file(), waiting);
+    engine.undo()?;
+    engine.undo()?;
+    same(engine.project(), &start);
+    assert_eq!(engine.project().board_shape, start.board_shape);
+    Ok(())
+}
+
+/// While the outline is invalid a held part's dimension and the part itself
+/// are not changed, in plain words; a dimension can be deleted, and a part
+/// nothing holds moves.
+#[test]
+fn a_dimension_edit_waits_for_a_valid_outline() -> Fallible<()> {
+    let (mut engine, r2) = held_and_routed()?;
+    invalidate(&mut engine)?;
+    let (revision, before) = (engine.revision(), engine.to_file());
+    let mut dimension = engine
+        .project()
+        .part_dimensions
+        .iter()
+        .next()
+        .ok_or("a dimension")?
+        .clone();
+    let id = dimension.id;
+    dimension.value = Some(DimValue::Expr(Expr("width / 3".into())));
+    let at = engine
+        .project()
+        .placement_of(r2)
+        .ok_or("placement")?
+        .clone();
+    let moved = || {
+        Operation::Layout(LayoutCommand::Move {
+            instance: at.instance,
+            position: [at.position[0] + 1.0, at.position[1]],
+            rotation_deg: at.rotation_deg,
+            layer: at.layer,
+        })
+    };
+    for operation in [
+        Operation::Dimension(DimensionCommand::Edit { dimension }),
+        moved(),
+    ] {
+        let error = apply(&mut engine, operation)
+            .err()
+            .ok_or("accepted")?
+            .to_string();
+        assert!(error.contains("the board outline is not valid"), "{error}");
+        assert_eq!(engine.revision(), revision);
+        assert_eq!(engine.to_file(), before);
+    }
+    apply(
+        &mut engine,
+        Operation::Dimension(DimensionCommand::Delete { id }),
+    )?;
+    apply(&mut engine, moved())?;
     Ok(())
 }
