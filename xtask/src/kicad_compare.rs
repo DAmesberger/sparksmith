@@ -560,12 +560,18 @@ mod tests {
             Ok(diff.drills.iter().all(|d| d.diff.passes()))
         };
         let good = drills(&[slot]);
-        assert!(passes(std::slice::from_ref(&good), std::slice::from_ref(&good))?);
+        assert!(passes(
+            std::slice::from_ref(&good),
+            std::slice::from_ref(&good)
+        )?);
         let moved = drills(&[([10.51, 10.0], [13.51, 10.0])]);
         let shorter = drills(&[([10.5, 10.0], [13.4, 10.0])]);
         let none = drills(&[]);
         for bad in [moved, shorter, none.clone()] {
-            assert!(!passes(std::slice::from_ref(&bad), std::slice::from_ref(&good))?);
+            assert!(!passes(
+                std::slice::from_ref(&bad),
+                std::slice::from_ref(&good)
+            )?);
             assert!(!passes(std::slice::from_ref(&good), &[bad])?);
         }
         assert!(!passes(&[], std::slice::from_ref(&good))?);

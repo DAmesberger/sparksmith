@@ -406,9 +406,7 @@ mod tests {
             add_standard_graphics_over(&mut footprint, &PackageDefinition::default(), body)?;
             let found = footprint.lint_with(crate::ids::DefinitionId(1), &rules);
             assert!(
-                found
-                    .iter()
-                    .all(|f| f.code != "footprint.silk_over_pad"),
+                found.iter().all(|f| f.code != "footprint.silk_over_pad"),
                 "{}: {found:?}",
                 case.name
             );
