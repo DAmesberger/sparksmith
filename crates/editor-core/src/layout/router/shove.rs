@@ -24,7 +24,9 @@ use super::hull::{DIRS, Facets, Hull};
 use super::world::{Ctx, Hit, Line, MovedVia, Piece, State, Target};
 use crate::geometry::{Point, distance};
 use crate::layout::CopperGraph;
-use crate::layout::connectivity::{Meets, TrackEnd, TrackJoint, keeps_joint, leaves_pour};
+use crate::layout::connectivity::{
+    Meets, TrackEnd, TrackJoint, keeps_joint, leaves_pour, pours_met,
+};
 use crate::layout::posture::{self, Posture};
 use crate::rules::CopperObject;
 use std::collections::VecDeque;
@@ -125,6 +127,20 @@ pub(super) fn shove(ctx: &Ctx<'_>, state: &mut State) -> Result<(), Hit> {
                     return Err(*hit);
                 }
             }
+        }
+    }
+    // A pushed chain that ran in a pour of its net still does: its ends
+    // stay, but a pour may join it in mid-span only.
+    for (l, line) in state.lines.iter().enumerate() {
+        let met = |points: &[Point]| {
+            let lines: Vec<(Point, Point)> = points.windows(2).map(|w| (w[0], w[1])).collect();
+            pours_met(ctx.project, line.net, line.layer, &lines)
+        };
+        if line.points != line.original && !met(&line.original).is_subset(&met(&line.points)) {
+            return Err(Hit {
+                target: Target::Line(l, 0),
+                net: Some(line.net),
+            });
         }
     }
     Ok(())

@@ -4,7 +4,8 @@
 //! its direction. At each end, a neighbour joined end to end (on the
 //! copper graph, the only joint there) stretches along its own direction
 //! to meet the moved segment, as long as it keeps its own joints; an end
-//! nothing meets moves with the segment; any other end stays where it is
+//! nothing meets moves with the segment within the drawn pours of its net
+//! it stands in; any other end stays where it is
 //! and joins the moved segment with a jog, at 45° to the segment (at 90°
 //! in the orthogonal posture). The new copper
 //! is the fixed copper of the same [`shove::shove`] a route step runs,
@@ -20,9 +21,10 @@
 use super::world::{Ctx, Hit, Piece, State};
 use super::{RouteIndex, RouteMode, RoutePlan, bisect, shove, shoved, yes};
 use crate::diagnostics::{Error, Result};
-use crate::geometry::{Point, distance};
+use crate::geometry::{Point, distance, polygon_contains};
 use crate::ids::Id;
-use crate::layout::connectivity::{CopperGraph, Meets, TrackEnd, keeps_joint};
+use crate::layout::connectivity::{CopperGraph, Meets, TrackEnd, keeps_joint, pours_met};
+use crate::layout::fill::FILL_CHORD_MM;
 use crate::layout::length;
 use crate::layout::pair::{left, mitre};
 use crate::layout::posture::{MIN_SEGMENT_MM, Posture};
@@ -118,8 +120,10 @@ enum EndHold<'a> {
     /// Anything else (a pad, a via, several tracks, a locked track):
     /// the end stays and a jog joins it.
     Anchored,
-    /// Nothing meets the end: it moves with the segment.
-    Free,
+    /// No track, via or pad meets the end: it moves with the segment, as
+    /// long as it stays in the drawn pours of its net it stands in (their
+    /// outlines); else it is held like [`EndHold::Anchored`].
+    Free { pours: Vec<Vec<Point>> },
 }
 
 fn sub(a: Point, b: Point) -> Point {
@@ -179,7 +183,14 @@ fn grip<'a>(ctx: &Ctx<'a>, track: Id) -> std::result::Result<Grip<'a>, String> {
             .iter()
             .filter(|j| j.end == Some(end) && j.meets != Meets::Fill);
         let joint = match (at.next(), at.next()) {
-            (None, _) => return EndHold::Free,
+            (None, _) => {
+                let p = end_of(t, end).0;
+                let met = pours_met(ctx.project, t.net, t.layer, &[(p, p)]);
+                let rings = ctx.project.fills.iter().filter(|f| met.contains(&f.id));
+                return EndHold::Free {
+                    pours: rings.map(|f| f.outline.flatten(FILL_CHORD_MM)).collect(),
+                };
+            }
             (Some(joint), None) => joint,
             _ => return EndHold::Anchored,
         };
@@ -325,7 +336,10 @@ fn shapes<'a>(grip: &Grip<'a>, shift: Point, posture: Posture) -> [Shape<'a>; 2]
                     })
             }
             EndHold::Anchored => None,
-            EndHold::Free => return Shape::Free(on_line),
+            EndHold::Free { pours } if pours.iter().all(|ring| polygon_contains(ring, on_line)) => {
+                return Shape::Free(on_line);
+            }
+            EndHold::Free { .. } => None,
         };
         stretched.unwrap_or_else(|| Shape::Jog {
             from: p,
@@ -497,6 +511,9 @@ fn attempt(
     offset: f64,
 ) -> std::result::Result<(Moved, State), Option<Hit>> {
     let copper = moved_all(grips, offset, request.posture).ok_or(None)?;
+    if leaves_pours(ctx, &copper) {
+        return Err(None);
+    }
     let mut frozen: Vec<Id> = grips.iter().map(|g| g.track.net).collect();
     // A half moved alone leaves its partner where it is.
     if request.pair == PairDrag::Alone {
@@ -526,6 +543,22 @@ fn attempt(
         RouteMode::Ignore => {}
     }
     Ok((copper, state))
+}
+
+/// Whether the dragged copper no longer runs in a drawn pour of its net
+/// that it ran in where it was.
+fn leaves_pours(ctx: &Ctx<'_>, copper: &Moved) -> bool {
+    let was = copper.hidden.iter().filter_map(|k| ctx.base_track(*k));
+    was.into_iter().any(|t| {
+        let met = pours_met(ctx.project, t.net, t.layer, &[(t.start, t.end)]);
+        let now: Vec<(Point, Point)> = copper
+            .pieces
+            .iter()
+            .filter(|p| p.net == t.net)
+            .map(|p| (p.core.a, p.core.b))
+            .collect();
+        !met.is_subset(&pours_met(ctx.project, t.net, t.layer, &now))
+    })
 }
 
 /// A plan that moves nothing and says why.
@@ -738,7 +771,7 @@ fn plan_with(ctx: &Ctx<'_>, request: &TrackDragRequest, grips: &[Grip<'_>]) -> R
     let why = |state: &State| {
         ctx.held_note(state).unwrap_or_else(|| {
             blocker.map_or_else(
-                || "No room to drag the track there".to_owned(),
+                || "No room to drag the track there, or it would leave its pour".to_owned(),
                 |h| ctx.describe(&h),
             )
         })

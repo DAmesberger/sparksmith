@@ -3,11 +3,12 @@
 //! before they move or finish copper.
 use super::build::joins;
 use super::{CopperGraph, ElementKind, JOIN_TOLERANCE_MM};
-use crate::geometry::{Point, distance, polygon_contains, segment_distance};
+use crate::geometry::{Point, distance, polygon_contains, segment_distance, segments_cross};
 use crate::ids::Id;
 use crate::layout::copper::CopperRing;
 use crate::layout::fill::FILL_CHORD_MM;
 use crate::model::{CopperLayer, Project, Via};
+use std::collections::BTreeSet;
 
 /// What a joint meets.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -61,6 +62,35 @@ pub fn keeps_joint(polyline: &[Point], at: Point) -> bool {
             .windows(2)
             .any(|w| segment_distance(at, w[0], w[1]) <= JOIN_TOLERANCE_MM),
     }
+}
+
+/// The drawn fills of `net` on `layer` whose outline copper along the
+/// centre lines `lines` runs in: the pours it can join once refilled.
+/// Fills that follow the board are left out: copper on the board is in
+/// them everywhere.
+pub fn pours_met(
+    project: &Project,
+    net: Id,
+    layer: CopperLayer,
+    lines: &[(Point, Point)],
+) -> BTreeSet<Id> {
+    project
+        .fills
+        .iter()
+        .filter(|f| f.region.is_drawn() && f.net == Some(net) && f.layer == layer)
+        .filter(|f| {
+            let ring = f.outline.flatten(FILL_CHORD_MM);
+            lines.iter().any(|(a, b)| {
+                polygon_contains(&ring, *a)
+                    || polygon_contains(&ring, *b)
+                    || ring
+                        .iter()
+                        .zip(ring.iter().cycle().skip(1))
+                        .any(|(p, q)| segments_cross(*a, *b, *p, *q))
+            })
+        })
+        .map(|f| f.id)
+        .collect()
 }
 
 /// Whether `via`, moved to `to`, leaves a drawn fill of its net whose
