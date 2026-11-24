@@ -97,7 +97,9 @@ mod rules_panel;
 #[cfg(test)]
 mod shove_tests;
 mod signal_card;
+mod stack_section;
 mod stackup_panel;
+mod stackup_picker;
 mod text_card;
 mod track_drag;
 #[cfg(test)]
@@ -4439,6 +4441,37 @@ mod tests {
         engine.apply(engine.revision(), operation)?;
         assert_eq!(engine.project().stackup.copper.len(), 4);
         assert_eq!(engine.project().tracks[0].layer, CopperLayer::Inner(2));
+        engine.undo()?;
+        assert_eq!(engine.project(), &before);
+        Ok(())
+    }
+
+    /// Choose… lists the fabricators' stackups for the board's two layers
+    /// and nearest thickness (the demo's profile names no maker); the one
+    /// taken waits in the dialog's draft, and OK sends it as one command the
+    /// engine applies as one undo step.
+    #[test]
+    fn the_stackup_dialog_takes_a_fabricators_stackup() -> Result<(), Box<dyn std::error::Error>> {
+        let mut engine = Engine::demo()?;
+        let before = engine.project().clone();
+        let ctx = egui::Context::default();
+        fonts::setup_bundled_fonts(&ctx);
+        let mut editor = PcbEditor::default();
+        assert!(click(&mut editor, &engine, &ctx, "Stackup…")?.is_none());
+        assert!(click(&mut editor, &engine, &ctx, "Choose…")?.is_none());
+        // Nothing is taken by looking: OK waits.
+        assert!(click(&mut editor, &engine, &ctx, "OK")?.is_none());
+        assert_eq!(editor.subject(), Subject::Dialog);
+        assert!(click(&mut editor, &engine, &ctx, "JLC0216A")?.is_none());
+        assert!(click(&mut editor, &engine, &ctx, "Use this stackup")?.is_none());
+        let operation = click(&mut editor, &engine, &ctx, "OK")?.ok_or("OK did nothing")?;
+        assert_eq!(engine.project(), &before, "it waits for OK");
+        engine.apply(engine.revision(), operation)?;
+        let library = sparksmith_io::fab_stackups::shipped()?;
+        let taken = sparksmith_io::fab_stackups::find(&library, "jlc0216a")?;
+        assert!(taken.is_build_of(&engine.project().stackup));
+        frame(&mut editor, &engine, &ctx, vec![]);
+        assert_eq!(editor.subject(), Subject::Properties);
         engine.undo()?;
         assert_eq!(engine.project(), &before);
         Ok(())

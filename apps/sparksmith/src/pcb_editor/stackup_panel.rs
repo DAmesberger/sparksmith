@@ -1,11 +1,14 @@
 //! The Stackup dialog (Board card › Copper › Stackup…): the board's layer
 //! sequence top to bottom as one table of copper foils and the dielectrics
-//! between them, with a preset picker, add and remove, reordering and the
-//! total thickness. It edits a [`StackupDraft`] and OK sends the one
+//! between them, with a preset picker, the fabricators' stackups
+//! ([`super::stackup_picker`]), add and remove, reordering, the total
+//! thickness and the stack to scale. It edits a [`StackupDraft`] and OK sends the one
 //! `layout.edit_stackup` that applies it, one undo step; the core's rules
 //! (`Stackup::check`) say why a draft cannot be applied, and the engine's
 //! refusal (copper on a removed layer) shows as the dialog's last row.
 use super::PcbEditor;
+use super::stack_section;
+use super::stackup_picker::{Picked, Picker};
 use crate::kit::{
     self,
     dialog::{DialogAction, DialogPanel},
@@ -40,6 +43,11 @@ pub(super) struct StackupSetup {
     /// The shipped stackup family presets and added layers come from, or
     /// why it could not be read.
     presets: Result<StackupPresets, String>,
+    /// The fabricators' stackups, while they are shown.
+    picker: Option<Picker>,
+    /// The fabricator's stackup the draft was taken from, and as it was:
+    /// named while the draft still is it.
+    taken: Option<(String, Stackup)>,
 }
 
 impl StackupSetup {
@@ -55,6 +63,8 @@ impl StackupSetup {
             presets: sparksmith_io::new_project::shipped()
                 .map(|defaults| defaults.presets)
                 .map_err(|e| e.to_string()),
+            picker: None,
+            taken: None,
         }
     }
 
@@ -67,6 +77,21 @@ impl StackupSetup {
         if let Some(text) = refusal::claim(ctx, Origin::Dialog(Self::id())) {
             self.refusal = Some(text);
             self.sent = None;
+        }
+    }
+
+    /// What the picker chose: a stackup replaces the draft, which still
+    /// waits for OK.
+    fn picked(&mut self, picked: Picked) {
+        self.picker = None;
+        self.opening = true;
+        if let Picked::Take(stackup, name) = picked {
+            self.draft = StackupDraft::of(&self.base);
+            self.draft.use_stackup(*stackup);
+            self.taken = Some((name, self.draft.stackup.clone()));
+            self.dropped.clear();
+            self.selected = None;
+            self.refusal = None;
         }
     }
 
@@ -134,11 +159,22 @@ impl PcbEditor {
         dialog.reset_scroll = setup.opening;
         let refused = setup.refusal.clone();
         dialog.refusal = refused.as_deref();
-        dialog.primary_disabled = rule.as_deref();
+        dialog.primary_disabled = if setup.picker.is_some() {
+            Some("Use a stackup or go back first")
+        } else {
+            rule.as_deref()
+        };
         dialog.status = rule.as_deref();
         setup.opening = false;
         let carried = carried_layers(project);
-        let action = dialog.show(ui, |ui| body(ui, setup, &carried));
+        let action = dialog.show(ui, |ui| match &mut setup.picker {
+            Some(picker) => {
+                if let Some(picked) = picker.show(ui, engine) {
+                    setup.picked(picked);
+                }
+            }
+            None => body(ui, setup, project, &carried),
+        });
         match action {
             Some(DialogAction::Cancel) => {
                 self.stackup = None;
@@ -168,7 +204,7 @@ impl PcbEditor {
 
 /// The dialog's body: preset, total, the layer table, the add buttons and
 /// a row per removed layer that carries copper.
-fn body(ui: &mut Ui, setup: &mut StackupSetup, carried: &[CopperLayer]) {
+fn body(ui: &mut Ui, setup: &mut StackupSetup, project: &Project, carried: &[CopperLayer]) {
     let family = setup.presets.as_ref().ok();
     let counts = || family.into_iter().flat_map(|_| Stackup::preset_counts());
     let presets: Vec<(Option<usize>, String)> = std::iter::once((None, "Custom".to_owned()))
@@ -191,6 +227,16 @@ fn body(ui: &mut Ui, setup: &mut StackupSetup, carried: &[CopperLayer]) {
     }
     if let Err(error) = &setup.presets {
         kit::hint(ui, "No stackup presets", error);
+    }
+    let from = setup
+        .taken
+        .as_ref()
+        .filter(|(_, stackup)| *stackup == setup.draft.stackup)
+        .map_or("Fabricators' stackups", |(name, _)| name.as_str());
+    if kit::summary_row(ui, from, Some("Choose…")) {
+        setup.picker = Some(Picker::new(project));
+        setup.opening = true;
+        return;
     }
     kit::value_row(
         ui,
@@ -310,6 +356,15 @@ fn body(ui: &mut Ui, setup: &mut StackupSetup, carried: &[CopperLayer]) {
         }
     }
     setup.dropped.retain(|_, to| layers.contains(to));
+    kit::section(ui, "stackup-section", "Section", false, None, |ui| {
+        // The board's drills belong to the stackup it has.
+        let drills = if setup.draft.changed() {
+            Vec::new()
+        } else {
+            stack_section::barrels(project)
+        };
+        stack_section::show(ui, &stack_section::bands(&setup.draft.stackup), &drills);
+    });
 }
 
 /// A stable key of a draft row, for ids.
