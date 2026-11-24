@@ -1,4 +1,4 @@
-//! Authors Sparksmith's shipped part files (docs/part-templates.md §11)
+//! Authors Sparksmith's shipped part files (docs/part-files.md)
 //! through Solidcraft's own commands and public API, and writes them under
 //! `library/parts/`. Original work (MIT OR Apache-2.0).
 //!

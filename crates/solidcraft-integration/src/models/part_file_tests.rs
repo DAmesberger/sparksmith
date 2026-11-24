@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-//! Lean parts (docs/part-templates.md §11): the conventions, the cache
+//! Lean parts (docs/part-files.md): the conventions, the cache
 //! and refusals.
 use super::*;
 use serde_json::json;

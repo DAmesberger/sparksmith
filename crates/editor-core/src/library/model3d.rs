@@ -706,7 +706,7 @@ pub struct AssignModel {
     pub lead_map: Vec<LeadMapEntry>,
     /// The new model is a part file (format `solidcraft`) the package uses
     /// at these values (`PackageModel::PartFile`); the lead map is then
-    /// empty (docs/part-templates.md §11).
+    /// empty (docs/part-files.md).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub part: Option<AssignPart>,
 }

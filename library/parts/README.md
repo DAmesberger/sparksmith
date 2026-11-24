@@ -1,6 +1,6 @@
 # Shipped part files
 
-Parametric SolidCraft designs that packages use as their 3D body ([lean parts](../../docs/part-templates.md#11-lean-parts-contract)). Each follows Sparksmith's naming conventions; `sparksmith part check FILE` checks them.
+Parametric SolidCraft designs that packages use as their 3D body ([part files](../../docs/part-files.md)). Each follows Sparksmith's naming conventions; `sparksmith part check FILE` checks them.
 
 Sparksmith lists every `NAME.solidcraft` here as the shipped part file `NAME`, read at run time through the shipped library ([shipped library](../../docs/shipped-library.md)). Each has a sidecar `NAME.part.json`, format 1, which the program reads as data (`crates/automation/src/session/shipped_parts.rs`): `name` (the file's stem), `title`, `summary` (what it is, shown to people and to the assistant), `use` (`mechanical`: placed on the board; `package_body`: a package's 3D model; `component`: a whole shipped component, placed in the schematic), `prefix` (designator), `lands` (land rules over the part's length parameters: `{"annulus": {"outer": TERM, "hole": TERM}}` or `{"hole": {"diameter": TERM}}`, each TERM `{"param", "scale" (default 1), "add_mm" (default 0)}`; none for a package body), `licence` (SPDX) and `provenance`. A part file without its sidecar, or a broken sidecar, is refused with the file named. Replacing a part file's bytes changes its asset hash: projects that packed the old file keep it, and it no longer counts as the shipped one.
 

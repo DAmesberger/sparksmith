@@ -195,7 +195,7 @@ impl PartDerived {
 
 /// A package's part file: an exact Model revision (format `solidcraft`),
 /// literal values by the part's own parameter names, and what it evaluated
-/// to (docs/part-templates.md §11).
+/// to (docs/part-files.md).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PartFileModel {

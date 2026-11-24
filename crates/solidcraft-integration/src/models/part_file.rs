@@ -1,4 +1,4 @@
-//! Lean parts (docs/part-templates.md §11): a package's 3D body is an
+//! Lean parts (docs/part-files.md): a package's 3D body is an
 //! ordinary parametric Solidcraft design, a **part file**, built at the
 //! package's literal parameter values through Solidcraft's engine.
 //!

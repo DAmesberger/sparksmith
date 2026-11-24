@@ -1,4 +1,4 @@
-//! Lean parts (docs/part-templates.md §11 L4): `library.check_part_file`
+//! Lean parts (docs/part-files.md): `library.check_part_file`
 //! evaluates a Solidcraft part file at literal values and reports the
 //! convention check; `library.use_part_file` makes a package draft use one
 //! (the file packed as a Model of format `solidcraft` with
