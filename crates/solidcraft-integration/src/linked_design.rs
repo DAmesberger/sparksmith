@@ -47,7 +47,9 @@ pub struct LinkUpdate {
     pub warnings: Vec<String>,
 }
 
-/// A feature that does not evaluate, by its name in the linked design.
+/// What SolidCraft says of a feature, by its name in the linked design:
+/// why it does not evaluate ([`LinkedDesign::feature_errors`]) or its
+/// warning ([`LinkedDesign::feature_warnings`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct FeatureNote {
     pub feature_id: u64,
@@ -175,6 +177,12 @@ impl LinkedDesign {
     /// the linked `body` at `at` (the edges follow that face when the link
     /// is updated), extruded by `distance` along the plane's normal into a
     /// new body or cutting the bodies it meets.
+    ///
+    /// SolidCraft does not update the projection of a face whose boundary
+    /// loops fall on one another in the sketch, a hole's wall seen along
+    /// its axis: it keeps the outline first drawn and says so in a warning
+    /// on the feature ([`Self::feature_warnings`]). Project the hole's rim
+    /// instead ([`Self::projected_edge`]).
     pub fn projected(
         &mut self,
         name: &str,
@@ -184,16 +192,51 @@ impl LinkedDesign {
         distance: f64,
         operation: Operation,
     ) -> Result<()> {
+        self.projection(
+            name,
+            plane,
+            json!({"face": at, "body": body}),
+            distance,
+            operation,
+        )
+    }
+
+    /// [`Self::projected`] for the edge of the linked `body` through `at`: a
+    /// hole's rim gives its circle, which follows the hole.
+    pub fn projected_edge(
+        &mut self,
+        name: &str,
+        plane: [[f64; 3]; 3],
+        body: &str,
+        at: [f64; 3],
+        distance: f64,
+        operation: Operation,
+    ) -> Result<()> {
+        self.projection(
+            name,
+            plane,
+            json!({"edge": at, "body": body}),
+            distance,
+            operation,
+        )
+    }
+
+    fn projection(
+        &mut self,
+        name: &str,
+        plane: [[f64; 3]; 3],
+        reference: Value,
+        distance: f64,
+        operation: Operation,
+    ) -> Result<()> {
         let [origin, x, y] = plane;
         let reply = self.native.call(
             "sketch.create",
             json!({"plane": {"origin": origin, "x_dir": x, "y_dir": y}, "name": name}),
         )?;
         let sketch = id(&reply, "sketch")?;
-        self.native.call(
-            "sketch.project",
-            json!({"refs": [{"face": at, "body": body}]}),
-        )?;
+        self.native
+            .call("sketch.project", json!({"refs": [reference]}))?;
         self.native.call("sketch.finish", json!({}))?;
         let operation = match operation {
             Operation::New => "new",
@@ -206,6 +249,32 @@ impl LinkedDesign {
         }
         self.native.call("solid.extrude", params)?;
         Ok(())
+    }
+
+    /// Every feature SolidCraft evaluated with a warning, with its message:
+    /// among them a sketch whose projection kept its last outline instead
+    /// of following its source, and the feature built from it.
+    pub fn feature_warnings(&self) -> Vec<FeatureNote> {
+        let session = self.native.session();
+        session
+            .model
+            .results
+            .iter()
+            .filter_map(|r| {
+                let error = r.warning.clone()?;
+                let feature = session
+                    .doc
+                    .features
+                    .iter()
+                    .find(|f| f.id == r.id)
+                    .map_or_else(|| r.name.clone(), |f| f.name.clone());
+                Some(FeatureNote {
+                    feature_id: r.id,
+                    feature,
+                    error,
+                })
+            })
+            .collect()
     }
 
     /// Every feature that does not evaluate, with Solidcraft's message.
@@ -330,6 +399,17 @@ impl<'a> Slots<'a> {
         self.by_digest
             .get(digest.get(..16).unwrap_or(digest))
             .copied()
+    }
+
+    /// What a sketch link to `body` references: its face by name, or, for
+    /// an edge, a datum one of the edge's two faces is of (a hole's rim is
+    /// its wall's), else the body as a whole.
+    fn carried_by(&self, body: &str, link: &solidcraft_engine::sketch::Link) -> Carried<'a> {
+        let edge_face = link
+            .edge_name
+            .as_deref()
+            .and_then(|edge| edge.split('|').find(|face| self.by_face(face).is_some()));
+        self.carried(body, link.face_name.as_deref().or(edge_face))
     }
 
     /// A reference to `body` (its face `face`, when it names one).
@@ -582,7 +662,7 @@ impl LinkedDesign {
                 let Some(body) = link_body(&l.source) else {
                     continue;
                 };
-                if let Carried::Slot(token) = slots.carried(body, l.face_name.as_deref()) {
+                if let Carried::Slot(token) = slots.carried_by(body, l) {
                     out.insert(Use {
                         feature: feature.name.clone(),
                         feature_id: feature.id,
@@ -610,7 +690,7 @@ impl LinkedDesign {
                 let Some(body) = link_body(&l.source) else {
                     continue;
                 };
-                if let Carried::Unexported = slots.carried(body, l.face_name.as_deref()) {
+                if let Carried::Unexported = slots.carried_by(body, l) {
                     out.insert(Unexported {
                         feature: feature.name.clone(),
                         body: body.to_owned(),
@@ -735,7 +815,7 @@ impl LinkedDesign {
                         let Some(body) = link_body(&l.source) else {
                             continue;
                         };
-                        match slots.carried(body, l.face_name.as_deref()) {
+                        match slots.carried_by(body, l) {
                             Carried::Slot(token) => {
                                 out.insert(Use {
                                     feature: feature.name.clone(),
@@ -844,7 +924,8 @@ impl LinkedDesign {
     /// point this linked design's board link at the candidate design (as
     /// `component.relink` does), evaluate, and report in the linked design's
     /// own names the features that would move, fail or leave a joint
-    /// unsolved. `published` is the sidecar the assembly links now, which
+    /// unsolved, and a sentence per feature on a datum that SolidCraft
+    /// warns on. `published` is the sidecar the assembly links now, which
     /// says which datum each feature uses; `candidate` the one about to be
     /// published. Run it on a copy: the design is changed in memory.
     pub fn dry_run(
@@ -853,7 +934,7 @@ impl LinkedDesign {
         design: &str,
         published: &Sidecar,
         candidate: &Sidecar,
-    ) -> Result<Vec<AssemblyEffect>> {
+    ) -> Result<(Vec<AssemblyEffect>, Vec<String>)> {
         let uses = self.uses(link, published);
         let unexported = self.unexported(link, published);
         let before_errors = self.feature_errors();
@@ -886,7 +967,7 @@ impl LinkedDesign {
                         candidate,
                     ));
                 }
-                return Ok(effects);
+                return Ok((effects, Vec::new()));
             }
         };
         let mut reported = BTreeSet::new();
@@ -925,6 +1006,34 @@ impl LinkedDesign {
                 },
             };
             effects.push(effect);
+        }
+        // A feature on a datum that SolidCraft warns on: a projection that
+        // kept its last outline does not follow, and says so only there.
+        // Each source sketch once, in its own words where it has them.
+        let mut warnings = Vec::new();
+        let notes = self.feature_warnings();
+        let warned: BTreeSet<u64> = notes.iter().map(|n| n.feature_id).collect();
+        for note in notes {
+            let sketch = self.source_sketch(note.feature_id);
+            if reported.contains(&note.feature_id)
+                || reported.contains(&sketch)
+                || (sketch != note.feature_id && warned.contains(&sketch))
+            {
+                continue;
+            }
+            let Some(u) = uses.iter().find(|u| {
+                u.via != UseKind::Joint
+                    && (u.feature_id == note.feature_id || u.feature_id == sketch)
+            }) else {
+                continue;
+            };
+            let named = published.datums.iter().find(|d| d.token == u.token);
+            warnings.push(format!(
+                "The linked design's ‘{}’ uses {} and may not follow it. SolidCraft warns: {}",
+                note.feature,
+                named.map_or(u.token.as_str(), |d| d.name.as_str()),
+                note.error
+            ));
         }
         for joint in strings(&reply["joint_errors"]) {
             effects.push(AssemblyEffect {
@@ -1032,7 +1141,7 @@ impl LinkedDesign {
                 message,
             });
         }
-        Ok(effects)
+        Ok((effects, warnings))
     }
 }
 

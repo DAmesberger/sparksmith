@@ -14,8 +14,8 @@ use serde_json::{Value, json};
 use sparksmith_core::Operation;
 use sparksmith_core::layout::outline::{BoardCommand, BoardEdit};
 use sparksmith_core::library::footprint_source::{
-    DimKind, DimValue, ParamName, SketchConstraintId, SketchCurveId, SketchEdit, SketchPointId,
-    SketchRef,
+    DimKind, DimValue, Expr, FootprintParam, ParamName, ParamUnit, SketchConstraintId,
+    SketchCurveId, SketchEdit, SketchPointId, SketchRef,
 };
 use sparksmith_core::model::BoardShape;
 use sparksmith_solidcraft::linked_design::LinkedDesign;
@@ -334,6 +334,93 @@ fn b4_the_dry_run_names_the_feature_that_follows() -> TestResult {
     assert_eq!(
         moves["message"],
         "The linked design's ‘USB opening’ follows J1 opening: it moves 2 mm along X"
+    );
+    Ok(())
+}
+
+/// The dry run of moved mounting holes (`inset` 3.5 → 4 mm). The boss
+/// drawn from hole 1's rim follows the hole. A second boss drawn from the
+/// hole's wall as a face keeps its first outline in SolidCraft, which says
+/// so in a warning on the feature only: the dry run passes that warning on
+/// under the datum's name, so the boss is not left behind in silence.
+#[test]
+fn the_dry_run_warns_of_a_projection_that_keeps_its_last_outline() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let assembly_link = dir.path().join("assembly.solidcraft");
+    let mut session = open(dir.path())?;
+    let opening = format!("i{}.opening", instance(&session, "J1")?);
+    publish(&mut session, &design, "interface")?;
+    let (mut linked, _) = linked_design(&design, &opening)?;
+    let wall = linked
+        .faces("board")?
+        .into_iter()
+        .find(|f| {
+            f.normal.is_none()
+                && (f.centroid[0] - 3.5).abs() < 1e-6
+                && (f.centroid[1] - 3.5).abs() < 1e-6
+        })
+        .ok_or("mounting hole 1's wall")?;
+    linked.projected(
+        "Wall boss",
+        [[0.0, 0.0, -12.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        "board",
+        wall.point,
+        4.0,
+        sparksmith_solidcraft::linked_design::Operation::New,
+    )?;
+    linked.save(crate::native_files::new_file(
+        &assembly_link.display().to_string(),
+    ))?;
+    link(&mut session, &assembly_link, &design)?;
+    apply(
+        &mut session,
+        Operation::Board(BoardCommand::Edit {
+            edits: vec![BoardEdit::SetParameter {
+                param: FootprintParam {
+                    name: ParamName("inset".into()),
+                    expr: Expr("4 mm".into()),
+                    unit: ParamUnit::Mm,
+                    comment: String::new(),
+                },
+            }],
+        }),
+    )?;
+    let preview = ok(
+        &mut session,
+        json!({"command": "interface.publish_preview", "params": {
+            "path": design.display().to_string(), "tier": "interface",
+            "assembly_path": assembly_link.display().to_string()}}),
+    )?;
+    let effects = preview["dry_run"]["effects"]
+        .as_array()
+        .ok_or("the dry run")?;
+    let of = |feature: &str| -> Vec<&Value> {
+        effects.iter().filter(|e| e["feature"] == feature).collect()
+    };
+    let (boss, wall_boss) = (of("Boss"), of("Wall boss"));
+    let [follows] = boss.as_slice() else {
+        return Err(format!("the boss on the rim: {effects:?}").into());
+    };
+    assert_eq!(follows["effect"], "moves");
+    assert_eq!(
+        follows["message"],
+        "The linked design's ‘Boss’ follows Mounting hole 1: it moves 0.707 mm"
+    );
+    assert!(wall_boss.is_empty(), "{wall_boss:?}");
+    let warnings = preview["dry_run"]["warnings"]
+        .as_array()
+        .ok_or("the dry run's warnings")?;
+    let [warning] = warnings.as_slice() else {
+        return Err(format!("one warning: {warnings:?}").into());
+    };
+    let message = warning.as_str().ok_or("a message")?;
+    assert!(
+        message.starts_with(
+            "The linked design's ‘Wall boss’ uses Mounting hole 1 and may not follow it. \
+             SolidCraft warns: "
+        ) && message.contains("last geometry retained"),
+        "{message}"
     );
     Ok(())
 }

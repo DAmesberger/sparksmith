@@ -240,7 +240,7 @@ pub(super) fn sidecar(design: &Path) -> TestResult<sparksmith_core::interface::S
 /// The test linked design (acceptance 3): the board linked and grounded; a
 /// 2 mm wall across J1's opening, 1 mm in front of the board edge, with a
 /// cutout projected from the opening's outer face; a boss under the board
-/// projected from mounting hole 1's wall. Returns it with the wall's own
+/// projected from mounting hole 1's rim. Returns it with the wall's own
 /// box faces.
 pub(super) fn linked_design(
     design: &Path,
@@ -268,22 +268,15 @@ pub(super) fn linked_design(
         2.0,
         Extrude::Cut,
     )?;
-    // Mounting hole 1's wall: the board's curved face round the hole,
-    // which stands 3.5 mm from the left edge and from the tab's edge.
-    let wall = assembly_link
-        .faces("board")?
-        .into_iter()
-        .find(|f| {
-            f.normal.is_none()
-                && (f.centroid[0] - 3.5).abs() < 1e-6
-                && (f.centroid[1] - 3.5).abs() < 1e-6
-        })
-        .ok_or("a hole wall")?;
-    assembly_link.projected(
+    // Mounting hole 1's lower rim: the hole stands 3.5 mm from the left
+    // edge and from the tab's edge and is 2.7 mm across. (Its wall, seen
+    // along the hole, is two rims on one circle, which SolidCraft does not
+    // update: `LinkedDesign::projected`.)
+    assembly_link.projected_edge(
         "Boss",
         [[0.0, 0.0, -6.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
         "board",
-        wall.point,
+        [3.5 + 1.35, 3.5, 0.0],
         4.0,
         Extrude::New,
     )?;

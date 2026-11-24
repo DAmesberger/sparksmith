@@ -132,6 +132,11 @@ pub struct DryRun {
     /// The linked design file the copy was made from, as the link names it.
     pub linked_design: String,
     pub effects: Vec<AssemblyEffect>,
+    /// The features on a published datum that SolidCraft evaluates with a
+    /// warning of its own, a sentence each with that warning: a projection
+    /// that keeps its last outline does not follow the datum.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 /// `interface.publish_preview`: what publishing would change.

@@ -503,6 +503,12 @@ pub(super) fn publish_blockers(preview: &PublishPreview) -> Vec<ReviewLine> {
         }),
         EffectKind::Moves => None,
     }));
+    lines.extend(dry.warnings.iter().map(|warning| ReviewLine {
+        level: Level::Warning,
+        title: warning.clone(),
+        ack: None,
+        locate: false,
+    }));
     lines
 }
 

@@ -230,6 +230,29 @@ fn linked_wall(design: &Path, opening: &str) -> Fallible<(LinkedDesign, Vec<Stri
     Ok((linked, box_faces))
 }
 
+/// A boss `name` under the mounting hole at `at`, 2.7 mm across, in a
+/// linked design: the hole's rim projected onto a plane 6 mm under the
+/// board and extruded 4 mm. The rim is the reference that follows a moved
+/// hole; SolidCraft keeps the first outline of the hole's wall projected
+/// as a face (`LinkedDesign::projected`).
+fn boss(linked: &mut LinkedDesign, name: &str, at: Point) -> Fallible<Vec<Face>> {
+    linked.projected_edge(
+        name,
+        [[0.0, 0.0, -6.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        "board",
+        [at[0] + 1.35, at[1], 0.0],
+        4.0,
+        Extrude::New,
+    )?;
+    let made = faces(linked, name)?;
+    assert!(
+        made.iter()
+            .any(|f| f.normal.is_none() && near([f.centroid[0], f.centroid[1]], at)),
+        "{name} stands under the hole at {at:?}: {made:?}"
+    );
+    Ok(made)
+}
+
 /// The name of the linked board's curved face that stands round `at`: a
 /// mounting hole's wall, as the linked design names it.
 fn hole_wall(linked: &mut LinkedDesign, at: Point) -> Fallible<String> {
@@ -386,6 +409,12 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
         hole_wall(&mut linked, [3.5, 60.5])?,
     ];
     let board_faces = faces(&mut linked, "board")?.len();
+    let bosses = [
+        boss(&mut linked, "Boss 2", [36.5, 3.5])?,
+        boss(&mut linked, "Boss 3", [3.5, 60.5])?,
+    ];
+    let warnings = linked.feature_warnings();
+    assert!(warnings.is_empty(), "{warnings:?}");
 
     let (w, h) = (45.0, 70.0);
     set(
@@ -565,7 +594,8 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
 
     // Published again and its links updated, the linked design's copy of the
     // board has every face under the name it had, the mounting holes'
-    // walls where the holes are now, and the cutout projected from the
+    // walls where the holes are now, the bosses drawn from two holes' rims
+    // stand under their holes, and the cutout projected from the
     // receptacle's opening follows the receptacle; the wall's own faces
     // stay.
     publish(&mut session, &design)?;
@@ -600,6 +630,15 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
     };
     assert!(cut(&wall).len() >= 4, "the cutout's faces");
     assert_moved(&cut(&wall), &cut(&wall_now), [dx, 0.0, 0.0], "the cutout");
+    for ((name, before), by) in ["Boss 2", "Boss 3"]
+        .into_iter()
+        .zip(&bosses)
+        .zip([[w - 40.0, 0.0, 0.0], [0.0, h - 64.0, 0.0]])
+    {
+        assert_moved(before, &faces(&mut linked, name)?, by, name);
+    }
+    let warnings = linked.feature_warnings();
+    assert!(warnings.is_empty(), "{warnings:?}");
 
     // Back at the shipped values, in one step: narrower and shorter than
     // the copper stood, which the parts carry back with them. The board
