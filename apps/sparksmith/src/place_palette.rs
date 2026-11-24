@@ -61,11 +61,18 @@ const ROWS: usize = 40;
 /// or a type joins it.
 const NO_MATCH: &str = "No component or generated part matches; add a package or type: 10k 0603";
 /// Key names are spelled out: the bundled fonts have no ⏎ or ⇧ glyphs.
-const KEYS: &str = "↑↓ move   Enter place   Shift+Enter place & keep open   click pick   Cmd+D favourite   Esc close";
+const KEYS: &str = if cfg!(target_os = "macos") {
+    "↑↓ move   Enter place   Shift+Enter place & keep open   click pick   Cmd+D favourite   Esc close"
+} else {
+    "↑↓ move   Enter place   Shift+Enter place & keep open   click pick   Ctrl+D favourite   Esc close"
+};
 /// The footer on a library folder row: a click places it like Enter, and
 /// a folder Part places its component with the Part assigned.
-const KEYS_FOLDER: &str =
-    "↑↓ move   Enter place   Shift+Enter place & keep open   Cmd+D favourite   Esc close";
+const KEYS_FOLDER: &str = if cfg!(target_os = "macos") {
+    "↑↓ move   Enter place   Shift+Enter place & keep open   Cmd+D favourite   Esc close"
+} else {
+    "↑↓ move   Enter place   Shift+Enter place & keep open   Ctrl+D favourite   Esc close"
+};
 /// The footer on a template row.
 const KEYS_TEMPLATE: &str = "↑↓ move   Enter create and place   click pick   Esc close";
 /// The footer on a generic part that is not yet created, and on one that is.
@@ -3055,6 +3062,17 @@ mod tests {
             entries,
             ..Default::default()
         })
+    }
+
+    /// GUI run 1, F19: the footers name this platform's command key.
+    #[test]
+    fn the_footers_name_this_platforms_command_key() {
+        let key = if cfg!(target_os = "macos") {
+            "Cmd+D"
+        } else {
+            "Ctrl+D"
+        };
+        assert!(KEYS.contains(key) && KEYS_FOLDER.contains(key));
     }
 
     /// The project's parts, then the generic parts it could make, then the

@@ -2279,7 +2279,11 @@ impl PcbEditor {
                     Tool::Tune => "Tune",
                     Tool::Dimension => "Dimension",
                     Tool::Select if self.dragging_pair_half(project) => {
-                        "Drag the pair (⌥: this half alone)"
+                        if cfg!(target_os = "macos") {
+                            "Drag the pair (Option: this half alone)"
+                        } else {
+                            "Drag the pair (Alt: this half alone)"
+                        }
                     }
                     Tool::Select => "Select / move",
                 },
