@@ -496,7 +496,7 @@ fn the_run_s_tool_definitions_are_mcp_s_bytes() -> Fallible {
             tools: &offered,
             messages: &[],
             max_output_tokens: 1,
-            timeout: std::time::Duration::from_secs(1),
+            timeout: None,
         },
     );
     for (sent, served) in body["tools"].as_array().into_iter().flatten().zip(&served) {
@@ -1038,13 +1038,9 @@ fn token_and_time_caps_bind_a_local_model() -> Fallible {
         text_datasheet(&dir)?,
         &mut profiled_session(),
     )?;
-    assert!(
-        backend
-            .wire
-            .posts
-            .iter()
-            .all(|p| p.3 <= std::time::Duration::from_secs(600))
-    );
+    assert!(backend.wire.posts.iter().all(|p| {
+        p.3.is_some_and(|t| t <= std::time::Duration::from_secs(600))
+    }));
     Ok(())
 }
 

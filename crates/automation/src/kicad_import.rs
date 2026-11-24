@@ -80,7 +80,9 @@ pub fn board_file(source: &Path) -> Result<PathBuf, String> {
 }
 
 /// Import the KiCad project at `source` into a new project, on the fab
-/// profile `profile` names (else the user's default).
+/// profile `profile` names (else the user's default). It has no time limit;
+/// a host cancels it through the call it runs it in
+/// ([`sparksmith_generators::cancel`]).
 pub fn import(source: &Path, profile: Option<&str>) -> Result<KicadImport, String> {
     ImportCatalog::default().import(source, profile)
 }
@@ -104,7 +106,7 @@ impl ImportCatalog {
         import_with(
             source,
             profile,
-            Some(crate::session::generators::batch_runtime),
+            Some(crate::session::generators::session_runtime),
             &mut self.0,
         )
     }
@@ -115,12 +117,9 @@ fn profile_for(id: Option<&str>) -> Result<sparksmith_core::rules::RuleProfile, 
     sparksmith_io::rule_profiles::for_new_board_from_env(id).map_err(|e| e.to_string())
 }
 
-/// The generator runtime an import's models are made with, for its deadline.
-pub(crate) type Runtime = fn(
-    std::time::Instant,
-) -> std::sync::Arc<
-    dyn sparksmith_core::library::generated::GeneratorRuntime + Send + Sync,
->;
+/// The generator runtime an import's models are made with.
+pub(crate) type Runtime =
+    fn() -> std::sync::Arc<dyn sparksmith_core::library::generated::GeneratorRuntime + Send + Sync>;
 
 /// [`import`] with its models made on a test fixture's own worker pool, so
 /// parallel tests do not wait on each other's generators.
@@ -129,7 +128,7 @@ pub fn import_in_fixture_pool(source: &Path, profile: Option<&str>) -> Result<Ki
     import_with(
         source,
         &profile_for(profile)?,
-        Some(crate::session::generators::fixture_batch_runtime),
+        Some(crate::session::generators::fixture_runtime),
         &mut Default::default(),
     )
 }

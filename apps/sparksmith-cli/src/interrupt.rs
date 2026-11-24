@@ -32,8 +32,8 @@ pub(super) fn stop_on_ctrl_c() -> Result<Arc<AtomicBool>> {
                     Poll::Ready(pressed) => pressed,
                     Poll::Pending => {
                         eprintln!(
-                            "stopping: the run ends at the model's next piece of output or the \
-                             end of this step, and what it made is saved. Ctrl-C again quits \
+                            "stopping: the run ends now, or at the end of the step it computes, and \
+                             what it made is saved. Ctrl-C again quits \
                              without saving"
                         );
                         again.await

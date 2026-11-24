@@ -49,8 +49,6 @@ pub const MAX_ENV: usize = 64;
 pub const CONTEXT_RANGE: std::ops::RangeInclusive<u64> = 2_048..=10_000_000;
 /// Output tokens one request may be declared to take.
 pub const OUTPUT_RANGE: std::ops::RangeInclusive<u32> = 256..=1_000_000;
-/// Minutes one request may wait.
-pub const TIMEOUT_RANGE: std::ops::RangeInclusive<u32> = 1..=24 * 60;
 /// Parts of a variable name that mean it carries a key.
 const SECRET_WORDS: &[&str] = &["KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL"];
 
@@ -100,8 +98,6 @@ pub struct EndpointSetting {
     pub model: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub harness_profile: Option<String>,
-    /// Longest wait for one response.
-    pub timeout_minutes: u32,
     /// What the model can do, declared; an OpenAI-compatible endpoint
     /// needs it, and the Messages API declares its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -142,7 +138,6 @@ impl EndpointSetting {
             }
         };
         profile.harness_profile.clone_from(&self.harness_profile);
-        profile.request_timeout = Duration::from_secs(u64::from(self.timeout_minutes) * 60);
         Ok(profile)
     }
 
@@ -167,14 +162,6 @@ impl EndpointSetting {
             return Err(format!(
                 "endpoint {}: give the model id, at most {MAX_MODEL} bytes",
                 self.name
-            ));
-        }
-        if !TIMEOUT_RANGE.contains(&self.timeout_minutes) {
-            return Err(format!(
-                "endpoint {}: the timeout must be {} to {} minutes",
-                self.name,
-                TIMEOUT_RANGE.start(),
-                TIMEOUT_RANGE.end()
             ));
         }
         let Some(c) = &self.capabilities else {
@@ -491,12 +478,26 @@ pub fn read(path: &Path) -> Result<AssistSettings> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(AssistSettings::default()),
         Err(e) => return Err(Error::Config(format!("{origin}: {e}"))),
     };
-    let settings: AssistSettings =
-        serde_json::from_str(&text).map_err(|e| Error::Config(format!("{origin}: {e}")))?;
+    let settings = parse(&text).map_err(|e| Error::Config(format!("{origin}: {e}")))?;
     settings
         .check()
         .map_err(|why| Error::Config(format!("{origin}: {why}")))?;
     Ok(settings)
+}
+
+/// The settings `text` holds. Files of earlier versions say how long an
+/// endpoint's reply may take, which nothing limits: it is dropped.
+fn parse(text: &str) -> serde_json::Result<AssistSettings> {
+    let mut value: serde_json::Value = serde_json::from_str(text)?;
+    let endpoints = value
+        .get_mut("endpoints")
+        .and_then(serde_json::Value::as_array_mut);
+    for endpoint in endpoints.into_iter().flatten() {
+        if let Some(fields) = endpoint.as_object_mut() {
+            fields.remove("timeout_minutes");
+        }
+    }
+    serde_json::from_value(value)
 }
 
 /// Check `settings` and replace the file at `path` atomically.

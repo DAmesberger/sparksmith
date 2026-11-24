@@ -19,6 +19,7 @@
 //! (`app/assistant_run.rs`): under the run's grant and in the run's turn
 //! instead of the message's.
 use super::App;
+use super::generator_wait::Waiting;
 use crate::assistant::worker::{self, ChatModel, FromTurn, ToolRequest};
 use crate::assistant::{
     self, Action, Allow, AskCard, Asking, Dock, Held, Item, Now, OpenTurn, State, TurnSummary,
@@ -364,7 +365,10 @@ impl App {
     fn assistant_action(&mut self, ctx: &egui::Context, action: Action) {
         match action {
             Action::Send => self.assistant_send(ctx),
-            Action::Stop => self.assistant.stop(),
+            Action::Stop => {
+                self.generators.stop_chat();
+                self.assistant.stop();
+            }
             Action::Answer { id, allow } => self.assistant_answer(ctx, id, allow),
             Action::Show(id) => self.assistant_show(id),
             Action::Continue(id) => {
@@ -722,6 +726,7 @@ impl App {
             grant.mode = sparksmith_automation::Mode::AskEveryTime;
         }
         let from = (self.engine.revision(), self.engine.document().clone());
+        let _ = self.generators.runtime.take_met();
         let (mut window, engine, assistant) = self.window_for_assistant(busy);
         let entry = request.run.as_ref().is_some_and(|run| run.entry);
         let (reply, changes) = assistant.session.lend_file(engine, &host, |session| {
@@ -754,6 +759,11 @@ impl App {
                 )
             }
         });
+        // It met a running generator: it waits for it and runs again.
+        if self.generators.runtime.take_met() && self.engine.revision() == from.0 {
+            self.generators.hold(Waiting::Chat { request, allowed });
+            return;
+        }
         // The chat's own call: what it changed is the turn's.
         if request.run.is_none()
             && let Some(turn) = self.assistant.turn.as_mut()

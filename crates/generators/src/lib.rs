@@ -19,6 +19,9 @@
 //! the same way (see `crates/generators-probe`, which proves that build
 //! gives the same result hashes).
 
+pub mod cancel;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod deferred;
 pub mod params;
 pub mod validate;
 #[cfg(not(target_arch = "wasm32"))]
@@ -61,7 +64,7 @@ impl Limits {
     /// Fuel grows by about 460 per response byte, so a response at the
     /// 1 MiB bound needs about 0.5 G: the fuel matches that bound, and at
     /// the measured 1.1 G fuel per second it ends a call within about 0.5 s
-    /// natively (the 2 s wall-time target leaves room for slower hosts).
+    /// natively.
     pub const DEFAULT: Self = Self {
         module_bytes: 1024 * 1024,
         fuel: 500_000_000,

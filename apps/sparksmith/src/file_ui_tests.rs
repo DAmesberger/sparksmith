@@ -342,6 +342,35 @@ fn a_kicad_import_arrives_unsaved_with_its_report() -> Fallible {
     Ok(())
 }
 
+/// Stop ends a running import: nothing is imported, and the next one runs.
+#[test]
+fn a_stopped_import_imports_nothing_and_the_next_one_runs() -> Fallible {
+    let mut h = Harness::new()?;
+    let board = h.dir.path().join("demo.kicad_pcb");
+    std::fs::write(&board, KICAD_BOARD)?;
+    h.files.request(Action::ImportKicadPath(board.clone()));
+    assert!(h.files.import_stoppable());
+    h.files.stop_import();
+    assert!(!h.files.import_stoppable());
+    assert!(
+        h.files
+            .activity()
+            .is_some_and(|(text, _)| text.starts_with("Stopping the import"))
+    );
+    h.until("the import to stop", |h| !h.files.importing())?;
+    assert!(h.effects.is_empty());
+    assert_eq!(
+        h.files.take_status().map(|(_, text)| text).as_deref(),
+        Some("Import stopped; nothing was imported")
+    );
+    h.files.request(Action::ImportKicadPath(board));
+    h.until("the imported project", |h| {
+        h.effects
+            .iter()
+            .any(|e| matches!(e, Effect::Imported { .. }))
+    })
+}
+
 /// A KiCad file that is not a board says why, and nothing is replaced.
 #[test]
 fn a_failed_kicad_import_says_why() -> Fallible {

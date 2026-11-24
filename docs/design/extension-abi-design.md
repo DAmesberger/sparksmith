@@ -36,7 +36,7 @@ About 83–124 hours for the surface, the cut-over, the window and the agent (S0
 | Five-verb MCP server | `find`, `describe`, `query`, `apply`, `act`, project handles, 2,986 bytes of tools, on `rmcp` 3.9.0 | `mcp/surface/` | Built (M2, P1, P2), **served by no binary**. P3–P9 not built (doc: mcp-surface) |
 | Live channel | Solidcraft's control channel on loopback with a token file. Two methods: `engine.execute {command, params}` and `project.revision`. Busy refusal, `WINDOW_ONLY`, Ask waits for the window | `live.rs`, `apps/sparksmith/src/app/live_mcp.rs` | Solid for document requests. Nothing for the window. The channel's `project.changed` event name is declared but nothing subscribes |
 | Built-in assistant | 17 hand-written tools for datasheet-to-part, each mapped by a `match` onto session requests; its own working pinout document; argument leniency for weak models | `crates/assist/src/tools.rs:83,199` | A third tool list. Runs in a headless session of its own, not on the open project. The general assistant panel is a proposal, not built (doc: assistant-panel) |
-| Generator ABI 1 | No imports, four exports, canonical integer JSON, fuel 500 M, memory 32 MiB, wall 2 s, identity by hash | `crates/generator-abi`, `crates/generators` (wasmi 2.0.0) | Solid and separate: its own description format and refusal shape; cannot call anything; not reachable over MCP |
+| Generator ABI 1 | No imports, four exports, canonical integer JSON, fuel 500 M, memory 32 MiB, identity by hash | `crates/generator-abi`, `crates/generators` (wasmi 2.0.0) | Solid and separate: its own description format and refusal shape; cannot call anything; not reachable over MCP |
 | CLI | 20 subcommands. `stdio` and `mcp` carry `Request`; the rest (`fab`, `export`, `part`, `pinout`, `firmware`, `design-part`, …) are hand-written wrappers | `apps/sparksmith-cli/src/main.rs:205` | Two shapes: a generic one and one-off subcommands with their own argument parsing |
 | UI command registry | About 50 commands with contexts, chords and handlers: `AppCommand`, `RibbonEvent`, `PcbView`, `View3d`, `PcbArrange` | `apps/sparksmith/src/commands.rs` | A second registry, unrelated to the catalog. Workspace, view, layers, selection and camera are window state that no automation can read or set |
 
@@ -347,7 +347,7 @@ act      {project?, name, params, expected_revision?, confirm?}    files, publis
 |---|---|---|
 | `call` | `(ptr: u32, len: u32) -> u64` | One envelope `{entry, params, dry_run?}` in; `(ptr << 32) \| len` of a status byte and the reply or error out. Gated by the invoke's effect and the grant; counted |
 | `log` | `(level: u32, ptr: u32, len: u32)` | A line for the run's log (64 KiB per run). Never shown as if the program said it |
-| `cancelled` | `() -> u32` | 1 when the person pressed Stop or the wall time is near. Always 0 in an effect-`none` invoke |
+| `cancelled` | `() -> u32` | 1 when the call was cancelled (the person's Stop, an MCP client's cancel, Ctrl-C). Always 0 in an effect-`none` invoke |
 
 No WASI, clock, random numbers, files, network or threads. A plugin cannot name a path: one that makes files returns artifacts, and the host saves them through the ordinary Ask path into a folder the person chooses. `show` and `action` entries are not callable from a plugin in this version.
 
@@ -357,7 +357,7 @@ No WASI, clock, random numbers, files, network or threads. A plugin cannot name 
 2. The host forks the engine at revision R (`Engine::fork`, which shares unchanged sections) and instantiates the module fresh.
 3. Every `call` runs on the fork through `Surface::call` as `Principal::Plugin`. Operations change the fork and answer the usual compact reply, so the plugin can react to a refusal.
 4. On Ok the host applies the successful operations to the live document with one `apply` at `expected_revision: R`, as one undo step named after the command, after whatever the mode asks of the person (the impact is the dry-run reply).
-5. A trap, fuel or memory exhaustion, a timeout, Stop or an error result drops the fork: the document is unchanged. A document that moved meanwhile makes the run stale: unchanged, and the message says to run it again.
+5. A trap, fuel or memory exhaustion, Stop or another cancel, or an error result drops the fork: the document is unchanged. A document that moved meanwhile makes the run stale: unchanged, and the message says to run it again.
 
 Every invoke is therefore a function of (plugin, parameters, document at R), with no R for effect `none`. It can be recorded, replayed and tested with goldens. There is no reentrancy.
 
@@ -372,7 +372,7 @@ Every invoke is therefore a function of (plugin, parameters, document at R), wit
 | Module size | 1 MiB | 4 MiB |
 | Fuel per invoke | 500 M (about 0.5 s) | 5 G, the module's own work only |
 | Linear memory | 32 MiB | 64 MiB |
-| Wall time | 2 s | 30 s, with Stop |
+| Wall time | none; cancellable | none; cancellable, with Stop |
 | Calls per invoke | none succeed | 10,000 |
 | Request / reply | 64 KiB / 1 MiB | 1 MiB / 4 MiB per call |
 | Artifacts | — | 64 MiB in total |
@@ -759,7 +759,7 @@ At most five agents at once. Nothing runs the desktop app on the host (VM only).
 | **S6** | Built-in agent on the surface | `crates/assist` calls `Surface::call` with the verb definitions; `assist.*` entries; profiles as data; leniency in the verb reader; the tool list deleted | Tool definitions equal MCP's bytes (test). The 16 recordings and the TLV replays reach the same grades. A profile test shows the datasheet run cannot reach publish, files or settings. `assist/tools.rs` has no `definitions` | 10–16 | S3 |
 | **S7** | CLI | `sparksmith call`, `find`, `describe`; `stdio` takes the envelope and verb lines and emits event lines; old subcommands become aliases or go | `sparksmith call fab.export '{"output": …}'` writes the same files as `sparksmith fab`. `sparksmith describe layout` prints the module's lines. The shell completions come from the catalog | 4–6 | S2 |
 | **S8** | One plugin ABI | One description format with capabilities, effects and `needs`; the four exports renamed; the null host for effect `none`; the one error shape; `Principal::Plugin`; approve by bundle hash, revoke, per-user store (the store the approval UI uses); the chip generator is the first plugin | A module that calls `call` during `generate-part` gets `plugin.pure` and gives one result hash natively, under wasmi and under the probe. A plugin declaring only effect `none` with any import is refused. A changed bundle asks again and shows what changed. A plugin needing `layout 2` on `layout 1` is refused before it runs, naming both. | 8–12 | S1 |
-| **S9a** | Effect `read` | The `call` import answered on a frozen fork; `pure` and `revision` queries only; artifacts saved through Ask; SDK; one shipped example (a BOM format) | Runs within fuel, memory and wall limits. Same module, parameters and revision give the same result natively, under wasmi and under the wasm32 probe. A call to a `world` entry or outside the grant is refused and the run ends cleanly. Limits set from measurement and recorded | 10–14 | S8, S2 |
+| **S9a** | Effect `read` | The `call` import answered on a frozen fork; `pure` and `revision` queries only; artifacts saved through Ask; SDK; one shipped example (a BOM format) | Runs within its fuel and memory limits, and a cancel ends it. Same module, parameters and revision give the same result natively, under wasmi and under the wasm32 probe. A call to a `world` entry or outside the grant is refused and the run ends cleanly. Limits set from measurement and recorded | 10–14 | S8, S2 |
 | **S9b** | Effect `edit` | Operations on the fork; impact preview; one apply at R; stale handling; palette and form from the description; one shipped example (via stitching) | One undo step named after the command. A trap, fuel exhaustion and Stop each leave the document byte-identical. An edit during the run makes it stale and changes nothing. A recorded run replays to the same operations | 10–16 | S9a, S4 |
 | **S10** | Evidence | Token and byte budgets per module as tests; a small local model and Claude Code each complete a scripted task through the verbs including one `show`; property tests and a fuzzer on the envelope decoder and the plugin host; generated per-module reference | A measured table in the repository replaces every "target" in this document. The founder's small-model requirement is met or the gap is named | 5–8 | S3–S6 |
 
@@ -784,7 +784,7 @@ The slices run in the order of 5.1; S9 comes after S10's evidence.
 | **The catalog becomes a second source again** when a field is added to a list under deadline | The macro refuses to compile without the fields; the lists are deleted in S1, not later; the xtask gate |
 | **The cut-over lands late and blocks the rest** | S0, S1, S2b, S5's host trait and S8 do not depend on it. S3 is scoped to "serve the verbs and delete", with elicitation, links and skills as follow-ups |
 | **The window moving under the person's hands** | Busy refusal, the person's input always wins, a preference for remote agents, no raw input |
-| **Plugins as an attack surface** | Three imports; no paths, clock, network or window; approval per hash; grants per user; nothing but generators runs from a project; fuel, memory, wall time and call counts; the host fuzzed in S10 |
+| **Plugins as an attack surface** | Three imports; no paths, clock, network or window; approval per hash; grants per user; nothing but generators runs from a project; fuel, memory and call counts, and Stop; the host fuzzed in S10 |
 | **Freezing an ABI too early** | Every break is visible in `surface.lock` and the major; the plugin slices come last; nothing is announced before the ABI is closed and S9b has a second real example |
 | **Fork cost on large boards**, paid by every dry run and plugin run | `fork()` shares sections (code). Measure on the dense benchmark board in S9a. The per-operation whole-document followers (critique §1) are the real cost and are not this plan's to fix |
 | **Renaming 260 wire names by accident** | S1 assigns modules without renaming; a rename is a major bump that the gate forces to be deliberate. Recordings carry the catalog digest and are refused clearly against another |

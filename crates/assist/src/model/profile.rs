@@ -100,8 +100,6 @@ pub struct ModelProfile {
     pub output: OutputLimits,
     /// The effort or reasoning level, when one is set.
     pub effort: Option<String>,
-    /// Longest wait for one response. Requests are not streamed.
-    pub request_timeout: Duration,
 }
 
 /// The context of a model on the Messages API.
@@ -110,7 +108,7 @@ const ANTHROPIC_CONTEXT: u64 = 1_000_000;
 impl ModelProfile {
     /// A model on the Messages API. Its capabilities are the ones that API
     /// declares for its current models. The limits are today's: 32 000 output tokens a request and
-    /// 64 000 after a cut-off, for a 30-minute non-streaming wait.
+    /// 64 000 after a cut-off.
     pub fn anthropic(model: &str) -> Self {
         Self {
             harness_profile: None,
@@ -132,7 +130,6 @@ impl ModelProfile {
                 after_cut: 64_000,
             },
             effort: Some("high".into()),
-            request_timeout: Duration::from_secs(30 * 60),
         }
     }
 
@@ -156,8 +153,6 @@ impl ModelProfile {
             },
             output: OutputLimits::for_context(context_tokens),
             effort: None,
-            // A local model at 17 tokens a second takes 31 minutes for 32 000.
-            request_timeout: Duration::from_secs(90 * 60),
         }
     }
 

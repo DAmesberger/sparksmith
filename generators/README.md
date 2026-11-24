@@ -194,7 +194,7 @@ Limits (`sparksmith_generators::Limits::DEFAULT`, `v1::limits`), set from these 
 | Description | (1 MiB) | 256 KiB | 18 × the chip description |
 | Response | 4 MiB | 1 MiB | 380 × the largest chip response; a 1 024-pad grid array projects to about 0.3 MiB |
 | Per-kind counts | — | pads ≤ 1 024, terminals ≤ 1 024, graphics ≤ 4 096 per list, points ≤ 1 024, units ≤ 64, coordinates ≤ 1 m | `v1::limits` |
-| Wall time | 2 s | 2 s per call (`worker::WALL`) | Fuel bounds the work; `sparksmith_generators::worker::Worker` runs each call on its own thread and refuses one past the wall time or cancelled (GP1) |
+| Wall time | 2 s | none | Fuel ends every call after the same work on every machine. `sparksmith_generators::worker::Worker` runs each call on its own thread; whoever waits cancels it |
 
 The fuel limit and the response bound are tied: raise them together. The projections for larger families are estimates until those generators exist (GP3, GP4).
 

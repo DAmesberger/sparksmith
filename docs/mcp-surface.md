@@ -414,7 +414,7 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - `requestState` single use is the server's to enforce (M0); P5 keeps the spent-nonce set.
   - rmcp fills missing `ttlMs` and `cacheScope` with `0` and `private`, so every cacheable result should set them explicitly.
   - rmcp maps resource-not-found (`-32002`) to `-32602` at `2026-07-28`.
-  - A cancelled request drops its handler, but a job already on the desk runs to completion. P7 adds cooperative cancellation.
+  - No call has a time limit. A cancelled request (`notifications/cancelled`, or the connection closed) drops its handler, which cancels its job (`sparksmith_generators::cancel`): one waiting its turn never runs, and one waiting for a generator, or through `--live` for the window, ends there with the document unchanged. Other work already on the desk runs to completion; P7 adds check points to it.
 
 ## As built: P2, five tools and project handles (9 November 2026)
 

@@ -1,41 +1,47 @@
-//! Generation off the caller's thread, with a wall-time bound and
-//! cancellation (slice GP1).
+//! Generation off the caller's thread, with cancellation (slice GP1).
 //!
-//! Each call runs on a fresh worker thread under the host's fuel and memory
-//! limits. The caller waits at most [`Worker::wall`] and checks its cancel
-//! flag while it waits; a call that runs out of time or is cancelled is
-//! refused at once and its result, if one ever comes, is dropped. The
-//! worker thread itself stops after bounded module execution and host
-//! decoding. At most four workers are active in the process, including
-//! abandoned calls: a permit stays with the thread through result/runtime
-//! cleanup. A timeout bounds the wait, not the thread's lifetime.
+//! Each call runs on a fresh worker thread under the host's fuel, module
+//! size, memory and decode limits, which end a runaway module after the
+//! same work on every machine. There is no time limit: a busy machine is
+//! no property of a module, and whoever waits ends the wait themselves.
 //!
-//! When all four are busy an interactive call is refused at once with the
-//! retryable `generator.busy`. Batch work that nobody is there to retry (a
-//! KiCad import making every part's model) asks for a worker with
-//! [`Worker::waiting_until`] instead: it waits for one up to its deadline,
-//! still watching the cancel flag, and its wall time starts once admitted.
-//! A headless session's script or agent, whose calls come one after
-//! another for as long as it runs, uses [`Worker::waiting_for`]: each call
-//! waits up to the same bound from when it is made.
+//! At most four workers are active in the process. A call made while all
+//! are busy waits for one. A caller gives up with its [`Cancel`], the
+//! worker's own ([`Worker::with_cancel`]) or the call's it runs for
+//! ([`crate::cancel::current`]): waiting or running, it is refused at once
+//! (`generator.cancelled`), nothing is changed and the next call works. Its
+//! worker thread runs on to the end of its fuel and then drops its result;
+//! a permit is held through result/runtime cleanup, and a caller that
+//! takes its result has the permit back by then, so calls made one after
+//! another hold one.
+//!
+//! A window's thread makes no call at all: it has a [`crate::deferred`]
+//! runtime.
+use crate::cancel::{self, Cancel};
 use crate::{Limits, WasmiRuntime};
 use sparksmith_generator_abi::v1::{Description, Request};
 use sparksmith_generator_abi::{Failure, Generated, GeneratorRuntime};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-/// The wall-time target of one call (`generators/README.md`): fuel bounds
-/// the work, this bounds how long a caller waits on a slow host.
-pub const WALL: Duration = Duration::from_secs(2);
+/// Whether a refusal with this code is about the host at that moment (the
+/// call was cancelled, waits for its worker or could not start) and not
+/// about the module: calling again can succeed, so it is never kept as the
+/// module's answer.
+pub fn is_transient(code: &str) -> bool {
+    matches!(
+        code,
+        "generator.cancelled" | "generator.pending" | "generator.not_started"
+    )
+}
 
-/// How often a waiting caller looks at its cancel flag.
+/// How often a waiting caller looks at its cancellation and at the pool.
 const POLL: Duration = Duration::from_millis(10);
 
-/// Most generator workers active in this process, including timed-out or
-/// cancelled calls still executing or decoding. A new call is refused as
-/// busy rather than queued when all permits are held.
+/// Most generator workers active in this process, including cancelled
+/// calls still executing or decoding. Further calls wait for one.
 pub const MAX_ACTIVE: usize = 4;
 
 // A process resource counter, not host/library data. Fresh Worker values
@@ -44,22 +50,6 @@ static SLOTS: Slots = Slots(AtomicUsize::new(0));
 
 #[derive(Debug)]
 struct Slots(AtomicUsize);
-
-impl Slots {
-    fn acquire(&self) -> Result<(), Failure> {
-        self.0
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
-                (active < MAX_ACTIVE).then(|| active + 1)
-            })
-            .map_err(|_| {
-                Failure::one(
-                    "generator.busy",
-                    format!("All {MAX_ACTIVE} generator workers are still busy. Try again when one finishes. It was not run."),
-                )
-            })?;
-        Ok(())
-    }
-}
 
 #[derive(Clone, Debug)]
 enum Pool {
@@ -77,9 +67,15 @@ impl Pool {
         }
     }
 
-    fn acquire(&self) -> Result<Permit, Failure> {
-        self.slots().acquire()?;
-        Ok(Permit(self.clone()))
+    /// A permit, when a worker is free.
+    fn acquire(&self) -> Option<Permit> {
+        self.slots()
+            .0
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+                (active < MAX_ACTIVE).then(|| active + 1)
+            })
+            .ok()?;
+        Some(Permit(self.clone()))
     }
 }
 
@@ -91,41 +87,26 @@ impl Drop for Permit {
     }
 }
 
-/// How a call gets a worker when all of them are busy.
-#[derive(Clone, Copy, Debug)]
-enum Admission {
-    /// Refuse at once with the retryable `generator.busy` (interactive).
-    Refuse,
-    /// Wait for a worker until this deadline (batch work).
-    WaitUntil(Instant),
-    /// Wait for a worker up to this long from when each call is made.
-    WaitFor(Duration),
-}
-
 /// A [`GeneratorRuntime`] that runs every call on its own thread.
 #[derive(Clone, Debug)]
 pub struct Worker {
     limits: Limits,
-    wall: Duration,
-    cancel: Option<Arc<AtomicBool>>,
+    cancel: Option<Cancel>,
     pool: Pool,
-    admission: Admission,
 }
 
 impl Default for Worker {
     fn default() -> Self {
-        Self::new(Limits::DEFAULT, WALL)
+        Self::new(Limits::DEFAULT)
     }
 }
 
 impl Worker {
-    pub fn new(limits: Limits, wall: Duration) -> Self {
+    pub fn new(limits: Limits) -> Self {
         Self {
             limits,
-            wall,
             cancel: None,
             pool: Pool::Process(&SLOTS),
-            admission: Admission::Refuse,
         }
     }
 
@@ -140,27 +121,10 @@ impl Worker {
         }
     }
 
-    /// This worker with a cancel flag: setting it refuses the call in
-    /// progress (`generator.cancelled`) and every later one until cleared.
-    pub fn with_cancel(mut self, cancel: Arc<AtomicBool>) -> Self {
+    /// This worker with a cancellation of its own: once set, the call in
+    /// progress and every later one is refused (`generator.cancelled`).
+    pub fn with_cancel(mut self, cancel: Cancel) -> Self {
         self.cancel = Some(cancel);
-        self
-    }
-
-    /// This worker for batch work: a call made while all workers are busy
-    /// waits for one until `deadline` (or until cancelled) instead of being
-    /// refused at once; past the deadline it is refused as busy. Each
-    /// call's wall time starts when it gets its worker.
-    pub fn waiting_until(mut self, deadline: Instant) -> Self {
-        self.admission = Admission::WaitUntil(deadline);
-        self
-    }
-
-    /// This worker for a headless caller's calls: like
-    /// [`Self::waiting_until`], but each call's deadline is `wait` after
-    /// the call is made.
-    pub fn waiting_for(mut self, wait: Duration) -> Self {
-        self.admission = Admission::WaitFor(wait);
         self
     }
 
@@ -168,50 +132,10 @@ impl Worker {
         self.limits
     }
 
-    pub fn wall(&self) -> Duration {
-        self.wall
-    }
-
-    fn cancelled(&self) -> bool {
-        self.cancel
-            .as_ref()
-            .is_some_and(|flag| flag.load(Ordering::Relaxed))
-    }
-
-    /// A permit from the pool, as this worker's admission says.
-    fn admit(&self) -> Result<Permit, Failure> {
-        let deadline = match self.admission {
-            Admission::Refuse => None,
-            Admission::WaitUntil(deadline) => Some(deadline),
-            Admission::WaitFor(wait) => Instant::now().checked_add(wait),
-        };
-        loop {
-            let busy = match self.pool.acquire() {
-                Ok(permit) => return Ok(permit),
-                Err(busy) => busy,
-            };
-            let Some(deadline) = deadline else {
-                return Err(busy);
-            };
-            if self.cancelled() {
-                return Err(cancelled());
-            }
-            let left = deadline.saturating_duration_since(Instant::now());
-            if left.is_zero() {
-                return Err(Failure::one(
-                    "generator.busy",
-                    format!(
-                        "All {MAX_ACTIVE} generator workers stayed busy until this work's deadline. It was not run."
-                    ),
-                ));
-            }
-            std::thread::sleep(POLL.min(left));
-        }
-    }
-
-    /// Reserve a worker before preparing owned inputs, then run the job
-    /// within the caller's wall time, watching the cancel flag. The thread
-    /// owns the permit; abandoning the receiver cannot release it early.
+    /// Wait for a worker, reserve it before preparing owned inputs, then
+    /// run the job and wait for it, watching the cancellations. The thread
+    /// owns the permit until it hands it over with the result; abandoning
+    /// the receiver cannot release it early.
     fn run<T: Send + 'static, J>(&self, prepare: impl FnOnce() -> J) -> Result<T, Failure>
     where
         J: FnOnce(&WasmiRuntime) -> Result<T, Failure> + Send + 'static,
@@ -232,45 +156,49 @@ impl Worker {
     where
         J: FnOnce(&WasmiRuntime) -> Result<T, Failure> + Send + 'static,
     {
-        if self.cancelled() {
-            return Err(cancelled());
-        }
-        if self.wall.is_zero() {
-            return Err(timed_out(self.wall));
-        }
-        let permit = self.admit()?;
-        let started = Instant::now();
+        let call = cancel::current();
+        let given_up = || {
+            [&self.cancel, &call]
+                .into_iter()
+                .flatten()
+                .any(Cancel::is_set)
+        };
+        let permit = loop {
+            if given_up() {
+                return Err(cancelled());
+            }
+            match self.pool.acquire() {
+                Some(permit) => break permit,
+                None => std::thread::sleep(POLL),
+            }
+        };
         let job = prepare();
-        if self.cancelled() {
+        if given_up() {
             return Err(cancelled());
-        }
-        if started.elapsed() >= self.wall {
-            return Err(timed_out(self.wall));
         }
         let (send, receive) = mpsc::sync_channel(1);
         let limits = self.limits;
         spawn(Box::new(move || {
-            let _permit = permit;
             let runtime = WasmiRuntime::new(limits);
-            // The receiver may have given up; then the result is dropped.
-            let _ = send.send(job(&runtime));
+            let result = job(&runtime);
+            drop(runtime);
+            // The receiver may have given up; then the result is dropped,
+            // and the permit after it.
+            let _ = send.send((result, permit));
         }))
         .map_err(|e| {
             Failure::one(
-                "generator.worker",
+                "generator.not_started",
                 format!("The generator could not be started ({e}). It was not run."),
             )
         })?;
         loop {
-            if self.cancelled() {
-                return Err(cancelled());
-            }
-            let remaining = self.wall.saturating_sub(started.elapsed());
-            if remaining.is_zero() {
-                return Err(timed_out(self.wall));
-            }
-            match receive.recv_timeout(POLL.min(remaining)) {
-                Ok(result) => return result,
+            match receive.recv_timeout(POLL) {
+                Ok((result, permit)) => {
+                    drop(permit);
+                    return result;
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) if given_up() => return Err(cancelled()),
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     return Err(Failure::one(
@@ -287,16 +215,6 @@ fn cancelled() -> Failure {
     Failure::one(
         "generator.cancelled",
         "The generator was cancelled. Nothing was changed.".into(),
-    )
-}
-
-fn timed_out(wall: Duration) -> Failure {
-    Failure::one(
-        "generator.timed_out",
-        format!(
-            "The generator did not finish within {} ms. Nothing was changed.",
-            wall.as_millis()
-        ),
     )
 }
 
@@ -323,361 +241,183 @@ impl GeneratorRuntime for Worker {
 mod tests {
     use super::*;
 
-    fn isolated(slots: &'static Slots, wall: Duration) -> Worker {
-        Worker {
-            pool: Pool::Process(slots),
-            ..Worker::new(Limits::DEFAULT, wall)
+    type Fallible<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
+    /// A test's watchdog against a hang, never a measure.
+    const WATCHDOG: Duration = Duration::from_secs(120);
+
+    fn code<T>(result: &Result<T, Failure>) -> Option<&str> {
+        result.as_ref().err().and_then(Failure::code)
+    }
+
+    fn all(worker: &Worker) -> Vec<Permit> {
+        (0..MAX_ACTIVE)
+            .filter_map(|_| worker.pool.acquire())
+            .collect()
+    }
+
+    fn active(worker: &Worker) -> usize {
+        worker.pool.slots().0.load(Ordering::Acquire)
+    }
+
+    #[test]
+    fn a_set_cancel_refuses_before_anything_runs() {
+        let cancel = Cancel::default();
+        cancel.set();
+        let worker = Worker::fixture().with_cancel(cancel.clone());
+        assert_eq!(
+            code(&worker.describe(b"not a module")),
+            Some("generator.cancelled")
+        );
+        let call = Worker::fixture();
+        assert_eq!(
+            code(&cancel.scope(|| call.describe(b"not a module"))),
+            Some("generator.cancelled")
+        );
+        assert_eq!(
+            code(&call.describe(b"not a module")),
+            Some("generator.invalid_module"),
+            "the next call works"
+        );
+    }
+
+    #[test]
+    fn transient_refusals_are_the_hosts_and_never_a_modules() {
+        assert!(is_transient("generator.cancelled"));
+        for verdict in [
+            "generator.out_of_fuel",
+            "generator.trapped",
+            "generator.worker",
+            "generator.invalid_module",
+        ] {
+            assert!(!is_transient(verdict), "{verdict}");
         }
     }
 
-    fn idle(slots: &Slots) -> Result<(), String> {
-        // A watchdog, not a latency/performance assertion. The tests
-        // release their blocked jobs explicitly before waiting here.
-        let started = Instant::now();
-        while slots.0.load(Ordering::Acquire) != 0 {
-            if started.elapsed() > Duration::from_secs(10) {
-                return Err("a finished worker did not release its permit".into());
+    /// With every worker busy a call waits; its cancel ends the wait, and
+    /// the next call runs once a worker is free.
+    #[test]
+    fn a_wait_for_a_worker_is_ended_by_its_cancel() -> Fallible {
+        let worker = Worker::fixture();
+        let held = all(&worker);
+        assert_eq!(held.len(), MAX_ACTIVE);
+        let cancel = Cancel::default();
+        let (waiter, stop) = (worker.clone(), cancel.clone());
+        let caller = std::thread::spawn(move || {
+            stop.scope(|| waiter.run(|| |_| Ok(())))
+                .map_err(|f| f.to_string())
+        });
+        cancel.set();
+        let ended = caller.join().map_err(|_| "caller panicked")?;
+        assert!(ended.is_err());
+        assert_eq!(active(&worker), MAX_ACTIVE, "it took no worker");
+
+        let waiter = worker.clone();
+        let caller = std::thread::spawn(move || waiter.run(|| |_| Ok(7)));
+        drop(held);
+        let ran = caller.join().map_err(|_| "caller panicked")?;
+        assert_eq!(ran.map_err(|e| e.to_string())?, 7);
+        assert_eq!(active(&worker), 0);
+        Ok(())
+    }
+
+    /// A call that never ends is ended by its cancel. Its worker stays
+    /// taken until the thread and its result are gone.
+    #[test]
+    fn a_running_call_is_ended_by_its_cancel_and_keeps_its_worker() -> Fallible {
+        struct Dropped(Worker, mpsc::Sender<usize>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                let _ = self.1.send(active(&self.0));
             }
-            std::thread::yield_now();
+        }
+        let worker = Worker::fixture();
+        let cancel = Cancel::default();
+        let (started, starts) = mpsc::channel();
+        let (release, wait) = mpsc::channel::<()>();
+        let (observed, drops) = mpsc::channel();
+        let (inside, stop, runs) = (worker.clone(), cancel.clone(), worker.clone());
+        let caller = std::thread::spawn(move || {
+            stop.scope(|| {
+                runs.run(|| {
+                    move |_| {
+                        let _ = started.send(());
+                        let _ = wait.recv();
+                        Ok(Dropped(inside, observed))
+                    }
+                })
+            })
+            .map(|_| ())
+        });
+        starts.recv_timeout(WATCHDOG)?;
+        cancel.set();
+        let ended = caller.join().map_err(|_| "caller panicked")?;
+        assert_eq!(code(&ended), Some("generator.cancelled"));
+        assert_eq!(active(&worker), 1);
+        assert!(worker.run(|| |_| Ok(())).is_ok(), "the next call works");
+        release.send(())?;
+        assert_eq!(
+            drops.recv_timeout(WATCHDOG)?,
+            1,
+            "dropped with its permit held"
+        );
+        Ok(())
+    }
+
+    /// A caller that takes its result has the permit back: one that calls
+    /// again and again never waits for its own finished call.
+    #[test]
+    fn calls_one_after_another_hold_one_permit() -> Fallible {
+        let worker = Worker::fixture();
+        let _others: Vec<_> = (1..MAX_ACTIVE)
+            .filter_map(|_| worker.pool.acquire())
+            .collect();
+        for _ in 0..200 {
+            worker.run(|| |_| Ok(())).map_err(|e| e.to_string())?;
+            assert_eq!(active(&worker), MAX_ACTIVE - 1);
         }
         Ok(())
     }
 
+    /// Clones of a fixture share its pool; another fixture has its own, and
+    /// production workers share the process's.
     #[test]
-    fn a_set_cancel_flag_refuses_before_anything_runs() {
-        let flag = Arc::new(AtomicBool::new(true));
-        let worker = Worker::default().with_cancel(flag);
-        let failure = worker.describe(b"not a module").err();
-        assert_eq!(
-            failure.as_ref().and_then(Failure::code),
-            Some("generator.cancelled")
-        );
-    }
-
-    #[test]
-    fn refusals_of_the_runtime_come_back_from_the_worker() {
-        let failure = Worker::fixture().describe(b"not a module").err();
-        assert_eq!(
-            failure.as_ref().and_then(Failure::code),
-            Some("generator.invalid_module")
-        );
-    }
-
-    #[test]
-    fn a_call_past_its_wall_time_is_refused() {
-        let worker = Worker::new(Limits::DEFAULT, Duration::ZERO);
-        let failure = worker.describe(b"not a module").err();
-        assert_eq!(
-            failure.as_ref().and_then(Failure::code),
-            Some("generator.timed_out")
-        );
-    }
-
-    fn capped(worker: Worker, contender: Worker) -> Result<(), String> {
-        let (started, starts) = mpsc::channel();
-        let mut releases = Vec::new();
-        let mut callers = Vec::new();
-        for _ in 0..MAX_ACTIVE {
-            let worker = worker.clone();
-            let started = started.clone();
-            let (release, wait) = mpsc::channel();
-            releases.push(release);
-            callers.push(std::thread::spawn(move || {
-                worker.run(|| {
-                    move |_| {
-                        let _ = started.send(());
-                        let _ = wait.recv();
-                        Ok(())
-                    }
-                })
-            }));
-        }
-        for _ in 0..MAX_ACTIVE {
-            starts
-                .recv_timeout(Duration::from_secs(10))
-                .map_err(|e| e.to_string())?;
-        }
-        let prepared = AtomicBool::new(false);
-        // A fresh Worker sharing this process pool is capped too.
-        let refused = contender.run(|| {
-            prepared.store(true, Ordering::Relaxed);
-            |_| Ok(())
-        });
-        assert_eq!(
-            refused.err().as_ref().and_then(Failure::code),
-            Some("generator.busy")
-        );
-        assert!(!prepared.load(Ordering::Relaxed));
-        // A separately injected fixture owns an independent bounded pool.
+    fn pools_are_shared_by_clones_and_by_the_process() {
+        let worker = Worker::fixture();
+        let held = all(&worker);
+        assert!(worker.clone().pool.acquire().is_none());
         assert!(Worker::fixture().run(|| |_| Ok(())).is_ok());
-        for release in releases {
-            let _ = release.send(());
-        }
-        for caller in callers {
-            caller
-                .join()
-                .map_err(|_| "caller panicked")?
-                .map_err(|e| e.to_string())?;
-        }
-        idle(worker.pool.slots())?;
-        assert!(worker.run(|| |_| Ok(())).is_ok());
-        idle(worker.pool.slots())
-    }
-
-    #[test]
-    fn production_workers_share_the_process_cap_before_preparing_another() -> Result<(), String> {
-        capped(
-            Worker::new(Limits::DEFAULT, Duration::from_secs(30)),
-            Worker::new(Limits::DEFAULT, Duration::from_secs(30)),
-        )
-    }
-
-    #[test]
-    fn fixture_clones_share_their_own_four_worker_cap() -> Result<(), String> {
-        let worker = Worker::fixture();
-        capped(worker.clone(), worker)
-    }
-
-    /// Batch admission: with every worker of the pool held, a waiting call
-    /// runs once one is released, a cancelled wait stops at once, and a
-    /// wait past its deadline is refused as busy. Nothing prepares early.
-    #[test]
-    fn a_waiting_call_runs_when_a_worker_frees_and_stops_at_cancel_or_deadline()
-    -> Result<(), String> {
-        let worker = Worker::fixture();
-        let mut held: Vec<_> = (0..MAX_ACTIVE)
-            .map(|_| worker.pool.acquire())
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.to_string())?;
-        let busy = worker.run(|| |_| Ok(()));
-        assert_eq!(
-            busy.err().as_ref().and_then(Failure::code),
-            Some("generator.busy")
-        );
-
-        let soon = Instant::now() + Duration::from_millis(50);
-        let prepared = AtomicBool::new(false);
-        let expired = worker.clone().waiting_until(soon).run(|| {
-            prepared.store(true, Ordering::Relaxed);
-            |_| Ok(())
-        });
-        assert_eq!(
-            expired.err().as_ref().and_then(Failure::code),
-            Some("generator.busy")
-        );
-        assert!(!prepared.load(Ordering::Relaxed));
-        assert!(Instant::now() >= soon);
-
-        let flag = Arc::new(AtomicBool::new(false));
-        let later = Instant::now() + Duration::from_secs(60);
-        let cancelling = worker
-            .clone()
-            .waiting_until(later)
-            .with_cancel(flag.clone());
-        let caller = std::thread::spawn(move || cancelling.run(|| |_| Ok(())));
-        flag.store(true, Ordering::Relaxed);
-        let cancelled = caller.join().map_err(|_| "caller panicked")?;
-        assert_eq!(
-            cancelled.err().as_ref().and_then(Failure::code),
-            Some("generator.cancelled")
-        );
-
-        let (waiting, waits) = mpsc::channel();
-        let patient = worker.clone().waiting_until(later);
-        let caller = std::thread::spawn(move || {
-            let _ = waiting.send(());
-            patient.run(|| |_| Ok(7))
-        });
-        waits
-            .recv_timeout(Duration::from_secs(10))
-            .map_err(|e| e.to_string())?;
-        // Let the caller find the pool full before one worker frees.
-        std::thread::sleep(Duration::from_millis(30));
-        held.pop();
-        let ran = caller.join().map_err(|_| "caller panicked")?;
-        assert_eq!(ran.map_err(|e| e.to_string())?, 7);
         drop(held);
-        idle(worker.pool.slots())
+        let (a, b) = (Worker::default(), Worker::new(Limits::DEFAULT));
+        assert!(std::ptr::eq(a.pool.slots(), b.pool.slots()));
     }
 
-    /// A headless caller's admission: each call waits up to its bound from
-    /// when it is made, so a worker made long before still waits its full
-    /// bound, and is refused as busy only past it.
     #[test]
-    fn each_call_of_a_waiting_for_worker_waits_its_own_bound() -> Result<(), String> {
+    fn cancelling_during_preparation_runs_nothing_and_frees_the_worker() {
         let worker = Worker::fixture();
-        let mut held: Vec<_> = (0..MAX_ACTIVE)
-            .map(|_| worker.pool.acquire())
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.to_string())?;
-        let brief = worker.clone().waiting_for(Duration::from_millis(50));
-        for _ in 0..2 {
-            let called = Instant::now();
-            let refused = brief.run(|| |_| Ok(()));
-            assert_eq!(
-                refused.err().as_ref().and_then(Failure::code),
-                Some("generator.busy")
-            );
-            assert!(called.elapsed() >= Duration::from_millis(50));
-        }
-
-        let (waiting, waits) = mpsc::channel();
-        let patient = worker.clone().waiting_for(Duration::from_secs(60));
-        let caller = std::thread::spawn(move || {
-            let _ = waiting.send(());
-            patient.run(|| |_| Ok(7))
-        });
-        waits
-            .recv_timeout(Duration::from_secs(10))
-            .map_err(|e| e.to_string())?;
-        // Let the caller find the pool full before one worker frees.
-        std::thread::sleep(Duration::from_millis(30));
-        held.pop();
-        let ran = caller.join().map_err(|_| "caller panicked")?;
-        assert_eq!(ran.map_err(|e| e.to_string())?, 7);
-        drop(held);
-        idle(worker.pool.slots())
-    }
-
-    struct Dropped {
-        slots: &'static Slots,
-        observed: mpsc::Sender<usize>,
-    }
-
-    impl Drop for Dropped {
-        fn drop(&mut self) {
-            let _ = self.observed.send(self.slots.0.load(Ordering::Acquire));
-        }
-    }
-
-    fn abandoned_keeps_permit(slots: &'static Slots, cancel: bool) -> Result<(), String> {
-        let reserved: Vec<_> = (1..MAX_ACTIVE)
-            .map(|_| Pool::Process(slots).acquire())
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.to_string())?;
-        let flag = Arc::new(AtomicBool::new(false));
-        let wall = if cancel {
-            Duration::from_secs(30)
-        } else {
-            Duration::from_millis(20)
-        };
-        let worker = isolated(slots, wall).with_cancel(flag.clone());
-        let (started, starts) = mpsc::channel();
-        let (release, wait) = mpsc::channel();
-        let (observed, drops) = mpsc::channel();
-        let caller = std::thread::spawn(move || {
+        let cancel = Cancel::default();
+        let ended: Result<(), _> = cancel.scope(|| {
             worker.run(|| {
-                move |_| {
-                    let _ = started.send(());
-                    let _ = wait.recv();
-                    Ok(Dropped { slots, observed })
-                }
+                cancel.set();
+                |_| Ok(())
             })
         });
-        starts
-            .recv_timeout(Duration::from_secs(10))
-            .map_err(|e| e.to_string())?;
-        if cancel {
-            flag.store(true, Ordering::Relaxed);
-        }
-        let failure = caller.join().map_err(|_| "caller panicked")?.err();
-        assert_eq!(
-            failure.as_ref().and_then(Failure::code),
-            Some(if cancel {
-                "generator.cancelled"
-            } else {
-                "generator.timed_out"
-            })
-        );
-        let another = isolated(slots, Duration::from_secs(30));
-        for _ in 0..10 {
-            assert_eq!(
-                another
-                    .run(|| |_| Ok(()))
-                    .err()
-                    .as_ref()
-                    .and_then(Failure::code),
-                Some("generator.busy")
-            );
-        }
-        let _ = release.send(());
-        // Even destruction of the abandoned result runs while its
-        // permit is held; dropping the receiver released nothing early.
-        assert_eq!(
-            drops
-                .recv_timeout(Duration::from_secs(10))
-                .map_err(|e| e.to_string())?,
-            MAX_ACTIVE
-        );
-        drop(reserved);
-        idle(slots)?;
-        assert!(another.run(|| |_| Ok(())).is_ok());
-        idle(slots)
+        assert_eq!(code(&ended), Some("generator.cancelled"));
+        assert_eq!(active(&worker), 0);
     }
 
     #[test]
-    fn timed_out_work_keeps_its_permit_through_result_cleanup() -> Result<(), String> {
-        static SLOTS: Slots = Slots(AtomicUsize::new(0));
-        abandoned_keeps_permit(&SLOTS, false)
-    }
-
-    #[test]
-    fn cancelled_work_keeps_its_permit_through_result_cleanup() -> Result<(), String> {
-        static SLOTS: Slots = Slots(AtomicUsize::new(0));
-        abandoned_keeps_permit(&SLOTS, true)
-    }
-
-    #[test]
-    fn cancellation_during_preparation_releases_the_unstarted_permit() -> Result<(), String> {
-        static SLOTS: Slots = Slots(AtomicUsize::new(0));
-        let flag = Arc::new(AtomicBool::new(false));
-        let worker = isolated(&SLOTS, Duration::from_secs(30)).with_cancel(flag.clone());
-        let ran = Arc::new(AtomicBool::new(false));
-        let in_job = ran.clone();
-        let failure = worker
-            .run(|| {
-                flag.store(true, Ordering::Relaxed);
-                move |_| {
-                    in_job.store(true, Ordering::Relaxed);
-                    Ok(())
-                }
-            })
-            .err();
-        assert_eq!(
-            failure.as_ref().and_then(Failure::code),
-            Some("generator.cancelled")
+    fn a_failed_thread_spawn_releases_its_captured_permit() {
+        let worker = Worker::fixture();
+        let failure: Result<(), _> = worker.run_with(
+            || |_: &WasmiRuntime| Ok(()),
+            |task| {
+                drop(task);
+                Err(std::io::Error::other("scripted thread creation failure"))
+            },
         );
-        assert!(!ran.load(Ordering::Relaxed));
-        idle(&SLOTS)
-    }
-
-    #[test]
-    fn a_failed_thread_spawn_releases_its_captured_permit() -> Result<(), String> {
-        static SLOTS: Slots = Slots(AtomicUsize::new(0));
-        let worker = isolated(&SLOTS, Duration::from_secs(30));
-        let ran = Arc::new(AtomicBool::new(false));
-        let in_job = ran.clone();
-        let failure = worker
-            .run_with(
-                || {
-                    move |_| {
-                        in_job.store(true, Ordering::Relaxed);
-                        Ok(())
-                    }
-                },
-                |task| {
-                    drop(task);
-                    Err(std::io::Error::other("scripted thread creation failure"))
-                },
-            )
-            .err();
-        assert_eq!(
-            failure.as_ref().and_then(Failure::code),
-            Some("generator.worker")
-        );
-        assert!(!ran.load(Ordering::Relaxed));
-        idle(&SLOTS)?;
+        assert_eq!(code(&failure), Some("generator.not_started"));
+        assert_eq!(active(&worker), 0);
         assert!(worker.run(|| |_| Ok(())).is_ok());
-        idle(&SLOTS)
     }
 }

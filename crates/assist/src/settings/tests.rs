@@ -9,7 +9,6 @@ fn local(name: &str) -> EndpointSetting {
         provider: Wire::Openai,
         base_url: "http://localhost:11434/v1".into(),
         model: "qwen3.8:27b".into(),
-        timeout_minutes: 90,
         capabilities: Some(Declared {
             tool_calling: true,
             vision: true,
@@ -124,7 +123,6 @@ fn every_rule_is_checked_with_its_reason() {
         &|s| s.endpoints[0].harness_profile = Some("../test".into()),
         "harness_profile",
     );
-    refused(&|s| s.endpoints[0].timeout_minutes = 0, "timeout");
     refused(&|s| s.endpoints[0].capabilities = None, "declare");
     refused(
         &|s| {
@@ -169,6 +167,22 @@ fn every_rule_is_checked_with_its_reason() {
     assert_eq!(anthropic.check(), Ok(()));
 }
 
+/// A file of an earlier version, which says how long a reply may take, opens.
+#[test]
+fn an_earlier_files_reply_time_is_dropped() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("settings.json");
+    let settings = AssistSettings {
+        endpoints: vec![local("Local")],
+        ..AssistSettings::default()
+    };
+    let mut value = serde_json::to_value(&settings)?;
+    value["endpoints"][0]["timeout_minutes"] = 90.into();
+    std::fs::write(&path, value.to_string())?;
+    assert_eq!(read(&path)?, settings);
+    Ok(())
+}
+
 #[test]
 fn an_endpoint_gives_the_model_as_declared() -> Fallible {
     let mut e = local("Local");
@@ -176,7 +190,6 @@ fn an_endpoint_gives_the_model_as_declared() -> Fallible {
     assert_eq!(p.provider, Provider::OpenAiCompatible);
     assert_eq!(p.capabilities.context_tokens, 65_536);
     assert!(p.capabilities.vision && !p.capabilities.native_pdf);
-    assert_eq!(p.request_timeout, Duration::from_secs(90 * 60));
     if let Some(c) = &mut e.capabilities {
         c.output_tokens = Some(4_000);
     }

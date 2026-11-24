@@ -68,13 +68,16 @@ impl<W: Wire> OpenAiBackend<W> {
     }
 }
 
-/// Compatibility retries share the logical request's deadline.
-fn remaining_timeout(started: Instant, timeout: Duration) -> Result<Duration> {
+/// Compatibility retries share the run's time left, when it has a limit.
+fn remaining_time(started: Instant, timeout: Option<Duration>) -> Result<Option<Duration>> {
+    let Some(timeout) = timeout else {
+        return Ok(None);
+    };
     let remaining = timeout.saturating_sub(started.elapsed());
     if remaining.is_zero() {
-        Err(Error::Http("the model request timed out".into()))
+        Err(Error::Http("the run's time is used up".into()))
     } else {
-        Ok(remaining)
+        Ok(Some(remaining))
     }
 }
 
@@ -571,28 +574,23 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
         let started = Instant::now();
         let body = request_body(&self.profile, request, self.completion_field)?;
         let path = "/chat/completions";
-        let response = match self.wire.post(
-            path,
-            &[],
-            &body,
-            remaining_timeout(started, request.timeout)?,
-        ) {
-            Err(Error::Api {
-                status: 400,
-                message,
-            }) if !self.completion_field && message.contains("max_completion_tokens") => {
-                // OpenAI's newer models take the limit under another name.
-                self.completion_field = true;
-                let body = request_body(&self.profile, request, true)?;
-                self.wire.post(
-                    path,
-                    &[],
-                    &body,
-                    remaining_timeout(started, request.timeout)?,
-                )?
-            }
-            other => other?,
-        };
+        let response =
+            match self
+                .wire
+                .post(path, &[], &body, remaining_time(started, request.timeout)?)
+            {
+                Err(Error::Api {
+                    status: 400,
+                    message,
+                }) if !self.completion_field && message.contains("max_completion_tokens") => {
+                    // OpenAI's newer models take the limit under another name.
+                    self.completion_field = true;
+                    let body = request_body(&self.profile, request, true)?;
+                    self.wire
+                        .post(path, &[], &body, remaining_time(started, request.timeout)?)?
+                }
+                other => other?,
+            };
         let prompt_chars = body["messages"].to_string().len() as u64;
         self.wire.clean_reply(parse_reply(
             &response,
@@ -631,7 +629,7 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
                 path,
                 &[],
                 &body,
-                remaining_timeout(started, request.timeout)?,
+                remaining_time(started, request.timeout)?,
                 &mut |event| {
                     chunks.event(&event, &mut emit)?;
                     Ok(!cancel.load(Ordering::Relaxed))
@@ -716,7 +714,13 @@ mod tests {
         fn label(&self) -> String {
             "scripted compatibility failure".into()
         }
-        fn post(&mut self, _: &str, _: &[(&str, &str)], _: &Value, _: Duration) -> Result<Value> {
+        fn post(
+            &mut self,
+            _: &str,
+            _: &[(&str, &str)],
+            _: &Value,
+            _: Option<Duration>,
+        ) -> Result<Value> {
             self.calls += 1;
             if let Some(cancel) = self.cancel {
                 cancel.store(true, Ordering::Relaxed);
@@ -734,7 +738,7 @@ mod tests {
             path: &str,
             headers: &[(&str, &str)],
             body: &Value,
-            timeout: Duration,
+            timeout: Option<Duration>,
             _: &mut dyn FnMut(SseEvent) -> Result<bool>,
         ) -> Result<Streamed> {
             self.post(path, headers, body, timeout).map(Streamed::Whole)
@@ -757,7 +761,7 @@ mod tests {
     }
 
     #[test]
-    fn compatibility_retries_share_one_timeout() {
+    fn compatibility_retries_share_the_runs_time_left() {
         for streamed in [false, true] {
             let wire = CompatibilityFailure {
                 cancel: None,
@@ -766,14 +770,14 @@ mod tests {
             };
             let mut backend = OpenAiBackend::new(profile(), wire);
             let mut request = empty_request();
-            request.timeout = Duration::from_millis(30);
+            request.timeout = Some(Duration::from_millis(30));
             let result = if streamed {
                 backend.stream(&request, &mut |_| {}, &AtomicBool::new(false))
             } else {
                 backend.send(&request)
             };
             assert!(
-                matches!(result, Err(Error::Http(ref why)) if why.contains("timed out")),
+                matches!(result, Err(Error::Http(ref why)) if why.contains("used up")),
                 "{result:?}"
             );
             assert!(backend.wire.calls <= 1, "an expired request cannot retry");
@@ -1071,7 +1075,7 @@ mod tests {
             tools: &tools,
             messages: &messages,
             max_output_tokens: 777,
-            timeout: Duration::from_secs(1),
+            timeout: None,
         };
         let body = request_body(&profile(), &request, false)?;
         assert_eq!(body["max_tokens"], 777);
@@ -1129,7 +1133,7 @@ mod tests {
             tools: &[],
             messages: &[],
             max_output_tokens: 777,
-            timeout: Duration::from_secs(1),
+            timeout: None,
         }
     }
 
@@ -1302,7 +1306,7 @@ mod tests {
             tools: &[],
             messages: &[],
             max_output_tokens: 777,
-            timeout: Duration::from_secs(1),
+            timeout: None,
         };
         backend.send(&request)?;
         let (path, _, first, _) = &backend.wire.posts[0];

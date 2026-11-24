@@ -20,7 +20,6 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 pub(crate) struct Models<'a> {
-    deadline: std::time::Instant,
     files: ProjectModels,
     presets: &'a mut presets::Presets,
     /// Each project reference's resolved source ("path (sha256 …)"), or why
@@ -28,25 +27,20 @@ pub(crate) struct Models<'a> {
     sources: BTreeMap<String, Result<String, String>>,
 }
 impl<'a> Models<'a> {
-    /// The parts of the project at `root`, made by generator workers that
-    /// `runtime` gives for the import's deadline: batch admission, so a busy
-    /// pool delays the import instead of costing it its parts.
+    /// The parts of the project at `root`, made by the generator workers
+    /// `runtime` gives: a busy pool delays the import, until whoever waits
+    /// for it cancels it.
     pub(crate) fn new(
         root: &Path,
         runtime: crate::kicad_import::Runtime,
         presets: &'a mut presets::Presets,
     ) -> Result<Self, String> {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(300);
-        presets.start_import(runtime(deadline));
+        presets.start_import(runtime());
         Ok(Self {
-            deadline,
             files: ProjectModels::new(root).map_err(|e| e.to_string())?,
             presets,
             sources: BTreeMap::new(),
         })
-    }
-    fn check_time(&self) -> Result<(), String> {
-        check_time(self.deadline)
     }
     /// The project file a reference names, for the report only; its bytes
     /// are hashed and dropped, never inspected or packed.
@@ -54,7 +48,7 @@ impl<'a> Models<'a> {
         if let Some(value) = self.sources.get(path) {
             return Ok(value.clone());
         }
-        self.check_time()?;
+        check_cancelled()?;
         let value = match self.files.resolve(path) {
             Ok(Some(found)) => Ok(format!(
                 "{} (sha256 {})",
@@ -64,14 +58,14 @@ impl<'a> Models<'a> {
             Ok(None) => Err("not found in the project folder".to_owned()),
             Err(error) => Err(error.to_string()),
         };
-        self.check_time()?;
+        check_cancelled()?;
         self.sources.insert(path.into(), value.clone());
         Ok(value)
     }
 }
 impl Provider for Models<'_> {
     fn part(&mut self, engine: &mut Engine, request: &PartRequest<'_>) -> Result<Outcome, String> {
-        self.check_time()?;
+        check_cancelled()?;
         let runtime = self.presets.runtime(engine);
         if engine.generator_runtime().is_none() {
             engine.set_generators(runtime.clone());
@@ -110,7 +104,7 @@ impl Provider for Models<'_> {
             ));
         }
         let note = notes.join("; ");
-        self.check_time()?;
+        check_cancelled()?;
         let identified = self
             .presets
             .identify(
@@ -119,7 +113,6 @@ impl Provider for Models<'_> {
                 request.prefix,
                 request.facts,
                 request.mpn,
-                self.deadline,
             )
             .map_err(|error| format!("{note}; presets unavailable: {error}"))?;
         let contradiction = request
@@ -155,7 +148,7 @@ impl Provider for Models<'_> {
                     .presets
                     .candidate(identified.index)
                     .ok_or("the identified preset is missing")?;
-                self.check_time()?;
+                check_cancelled()?;
                 match parts::make(engine, candidate, &identified, request, runtime.as_ref())? {
                     Ok(mut generated) => {
                         generated.reason = format!("{note}; {}", generated.reason);
@@ -168,7 +161,7 @@ impl Provider for Models<'_> {
                 }
             }
         };
-        self.check_time()?;
+        check_cancelled()?;
         Ok(Outcome {
             made,
             contradiction,
@@ -176,9 +169,10 @@ impl Provider for Models<'_> {
     }
 }
 
-fn check_time(deadline: std::time::Instant) -> Result<(), String> {
-    if std::time::Instant::now() >= deadline {
-        Err("the import's parts reached their 300 second cooperative time limit".into())
+/// Refused once whoever waits for the import cancelled it.
+fn check_cancelled() -> Result<(), String> {
+    if sparksmith_generators::cancel::requested() {
+        Err("the import was cancelled; nothing was imported".into())
     } else {
         Ok(())
     }

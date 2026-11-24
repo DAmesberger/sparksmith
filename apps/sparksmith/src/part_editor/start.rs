@@ -177,6 +177,11 @@ impl PartEditor {
         }
     }
 
+    /// The part being made for this page.
+    pub fn making(&self) -> Option<&Making> {
+        self.start.making.as_ref()
+    }
+
     /// A generic part made off the UI thread: send its command, or say why
     /// it was not made.
     fn settle_making(&mut self, ctx: &egui::Context, engine: &Engine) {

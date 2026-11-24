@@ -110,19 +110,26 @@ fn enter() -> egui::Event {
     }
 }
 
-/// Frames until the part is made: the command the sheet sends.
+/// Frames until the part is made: the command the sheet sends, or why it
+/// shows the part was not made.
 fn made(
     ctx: &egui::Context,
     gallery: &mut GeneratorGallery,
     engine: &Engine,
 ) -> Result<Operation, Box<dyn std::error::Error>> {
-    for _ in 0..600 {
+    let started = std::time::Instant::now();
+    while started.elapsed() < generators::TEST_PATIENCE {
         if let (_, Some(operation)) = frame(ctx, gallery, engine, vec![]) {
             return Ok(operation);
         }
+        let open = gallery.open.as_ref().ok_or("the sheet closed")?;
+        if open.making.is_none() {
+            let why = open.refusal.as_deref();
+            return Err(format!("nothing is being made: {why:?}").into());
+        }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
-    Err("nothing was made in 30 s".into())
+    Err(format!("nothing was made in {:?}", generators::TEST_PATIENCE).into())
 }
 
 fn apply(engine: &mut Engine, operation: Operation) -> TestResult {

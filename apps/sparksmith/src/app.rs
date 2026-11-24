@@ -11,6 +11,7 @@ mod browser_catalog;
 mod chrome;
 mod command_dispatch;
 mod command_palette;
+mod generator_wait;
 pub(crate) mod help_sheet;
 mod import_report;
 mod key_reveal;
@@ -25,6 +26,7 @@ mod window_host;
 pub(crate) mod window_state;
 mod workflow_host;
 
+use crate::document_version::DocumentVersion;
 use crate::file_ui::{self, Effect, FileUi};
 use crate::kit::messages::Messages;
 use crate::kit::severity::Level;
@@ -36,7 +38,7 @@ use crate::scene::{Display, ModelKey, SceneController};
 use crate::shell::Workspace;
 use crate::{part_editor, pcb_editor, schematic_editor, viewport};
 use sparksmith_core::layout::fill::{FillCommand, RefillTarget, StoredFill};
-use sparksmith_core::{Engine, Operation, format::EditorFile};
+use sparksmith_core::{Engine, LibraryCommand, Operation, format::EditorFile};
 use sparksmith_ui::fonts;
 use sparksmith_ui::theme::{self as theme};
 use std::path::PathBuf;
@@ -99,6 +101,8 @@ pub struct App {
     /// Stale copper fills refill off the UI thread.
     fills: crate::fill_worker::FillWorker,
     sheet_work: Option<SheetWork>,
+    /// What waits for a generator, which runs off the UI thread.
+    generators: generator_wait::GeneratorWait,
     files: FileUi,
     /// Library folders, favourites and recents (S3).
     sources: LibrarySources,
@@ -335,10 +339,12 @@ impl App {
             native_menu,
         } = parts;
         // `library.generate` runs the shipped generators' modules through
-        // the host's runtime (slice D1); it stays across documents.
+        // the host's runtime (slice D1), never on this thread; it stays
+        // across documents.
+        let generators = generator_wait::GeneratorWait::new(ctx);
         let mut engine = engine;
         if !engine.has_generators() {
-            engine.set_generators(sparksmith_automation::session::generators::runtime());
+            engine.set_generators(generators.runtime.clone());
         }
         let mut pcb = pcb_editor::PcbEditor::default();
         // One report of every issue, made off the UI thread, for the
@@ -363,6 +369,7 @@ impl App {
             scene: SceneController::new(ctx.clone(), viewport),
             fills: crate::fill_worker::FillWorker::start(ctx.clone()),
             sheet_work: None,
+            generators,
             files,
             sources,
             engine,
@@ -534,6 +541,17 @@ impl App {
             board: crate::pcb_editor::board_shape::host_evaluator(),
         };
         let revision = self.engine.revision();
+        let _ = self.generators.runtime.take_met();
+        // The commands that run a generator.
+        let again = matches!(
+            operation,
+            Operation::Library(
+                LibraryCommand::Generate(_)
+                    | LibraryCommand::PackageFromGenerator(_)
+                    | LibraryCommand::ReplaceBody(_)
+            )
+        )
+        .then(|| Box::new(operation.clone()));
         let applied = match first {
             None => self.engine.apply_hosted(revision, operation, evaluators),
             Some(first) => {
@@ -549,6 +567,15 @@ impl App {
             }
         };
         match applied {
+            Err(_) if self.generators.runtime.take_met() && again.is_some() => {
+                if let Some(operation) = again {
+                    self.generators.hold(generator_wait::Waiting::Command {
+                        origin,
+                        operation,
+                        version: DocumentVersion::of(&self.engine),
+                    });
+                }
+            }
             Ok(outcome) => {
                 if let sparksmith_core::Outcome::Pasted { report } = &outcome {
                     self.schematic.select_pasted(self.engine.project(), report);
@@ -1377,6 +1404,7 @@ impl App {
             pcb,
             scene,
             sheet_work,
+            generators,
             sources,
             import_report,
             live,
@@ -1438,6 +1466,7 @@ impl App {
         live.document_opened();
         // A sheet being expanded for the old document is cancelled.
         *sheet_work = None;
+        generators.stop();
         *pending_import = None;
         *browser_component = None;
         *browser_menu = Default::default();
@@ -2034,6 +2063,8 @@ impl eframe::App for App {
         self.refill_fills(&ctx);
         self.file_effects(&ctx);
         self.recent_projects(&ctx);
+        // What a generator's answer lets run.
+        self.serve_generator_wait(&ctx);
         // Assistants' requests, between the last frame and this one's
         // editors.
         self.serve_live(&ctx);
@@ -2216,6 +2247,9 @@ mod dimension_list_tests;
 #[cfg(test)]
 #[path = "app/flow_tests.rs"]
 mod flow_tests;
+#[cfg(test)]
+#[path = "app/generator_wait_tests.rs"]
+mod generator_wait_tests;
 #[cfg(test)]
 #[path = "app/open_project_tests.rs"]
 mod open_project_tests;

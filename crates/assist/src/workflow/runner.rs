@@ -238,6 +238,7 @@ pub fn run_workflow(
             legacy,
             facts: Vec::new(),
             finish: Finish::StepResult,
+            pages: None,
         },
         given: run.inputs,
         inputs: Map::new(),
@@ -532,6 +533,14 @@ impl Runner<'_, '_> {
     /// One call through the front door as the run's principal, in its turn:
     /// the result, or the error as text.
     fn call(&mut self, entry: &str, params: Value) -> std::result::Result<Value, String> {
+        if entry == documents::DOCUMENT_PAGE
+            && let Some(pages) = &self.context.pages
+        {
+            pages.prepare(&params);
+            if sparksmith_automation::cancel::requested() {
+                return Err("the run was stopped".into());
+            }
+        }
         let reply = self.context.desk.call(
             &self.context.grant,
             self.context.turn.as_deref(),
@@ -676,6 +685,9 @@ impl Runner<'_, '_> {
         });
         self.inputs.extend(values);
         if attach && let Err(why) = self.attach() {
+            if sparksmith_automation::cancel::requested() {
+                return Next::End(RunEnd::Stopped);
+            }
             return Next::End(RunEnd::Failed {
                 step: step.id.clone(),
                 why,
@@ -736,6 +748,7 @@ impl Runner<'_, '_> {
             self.inputs.insert(name, documents);
         }
         self.context.facts = std::mem::take(&mut prepared.facts);
+        self.context.pages = Some(prepared.pages.renderer());
         let store: Box<dyn Documents> = Box::new(std::mem::take(&mut prepared.pages));
         desk::with(self.context.desk, move |session| {
             session.attach_documents(Some(store));

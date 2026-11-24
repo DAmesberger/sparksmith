@@ -13,6 +13,7 @@ use sparksmith_assist::workflow::control::{ControlAnswer, ControlCard};
 use sparksmith_assist::workflow::event::WorkflowEvent;
 use sparksmith_assist::workflow::runner::{self, Person, WorkflowOutcome, WorkflowRun};
 use sparksmith_automation::Grant;
+use sparksmith_automation::cancel::Cancel;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
@@ -125,7 +126,9 @@ pub fn start(
     std::thread::Builder::new()
         .name("assistant-turn".into())
         .spawn(sparksmith_core::library::standards::carried(move || {
-            let outcome = match connect() {
+            // Stop ends what the turn's thread waits for, the model included.
+            let stop = Cancel::from(Arc::clone(&flag));
+            let outcome = stop.scope(|| match connect() {
                 Ok(mut backend) => {
                     let events = tx.clone();
                     let waker = Arc::clone(&wake);
@@ -151,7 +154,7 @@ pub fn start(
                     end: chat::End::Failed(why),
                     usage: chat::Use::default(),
                 },
-            };
+            });
             let _ = tx.send(FromTurn::Done { outcome, history });
             wake();
         }))
@@ -307,29 +310,32 @@ pub fn start_run(
     std::thread::Builder::new()
         .name("assistant-run".into())
         .spawn(sparksmith_core::library::standards::carried(move || {
-            let outcome = connect().and_then(|mut backend| {
-                let run = WorkflowRun {
-                    loaded: &start.loaded,
-                    inputs: start.inputs,
-                    grant: start.grant,
-                    config: &start.config,
-                };
-                runner::run_workflow(
-                    run,
-                    backend.as_mut(),
-                    &mut WindowDesk {
-                        tx: &tx,
-                        wake: wake.as_ref(),
-                    },
-                    &mut ChatPerson {
-                        tx: &tx,
-                        answers: &answered,
-                        cancel: &flag,
-                        wake: wake.as_ref(),
-                    },
-                    &flag,
-                )
-                .map_err(|e| e.to_string())
+            let stop = Cancel::from(Arc::clone(&flag));
+            let outcome = stop.scope(|| {
+                connect().and_then(|mut backend| {
+                    let run = WorkflowRun {
+                        loaded: &start.loaded,
+                        inputs: start.inputs,
+                        grant: start.grant,
+                        config: &start.config,
+                    };
+                    runner::run_workflow(
+                        run,
+                        backend.as_mut(),
+                        &mut WindowDesk {
+                            tx: &tx,
+                            wake: wake.as_ref(),
+                        },
+                        &mut ChatPerson {
+                            tx: &tx,
+                            answers: &answered,
+                            cancel: &flag,
+                            wake: wake.as_ref(),
+                        },
+                        &flag,
+                    )
+                    .map_err(|e| e.to_string())
+                })
             });
             let _ = tx.send(FromRun::Done(Box::new(outcome)));
             wake();

@@ -444,6 +444,43 @@ fn concurrent_jobs_run_one_at_a_time() -> Fallible<()> {
     Ok(())
 }
 
+/// A request its client cancelled (its future is dropped) ends, one still
+/// waiting its turn never runs, and the next call works.
+#[test]
+fn a_cancelled_request_ends_and_the_next_one_runs() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    let server = server(dir.path())?;
+    let ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let queued_ran = ran.clone();
+    block_on(async move {
+        let desk = server.desk().clone();
+        let (began, begins) = tokio::sync::oneshot::channel();
+        let mut endless = Box::pin(desk.run(move |_| {
+            let _ = began.send(());
+            while !sparksmith_generators::cancel::requested() {
+                std::thread::yield_now();
+            }
+        }));
+        tokio::select! {
+            _ = &mut endless => return Err("it ended by itself".into()),
+            began = begins => began?,
+        }
+        let queued =
+            desk.run(move |_| queued_ran.store(true, std::sync::atomic::Ordering::Release));
+        tokio::select! {
+            biased;
+            _ = queued => return Err("two calls ran at once".into()),
+            () = std::future::ready(()) => {}
+        }
+        drop(endless);
+        let next = desk.run(|d| d.revisions().len()).await?;
+        assert_eq!(next, 1);
+        Fallible::Ok(())
+    })??;
+    assert!(!ran.load(std::sync::atomic::Ordering::Acquire));
+    Ok(())
+}
+
 #[test]
 fn a_session_reply_becomes_a_tool_result() {
     let ok = outcome(&json!({"ok": true, "result": {"revision": 3}}));

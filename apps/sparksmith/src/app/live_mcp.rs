@@ -18,6 +18,7 @@
 mod export_review;
 
 use super::App;
+use super::generator_wait::Waiting;
 use crate::kit::{self, severity::Level, toast::ToastAction};
 use sparksmith_automation::live::{self, Admitted, ControlRequest, Endpoint, Verdict};
 use sparksmith_automation::{Mode, Question, Session};
@@ -128,6 +129,12 @@ impl LiveMcp {
     #[cfg(test)]
     pub fn use_place(&mut self, place: Place) {
         self.place = place;
+    }
+
+    /// A request held for the person's answer, whose sender gave it up, is
+    /// asked about no longer.
+    fn drop_cancelled(&mut self) {
+        self.held.take_if(|held| held.request.ticket.is_cancelled());
     }
 
     /// Another project was opened: a request held for the person's answer
@@ -259,10 +266,15 @@ impl App {
     /// Answer the requests that arrived since the last frame, before the
     /// editors draw, so this frame shows what they did.
     pub(super) fn serve_live(&mut self, ctx: &egui::Context) {
+        self.live.drop_cancelled();
         for _ in 0..PER_FRAME {
             let Some(request) = self.live.endpoint.as_ref().and_then(Endpoint::next) else {
                 return;
             };
+            // Its sender gave it up while it waited its turn.
+            if request.ticket.is_cancelled() {
+                continue;
+            }
             request
                 .started
                 .store(true, std::sync::atomic::Ordering::Relaxed);
@@ -277,7 +289,7 @@ impl App {
                 Verdict::Reply(reply) => {
                     let _ = request.reply.send(reply);
                 }
-                Verdict::Run(admitted) => self.run_live(request, &admitted, busy),
+                Verdict::Run(admitted) => self.run_live(request, admitted, busy, false),
                 Verdict::Ask(admitted, question) => {
                     let preflight = admitted.native_export().map(|review| {
                         export_review::Preflight::start(std::sync::Arc::clone(review), ctx)
@@ -297,9 +309,15 @@ impl App {
 
     /// Run one admitted request on the window's engine and answer it, with
     /// `busy` why the person holds the window (none once they answered its
-    /// question). A change is the assistant's: a toast with Undo, and a
-    /// Messages line.
-    fn run_live(&mut self, request: ControlRequest, admitted: &Admitted, busy: Option<String>) {
+    /// question: `asked`). A change is the assistant's: a toast with Undo,
+    /// and a Messages line. One that meets a running generator waits for it.
+    pub(super) fn run_live(
+        &mut self,
+        request: ControlRequest,
+        admitted: Admitted,
+        busy: Option<String>,
+        asked: bool,
+    ) {
         let before = self.engine.revision();
         // An undo or redo says the step it took, as the person's own does.
         let history = match admitted.subject() {
@@ -308,14 +326,23 @@ impl App {
             _ => None,
         };
         let host = self.files.host_file();
+        let _ = self.generators.runtime.take_met();
         let (mut window, engine, live_mcp) = self.window_for_live(busy);
         let (reply, changes) = live_mcp
             .session
-            .lend_file(engine, &host, |s| live::run(s, admitted, &mut window));
+            .lend_file(engine, &host, |s| live::run(s, &admitted, &mut window));
         // The file workflow takes on a file change with the engine.
         self.file_changes(changes, false);
-        let _ = request.reply.send(reply);
         let now = self.engine.revision();
+        if self.generators.runtime.take_met() && now == before {
+            self.generators.hold(Waiting::Live {
+                request,
+                admitted: Box::new(admitted),
+                asked,
+            });
+            return;
+        }
+        let _ = request.reply.send(reply);
         if now != before
             && let Some((done, step)) = history
         {
@@ -481,7 +508,7 @@ impl App {
             return;
         };
         if allow {
-            self.run_live(held.request, &held.admitted, None);
+            self.run_live(held.request, held.admitted, None, true);
         } else {
             let _ = held
                 .request

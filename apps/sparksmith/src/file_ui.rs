@@ -3,6 +3,7 @@
 //! Dialogs stay in the app. Reads, writes, native export and recovery run outside
 //! the UI thread; every result retains its document epoch and captured content.
 use crate::kit::severity::Level;
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_automation::{FileChange, HostFile};
 use sparksmith_core::{Document, Engine, FirstSave, Project, format::EditorFile};
 use sparksmith_io::recovery::{self, RecoveryEntry, RecoveryRecord, RecoveryStore, Snapshot};
@@ -295,7 +296,7 @@ pub enum Effect {
 
 enum Job {
     Read(Ticket, PathBuf),
-    Import(Ticket, PathBuf),
+    Import(Ticket, PathBuf, Cancel),
     /// Write the document; replace the file only while it holds the
     /// identity, when one is given. A first save names and identifies it
     /// here, off the UI thread: that reads the whole document.
@@ -374,13 +375,14 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                         .map_err(|e| e.to_string());
                     Event::Read(ticket, path, value)
                 }
-                Job::Import(ticket, path) => {
+                Job::Import(ticket, path, cancel) => {
                     // The CLI's import, off the UI thread; the window
-                    // shows that it runs (`FileUi::importing`).
+                    // shows that it runs (`FileUi::importing`) and stops it.
                     let value = sparksmith_io::rule_profiles::for_new_board_shown_from_env()
                         .map_err(|e| e.to_string())
                         .and_then(|(profile, said)| {
-                            let imported = import_catalog.import_on(&path, &profile)?;
+                            let imported =
+                                cancel.scope(|| import_catalog.import_on(&path, &profile))?;
                             Ok(Box::new((imported.engine.to_file(), imported.report, said)))
                         });
                     Event::Imported(ticket, path, value)
@@ -507,6 +509,8 @@ pub struct FileUi {
     /// The KiCad import running (not while its file panel is open), for
     /// [`FileUi::importing`].
     importing: Option<u64>,
+    /// Stops the import that runs.
+    import_cancel: Cancel,
     /// When the running save or import sent its file to the worker, and
     /// the file, for [`FileUi::activity`].
     access: (f64, PathBuf),
@@ -569,6 +573,7 @@ impl FileUi {
             close_pending: false,
             writing: None,
             importing: None,
+            import_cancel: Cancel::default(),
             access: (0.0, PathBuf::new()),
             closed: false,
             model_export: crate::model_export::ModelExport::new(ctx),
@@ -650,12 +655,22 @@ impl FileUi {
             .as_ref()
             .is_some_and(|f| f.kind == Kind::Import && Some(f.ticket.id) == self.importing)
     }
+    /// Stop the running import: nothing is imported.
+    pub fn stop_import(&mut self) {
+        self.import_cancel.set();
+    }
+    /// Whether the running import can be stopped (it was not yet).
+    pub fn import_stoppable(&self) -> bool {
+        self.importing() && !self.import_cancel.is_set()
+    }
     /// The app bar's text for a running save or import, and when it next
     /// changes. One the system holds past [`HELD_ACCESS`] (a permission
     /// prompt behind the window, a slow disk) says what it waits for.
     pub fn activity(&self) -> Option<(String, Option<Duration>)> {
         let work = if self.saving() {
             "Saving\u{2026}"
+        } else if self.importing() && self.import_cancel.is_set() {
+            "Stopping the import\u{2026}"
         } else if self.importing() {
             "Importing KiCad project\u{2026}"
         } else {
@@ -809,8 +824,9 @@ impl FileUi {
             self.writing = Some(ticket.id);
             self.access = (self.now, path.clone());
         }
-        if let Job::Import(ticket, path) = &job {
+        if let Job::Import(ticket, path, cancel) = &job {
             self.importing = Some(ticket.id);
+            self.import_cancel = cancel.clone();
             self.access = (self.now, path.clone());
         }
         if let Err(error) = self.sender.send(job) {
@@ -908,7 +924,7 @@ impl FileUi {
                 if let Some(ticket) = self.begin(Kind::Import, None) {
                     if let Some(path) = path {
                         match absolute_path(path) {
-                            Ok(path) => self.send(Job::Import(ticket, path)),
+                            Ok(path) => self.send(Job::Import(ticket, path, Cancel::default())),
                             Err(error) => {
                                 self.controller.cancel(&ticket, Kind::Import);
                                 self.status = Some((Level::Error, error));
@@ -1152,7 +1168,7 @@ impl FileUi {
                         self.send(Job::Read(ticket, path))
                     }
                     Kind::Import if ticket.stamp == self.controller.current => {
-                        self.send(Job::Import(ticket, path))
+                        self.send(Job::Import(ticket, path, Cancel::default()))
                     }
                     Kind::Export if ticket.stamp == self.controller.current => {
                         // The export runs on its own thread: the file
@@ -1271,6 +1287,10 @@ impl FileUi {
                     return;
                 }
                 match result.map(|imported| *imported) {
+                    _ if self.import_cancel.is_set() => {
+                        self.status =
+                            Some((Level::Info, "Import stopped; nothing was imported".into()));
+                    }
                     Ok((document, report, said)) => {
                         if let Some(said) = said {
                             self.status = Some((Level::Warning, said));

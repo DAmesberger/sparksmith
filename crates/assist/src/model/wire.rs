@@ -7,6 +7,8 @@ use super::stream::{self, SseEvent, Streamed};
 use super::{Endpoint, Secret};
 use crate::{Error, Result};
 use serde_json::Value;
+use sparksmith_automation::cancel;
+use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::time::Duration;
 
 /// Largest response body read.
@@ -25,13 +27,15 @@ pub enum AuthStyle {
 pub trait Wire {
     /// Where this goes, for the review report; never holds a key.
     fn label(&self) -> String;
-    /// POST `body` to the endpoint's `path`.
+    /// POST `body` to the endpoint's `path`. It waits as long as the server
+    /// takes, at most `timeout` when the person limits the run's time; a
+    /// cancelled call ([`cancel`]) ends it.
     fn post(
         &mut self,
         path: &str,
         headers: &[(&str, &str)],
         body: &Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
     ) -> Result<Value>;
     /// POST `body` and read the reply as server-sent events, giving each to
     /// `on` until the stream ends or `on` answers false; a server that
@@ -41,7 +45,7 @@ pub trait Wire {
         path: &str,
         headers: &[(&str, &str)],
         body: &Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
         on: &mut dyn FnMut(SseEvent) -> Result<bool>,
     ) -> Result<Streamed>;
     /// `value` without the key, for a reply put together from many events:
@@ -59,18 +63,58 @@ pub trait Wire {
     }
 }
 
-/// The real thing, over ureq.
+/// The real thing, over ureq. Each request runs on a thread of its own, so
+/// a cancelled call ([`cancel`]) ends at once however silent the server is;
+/// the thread ends, and the connection closes, when the server next sends
+/// something or closes it.
 pub struct HttpWire {
+    http: Http,
+}
+
+#[derive(Clone)]
+struct Http {
     agent: ureq::Agent,
     endpoint: Endpoint,
     key: Option<Secret>,
     auth: AuthStyle,
 }
 
+/// What a streaming request's thread says.
+enum Step {
+    Event(SseEvent),
+    End(Result<Streamed>),
+}
+
+/// How often a waiting request looks at its call's cancellation.
+const POLL: Duration = Duration::from_millis(50);
+
+/// What the request's thread says next; `None` once the call is cancelled.
+fn wait<T>(answer: &Receiver<T>) -> Result<Option<T>> {
+    loop {
+        if cancel::requested() {
+            return Ok(None);
+        }
+        match answer.recv_timeout(POLL) {
+            Ok(value) => return Ok(Some(value)),
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err(Error::Http("the request ended without an answer".into()));
+            }
+        }
+    }
+}
+
+fn owned(headers: &[(&str, &str)]) -> Vec<(String, String)> {
+    headers
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+        .collect()
+}
+
 impl std::fmt::Debug for HttpWire {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpWire")
-            .field("endpoint", &self.endpoint)
+            .field("endpoint", &self.http.endpoint)
             .finish_non_exhaustive()
     }
 }
@@ -88,24 +132,33 @@ impl HttpWire {
             config = config.proxy(None);
         }
         Ok(Self {
-            agent: config.build().into(),
-            endpoint,
-            key,
-            auth,
+            http: Http {
+                agent: config.build().into(),
+                endpoint,
+                key,
+                auth,
+            },
         })
     }
 
-    fn clean(&self, text: &str) -> String {
-        match &self.key {
-            Some(key) => key.redact(text),
-            None => text.to_owned(),
+    /// Run `request` on a thread of its own.
+    fn start(&self, request: impl FnOnce(&Http) + Send + 'static) -> Result<()> {
+        if cancel::requested() {
+            return Err(Error::Http("the request was stopped".into()));
         }
+        let http = self.http.clone();
+        std::thread::Builder::new()
+            .name("model-request".into())
+            .spawn(move || request(&http))
+            .map(|_| ())
+            .map_err(|e| Error::Http(format!("the request could not be started: {e}")))
     }
 }
 
 impl Wire for HttpWire {
     fn label(&self) -> String {
-        format!("{} ({})", self.endpoint.base(), self.endpoint.location())
+        let endpoint = &self.http.endpoint;
+        format!("{} ({})", endpoint.base(), endpoint.location())
     }
 
     fn post(
@@ -113,11 +166,16 @@ impl Wire for HttpWire {
         path: &str,
         headers: &[(&str, &str)],
         body: &Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
     ) -> Result<Value> {
-        let mut response = self.send(path, headers, body, timeout)?;
-        let text = self.read_text(&mut response)?;
-        reply_value(&text).map(|value| self.clean_value(value))
+        let (path, headers, body) = (path.to_owned(), owned(headers), body.clone());
+        let (send, answer) = channel();
+        self.start(move |http| {
+            let _ = send.send(http.post(&path, &headers, &body, timeout));
+        })?;
+        let value =
+            wait(&answer)?.ok_or_else(|| Error::Http("the request was stopped".into()))??;
+        Ok(self.clean_value(value))
     }
 
     fn post_stream(
@@ -125,7 +183,121 @@ impl Wire for HttpWire {
         path: &str,
         headers: &[(&str, &str)],
         body: &Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
+        on: &mut dyn FnMut(SseEvent) -> Result<bool>,
+    ) -> Result<Streamed> {
+        let (path, headers, body) = (path.to_owned(), owned(headers), body.clone());
+        let (send, steps) = channel();
+        self.start(move |http| {
+            let events = send.clone();
+            let end = http.post_stream(&path, &headers, &body, timeout, &mut |event| {
+                Ok(events.send(Step::Event(event)).is_ok())
+            });
+            let _ = send.send(Step::End(end));
+        })?;
+        // Dropping `steps` on a stop ends the thread at its next event.
+        loop {
+            match wait(&steps)? {
+                None => return Ok(Streamed::Stopped),
+                Some(Step::Event(event)) => {
+                    let more =
+                        on(event).map_err(|e| Error::Http(self.http.clean(&e.to_string())))?;
+                    if !more {
+                        return Ok(Streamed::Stopped);
+                    }
+                }
+                Some(Step::End(Ok(Streamed::Whole(value)))) => {
+                    return Ok(Streamed::Whole(self.clean_value(value)));
+                }
+                Some(Step::End(end)) => return end,
+            }
+        }
+    }
+
+    fn clean_value(&self, mut value: Value) -> Value {
+        let Some(key) = &self.http.key else {
+            return value;
+        };
+        fn clean(value: &mut Value, key: &Secret) {
+            match value {
+                Value::String(text) => *text = key.redact(text),
+                Value::Array(items) => items.iter_mut().for_each(|v| clean(v, key)),
+                Value::Object(fields) => {
+                    *fields = std::mem::take(fields)
+                        .into_iter()
+                        .map(|(name, mut v)| {
+                            clean(&mut v, key);
+                            (key.redact(&name), v)
+                        })
+                        .collect();
+                }
+                _ => {}
+            }
+        }
+        clean(&mut value, key);
+        value
+    }
+
+    fn redactor(&self) -> super::redact::Redactor {
+        super::redact::Redactor::new(self.http.key.clone())
+    }
+
+    fn clean_reply(&self, reply: super::ModelReply) -> Result<super::ModelReply> {
+        let Some(key) = &self.http.key else {
+            return Ok(reply);
+        };
+        let reply: super::ModelReply =
+            serde_json::from_value(self.clean_value(serde_json::to_value(reply)?))?;
+        // Separate content blocks can reconstruct a credential even though
+        // every individual JSON string is clean. Refuse the final reply:
+        // rewriting block boundaries or signed replay would change its meaning.
+        // HTTP response size already bounds these temporary channel buffers.
+        for reasoning in [false, true] {
+            let channel: String = reply
+                .content
+                .iter()
+                .filter_map(|part| match part {
+                    super::Part::Text { text, .. } if !reasoning => Some(text.as_str()),
+                    super::Part::Reasoning { text, .. } if reasoning => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect();
+            if channel.contains(key.expose()) {
+                return Err(Error::Protocol(
+                    "the model response contained a credential across content blocks".into(),
+                ));
+            }
+        }
+        Ok(reply)
+    }
+}
+
+impl Http {
+    fn clean(&self, text: &str) -> String {
+        match &self.key {
+            Some(key) => key.redact(text),
+            None => text.to_owned(),
+        }
+    }
+
+    fn post(
+        &self,
+        path: &str,
+        headers: &[(String, String)],
+        body: &Value,
+        timeout: Option<Duration>,
+    ) -> Result<Value> {
+        let mut response = self.send(path, headers, body, timeout)?;
+        let text = self.read_text(&mut response)?;
+        reply_value(&text)
+    }
+
+    fn post_stream(
+        &self,
+        path: &str,
+        headers: &[(String, String)],
+        body: &Value,
+        timeout: Option<Duration>,
         on: &mut dyn FnMut(SseEvent) -> Result<bool>,
     ) -> Result<Streamed> {
         let mut response = self.send(path, headers, body, timeout)?;
@@ -138,7 +310,7 @@ impl Wire for HttpWire {
             // Not a stream: one reply, or events under another type.
             let text = self.read_text(&mut response)?;
             return match serde_json::from_str::<Value>(&text) {
-                Ok(value) => Ok(Streamed::Whole(self.clean_value(value))),
+                Ok(value) => Ok(Streamed::Whole(value)),
                 Err(_) => {
                     let stopped =
                         stream::read_sse(&mut text.as_bytes(), &|line| line.to_owned(), on)
@@ -168,83 +340,24 @@ impl Wire for HttpWire {
         })
     }
 
-    fn clean_value(&self, mut value: Value) -> Value {
-        let Some(key) = &self.key else {
-            return value;
-        };
-        fn clean(value: &mut Value, key: &Secret) {
-            match value {
-                Value::String(text) => *text = key.redact(text),
-                Value::Array(items) => items.iter_mut().for_each(|v| clean(v, key)),
-                Value::Object(fields) => {
-                    *fields = std::mem::take(fields)
-                        .into_iter()
-                        .map(|(name, mut v)| {
-                            clean(&mut v, key);
-                            (key.redact(&name), v)
-                        })
-                        .collect();
-                }
-                _ => {}
-            }
-        }
-        clean(&mut value, key);
-        value
-    }
-
-    fn redactor(&self) -> super::redact::Redactor {
-        super::redact::Redactor::new(self.key.clone())
-    }
-
-    fn clean_reply(&self, reply: super::ModelReply) -> Result<super::ModelReply> {
-        let Some(key) = &self.key else {
-            return Ok(reply);
-        };
-        let reply: super::ModelReply =
-            serde_json::from_value(self.clean_value(serde_json::to_value(reply)?))?;
-        // Separate content blocks can reconstruct a credential even though
-        // every individual JSON string is clean. Refuse the final reply:
-        // rewriting block boundaries or signed replay would change its meaning.
-        // HTTP response size already bounds these temporary channel buffers.
-        for reasoning in [false, true] {
-            let channel: String = reply
-                .content
-                .iter()
-                .filter_map(|part| match part {
-                    super::Part::Text { text, .. } if !reasoning => Some(text.as_str()),
-                    super::Part::Reasoning { text, .. } if reasoning => Some(text.as_str()),
-                    _ => None,
-                })
-                .collect();
-            if channel.contains(key.expose()) {
-                return Err(Error::Protocol(
-                    "the model response contained a credential across content blocks".into(),
-                ));
-            }
-        }
-        Ok(reply)
-    }
-}
-
-impl HttpWire {
     /// Send one POST: the response with a success status, or the error.
     fn send(
-        &mut self,
+        &self,
         path: &str,
-        headers: &[(&str, &str)],
+        headers: &[(String, String)],
         body: &Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
     ) -> Result<ureq::http::Response<ureq::Body>> {
         let url = format!("{}{path}", self.endpoint.base());
         let mut request = self
             .agent
             .post(&url)
             .config()
-            .timeout_global(Some(timeout))
+            .timeout_global(timeout)
             .build()
             .header("content-type", "application/json");
         for (name, value) in headers {
-            request = request.header(*name, *value);
+            request = request.header(name.as_str(), value.as_str());
         }
         if let Some(key) = &self.key {
             request = match self.auth {
@@ -313,7 +426,7 @@ fn error_message(value: Option<&Value>, text: &str) -> String {
 
 /// One POST a test script received: path, headers, body and timeout.
 #[cfg(test)]
-pub type Post = (String, Vec<(String, String)>, Value, Duration);
+pub type Post = (String, Vec<(String, String)>, Value, Option<Duration>);
 
 /// Canned wire replies for tests of the backends, with each request kept.
 #[cfg(test)]
@@ -347,7 +460,7 @@ impl Wire for ScriptedWire {
         path: &str,
         headers: &[(&str, &str)],
         body: &Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
     ) -> Result<Value> {
         if path.ends_with("count_tokens") {
             return match self.count {
@@ -376,7 +489,7 @@ impl Wire for ScriptedWire {
         path: &str,
         headers: &[(&str, &str)],
         body: &Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
         on: &mut dyn FnMut(SseEvent) -> Result<bool>,
     ) -> Result<Streamed> {
         match self.post(path, headers, body, timeout)? {
@@ -443,8 +556,6 @@ mod tests {
         )
     }
 
-    const LONG: Duration = Duration::from_secs(20);
-
     #[test]
     fn streamed_key_split_at_every_boundary_is_hidden_before_observers() -> Result<()> {
         use crate::model::{Delta, ModelBackend, ModelProfile, ModelRequest};
@@ -473,7 +584,7 @@ mod tests {
                 tools: &[],
                 messages: &[],
                 max_output_tokens: 100,
-                timeout: LONG,
+                timeout: None,
             };
             let mut shown = String::new();
             let reply = backend.stream(
@@ -541,7 +652,7 @@ mod tests {
                     tools: &[],
                     messages: &[],
                     max_output_tokens: 100,
-                    timeout: LONG,
+                    timeout: None,
                 };
                 let mut shown = String::new();
                 let reply = backend.stream(
@@ -565,7 +676,7 @@ mod tests {
         let key = "sk-quote\"key";
         let (base, handle) = server(http("200 OK", &json!({"value": key}).to_string()))?;
         let mut wire = HttpWire::new(Endpoint::parse(&base)?, Secret::new(key), AuthStyle::Bearer)?;
-        let value = wire.post("/test", &[], &json!({}), LONG)?;
+        let value = wire.post("/test", &[], &json!({}), None)?;
         let _ = handle.join();
         assert_eq!(value["value"], "[redacted]");
         let reply = super::super::ModelReply {
@@ -618,7 +729,7 @@ mod tests {
                     tools: &[],
                     messages: &[],
                     max_output_tokens: 100,
-                    timeout: LONG,
+                    timeout: None,
                 };
                 let mut deltas = Vec::new();
                 let result = if streamed {
@@ -653,7 +764,7 @@ mod tests {
         let (base, handle) = server(http("400 Bad Request", &body))?;
         let mut wire = HttpWire::new(Endpoint::parse(&base)?, Secret::new(key), AuthStyle::Bearer)?;
         let error = wire
-            .post("/test", &[], &json!({}), LONG)
+            .post("/test", &[], &json!({}), None)
             .err()
             .ok_or_else(|| Error::Protocol("expected API error".into()))?;
         let _ = handle.join();
@@ -684,7 +795,7 @@ mod tests {
             tools: &[],
             messages: &[],
             max_output_tokens: 100,
-            timeout: LONG,
+            timeout: None,
         };
         let error = backend
             .stream(
@@ -734,7 +845,7 @@ mod tests {
                 tools: &[],
                 messages: &[],
                 max_output_tokens: 100,
-                timeout: LONG,
+                timeout: None,
             };
             let (mut text, mut thinking) = (String::new(), String::new());
             backend.stream(
@@ -769,7 +880,7 @@ mod tests {
             Secret::new("sk-secret-1"),
             AuthStyle::Bearer,
         )?;
-        let reply = wire.post("/chat", &[("x-extra", "1")], &json!({"a": 1}), LONG)?;
+        let reply = wire.post("/chat", &[("x-extra", "1")], &json!({"a": 1}), None)?;
         assert_eq!(reply["ok"], true);
         assert_eq!(reply["echo"], "you sent [redacted]");
         let seen = handle.join().unwrap_or_default().to_ascii_lowercase();
@@ -791,7 +902,7 @@ mod tests {
             Secret::new("sk-secret-2"),
             AuthStyle::ApiKeyHeader,
         )?;
-        let error = wire.post("/x", &[], &json!({}), LONG).err();
+        let error = wire.post("/x", &[], &json!({}), None).err();
         let text = error.as_ref().map(ToString::to_string).unwrap_or_default();
         assert!(
             matches!(error, Some(Error::Api { status: 401, .. })),
@@ -815,7 +926,7 @@ mod tests {
             Secret::new("sk-secret-3"),
             AuthStyle::ApiKeyHeader,
         )?;
-        let error = wire.post("/x", &[], &json!({}), LONG).err();
+        let error = wire.post("/x", &[], &json!({}), None).err();
         assert!(
             matches!(error, Some(Error::Api { status: 307, .. })),
             "{error:?}"
@@ -828,7 +939,7 @@ mod tests {
     fn a_non_json_reply_is_an_error_not_a_panic() -> Result<()> {
         let (base, handle) = server(http("200 OK", "<html>gateway</html>"))?;
         let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
-        let error = wire.post("/x", &[], &json!({}), LONG).err();
+        let error = wire.post("/x", &[], &json!({}), None).err();
         assert!(matches!(error, Some(Error::Protocol(_))), "{error:?}");
         let _ = handle.join();
         Ok(())
@@ -845,7 +956,7 @@ mod tests {
 
     fn stream_of(wire: &mut HttpWire) -> Result<(Streamed, Vec<String>)> {
         let mut seen = Vec::new();
-        let streamed = wire.post_stream("/s", &[], &json!({}), LONG, &mut |e| {
+        let streamed = wire.post_stream("/s", &[], &json!({}), None, &mut |e| {
             seen.push(e.data);
             Ok(true)
         })?;
@@ -886,6 +997,44 @@ mod tests {
         Ok(())
     }
 
+    /// A server that never answers is waited for without end; cancelling the
+    /// call ends the wait, streamed or not, and the next request is answered.
+    #[test]
+    fn cancelling_ends_the_wait_for_a_silent_server() -> Result<()> {
+        use sparksmith_automation::cancel::Cancel;
+        for streamed in [false, true] {
+            let listener = TcpListener::bind("127.0.0.1:0")?;
+            let base = format!("http://{}", listener.local_addr()?);
+            let cancel = Cancel::default();
+            let stop = cancel.clone();
+            let (done, wait) = std::sync::mpsc::channel::<()>();
+            let silent = std::thread::spawn(move || {
+                let accepted = listener.accept();
+                stop.set();
+                let _ = wait.recv();
+                drop(accepted);
+            });
+            let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+            cancel.scope(|| {
+                if streamed {
+                    let ended = stream_of(&mut wire)?;
+                    assert_eq!(ended, (Streamed::Stopped, Vec::new()));
+                } else {
+                    assert!(wire.post("/s", &[], &json!({}), None).is_err());
+                }
+                Result::Ok(())
+            })?;
+            let _ = done.send(());
+            let _ = silent.join();
+            let (base, handle) = server(http("200 OK", r#"{"next": true}"#))?;
+            let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+            let next = wire.post("/s", &[], &json!({}), None)?;
+            assert_eq!(next, json!({"next": true}));
+            let _ = handle.join();
+        }
+        Ok(())
+    }
+
     #[test]
     fn stop_between_chunks_does_not_wait_for_the_rest() -> Result<()> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
@@ -908,7 +1057,7 @@ mod tests {
         let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
         let started = std::time::Instant::now();
         let mut seen = Vec::new();
-        let streamed = wire.post_stream("/s", &[], &json!({}), LONG, &mut |e| {
+        let streamed = wire.post_stream("/s", &[], &json!({}), None, &mut |e| {
             seen.push(e.data);
             Ok(false)
         })?;

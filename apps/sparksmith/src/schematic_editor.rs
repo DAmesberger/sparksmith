@@ -726,6 +726,11 @@ impl SchematicEditor {
         }
     }
 
+    /// The part being made to place.
+    pub fn making(&self) -> Option<&crate::generators::Making> {
+        self.making.as_ref()
+    }
+
     /// The answer to a part chosen for make-and-place: the command once the
     /// part is made; a refusal reopens the palette with it, success arms
     /// placement.

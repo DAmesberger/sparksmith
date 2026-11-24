@@ -32,15 +32,17 @@ use sparksmith_assist::workflow::runner::{self, Person, WorkflowRun};
 use sparksmith_assist::workflow::{self, Loaded};
 use sparksmith_assist::{AssistLibrary, CallState, Datasheet, Event, Outcome, RunConfig};
 use sparksmith_automation::Session;
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_core::product::SHORT_NAME as CLI;
 use std::io::Read as _;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 pub const USAGE: &str = "design-part --datasheet PDF|URL [--datasheet …] --name NAME --out NEW.sparksmith
               [--provider anthropic|openai] [--base-url URL] [--model ID] [--key none|keychain|env:NAME]
               [--context-tokens N] [--max-output-tokens N] [--vision yes|no] [--native-pdf yes|no]
-              [--tools yes|no] [--effort LEVEL] [--request-timeout SECONDS]
+              [--tools yes|no] [--effort LEVEL]
               [--max-requests N] [--max-tokens N] [--max-seconds N]
               [--profile NAME] [--notes TEXT] [--record FILE.jsonl | --replay FILE.jsonl]
                                    draft a part from datasheets with a configured model (the
@@ -78,7 +80,6 @@ struct Flags {
     native_pdf: Option<bool>,
     tools: Option<bool>,
     effort: Option<String>,
-    request_timeout: Option<u64>,
     profile: Option<String>,
 }
 
@@ -164,9 +165,6 @@ fn configure(flags: Flags, shipped: &AssistLibrary) -> Result<(RunConfig, Connec
         }
         profile.effort = Some(effort);
     }
-    if let Some(seconds) = flags.request_timeout {
-        profile.request_timeout = Duration::from_secs(seconds);
-    }
     let config = RunConfig::new(
         shipped,
         profile,
@@ -210,7 +208,6 @@ impl ModelFlags {
             "--native-pdf" => flags.native_pdf = Some(yes_no(f, &value)?),
             "--tools" => flags.tools = Some(yes_no(f, &value)?),
             "--effort" => flags.effort = Some(value),
-            "--request-timeout" => flags.request_timeout = Some(count(f, &value)?),
             "--profile" => flags.profile = Some(value),
             "--max-requests" => budget.max_requests = Some(count(f, &value)?),
             "--max-tokens" => budget.max_total_tokens = Some(count(f, &value)?),
@@ -552,7 +549,9 @@ pub fn run(args: &[String]) -> Result<()> {
         config: &args.config,
     };
     let mut console = Console::default();
-    let outcome = runner::run_workflow(run, backend.as_mut(), &mut session, &mut console, &cancel)?;
+    let outcome = Cancel::from(Arc::clone(&cancel)).scope(|| {
+        runner::run_workflow(run, backend.as_mut(), &mut session, &mut console, &cancel)
+    })?;
     let review = outcome.review(&session);
     let saved = save(&mut session, &args, &review);
     if let Some(path) = &args.record {

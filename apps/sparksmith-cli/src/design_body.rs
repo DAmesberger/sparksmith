@@ -16,8 +16,10 @@ use sparksmith_assist::model::ModelBackend;
 use sparksmith_assist::model::record::{Recording, Replay};
 use sparksmith_assist::workflow::event::RunEnd;
 use sparksmith_assist::workflow::runner::{self, WorkflowRun};
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_core::product::SHORT_NAME as CLI;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub const USAGE: &str =
     "design-body --project FILE.sparksmith --designator REF --datasheet PDF [--datasheet …]
@@ -134,13 +136,16 @@ pub fn run(args: &[String]) -> Result<()> {
         grant: config.reach.grant(),
         config: &config,
     };
-    let outcome = runner::run_workflow(
-        run,
-        backend.as_mut(),
-        &mut session,
-        &mut Console::default(),
-        interrupt::stop_on_ctrl_c()?.as_ref(),
-    )?;
+    let cancel = interrupt::stop_on_ctrl_c()?;
+    let outcome = Cancel::from(Arc::clone(&cancel)).scope(|| {
+        runner::run_workflow(
+            run,
+            backend.as_mut(),
+            &mut session,
+            &mut Console::default(),
+            &cancel,
+        )
+    })?;
     let review = outcome.review(&session);
     let facts = &review.facts;
     let cost = format!(

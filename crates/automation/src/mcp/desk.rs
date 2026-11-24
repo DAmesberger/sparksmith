@@ -35,6 +35,7 @@ use crate::session::Session;
 use rmcp::ErrorData;
 use serde_json::{Value, json};
 use sparksmith_core::Diagnostic;
+use sparksmith_generators::cancel::Cancel;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -420,18 +421,40 @@ pub struct Handle {
 impl Handle {
     /// Runs `work` on the desk and returns its answer. Fails, as an internal
     /// error, only when the session thread has stopped.
+    ///
+    /// There is no time limit. Dropping the future (the client cancelled
+    /// the request, or its connection closed) cancels the call
+    /// ([`sparksmith_generators::cancel`]): one still waiting its turn never
+    /// runs; one that runs ends where it looks, with the document as it was.
     pub async fn run<R, F>(&self, work: F) -> Result<R, ErrorData>
     where
         R: Send + 'static,
         F: FnOnce(&mut Desk) -> R + Send + 'static,
     {
+        /// Cancels the call its caller gave up.
+        struct Waiting(Option<Cancel>);
+        impl Drop for Waiting {
+            fn drop(&mut self) {
+                if let Some(cancel) = self.0.take() {
+                    cancel.set();
+                }
+            }
+        }
         let (reply, answer) = oneshot::channel();
+        let cancel = Cancel::default();
+        let call = cancel.clone();
+        let mut waiting = Waiting(Some(cancel));
         let job: Job = Box::new(move |desk| {
+            if call.is_set() {
+                return;
+            }
             // A caller that went away no longer needs the answer.
-            drop(reply.send(work(desk)));
+            drop(reply.send(call.scope(|| work(desk))));
         });
         self.jobs.send(job).await.map_err(|_| stopped())?;
-        answer.await.map_err(|_| stopped())
+        let answer = answer.await.map_err(|_| stopped());
+        waiting.0 = None;
+        answer
     }
 
     /// Every project's revision after the last job, and every later change.

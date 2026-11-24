@@ -166,6 +166,8 @@ pub(crate) struct ToolContext<'a> {
     pub(crate) facts: Vec<documents::DocumentFacts>,
     /// What ends the conversation.
     pub(crate) finish: Finish,
+    /// Renders a page ahead of the call that views it.
+    pub(crate) pages: Option<documents::PageRenderer>,
 }
 
 /// One tool call, whatever the model asked: the one door between a model and
@@ -237,7 +239,7 @@ fn dispatch_tool_call(
             return (label, ToolOutcome::Step(params["result"].clone()));
         }
     }
-    if verb == verbs::QUERY && entry == "assist.document_page" {
+    if verb == verbs::QUERY && entry == documents::DOCUMENT_PAGE {
         let mut images = Vec::new();
         if let Some(image) = result.as_object_mut().and_then(|r| r.remove("image")) {
             images.push(Image {
@@ -287,6 +289,16 @@ fn dispatch_tool_call(
 }
 
 fn verb_call(context: &mut ToolContext<'_>, verb: &str, input: Value) -> Called {
+    if verb == verbs::QUERY
+        && input["name"] == documents::DOCUMENT_PAGE
+        && let Some(pages) = &context.pages
+    {
+        pages.prepare(&input["params"]);
+        if sparksmith_automation::cancel::requested() {
+            return Called::refused(json!({"ok": false, "error": {"code": "assist.stopped",
+                "message": "The run was stopped. Nothing was changed."}}));
+        }
+    }
     context
         .desk
         .verb(&context.grant, context.turn.as_deref(), verb, input)
@@ -498,6 +510,7 @@ pub fn run(
     preflight(config, &prepared, estimate)?;
     let messages = vec![first_message(goal, &prepared)];
     session.ensure_generators();
+    let pages = prepared.pages.renderer();
     let lent: Box<dyn Documents> = Box::new(std::mem::take(&mut prepared.pages));
     let attached = session.attach_documents(Some(lent));
     let mut context = ToolContext {
@@ -507,6 +520,7 @@ pub fn run(
         legacy: backend.legacy_tools(),
         facts: std::mem::take(&mut prepared.facts),
         finish: Finish::Report,
+        pages: Some(pages),
     };
     let mut tally = Tally::default();
     let mut facts = run_facts(config, backend);
@@ -682,7 +696,7 @@ pub(crate) fn converse(
             tools: specs,
             messages: &messages,
             max_output_tokens: limit,
-            timeout: allowance.timeout_within(profile.request_timeout),
+            timeout: allowance.duration,
         };
         let prompt_tokens = if first {
             // Count exactly when the backend can; otherwise the estimate.
