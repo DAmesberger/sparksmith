@@ -203,7 +203,7 @@ fn a_board_finer_than_the_profile_imports_whole_and_is_checked() -> Fallible<()>
 }
 
 /// A SIG track across R3's GND pads is copper the file has: it is imported
-/// and the clearance check reports it.
+/// and reported as a short of two nets.
 #[test]
 fn a_track_over_another_nets_pad_is_imported_and_reported() -> Fallible<()> {
     let mut board = routed();
@@ -216,8 +216,98 @@ fn a_track_over_another_nets_pad_is_imported_and_reported() -> Fallible<()> {
     assert!(
         found
             .iter()
-            .any(|(code, text)| code == "board.clearance" && text.contains("R3")),
+            .any(|(code, text)| code == "board.overlap" && text.contains("R3")),
         "{found:#?}"
+    );
+    Ok(())
+}
+
+/// An imported short is neither waived nor exported: the waive command
+/// refuses it, a waiver a file holds of it counts for nothing, and with
+/// every other finding waived it alone blocks the export (which refuses
+/// while anything blocks) until the track is gone.
+#[test]
+fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
+    use sparksmith_core::fabrication::FabricationCommand;
+    use sparksmith_core::fabrication::preflight::PreflightReport;
+    use sparksmith_core::layout::LayoutCommand;
+    use sparksmith_core::{Operation, Query, QueryResult};
+    let check = |engine: &sparksmith_core::Engine| -> Fallible<PreflightReport> {
+        match engine.query(Query::Preflight { profile: None })? {
+            QueryResult::Preflight(report) => Ok(report),
+            other => Err(format!("{other:?}").into()),
+        }
+    };
+    let mut board = routed();
+    board
+        .items
+        .push_str("  (segment (start 18 16) (end 22 16) (width 0.25) (layer \"F.Cu\") (net 1))\n");
+    let imported = import(board.text().as_bytes())?;
+    let mut engine = imported.engine;
+    let before = check(&engine)?;
+    let shorts: Vec<String> = before
+        .items
+        .iter()
+        .filter(|i| i.code == "board.overlap")
+        .map(|i| i.key.clone())
+        .collect();
+    assert!(!shorts.is_empty(), "{before:?}");
+    assert!(
+        before
+            .items
+            .iter()
+            .filter(|i| shorts.contains(&i.key))
+            .all(|i| i.blocks() && !i.offers_waiver())
+    );
+    let revision = engine.revision();
+    let refused = engine.apply(
+        revision,
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys: shorts.clone(),
+            reason: "as imported".into(),
+        }),
+    );
+    let message = refused.err().ok_or("the short was waived")?.to_string();
+    assert!(message.contains("fabrication.not_waivable"), "{message}");
+    assert_eq!(engine.revision(), revision);
+    // Every finding waived in a file: those that may be are, the shorts not.
+    let mut file = engine.to_file();
+    let mut keys: Vec<String> = before.items.iter().map(|i| i.key.clone()).collect();
+    keys.sort();
+    keys.dedup();
+    file.project.production.waivers = keys
+        .into_iter()
+        .map(|key| sparksmith_core::model::production::Waiver {
+            key,
+            reason: "as imported".into(),
+        })
+        .collect();
+    let mut engine = sparksmith_core::Engine::from_file(file)?;
+    let after = check(&engine)?;
+    let blocks: Vec<&str> = after
+        .items
+        .iter()
+        .filter(|i| i.blocks() && i.code == "board.overlap")
+        .map(|i| i.key.as_str())
+        .collect();
+    assert_eq!(blocks.len(), shorts.len(), "{after:?}");
+    assert!(after.blocking >= shorts.len());
+    // Fixed: the track is deleted, and no short is left.
+    let track = engine
+        .project()
+        .tracks
+        .iter()
+        .find(|t| (t.start[1] - 4.0).abs() < 1e-6 && (t.end[1] - 4.0).abs() < 1e-6)
+        .ok_or("the track across R3")?
+        .id;
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::DeleteTrack { id: track }),
+    )?;
+    let fixed = check(&engine)?;
+    assert!(
+        fixed.items.iter().all(|i| i.code != "board.overlap"),
+        "{fixed:?}"
     );
     Ok(())
 }
