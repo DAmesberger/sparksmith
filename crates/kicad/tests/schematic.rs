@@ -440,8 +440,8 @@ fn the_schematics_value_is_the_parts_value() -> Fallible<()> {
 
 /// Run 7, finding 4: a SIG track the board runs from R1 pin 2 to R2 pin 1,
 /// where the schematic leaves the two apart. The whole track is imported, as
-/// the board has it; the pad the schematic keeps off its net is a short of two
-/// nets, and the disagreement is its own finding.
+/// the board has it; the check reports the short with the pad the schematic
+/// keeps off its net, and the disagreement is its own finding.
 #[test]
 fn a_track_onto_a_pad_the_schematic_keeps_off_its_net_is_imported_and_reported() -> Fallible<()> {
     let sig = Some((2, "SIG"));
