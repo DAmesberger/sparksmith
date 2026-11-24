@@ -247,7 +247,7 @@ fn lands(file: &reader::GerberFile) -> Fallible<Vec<Got>> {
     for object in &file.objects {
         let flash = matches!(object.kind, reader::Kind::Flash { .. });
         let region = matches!(object.kind, reader::Kind::Region { .. });
-        if !flash && !(region && object.object_attributes.contains_key(".C")) {
+        if !(flash || region && object.object_attributes.contains_key(".C")) {
             continue;
         }
         let shapes = polygons::object_shapes(file, object)?;

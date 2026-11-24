@@ -588,7 +588,7 @@ fn replay_conversation(args: &Args, mut replay: Replay) -> Result<()> {
         &mut replay,
         &mut session,
         &mut print_event,
-        &interrupt::stop_on_ctrl_c()?,
+        interrupt::stop_on_ctrl_c()?.as_ref(),
     )?;
     save(&mut session, args, &outcome)
 }

@@ -139,7 +139,7 @@ pub fn run(args: &[String]) -> Result<()> {
         backend.as_mut(),
         &mut session,
         &mut Console::default(),
-        &interrupt::stop_on_ctrl_c()?,
+        interrupt::stop_on_ctrl_c()?.as_ref(),
     )?;
     let review = outcome.review(&session);
     let facts = &review.facts;
