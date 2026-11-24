@@ -7,6 +7,7 @@
 //! in the copper graph ([`super::connectivity`]): one land per layer the
 //! via reaches, joined by its barrel.
 use super::board_edge::{BoardEdges, EdgeVerdict};
+use super::connectivity::{CopperGraph, Meets, TrackEnd};
 use super::copper::check_reach;
 use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
@@ -136,9 +137,76 @@ pub(super) fn unlocked_at(project: &mut Project, at: Option<usize>) -> Result<&m
     Ok(via)
 }
 
+/// Move via `id` to `position`, the track ends on it with it. Refused when
+/// other copper it joins (a pad, a locked track, a track in mid-span) would
+/// be left behind, so a move never parts copper silently.
 pub(super) fn move_to(project: &mut Project, id: Id, position: Point) -> Result<()> {
-    unlocked(project, id)?.position = position;
-    check_clearance(project, id)
+    if !point_valid(position) {
+        return invalid("via coordinates must be finite");
+    }
+    let graph = CopperGraph::of(project);
+    let index = project.vias.iter().position(|v| v.id == id);
+    let via = unlocked_at(project, index)?;
+    let (net, by) = (
+        via.net,
+        [position[0] - via.position[0], position[1] - via.position[1]],
+    );
+    via.position = position;
+    let Some(index) = index else {
+        return Err(Error::NotFound("unknown via".into()));
+    };
+    let joined = graph.joints_of_via(index);
+    let mut followed = BTreeSet::new();
+    for meets in &joined {
+        if let Meets::Track {
+            index: k,
+            end: Some(end),
+            ..
+        } = *meets
+            && let Some(track) = project.tracks.get_mut(k)
+            && !track.locked
+        {
+            let at = match end {
+                TrackEnd::Start => &mut track.start,
+                TrackEnd::End => &mut track.end,
+            };
+            *at = [at[0] + by[0], at[1] + by[1]];
+            followed.insert(track.id);
+        }
+    }
+    check_clearance(project, id)?;
+    super::router::check_committed(project, &followed, &BTreeSet::new())?;
+    // Each joint the via and the tracks that followed it had is one still.
+    let after = CopperGraph::of(project);
+    let target = |m: &Meets| match *m {
+        Meets::Track { index, .. } => Some((0, index)),
+        Meets::Via { index } => Some((1, index)),
+        Meets::Pad { index } => Some((2, index)),
+        Meets::Fill => None,
+    };
+    let all =
+        |meets: Vec<Meets>| -> BTreeSet<(u8, usize)> { meets.iter().filter_map(target).collect() };
+    let on = |graph: &CopperGraph, k: usize| {
+        all(graph.joints_on(k).into_iter().map(|j| j.meets).collect())
+    };
+    let mut lost = &all(joined) - &all(after.joints_of_via(index));
+    for (k, track) in project.tracks.iter().enumerate() {
+        if followed.contains(&track.id) {
+            lost.extend(&on(&graph, k) - &on(&after, k));
+        }
+    }
+    let Some((kind, _)) = lost.last() else {
+        return Ok(());
+    };
+    Err(Error::Conflict(format!(
+        "Moving the via would leave a {} on {} behind; move or unlock that copper, or route to the new place",
+        match kind {
+            0 => "track",
+            1 => "via",
+            _ => "pad",
+        },
+        project.net_name(net)
+    )))
 }
 
 /// Route `request.request` to the via, place the via at its end and route

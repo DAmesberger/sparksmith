@@ -79,7 +79,9 @@ Materials, heights and looks are in [materials](materials.md).
 **Commands**
 
 - `layout.add_via` returns `Outcome::ViaAdded`.
-- `layout.via_move`, `layout.via_delete`, `layout.via_tent` and `layout.via_lock`.
+- `layout.via_move`, `layout.via_delete`, `layout.via_tent` and `layout.via_lock`. A moved
+  via takes the track ends on it along; one that would leave other copper it joins (a pad, a
+  locked track) behind is refused, naming it.
 - `layout.route_layer_change` routes to a point, places a via there and routes on, on
   another layer, as one transaction.
 - `layout.set_board_size`.
