@@ -1047,12 +1047,14 @@ fn the_track_card_ends_name_what_each_end_joins() -> TestResult {
     Ok(())
 }
 
-/// Run 4, finding 2: the Route card's via size follows the rules. Without
-/// a profile Route is refused and no card shows a 0 mm size; once a profile
-/// is set, the card shows its via size and no error.
+/// Run 4, finding 2: the Route card's via size follows the rules. On a board
+/// whose profile was removed Route is refused and no card shows a 0 mm size;
+/// once a profile is set, the card shows its via size and no error.
 #[test]
 fn the_route_card_via_size_follows_a_profile_set_later() -> TestResult {
-    let mut engine = Engine::default();
+    let mut file = Engine::profiled()?.to_file();
+    file.project.rules = Default::default();
+    let mut engine = Engine::from_file(file)?;
     let canvas = Canvas::new();
     let mut editor = PcbEditor::default();
     editor.on_tool("route", &engine);
@@ -1086,7 +1088,7 @@ fn the_route_card_via_size_follows_a_profile_set_later() -> TestResult {
     let shown = card(&mut editor, &engine);
     assert!(!shown.iter().any(|t| t == error), "{shown:?}");
     assert!(!shown.iter().any(|t| t.contains("0 mm")), "{shown:?}");
-    assert!(shown.iter().any(|t| t == "Use profile"), "{shown:?}");
+    assert!(shown.iter().any(|t| t == "Choose a profile…"), "{shown:?}");
     engine.apply(
         engine.revision(),
         Operation::Rules(RulesCommand::set_profile(
@@ -1094,7 +1096,7 @@ fn the_route_card_via_size_follows_a_profile_set_later() -> TestResult {
             false,
         )),
     )?;
-    // The set profile closes the question; Route now starts.
+    // The set profile closes the rules the refusal opened; Route now starts.
     card(&mut editor, &engine);
     editor.on_tool("route", &engine);
     assert!(editor.tool == Tool::Route);

@@ -188,10 +188,6 @@ pub struct App {
     /// the error when the newer model failed. It is drawn after the issues
     /// badge, beside it.
     updating: Option<(egui::Rect, Option<String>)>,
-    /// A launch without a file starts a new project, whose fab profile is
-    /// asked for once the launch has settled: not while a file opens or
-    /// an earlier session is offered for recovery.
-    launch_profile: bool,
 }
 
 impl App {
@@ -302,7 +298,7 @@ impl App {
                 0.0,
             );
         }
-        let mut app = Self::with_parts(
+        Ok(Self::with_parts(
             &cc.egui_ctx,
             viewport::Viewport::new(render_state, &cc.egui_ctx),
             Parts {
@@ -316,11 +312,7 @@ impl App {
                 #[cfg(target_os = "macos")]
                 native_menu,
             },
-        );
-        // A launch without a file is a new project: ask for its profile
-        // once no file opens and no session is recovered instead.
-        app.launch_profile = true;
-        Ok(app)
+        ))
     }
 
     /// The app around what [`Self::new`] set up (a window's; a test's has
@@ -415,7 +407,6 @@ impl App {
             recent: Default::default(),
             recent_seen: None,
             updating: None,
-            launch_profile: false,
         }
     }
 
@@ -1325,10 +1316,6 @@ impl App {
             return;
         }
         self.document_replaced();
-        if path.is_none() && !recovered {
-            // File › New: ask for the new project's fab profile.
-            self.pcb.ask_for_profile();
-        }
         match self.files.adopt(&self.engine, path, identity, recovered) {
             Ok(()) if recovered => {
                 self.say(Level::Info, format!("Recovered {name}; save it to keep it"));
@@ -1377,7 +1364,6 @@ impl App {
             pending_import,
             after_commit,
             updating,
-            launch_profile,
             #[cfg(target_os = "macos")]
             menu_runs,
             ctx,
@@ -1437,8 +1423,6 @@ impl App {
         *updating = None;
         #[cfg(target_os = "macos")]
         menu_runs.clear();
-        // Opened, recovered, new or imported: the launch's project is gone.
-        *launch_profile = false;
         import_report.clear();
         forget_in_memory(ctx);
     }
@@ -1533,23 +1517,6 @@ impl App {
             self.say(level, status);
         }
         self.opened_documents();
-        self.launch_profile_prompt();
-    }
-
-    /// Ask for the launch's new project's fab profile once the launch has
-    /// settled with it: the earlier sessions are listed and none is
-    /// offered, and no file is opening or waiting to open (E2E run 6,
-    /// finding 8).
-    fn launch_profile_prompt(&mut self) {
-        if self.launch_profile
-            && self.files.started()
-            && !self.files.busy()
-            && !self.files.prompting()
-            && !crate::open_documents::pending()
-        {
-            self.launch_profile = false;
-            self.pcb.ask_for_profile();
-        }
     }
 
     /// Files opened from Finder or the Dock go through File › Open's path,

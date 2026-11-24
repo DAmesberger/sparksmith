@@ -1032,7 +1032,9 @@ mod tests {
     /// hint says so, never "0 mm".
     #[test]
     fn an_empty_field_names_the_missing_profile() -> TestResult {
-        let unprofiled = Engine::default();
+        let mut file = Engine::profiled()?.to_file();
+        file.project.rules = Default::default();
+        let unprofiled = Engine::from_file(file)?;
         assert_eq!(inherited_mm(unprofiled.project(), 0.0), "No fab profile");
         // What a class sets itself still shows.
         assert_eq!(inherited_mm(unprofiled.project(), 0.5), "0.5 mm");

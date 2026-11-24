@@ -542,9 +542,8 @@ pub fn run(args: &[String]) -> Result<()> {
         }
         (None, None) => connect(&args.config, &args.connection)?,
     };
-    let mut session = super::user_session(sparksmith_io::new_project::profiled_engine(
-        &super::context()?,
-    )?);
+    let mut session =
+        super::user_session(sparksmith_io::new_project::run_engine(&super::context()?)?);
     let cancel = interrupt::stop_on_ctrl_c()?;
     let run = WorkflowRun {
         loaded: &loaded,
@@ -579,9 +578,8 @@ fn replay_conversation(args: &Args, mut replay: Replay) -> Result<()> {
         datasheets: args.datasheets.clone(),
         notes: args.notes.clone(),
     };
-    let mut session = super::user_session(sparksmith_io::new_project::profiled_engine(
-        &super::context()?,
-    )?);
+    let mut session =
+        super::user_session(sparksmith_io::new_project::run_engine(&super::context()?)?);
     let outcome = sparksmith_assist::run(
         &goal,
         &args.config,

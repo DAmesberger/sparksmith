@@ -485,8 +485,6 @@ pub struct FileUi {
     /// a path, the save panel proposes its name and folder.
     restored_origin: Option<PathBuf>,
     recovery_choice_pending: bool,
-    /// The worker's startup listing of earlier sessions has arrived.
-    started: bool,
     changed_at: f64,
     /// When the first edit no snapshot was started for happened.
     unkept_since: Option<f64>,
@@ -555,7 +553,6 @@ impl FileUi {
             restored_source: None,
             restored_origin: None,
             recovery_choice_pending: false,
-            started: false,
             changed_at: 0.0,
             unkept_since: None,
             recovery_retry_at: 0.0,
@@ -657,11 +654,6 @@ impl FileUi {
         };
         let (since, path) = &self.access;
         Some(activity_text(work, path, self.now - since))
-    }
-    /// Whether the startup listing of earlier sessions has arrived, so
-    /// [`FileUi::prompting`] says whether one is offered.
-    pub fn started(&self) -> bool {
-        self.started
     }
     pub fn prompting(&self) -> bool {
         self.controller.prompt.is_some() || !self.recoveries.is_empty()
@@ -1095,16 +1087,13 @@ impl FileUi {
     }
     fn receive(&mut self, event: Event) {
         match event {
-            Event::Startup(result) => {
-                self.started = true;
-                match result {
-                    Ok(listing) => {
-                        self.recoveries = listing.entries;
-                        self.older_recoveries = listing.older;
-                    }
-                    Err(error) => self.status = Some((Level::Error, error)),
+            Event::Startup(result) => match result {
+                Ok(listing) => {
+                    self.recoveries = listing.entries;
+                    self.older_recoveries = listing.older;
                 }
-            }
+                Err(error) => self.status = Some((Level::Error, error)),
+            },
             Event::Picked(ticket, kind, path) => {
                 if !self
                     .controller
@@ -1682,45 +1671,16 @@ fn absolute_path(path: PathBuf) -> Outcome<PathBuf> {
     }
 }
 /// The project a launch without a file and File › New open: empty, with
-/// no parts, library or drafts, on the shipped new board
-/// (`sparksmith_io::new_project`) and the user's default fab profile
-/// (Settings). Without one the board has no profile yet: the PCB editor
-/// asks for one (`PcbEditor::ask_for_profile`), the shipped default
-/// preselected. A missing or broken shipped library is an error naming
-/// the file.
+/// no parts, library or drafts, on the shipped new board and the fab profile
+/// a new board takes (`sparksmith_io::new_project`): the user's default
+/// (Settings), else the shipped one. A missing or broken shipped library is
+/// an error naming the file.
 pub(crate) fn new_project() -> Result<Engine, String> {
     // The app's context, current on the window's thread for the program's
     // life, is every engine's.
     let context =
         sparksmith_core::library::standards::Context::current().map_err(|e| e.to_string())?;
-    let defaults = sparksmith_io::new_project::shipped().map_err(|e| e.to_string())?;
-    let Some(profile) = sparksmith_io::rule_profiles::default_id_from_env()
-        .ok()
-        .flatten()
-        .and_then(|id| sparksmith_io::rule_profiles::for_new_board_from_env(Some(&id)).ok())
-    else {
-        let mut engine = Engine::new(&defaults.board);
-        engine.set_context(context);
-        return Ok(engine);
-    };
-    let mut project = sparksmith_core::Project::new(&defaults.board);
-    project.rules.profile = Some(profile);
-    sparksmith_core::layout::restack::reconcile_rules(
-        &mut project,
-        sparksmith_core::layout::restack::Foils::Follow,
-    )
-    .map_err(|e| e.to_string())?;
-    let mut engine = Engine::from_file_with(
-        sparksmith_core::format::EditorFile {
-            version: sparksmith_core::format::FILE_VERSION,
-            project,
-            drafts: Default::default(),
-        },
-        &defaults.presets.glass_dk,
-    )
-    .map_err(|e| e.to_string())?;
-    engine.set_context(context);
-    Ok(engine)
+    sparksmith_io::new_project::engine(&context).map_err(|e| e.to_string())
 }
 
 fn home_directory() -> PathBuf {

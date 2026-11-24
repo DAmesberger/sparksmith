@@ -121,8 +121,11 @@ impl Operation {
         }
     }
 
-    /// Whether this makes or reshapes copper, or places a part by a
-    /// dimension: work at the widths and clearances of a fab profile. The
+    /// Whether this makes or reshapes copper, which is work at the widths
+    /// and clearances of a fab profile, or places a part by a dimension,
+    /// which is solved against the board's sketch, fitted as the profile's
+    /// `board_outline_fit` says
+    /// ([`layout::dimensions::board_sketch`]). The
     /// engine refuses it on a board without one
     /// ([`rules::ProjectRules::require`]), as the desktop's tools do;
     /// taking copper away needs none.
@@ -1084,6 +1087,22 @@ impl Engine {
             project: Arc::new(Project::new(board)),
             drafts: Arc::default(),
         })
+    }
+
+    /// [`Self::new`] on `profile`: its rules, the stackup's outer foils
+    /// where it orders them, and nothing to undo, so no undo leaves the
+    /// board without a profile.
+    pub fn new_on(board: &NewBoard, profile: rules::RuleProfile) -> Result<Self> {
+        let mut project = Project::new(board);
+        rules::apply(
+            &mut project.rules,
+            rules::RulesCommand::set_profile(profile, false),
+        )?;
+        layout::restack::reconcile_rules(&mut project, layout::restack::Foils::Follow)?;
+        Ok(Self::with_document(Document {
+            project: Arc::new(project),
+            drafts: Arc::default(),
+        }))
     }
 
     /// An engine for an already validated file, with empty history. A file

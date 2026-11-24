@@ -337,17 +337,14 @@ fn run() -> Result<()> {
                     sparksmith_io::rule_profiles::for_new_board_from_env(choice)?,
                 )?
             } else {
-                sparksmith_io::new_project::open(
-                    sparksmith_core::format::EditorFile {
-                        version: sparksmith_core::format::FILE_VERSION,
-                        project: sparksmith_core::catalog::synthetic::project(
-                            24,
-                            &sparksmith_io::new_project::shipped()?.board,
-                        )?,
-                        drafts: Default::default(),
-                    },
-                    &context()?,
-                )?
+                // The parts on a new project's board and rules.
+                let board = &sparksmith_io::new_project::shipped()?.board;
+                let mut file = sparksmith_io::new_project::engine(&context()?)?.to_file();
+                let mut project = sparksmith_core::catalog::synthetic::project(24, board)?;
+                project.rules = file.project.rules;
+                project.stackup = file.project.stackup;
+                file.project = project;
+                sparksmith_io::new_project::open(file, &context()?)?
             };
             let mut session = Session::new(engine);
             let saved = execute(

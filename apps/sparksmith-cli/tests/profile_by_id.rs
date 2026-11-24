@@ -129,7 +129,7 @@ fn the_production_check_resolves_a_profile_id_through_the_library() -> Fallible 
 /// (Settings), else the shipped default (`library/defaults/new-project.json`); `profile` names any
 /// library or shipped id. `rules.fab_profiles` lists the shipped ones.
 #[test]
-fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Fallible {
+fn a_new_project_takes_the_shipped_standard_profile_unless_one_is_named() -> Fallible {
     let dir = tempfile::tempdir()?;
     let (config, cache) = (dir.path().join("config"), dir.path().join("cache"));
     let profile_id =
@@ -149,7 +149,7 @@ fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Falli
         return Err(format!("five replies expected: {replies:?}").into());
     };
     assert_eq!(new["ok"], true, "{new}");
-    assert_eq!(first["result"]["value"], "jlcpcb-2-layer", "{first}");
+    assert_eq!(first["result"]["value"], "standard", "{first}");
     let ids: Vec<&str> = listed["result"]["result"]
         .as_array()
         .ok_or("profiles")?
@@ -187,7 +187,8 @@ fn a_session_previews_and_sets_fab_options() -> Fallible {
         &config,
         &cache,
         &[
-            json!({"command": "project.new", "params": {"expected_revision": 0}}),
+            json!({"command": "project.new", "params": {
+                "expected_revision": 0, "profile": "jlcpcb-2-layer"}}),
             effective.clone(),
             json!({"command": "project.query", "params": {
                 "query": "rules.preview_fab_options", "params": minimum}}),

@@ -289,7 +289,7 @@ fn an_option_drag_moves_one_pair_half_alone() -> TestResult {
 }
 
 /// Without a fab profile there is no clearance to shove at: a track does
-/// not drag, and the Fab profile dialog opens as for the copper tools.
+/// not drag, and the Design rules open as for the copper tools.
 #[test]
 fn a_track_does_not_drag_without_a_profile() -> TestResult {
     let (engine, _, _) = setup()?;
@@ -306,7 +306,7 @@ fn a_track_does_not_drag_without_a_profile() -> TestResult {
         &[[30.0, 25.5], [30.0, 27.0]],
     );
     assert!(editor.track_drag.is_none(), "nothing is shoved");
-    assert!(editor.rules.is_some(), "the question is open");
+    assert!(editor.rules.is_some(), "the rules are open");
     let event = button(&editor, &engine, [30.0, 27.0], false);
     assert!(send(&mut canvas, &mut editor, &engine, event).is_none());
     Ok(())

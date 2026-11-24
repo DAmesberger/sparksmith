@@ -6,12 +6,14 @@
 //!
 //! A missing or broken file is an error naming it, never a value written
 //! in code. The user's Settings default fab profile still overrides the
-//! shipped one (`rule_profiles::for_new_board`).
+//! shipped one (`rule_profiles::for_new_board`). Every host's new project
+//! is made here ([`engine`]), so none starts without a fab profile.
 use crate::shipped::{Shelf, ShippedLibrary};
 use crate::{Error, Result};
 use serde::Deserialize;
 use sparksmith_core::format::EditorFile;
 use sparksmith_core::library::standards::Context;
+use sparksmith_core::rules::RuleProfile;
 use sparksmith_core::{Engine, NewBoard, StackupPresets};
 use std::sync::{Arc, OnceLock};
 
@@ -47,7 +49,7 @@ struct StackupFile {
 /// The shipped new-project defaults, loaded.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NewProjectDefaults {
-    /// The fab profile id a new board is offered first, unless the user's
+    /// The fab profile id a new board starts on, unless the user's
     /// Settings name another.
     pub fab_profile: String,
     /// The stackup family: presets of every layer count, added layers and
@@ -146,40 +148,25 @@ pub fn shipped() -> Result<NewProjectDefaults> {
         .map_err(Error::Invalid)
 }
 
-/// An engine on a new, empty project on the shipped new board, drawing on
-/// the host's `context`.
+/// An engine on a new, empty project on the shipped new board and the fab
+/// profile a new board takes: the user's Settings default, else the shipped
+/// default (`rule_profiles::for_new_board`), drawing on the host's
+/// `context`.
 pub fn engine(context: &Arc<Context>) -> Result<Engine> {
-    let mut engine = Engine::new(&shipped()?.board);
+    engine_on(crate::rule_profiles::for_new_board_from_env(None)?, context)
+}
+
+/// [`engine`] on `profile`.
+pub fn engine_on(profile: RuleProfile, context: &Arc<Context>) -> Result<Engine> {
+    let mut engine = Engine::new_on(&shipped()?.board, profile)?;
     engine.set_context(Arc::clone(context));
     Ok(engine)
 }
 
-/// [`engine`] on the fab profile a new board takes: the user's Settings
-/// default, else the shipped default (`rule_profiles::for_new_board`).
-pub fn profiled_engine(context: &Arc<Context>) -> Result<Engine> {
-    let defaults = shipped()?;
-    let mut project = sparksmith_core::Project::new(&defaults.board);
-    sparksmith_core::rules::apply(
-        &mut project.rules,
-        sparksmith_core::rules::RulesCommand::set_profile(
-            crate::rule_profiles::for_new_board_from_env(None)?,
-            false,
-        ),
-    )?;
-    sparksmith_core::layout::restack::reconcile_rules(
-        &mut project,
-        sparksmith_core::layout::restack::Foils::Follow,
-    )?;
-    let mut engine = Engine::from_file_with(
-        EditorFile {
-            version: sparksmith_core::format::FILE_VERSION,
-            project,
-            drafts: Default::default(),
-        },
-        &defaults.presets.glass_dk,
-    )?;
-    engine.set_context(Arc::clone(context));
-    Ok(engine)
+/// [`engine`] for an assistant run, opened as a file is: its first
+/// revision is the 1 that recorded runs name.
+pub fn run_engine(context: &Arc<Context>) -> Result<Engine> {
+    open(engine(context)?.to_file(), context)
 }
 
 /// An engine for an already validated file, its stackup estimating Dk

@@ -7,8 +7,7 @@
 //! engine's `require_waiver_reason` (kept in `UserSettings`). The Rules
 //! section's "Default fab profile" is the profile library entry a new
 //! board starts with (`UserSettings::default_rule_profile`); with none, a
-//! new project asks for one, the shipped `defaults/new-project.json`'s
-//! profile preselected. Its
+//! new board starts with the shipped `defaults/new-project.json`'s. Its
 //! "Impedance tolerance" checks impedance targets whose net class states
 //! none (`UserSettings::impedance_tolerance`, else the shipped
 //! `defaults/settings.json`) and is set on the engine at once.
@@ -820,11 +819,12 @@ fn browser_rows(ui: &mut egui::Ui, lists: &mut sparksmith_io::settings::ListSett
     changed
 }
 
-/// The Default fab profile choices: none, then every readable profile of
-/// the user's library by name, then the shipped ones none of them replaces.
+/// The Default fab profile choices: the shipped default, then every
+/// readable profile of the user's library by name, then the shipped ones
+/// none of them replaces.
 fn profile_choices() -> Vec<(Option<String>, String)> {
     use sparksmith_io::rule_profiles::{ProfileLibrary, shipped_from_env};
-    let mut out = vec![(None, "None: choose for each board".to_owned())];
+    let shipped = sparksmith_io::new_project::shipped().map(|d| d.fab_profile);
     let listing = sparksmith_io::settings::UserDirs::from_env()
         .ok()
         .and_then(|dirs| ProfileLibrary::from_dirs(&dirs).ok()?.list().ok());
@@ -836,8 +836,16 @@ fn profile_choices() -> Vec<(Option<String>, String)> {
             .collect(),
         None => shipped_from_env().unwrap_or_default(),
     };
-    out.extend(profiles.into_iter().map(|p| (Some(p.id), p.name)));
-    out
+    let default = profiles
+        .iter()
+        .find(|p| shipped.as_ref().is_ok_and(|id| *id == p.id))
+        .map_or_else(
+            || "Shipped default".to_owned(),
+            |p| format!("Shipped default ({})", p.name),
+        );
+    std::iter::once((None, default))
+        .chain(profiles.into_iter().map(|p| (Some(p.id), p.name)))
+        .collect()
 }
 
 /// The online library: on or off, its URL, how it stands.
