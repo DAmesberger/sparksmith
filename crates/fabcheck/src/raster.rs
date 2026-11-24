@@ -140,6 +140,24 @@ impl Bitmap {
         }
     }
 
+    /// Set every pixel of the box `min`–`max` whose centre `inside` accepts.
+    pub fn paint(&mut self, min: Point, max: Point, inside: impl Fn(Point) -> bool) {
+        let columns = |v: f64| ((v - self.min[0]) / self.pixel).clamp(0.0, self.width as f64);
+        let (first, last) = (
+            columns(min[0]).floor() as usize,
+            columns(max[0]).ceil() as usize,
+        );
+        for j in self.rows(min[1], max[1]) {
+            let y = self.row_y(j);
+            for i in first..last {
+                let x = self.min[0] + (i as f64 + 0.5) * self.pixel;
+                if inside([x, y]) {
+                    self.bits[j * self.words + i / 64] |= 1 << (i % 64);
+                }
+            }
+        }
+    }
+
     /// `self` OR `o` (same grid).
     pub fn union(&mut self, o: &Bitmap) -> Fallible<()> {
         if !self.same_grid(o) {
