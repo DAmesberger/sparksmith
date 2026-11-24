@@ -45,6 +45,7 @@ mod reveal;
 mod scene;
 mod schematic_editor;
 mod shell;
+mod sketch_glyphs;
 mod symbol_view;
 mod ties;
 mod update_preview;
