@@ -94,6 +94,7 @@ fn board_of(size: Point, parameters: Vec<FootprintParam>) -> Result<BoardSketch>
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
+        values: Vec::new(),
     })
 }
 

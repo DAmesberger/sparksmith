@@ -4672,6 +4672,13 @@
           "linked_design": {
             "description": "The linked design file the copy was made from, as the link names it.",
             "type": "string"
+          },
+          "warnings": {
+            "description": "The features on a published datum that SolidCraft evaluates with a\nwarning of its own, a sentence each with that warning: a projection\nthat keeps its last outline does not follow the datum.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [

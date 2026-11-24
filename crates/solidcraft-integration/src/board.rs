@@ -38,13 +38,13 @@ use sparksmith_core::layout::outline::{
     FreeFormCurve, refuses,
 };
 use sparksmith_core::library::footprint_source::{
-    DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, ParamUnit, SketchBlob, SketchCurveId,
-    SketchEdit, SketchOutcome, SketchPointId, SketchRef, SolveStatus, SolveSummary,
+    DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, ParamUnit, ParamValue, SketchBlob,
+    SketchCurveId, SketchEdit, SketchOutcome, SketchPointId, SketchRef, SolveStatus, SolveSummary,
 };
 use sparksmith_core::library::{MAX_OUTLINE_SEGMENTS, Outline, Segment};
 use sparksmith_core::model::board::{
-    BoardSketch, CutoutKind, CutoutRole, EdgeName, NamedEdge, RECT_EDGES, ShapeFault,
-    ShapeFaultKind, SolvedBoard, SolvedCutout, SolvedEdge, SolvedMountingHole,
+    BoardSketch, CutoutKind, CutoutRole, EdgeName, NamedEdge, ParameterValue, RECT_EDGES,
+    ShapeFault, ShapeFaultKind, SolvedBoard, SolvedCutout, SolvedEdge, SolvedMountingHole,
 };
 use sparksmith_core::model::dimension::FeatureGeometry;
 use sparksmith_core::rules::OUTLINE_FIT_RANGE_MM;
@@ -166,6 +166,7 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
             outline_fit,
             fault: None,
             idle: Vec::new(),
+            values: Vec::new(),
         };
         let evaluation = self.evaluate(&board)?;
         if let Some(f) = evaluation.findings.iter().find(|f| refuses(&f.code)) {
@@ -173,6 +174,7 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
         }
         board.solve = evaluation.solve;
         board.solved = evaluation.solved;
+        board.values = evaluation.values;
         if let Some(s) = evaluation.sketch_out {
             board.sketch = s;
         }
@@ -415,6 +417,7 @@ fn unsolved(board: &BoardSketch, p: Problem) -> BoardEvaluation {
         findings: vec![Finding::new(code, p.message, vec![ObjectRef::Board])],
         fault: None,
         idle: Vec::new(),
+        values: Vec::new(),
         sketch_out: None,
     }
 }
@@ -894,6 +897,23 @@ fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
     let bytes = serde_json::to_vec(&solved)
         .map_err(|e| problem(FindingCode::BoardInternal, e.to_string()))?;
     let dof = u32::try_from(dof).unwrap_or(u32::MAX);
+    // Each parameter's value as this evaluation read it, to the nanometre
+    // as the solved points are.
+    let evaluated = board
+        .parameters
+        .iter()
+        .filter_map(|p| {
+            let value = match values.of(p)? {
+                ParamValue::Length(mm) => ParamValue::Length(q(mm).ok()?),
+                ParamValue::Angle(deg) => ParamValue::Angle(q(deg).ok()?),
+                count => count,
+            };
+            Some(ParameterValue {
+                name: p.name.clone(),
+                value,
+            })
+        })
+        .collect();
     Ok(BoardEvaluation {
         solved,
         solve: SolveSummary {
@@ -910,6 +930,7 @@ fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
         fault,
         sketch_out: Some(SketchBlob(check::canonical(&sk)?)),
         idle,
+        values: evaluated,
     })
 }
 

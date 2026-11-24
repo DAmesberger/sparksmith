@@ -2464,6 +2464,7 @@ fn with_washer(mut project: Project) -> Project {
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
+        values: Vec::new(),
     }));
     project
 }

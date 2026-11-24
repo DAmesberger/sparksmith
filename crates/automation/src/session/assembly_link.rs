@@ -360,7 +360,7 @@ impl Session {
         let built = opened.copy.scratch().join("candidate.solidcraft");
         let built_text = built.to_string_lossy().into_owned();
         exported.save_new(crate::native_files::new_file(&built_text))?;
-        let effects = opened.linked_design.dry_run(
+        let (effects, warnings) = opened.linked_design.dry_run(
             &opened.board,
             &built_text,
             &published,
@@ -370,6 +370,7 @@ impl Session {
             Some(DryRun {
                 linked_design: linked_design.to_owned(),
                 effects,
+                warnings,
             }),
             read,
         ))
