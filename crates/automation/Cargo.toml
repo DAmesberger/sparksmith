@@ -50,6 +50,9 @@ jsonschema = { version = "0.28.3", default-features = false }
 sparksmith-io = { workspace = true, features = ["test-fixtures"] }
 sparksmith-generators = { workspace = true, features = ["test-fixtures"] }
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
+# Fabrication files read back by the independent reader (the edge connector
+# smoke test).
+sparksmith-fabcheck.workspace = true
 tempfile.workspace = true
 rmcp = { workspace = true, features = ["client"] }
 tokio = { workspace = true, features = ["time"] }

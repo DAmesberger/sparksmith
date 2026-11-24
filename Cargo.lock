@@ -7039,6 +7039,7 @@ dependencies = [
  "sha2 0.10.9",
  "solidcraft-control",
  "sparksmith-core",
+ "sparksmith-fabcheck",
  "sparksmith-firmware",
  "sparksmith-generator-abi",
  "sparksmith-generators",
