@@ -130,50 +130,152 @@ fn tracks_and_vias_land_on_their_nets_and_layers() -> Fallible<()> {
     Ok(())
 }
 
+/// The board-check findings of an imported project, as (code, message).
+fn findings(project: &sparksmith_core::Project) -> Fallible<Vec<(String, String)>> {
+    let report = sparksmith_core::issues::report(
+        project,
+        &sparksmith_core::library::Drafts::default(),
+        &sparksmith_core::issues::IssueScope::All,
+        &Default::default(),
+    )?;
+    Ok(report
+        .rows
+        .iter()
+        .map(|r| {
+            (
+                r.finding.code.as_str().to_owned(),
+                r.finding.message.clone(),
+            )
+        })
+        .collect())
+}
+
+/// Under the shipped Standard profile a board drawn finer than it allows
+/// (0.1 mm tracks, 0.15 mm gaps, a via of a 0.2 mm drill and a 0.1 mm ring)
+/// imports whole: no track or via is left out, and the board checks list
+/// what breaks the profile. The document opens again as it was imported.
 #[test]
-fn a_track_the_checks_refuse_is_listed_and_the_rest_imported() -> Fallible<()> {
+fn a_board_finer_than_the_profile_imports_whole_and_is_checked() -> Fallible<()> {
+    let standard: sparksmith_core::rules::ProfileFile =
+        serde_json::from_str(include_str!("../../../library/profiles/standard.json"))?;
     let mut board = routed();
-    // A SIG track across R3's GND pads: the clearance check refuses it.
+    board.items.push_str(
+        "  (segment (start 5 5) (end 15 5) (width 0.1) (layer \"F.Cu\") (net 1))
+  (segment (start 5 5.25) (end 15 5.25) (width 0.1) (layer \"F.Cu\") (net 2))
+  (via (at 20 5) (size 0.4) (drill 0.2) (layers \"F.Cu\" \"B.Cu\") (net 1))
+  (segment (start 18 5.4) (end 22 5.4) (width 0.1) (layer \"F.Cu\") (net 2))\n",
+    );
+    let presets = sparksmith_core::StackupPresets::fixture()?;
+    let imported = sparksmith_kicad::import(
+        board.text().as_bytes(),
+        &sparksmith_kicad::Setup {
+            board: &sparksmith_core::NewBoard::fixture(),
+            presets: &presets,
+            profile: Some(&standard.profile),
+            evaluators: Default::default(),
+            project_file: None,
+            schematic: None,
+        },
+    )?;
+    let project = imported.engine.project();
+    assert_eq!(imported.report.count(Case::TrackRefused), 0);
+    assert_eq!(imported.report.count(Case::ViaRefused), 0);
+    assert!(project.refused_import_tracks.is_empty());
+    assert_eq!(imported.report.counts.vias, 2);
+    assert_eq!(imported.report.counts.tracks, project.tracks.len());
+    let fine = project
+        .tracks
+        .iter()
+        .filter(|t| (t.width - 0.1).abs() < 1e-9)
+        .count();
+    assert_eq!(fine, 3);
+    assert_eq!(
+        project.rules.profile.as_ref().map(|p| p.id.as_str()),
+        Some("standard")
+    );
+    let found = findings(project)?;
+    let of = |code: &str| found.iter().filter(|(c, _)| c == code).count();
+    assert_eq!(of("board.track_width"), 3, "{found:#?}");
+    // Track to track and via to track.
+    assert!(of("board.clearance") >= 2, "{found:#?}");
+    assert!(of("board.via_drill_size") >= 1, "{found:#?}");
+    assert!(of("board.via_annular_ring") >= 1, "{found:#?}");
+    let again = sparksmith_core::Engine::from_file(imported.engine.to_file())?;
+    assert_eq!(again.project().tracks, project.tracks);
+    assert_eq!(again.project().vias, project.vias);
+    Ok(())
+}
+
+/// A SIG track across R3's GND pads is copper the file has: it is imported
+/// and the clearance check reports it.
+#[test]
+fn a_track_over_another_nets_pad_is_imported_and_reported() -> Fallible<()> {
+    let mut board = routed();
     board
         .items
         .push_str("  (segment (start 18 16) (end 22 16) (width 0.25) (layer \"F.Cu\") (net 1))\n");
     let imported = import(board.text().as_bytes())?;
-    assert_eq!(imported.report.count(Case::TrackRefused), 1);
-    assert!(imported.report.counts.tracks > 2);
-    // E2E run 11, finding 4: the report names each refused piece, where it
-    // ran (KiCad's (18, 16) is (18, 20 − 16) here) and the check's own
-    // sentence: what it came too close to.
-    let refused: Vec<String> = imported
-        .report
-        .refused_copper_of(Case::TrackRefused)
-        .map(|r| r.line())
-        .collect();
-    assert_eq!(refused.len(), 1, "{refused:?}");
+    assert_eq!(imported.report.count(Case::TrackRefused), 0);
+    let found = findings(imported.engine.project())?;
     assert!(
-        refused[0]
-            .starts_with("Track on SIG (Top) from (18, 4) to (22, 4) mm: Too close to R3 pad"),
-        "{refused:?}"
-    );
-    assert!(
-        imported
-            .report
-            .summary_named()
-            .contains(&format!("    {}\n", refused[0])),
-        "{}",
-        imported.report.summary_named()
+        found
+            .iter()
+            .any(|(code, text)| code == "board.clearance" && text.contains("R3")),
+        "{found:#?}"
     );
     Ok(())
 }
 
-/// A track from R2's SIG pad whose second piece runs onto R3's GND pad:
-/// that piece is refused, and the first piece, now ending in nothing, says
+/// What a document cannot hold is left out and listed with the reason, and
+/// the rest is imported: a track off the board, a via without a ring.
+#[test]
+fn copper_the_board_cannot_hold_is_listed_and_the_rest_imported() -> Fallible<()> {
+    let mut board = routed();
+    board.items.push_str(
+        "  (segment (start 35 5) (end 45 5) (width 0.25) (layer \"F.Cu\") (net 1))
+  (via (at 20 5) (size 0.3) (drill 0.3) (layers \"F.Cu\" \"B.Cu\") (net 1))\n",
+    );
+    let imported = import(board.text().as_bytes())?;
+    let report = &imported.report;
+    assert_eq!(report.count(Case::TrackRefused), 1);
+    assert_eq!(report.count(Case::ViaRefused), 1);
+    assert!(report.counts.tracks > 2);
+    assert_eq!(report.counts.vias, 1);
+    // E2E run 11, finding 4: the report names each refused piece, where it
+    // ran (KiCad's (35, 5) is (35, 20 − 5) here) and why.
+    for (case, says) in [
+        (
+            Case::TrackRefused,
+            "Track on SIG (Top) from (35, 15) to (45, 15) mm: track copper must lie inside",
+        ),
+        (
+            Case::ViaRefused,
+            "Via on SIG at (20, 15) mm: via drill must be positive and smaller than its pad",
+        ),
+    ] {
+        let lines: Vec<String> = report.refused_copper_of(case).map(|r| r.line()).collect();
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert!(lines[0].contains(says), "{lines:?}");
+        assert!(
+            report
+                .summary_named()
+                .contains(&format!("    {}\n", lines[0])),
+            "{}",
+            report.summary_named()
+        );
+    }
+    Ok(())
+}
+
+/// A track from R2's SIG pad whose second piece runs off the board: that
+/// piece cannot be held, and the first piece, now ending in nothing, says
 /// in its finding that the import refused the rest and why.
 #[test]
 fn a_stub_a_refused_track_left_says_so() -> Fallible<()> {
     let mut board = routed();
     board.items.push_str(
         "  (segment (start 29 10) (end 29 16) (width 0.25) (layer \"F.Cu\") (net 1))
-  (segment (start 29 16) (end 21 16) (width 0.25) (layer \"F.Cu\") (net 1))\n",
+  (segment (start 29 16) (end 29 25) (width 0.25) (layer \"F.Cu\") (net 1))\n",
     );
     let imported = import(board.text().as_bytes())?;
     assert_eq!(imported.report.count(Case::TrackRefused), 1);
@@ -182,26 +284,15 @@ fn a_stub_a_refused_track_left_says_so() -> Fallible<()> {
     assert_eq!(refused.len(), 1, "{refused:?}");
     assert_eq!(
         refused[0].reason,
-        sparksmith_core::model::import_review::TrackRefusal::Clearance
+        sparksmith_core::model::import_review::TrackRefusal::OutsideBoard
     );
-    let report = sparksmith_core::issues::report(
-        project,
-        &sparksmith_core::library::Drafts::default(),
-        &sparksmith_core::issues::IssueScope::All,
-        &Default::default(),
-    )?;
-    let stubs: Vec<&str> = report
-        .rows
-        .iter()
-        .filter(|r| r.finding.code == "board.track_dangling")
-        .map(|r| r.finding.message.as_str())
-        .collect();
+    let found = findings(project)?;
     // KiCad's (29, 16) is (29, 20 − 16) here.
     assert!(
-        stubs.contains(
-            &"Track on SIG (Top) stops at (29, 4) mm: import refused the rest (clearance)"
-        ),
-        "{stubs:?}"
+        found.iter().any(|(code, text)| code == "board.track_dangling"
+            && text
+                == "Track on SIG (Top) stops at (29, 4) mm: import refused the rest (outside the board)"),
+        "{found:#?}"
     );
     Ok(())
 }

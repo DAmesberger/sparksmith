@@ -1185,11 +1185,72 @@ fn check_request(project: &Project, request: &RouteRequest) -> Result<()> {
     check_request_with_nets(project, request, &nets)
 }
 
-fn check_request_with_nets(
-    project: &Project,
-    request: &RouteRequest,
-    nets: &BTreeSet<Id>,
-) -> Result<()> {
+/// Copper a host brings in as it is ([`import_copper`]): how much the board
+/// took, and what it cannot hold, each with the reason.
+#[derive(Debug, Default)]
+pub struct ImportedCopper {
+    pub tracks: usize,
+    pub vias: usize,
+    pub refused_tracks: Vec<(RouteRequest, Error)>,
+    pub refused_vias: Vec<(ViaRequest, Error)>,
+}
+
+/// Add an imported board's tracks and vias as its file has them. Only what
+/// a document cannot hold is left out ([`validate`]: a net or copper layer
+/// the board lacks, a size out of range, a via without a ring or not
+/// through, copper off the board). No rule is read: what breaks the fab
+/// profile is the board checks' to report, as in an opened file. Not an
+/// operation: an importer adds it to the document it builds, which
+/// [`crate::Engine::replace_document`] validates.
+pub fn import_copper(
+    project: &mut Project,
+    tracks: Vec<RouteRequest>,
+    vias: Vec<ViaRequest>,
+) -> Result<ImportedCopper> {
+    let nets: BTreeSet<Id> = project.nets.iter().map(|net| net.id).collect();
+    let mut out = ImportedCopper::default();
+    for request in tracks {
+        if let Err(why) = check_held(project, &request, &nets) {
+            out.refused_tracks.push((request, why));
+            continue;
+        }
+        let id = project.allocate()?;
+        project.tracks.push(Track {
+            id,
+            net: request.net,
+            start: request.start,
+            end: request.end,
+            width: request.width,
+            layer: request.layer,
+            locked: false,
+        });
+        out.tracks += 1;
+    }
+    for request in vias {
+        if let Err(why) = via::check_held(project, &request, &nets) {
+            out.refused_vias.push((request, why));
+            continue;
+        }
+        via::insert(project, request)?;
+        out.vias += 1;
+    }
+    Ok(out)
+}
+
+/// Whether the document can hold the track `request` asks for, whatever
+/// the rules say of it.
+fn check_held(project: &Project, request: &RouteRequest, nets: &BTreeSet<Id>) -> Result<()> {
+    check_track_shape(request)?;
+    if !nets.contains(&request.net) {
+        return Err(Error::NotFound("unknown electrical net".into()));
+    }
+    if !project.stackup.has(request.layer) {
+        return invalid("track lies on a copper layer the stackup lacks");
+    }
+    check_track_inside(project, request)
+}
+
+fn check_track_shape(request: &RouteRequest) -> Result<()> {
     if !point_valid(request.start)
         || !point_valid(request.end)
         || !request.width.is_finite()
@@ -1200,10 +1261,10 @@ fn check_request_with_nets(
     if distance(request.start, request.end) < 0.01 {
         return invalid("track must be at least 0.01 mm long");
     }
-    if !nets.contains(&request.net) {
-        return Err(Error::NotFound("unknown electrical net".into()));
-    }
-    check_class_width(project, request.net, request.width)?;
+    Ok(())
+}
+
+fn check_track_inside(project: &Project, request: &RouteRequest) -> Result<()> {
     let track = Track {
         id: 0,
         net: request.net,
@@ -1217,6 +1278,19 @@ fn check_request_with_nets(
         return invalid("track copper must lie inside the board outline");
     }
     Ok(())
+}
+
+fn check_request_with_nets(
+    project: &Project,
+    request: &RouteRequest,
+    nets: &BTreeSet<Id>,
+) -> Result<()> {
+    check_track_shape(request)?;
+    if !nets.contains(&request.net) {
+        return Err(Error::NotFound("unknown electrical net".into()));
+    }
+    check_class_width(project, request.net, request.width)?;
+    check_track_inside(project, request)
 }
 
 /// The net class of `net`: its explicit assignment, else the first

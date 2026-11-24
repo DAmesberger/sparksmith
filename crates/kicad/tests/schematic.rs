@@ -439,11 +439,11 @@ fn the_schematics_value_is_the_parts_value() -> Fallible<()> {
 }
 
 /// Run 7, finding 4: a SIG track the board runs from R1 pin 2 to R2 pin 1,
-/// where the schematic leaves the two apart. The piece onto the pad the
-/// schematic keeps off the track's net is refused (by the clearance check,
-/// as stored), and the stub it leaves says why, not "clearance".
+/// where the schematic leaves the two apart. The whole track is imported, as
+/// the board has it; the clearance check reports the pad the schematic keeps
+/// off its net, and the disagreement is its own finding.
 #[test]
-fn a_track_refused_for_the_schematics_net_says_so() -> Fallible<()> {
+fn a_track_onto_a_pad_the_schematic_keeps_off_its_net_is_imported_and_reported() -> Fallible<()> {
     let sig = Some((2, "SIG"));
     let mut board = row_board(&[
         ("R1", &[("1", Some((1, "GND"))), ("2", sig)]),
@@ -460,30 +460,21 @@ fn a_track_refused_for_the_schematics_net_says_so() -> Fallible<()> {
     );
     let imported = import_sheet(&board, schematic)?;
     let project = imported.engine.project();
-    let refused = &project.refused_import_tracks;
-    assert_eq!(refused.len(), 1, "{refused:?}");
-    assert_eq!(
-        refused[0].reason,
-        sparksmith_core::model::import_review::TrackRefusal::Clearance
-    );
+    assert!(project.refused_import_tracks.is_empty());
+    assert_eq!(imported.report.counts.tracks, 2);
     let report = sparksmith_core::issues::report(
         project,
         &sparksmith_core::library::Drafts::default(),
         &sparksmith_core::issues::IssueScope::All,
         &Default::default(),
     )?;
-    let stub = report
-        .rows
-        .iter()
-        .find(|r| r.finding.code == "board.track_dangling")
-        .ok_or("no finding for the stub")?;
-    assert!(
-        stub.finding
-            .message
-            .ends_with("import refused the rest (schematic keeps a pad off the net)"),
-        "{}",
-        stub.finding.message
-    );
+    for code in ["board.clearance", "import.board_joins_nets"] {
+        assert!(
+            report.rows.iter().any(|r| r.finding.code == code),
+            "{code}: {:?}",
+            report.rows
+        );
+    }
     Ok(())
 }
 

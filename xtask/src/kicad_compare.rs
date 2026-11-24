@@ -220,8 +220,9 @@ fn findings_line(project: &sparksmith_core::Project) -> String {
 }
 
 /// Import a board onto the shipped new board and the shipped JLCPCB
-/// 2-layer profile: what an import keeps depends on its profile's limits,
-/// so a comparison names one instead of following the person's default.
+/// 2-layer profile: an import's zones are filled at its profile's
+/// clearances, so a comparison names one instead of following the person's
+/// default.
 /// The gates
 /// never build Solidcraft, so only with the `sketch` feature is there a
 /// board sketch engine (the outline imports as a sketch, as in the app and
