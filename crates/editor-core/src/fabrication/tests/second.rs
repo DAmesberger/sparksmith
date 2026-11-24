@@ -722,12 +722,13 @@ fn the_second_opinion_reports_what_is_not_the_design() -> Fallible<()> {
         ),
     ] {
         let found = disagreements(&project, &seeded);
-        // A damaged file the reader refuses is reported too.
-        if matches!(&found, Ok(found) if found.is_empty()) {
-            missed.push(what);
+        // A file the reader refuses tests nothing of the check.
+        match found {
+            Ok(found) if !found.is_empty() => {}
+            other => missed.push(format!("{what}: {other:?}")),
         }
     }
-    assert!(missed.is_empty(), "{missed:?}");
+    assert!(missed.is_empty(), "{missed:#?}");
     Ok(())
 }
 

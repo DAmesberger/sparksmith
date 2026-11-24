@@ -7,7 +7,7 @@ use super::Fallible;
 use super::oracle::{self, Image};
 use super::proof::{
     Files, SPACING_SLACK_MM, board, edit, file, layer_name, line_numbers, lines, mirrored, regions,
-    shifted, without, written,
+    shifted, without, without_region, written,
 };
 use super::{excellon_reader, reader};
 use crate::Engine;
@@ -15,12 +15,14 @@ use crate::fabrication::{self, FabricationOptions, ProductionSnapshot};
 use crate::geometry::Point;
 use crate::ids::GraphicId;
 use crate::library::{
-    DrawingLayer, FootprintGraphic, Item, Justify, Rotation, Side, Text, TextContent,
+    DrawingLayer, Fill as LegendFill, FootprintGraphic, Item, Justify, Rotation, ShapeNm, Side,
+    Text, TextContent,
 };
 use crate::model::fill::{FillSettings, IslandRemoval};
 use crate::model::{Fill, Layer, Project};
 use crate::rules::{CopperObject, RuleKey, RuleOverride, RuleValue};
 use crate::tests::support::{nm, pt};
+use crate::units::ArcDirection;
 use sparksmith_fabcheck::outline;
 use sparksmith_fabcheck::spacing::{self, Against};
 use std::collections::BTreeMap;
@@ -237,7 +239,7 @@ fn every_seeded_copper_fault_is_reported() -> Fallible<()> {
     let clean = written(&project)?;
     let report =
         |files: &Files| -> Fallible<Vec<String>> {
-            // A damaged file the reader refuses is reported too.
+            // A file the reader refuses tests nothing of the check it names.
             Ok(copper_faults(&project, files, &clean)
                 .unwrap_or_else(|e| vec![format!("refused: {e}")]))
         };
@@ -263,7 +265,7 @@ fn every_seeded_copper_fault_is_reported() -> Fallible<()> {
             "image:",
             Box::new(move |f: &mut Files| {
                 edit(f, inner, |l| match regions(&l).first().cloned() {
-                    Some(r) => without(l, r),
+                    Some(r) => without_region(l, r),
                     None => l,
                 });
             }),
@@ -343,6 +345,78 @@ fn lettered() -> Fallible<Project> {
         .first_mut()
         .ok_or("the demo footprint")?
         .definition;
+    // One of every shape that is drawn, none symmetrical with another, and
+    // before the part's own drawings: the demo chip's outline lies under
+    // its pads, so it has none of its own.
+    let line = |points: &[Point]| ShapeNm::Polyline {
+        points: points.iter().map(|p| pt(*p)).collect(),
+        radii_nm: Vec::new(),
+    };
+    let shapes = [
+        (
+            ShapeNm::Line {
+                a: pt([8.0, 6.0]),
+                b: pt([10.0, 6.5]),
+            },
+            0.15,
+            LegendFill::None,
+        ),
+        (
+            line(&[[8.0, 7.0], [9.0, 8.0], [8.0, 8.5]]),
+            0.2,
+            LegendFill::None,
+        ),
+        (
+            ShapeNm::Rect {
+                a: pt([10.0, 7.0]),
+                b: pt([12.0, 8.5]),
+                radius_nm: nm(0.3),
+            },
+            0.12,
+            LegendFill::None,
+        ),
+        (
+            ShapeNm::Circle {
+                center: pt([9.0, 9.5]),
+                radius_nm: nm(0.4),
+            },
+            0.15,
+            LegendFill::None,
+        ),
+        (
+            ShapeNm::Arc {
+                start: pt([12.0, 9.0]),
+                end: pt([11.0, 10.0]),
+                centre: pt([11.0, 9.0]),
+                direction: ArcDirection::CounterClockwise,
+            },
+            0.15,
+            LegendFill::None,
+        ),
+        (
+            ShapeNm::Polygon {
+                points: [[13.0, 6.0], [14.0, 6.0], [13.0, 7.0]].map(pt).to_vec(),
+                radii_nm: Vec::new(),
+            },
+            0.1,
+            LegendFill::Solid,
+        ),
+    ];
+    for (k, (shape, width, fill)) in shapes.into_iter().enumerate() {
+        footprint.graphics.insert(
+            k,
+            FootprintGraphic {
+                id: GraphicId(80 + u32::try_from(k)?),
+                layer: DrawingLayer::Silkscreen,
+                side: Side::Component,
+                item: Item::Shape {
+                    shape,
+                    width_nm: nm(width),
+                    fill,
+                },
+            },
+        );
+    }
     footprint.graphics.push(FootprintGraphic {
         id: GraphicId(90),
         layer: DrawingLayer::Silkscreen,
@@ -364,19 +438,12 @@ fn lettered() -> Fallible<Project> {
     Ok(p)
 }
 
-/// How far from its anchor a text may print: its box with its pen.
-fn text_reach(text: &oracle::InkText) -> f64 {
-    let wide = 0.6 * (text.characters as f64 + 1.0);
-    let high = 2.0 * text.lines as f64;
-    text.height * wide.hypot(high)
-}
-
 fn legend_faults(project: &Project, files: &Files) -> Fallible<Vec<String>> {
     let mut out = Vec::new();
     for (side, word, code) in [(Layer::Top, "top", "Top"), (Layer::Bottom, "bottom", "Bot")] {
         let name = format!("legend-{word}.gbr");
-        let (inks, texts) = oracle::legend(project, side)?;
-        if inks.is_empty() && texts.is_empty() {
+        let (inks, _) = oracle::legend(project, side)?;
+        if inks.is_empty() {
             continue;
         }
         let text = match file(files, &name) {
@@ -392,7 +459,7 @@ fn legend_faults(project: &Project, files: &Files) -> Fallible<Vec<String>> {
             out.push(format!("files: {name} says it is {stated:?}"));
         }
         let image = Image::of(&parsed)?;
-        // Every shape is printed, to its pen's edge.
+        // Every shape and every stroke of every letter, to its pen's edge.
         for ink in inks.iter().filter(|i| i.half > 0.0) {
             let lost = ink
                 .edges
@@ -407,29 +474,22 @@ fn legend_faults(project: &Project, files: &Files) -> Fallible<Vec<String>> {
                 })
                 .filter(|p| !image.dark(*p))
                 .count();
+            let kind = if ink.letter { "text" } else { "shape" };
             if lost > 0 {
-                out.push(format!("shape: {name}: {} lacks {lost} points", ink.what));
+                out.push(format!("{kind}: {name}: {} lacks {lost} points", ink.what));
             }
-        }
-        // Every text prints something in its box.
-        for t in &texts {
-            let reach = t.height * 0.5;
-            let printed = (-25..=25).any(|i| {
-                (-25..=25).any(|j| {
-                    image.dark([
-                        t.at[0] + reach * f64::from(i) / 25.0,
-                        t.at[1] + reach * f64::from(j) / 25.0,
-                    ])
-                })
-            });
-            if !printed {
-                out.push(format!("text: {name}: {:?} is not printed", t.text));
+            // A filled shape's inside: the middle of its corners.
+            let corners: Vec<Point> = ink.edges.iter().map(|e| e.samples(1e9)[0].0).collect();
+            let n = corners.len().max(1) as f64;
+            let middle = [0, 1].map(|k| corners.iter().map(|c| c[k]).sum::<f64>() / n);
+            if ink.filled && !image.dark(ink.frame.to_board(middle)) {
+                out.push(format!("{kind}: {name}: {} is not filled", ink.what));
             }
         }
         // And nothing else is.
         for object in image.object_points() {
             let strays = |p: &Point| {
-                let on_shape = inks.iter().any(|ink| {
+                !inks.iter().any(|ink| {
                     let q = ink.frame.to_pad(*p);
                     let d = ink
                         .edges
@@ -442,11 +502,7 @@ fn legend_faults(project: &Project, files: &Files) -> Fallible<Vec<String>> {
                             area.edges.clone_from(&ink.edges);
                             area.inside(q)
                         }
-                });
-                let in_text = texts
-                    .iter()
-                    .any(|t| (p[0] - t.at[0]).hypot(p[1] - t.at[1]) <= text_reach(t));
-                !on_shape && !in_text
+                })
             };
             // The box's centre of a bent stroke is not on it: its edges are.
             if let Some(p) = object.iter().skip(1).find(|p| strays(p)) {
@@ -493,7 +549,8 @@ fn the_legend_prints_every_shape_and_text_and_nothing_else() -> Fallible<()> {
     let files = written(&project)?;
     for side in [Layer::Top, Layer::Bottom] {
         let (inks, texts) = oracle::legend(&project, side)?;
-        assert!(!inks.is_empty() && texts.len() >= 2, "{side:?}");
+        let shapes = inks.iter().filter(|i| !i.letter).count();
+        assert!(shapes >= 6 && texts.len() >= 2, "{side:?}: {shapes} shapes");
     }
     let found = legend_faults(&project, &files)?;
     assert!(found.is_empty(), "{found:#?}");
@@ -537,6 +594,19 @@ fn every_seeded_legend_fault_is_reported() -> Fallible<()> {
             }
         });
     };
+    // The last stroke that is not in a region: of the last part's letter.
+    let drop_last = move |f: &mut Files| {
+        edit(f, name, |l| {
+            let inside = regions(&l);
+            let last = line_numbers(&l.join("\n"), |s| s.ends_with("D01*"))
+                .into_iter()
+                .rfind(|k| !inside.iter().any(|r| r.contains(k)));
+            match last {
+                Some(k) => without(l, k..=k),
+                None => l,
+            }
+        });
+    };
     // The header and apertures alone.
     let blank = move |f: &mut Files| {
         edit(f, name, |l| {
@@ -556,6 +626,7 @@ fn every_seeded_legend_fault_is_reported() -> Fallible<()> {
             Box::new(move |f: &mut Files| f.retain(|x| x.0 != format!("proof-{name}"))),
         ),
         ("a silkscreen line missing", "shape:", Box::new(drop_stroke)),
+        ("a letter's stroke missing", "text:", Box::new(drop_last)),
         ("every line and letter missing", "text:", Box::new(blank)),
         (
             "the legend mirrored",
