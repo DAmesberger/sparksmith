@@ -26,8 +26,6 @@ pub const SIGN_IN_NEEDED: &str = "Sign in to the online library in Settings to d
      Searching works without an account.";
 /// Characters of the client name the registry shows on the account page.
 pub const MAX_CLIENT_NAME: usize = 80;
-/// The longest a sign-in waits for the person, whatever the registry says.
-pub const MAX_SIGN_IN: Duration = Duration::from_secs(30 * 60);
 /// How long one account request may take.
 const ACCOUNT_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long revoking the token may take before sign-out goes on without.
@@ -442,8 +440,7 @@ impl RegistryClient {
     }
 
     /// Poll `code` until the person confirms or declines it, it expires
-    /// (the registry's `expires_in`, at most [`MAX_SIGN_IN`]) or `cancel`
-    /// is set. `sleep` waits between polls and says whether `cancel` was
+    /// (the registry's `expires_in`) or `cancel` is set. `sleep` waits between polls and says whether `cancel` was
     /// set meanwhile ([`sleep_unless`]). The interval is the registry's,
     /// longer by 5 s after each `slow_down`; a registry that cannot be
     /// reached for a moment is polled again.
@@ -453,7 +450,7 @@ impl RegistryClient {
         cancel: &AtomicBool,
         sleep: &dyn Fn(&AtomicBool, Duration) -> bool,
     ) -> Result<Account, String> {
-        let limit = Duration::from_secs(code.expires_in).min(MAX_SIGN_IN);
+        let limit = Duration::from_secs(code.expires_in);
         let mut interval = Duration::from_secs(code.interval.max(1));
         let mut waited = Duration::ZERO;
         loop {
@@ -463,10 +460,10 @@ impl RegistryClient {
             if sleep(cancel, interval) || cancel.load(Ordering::SeqCst) {
                 return Err(SIGN_IN_CANCELLED.into());
             }
-            waited += interval;
+            waited = waited.saturating_add(interval);
             match self.poll_sign_in(code) {
                 Ok(Poll::Pending) => {}
-                Ok(Poll::SlowDown) => interval += SLOW_DOWN,
+                Ok(Poll::SlowDown) => interval = interval.saturating_add(SLOW_DOWN),
                 Ok(Poll::Approved(account)) => return Ok(account),
                 Ok(Poll::Expired) => return Err(SIGN_IN_EXPIRED.into()),
                 Ok(Poll::Denied) => return Err(SIGN_IN_DENIED.into()),

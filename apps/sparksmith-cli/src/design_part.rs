@@ -32,9 +32,11 @@ use sparksmith_assist::workflow::runner::{self, Person, WorkflowRun};
 use sparksmith_assist::workflow::{self, Loaded};
 use sparksmith_assist::{AssistLibrary, CallState, Datasheet, Event, Outcome, RunConfig};
 use sparksmith_automation::Session;
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_core::product::SHORT_NAME as CLI;
 use std::io::Read as _;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 pub const USAGE: &str = "design-part --datasheet PDF|URL [--datasheet …] --name NAME --out NEW.sparksmith
@@ -547,7 +549,9 @@ pub fn run(args: &[String]) -> Result<()> {
         config: &args.config,
     };
     let mut console = Console::default();
-    let outcome = runner::run_workflow(run, backend.as_mut(), &mut session, &mut console, &cancel)?;
+    let outcome = Cancel::from(Arc::clone(&cancel)).scope(|| {
+        runner::run_workflow(run, backend.as_mut(), &mut session, &mut console, &cancel)
+    })?;
     let review = outcome.review(&session);
     let saved = save(&mut session, &args, &review);
     if let Some(path) = &args.record {

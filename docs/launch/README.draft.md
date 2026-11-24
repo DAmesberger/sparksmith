@@ -175,7 +175,7 @@ start page, or a PDF dropped on the window.
 | `sparksmith-solidcraft` | Builds the native Solidcraft model through a typed facade over Solidcraft's command API. |
 | `sparksmith-firmware` | Pin-configuration exports: JSON IR, C header, Zephyr overlay skeleton, Rust constants. |
 | `sparksmith-automation` | Headless `Session` shared by the JSON-lines transport and the MCP server. |
-| `sparksmith-assist` | The in-app datasheet runner: a model tool-use loop over the automation session, with request, token and time limits. |
+| `sparksmith-assist` | The in-app datasheet runner: a model tool-use loop over the automation session, with optional request, token and time limits. |
 | `sparksmith`, `sparksmith-cli` | The egui/wgpu desktop editor and the command line (its binary is `sparksmith`). |
 
 `cargo xtask ci` enforces the layer direction, the core module map, Solidcraft's UI containers,

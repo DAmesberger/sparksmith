@@ -3,7 +3,7 @@
 //! this computer, or an agent installed on this computer), and for a
 //! hosted model one API key field, the model and Test connection. Then,
 //! folded: **Advanced** (every connection, with server addresses,
-//! timeouts, declared capabilities and agent commands), the permissions per
+//! declared capabilities and agent commands), the permissions per
 //! kind of action, a model run's limits, the run profiles and the
 //! workflows. There are no per-turn caps on edits or calls.
 //!
