@@ -233,8 +233,7 @@ fn publish_part(pair: &mut Pair) -> Fallible<PartRef> {
     // takes them.
     let mut copy = pair.engine.document().clone();
     let given = sparksmith_core::first_save(&mut copy, Path::new(&path), "");
-    pair.engine.adopt_first_save(&given)?;
-    assert_eq!(pair.engine.revision(), pair.session.engine().revision());
+    pair.engine.adopt_first_save(&given);
     let mut reopened = Session::default();
     let opened = reopened.dispatch(json!({"command": "project.open", "params": {"expected_revision": reopened.engine().revision(), "path": path}}));
     assert_eq!(opened["ok"], true, "{opened}");

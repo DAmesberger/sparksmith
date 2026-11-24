@@ -469,20 +469,38 @@ fn take_first_save(h: &mut Harness) -> Fallible<bool> {
     let Effect::FirstSave { given, saved } = h.effects.remove(given.ok_or("no first save")?) else {
         return Err("not a first save".into());
     };
-    h.engine.adopt_first_save(&given)?;
+    h.engine.adopt_first_save(&given);
     h.files.first_saved(&h.engine, saved);
     Ok(saved)
 }
 
 /// E2E run 4, finding 7: the first save of an Untitled project names it
-/// after the file the save panel chose. The file holds that name, the
-/// engine takes it as one undo step, and the project is then saved; undo
+/// after the file the save panel chose. The file holds that name and the
+/// engine takes it. Saving changes neither undo nor redo (founder, 24
+/// November 2026): no revision, no step, redo kept, and no undo or redo
 /// takes the name back. A later save keeps the name.
 #[test]
 fn a_first_save_names_an_untitled_project_after_its_file() -> Fallible {
     let mut h = Harness::new()?;
     assert_eq!(h.engine.project().name, sparksmith_core::UNTITLED);
     let path = h.dir.path().join("usb-led-e2e.sparksmith");
+    let titled = |title: &str| {
+        Operation::Schematic(SchematicCommand::SetProperties {
+            properties: sparksmith_core::model::ProjectProperties {
+                title: title.into(),
+                ..Default::default()
+            },
+        })
+    };
+    for title in ["One", "Two"] {
+        h.engine.apply(h.engine.revision(), titled(title))?;
+        h.frame(vec![]);
+    }
+    h.engine.undo()?;
+    h.frame(vec![]);
+    let revision = h.engine.revision();
+    let steps = (h.engine.undo_step(), h.engine.redo_step());
+    assert!(steps.0.is_some() && steps.1.is_some());
     // The save panel's answer, as `pick` sends it.
     let ticket = h.files.begin(Kind::Save, None).ok_or("no save started")?;
     h.files
@@ -497,9 +515,22 @@ fn a_first_save_names_an_untitled_project_after_its_file() -> Fallible {
     assert_eq!(h.engine.project().name, "usb-led-e2e");
     assert!(!h.files.dirty(), "the renamed project is the saved one");
     assert_eq!(h.files.path(), Some(path.as_path()));
+    assert_eq!(h.engine.revision(), revision);
+    assert_eq!((h.engine.undo_step(), h.engine.redo_step()), steps);
+    h.until("the recovery copy cleared", |h| {
+        h.recovery_files().is_ok_and(|files| files.is_empty())
+    })?;
+    h.engine.redo()?;
+    h.frame(vec![]);
+    assert_eq!(h.engine.project().properties.title, "Two");
+    assert_eq!(h.engine.project().name, "usb-led-e2e");
+    assert!(h.files.dirty());
     h.engine.undo()?;
     h.frame(vec![]);
-    assert_eq!(h.engine.project().name, sparksmith_core::UNTITLED);
+    assert!(!h.files.dirty(), "undo returns to the saved content");
+    h.engine.undo()?;
+    h.frame(vec![]);
+    assert_eq!(h.engine.project().name, "usb-led-e2e");
     assert!(h.files.dirty());
     h.engine.redo()?;
     h.frame(vec![]);

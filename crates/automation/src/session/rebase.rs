@@ -34,7 +34,11 @@ pub(crate) struct Seen(VecDeque<(u64, Document)>);
 impl Seen {
     /// Keep `document` as the state at `revision`.
     pub(crate) fn keep(&mut self, revision: u64, document: &Document) {
-        if self.0.back().is_some_and(|(r, _)| *r == revision) {
+        // The same state, with the name and identity a save gave it since.
+        if let Some((r, kept)) = self.0.back_mut()
+            && *r == revision
+        {
+            *kept = document.clone();
             return;
         }
         self.0.retain(|(r, _)| *r != revision);

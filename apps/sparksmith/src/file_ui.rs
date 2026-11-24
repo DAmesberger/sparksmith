@@ -576,7 +576,7 @@ impl FileUi {
     }
     pub fn observe(&mut self, engine: &Engine, now: f64) {
         self.now = now;
-        // A change without a revision (a hosted first save's identity) is
+        // A change without a revision (a hosted first save's name and identity) is
         // the engine's document too: the window saves and recovers it.
         if !same_document(&self.document, engine.document()) {
             self.document = engine.document().clone();

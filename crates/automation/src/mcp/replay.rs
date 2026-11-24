@@ -581,11 +581,9 @@ pub fn convert(
             }
             project.left = None;
         }
-        // A first save renames an Untitled project, so without its reply
-        // the revision after a save is unknown.
         project.revision = reply.revision.or(project
             .revision
-            .filter(|_| mapped.call.entry != "project.save" && entry.is_some_and(|e| !e.revision)));
+            .filter(|_| entry.is_some_and(|e| !e.revision)));
         let named = relocate(&mut mapped.call, root).map_err(|why| format!("{at}: {why}"))?;
         let line = line(&mapped.call).map_err(|why| format!("{at}: {why}"))?;
         project.lines.push(line);

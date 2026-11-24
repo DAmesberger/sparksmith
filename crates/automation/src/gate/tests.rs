@@ -491,14 +491,6 @@ fn a_request_from_a_run_cannot_publish_or_write_without_allow() -> Fallible {
     let saved = session.respond(Caller::Allowed(&policy), attempts[2].clone());
     assert_eq!(saved["ok"], true, "{saved}");
     assert!(root.path().join("stolen.sparksmith").exists());
-    // This first save named the project after its file, so the reply names
-    // the next revision, and the one from before the save is stale.
-    assert_eq!(saved["result"]["revision"], revision + 1, "{saved}");
-    let stale = session.respond(Caller::Allowed(&policy), promote.clone());
-    assert_eq!(stale["error"]["code"], "stale_revision", "{stale}");
-    assert_eq!(file_count(&folder)?, records_before);
-    let mut promote = promote;
-    promote["params"]["expected_revision"] = saved["result"]["revision"].clone();
     let promoted = session.respond(Caller::Allowed(&policy), promote);
     assert_eq!(promoted["ok"], true, "{promoted}");
     assert!(file_count(&folder)? > records_before);

@@ -85,19 +85,22 @@ fn save_and_open_are_file_effects_outside_undo_history() -> TestResult {
     // The first save gives the project its identity and its file's name,
     // and nothing else.
     let mut before = before;
+    before.project.name = "session".into();
     before.project.production.project_id = session.engine().project().production.project_id.clone();
     assert!(before.project.production.project_id.is_some());
-    before.project.name = "session".into();
     assert_eq!(session.engine().to_file(), before);
     assert_eq!(saved["result"]["saved_path"], path_text.as_str());
-    assert_eq!(session.engine().revision(), revision + 1, "the name");
+    assert_eq!(
+        session.engine().revision(),
+        revision,
+        "saving is not an edit"
+    );
     assert!(session.engine().can_undo());
-    // Save without a path reuses the session's file, and is not an edit.
+    // Save without a path reuses the session's file.
     assert_eq!(
         session.dispatch(json!({"command": "project.save", "params": {}}))["ok"],
         true
     );
-    assert_eq!(session.engine().revision(), revision + 1);
 
     let mut other = Session::default();
     let refused = other.dispatch(json!({"command": "project.save", "params": {}}));
@@ -147,10 +150,6 @@ fn refused_open_preserves_document_history_and_save_path() -> TestResult {
     let original = dir.path().join("original.sparksmith");
     let incoming = dir.path().join("incoming.sparksmith");
     let mut session = Session::new(Engine::demo()?);
-    assert_eq!(
-        session.dispatch(json!({"command": "project.save", "params": {"path": original}}))["ok"],
-        true
-    );
     let revision = session.engine().revision();
     assert_eq!(
         session.dispatch(edit(&session, "R10", revision))["ok"],
@@ -168,7 +167,7 @@ fn refused_open_preserves_document_history_and_save_path() -> TestResult {
         true
     );
     assert_eq!(
-        session.dispatch(json!({"command": "project.save", "params": {}}))["ok"],
+        session.dispatch(json!({"command": "project.save", "params": {"path": original}}))["ok"],
         true
     );
     let mut other = Session::new(Engine::demo()?);
@@ -1018,9 +1017,7 @@ fn history_and_replacing_requests_at_a_stale_revision_change_nothing() -> TestRe
 
 /// Every request that can change the document requires the revision it
 /// expects: all but reads, the window's show entries and the requests that
-/// only write files or the user's library settings, named here. A save
-/// writes whatever the document is, so it expects none, though the first
-/// save of an Untitled project names it.
+/// only write files or the user's library settings, named here.
 #[test]
 fn every_document_changing_request_requires_an_expected_revision() {
     let no_document_change = [

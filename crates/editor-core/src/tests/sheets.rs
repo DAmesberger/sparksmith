@@ -971,40 +971,140 @@ fn a_first_save_names_an_untitled_project_after_its_file() {
     }
 }
 
-/// The engine takes what a first save gave its copy: the name is one undo
-/// step, the identity none. A name the project took while the file was
-/// written stays.
+/// Saving changes neither undo nor redo (founder, 24 November 2026): the
+/// engine takes a first save's name and identity without a revision or a
+/// step, and every state on both sides keeps them.
 #[test]
-fn the_engine_takes_what_a_first_save_gave() -> Result<()> {
+fn a_first_save_changes_neither_revision_nor_history() -> Result<()> {
     use std::path::Path;
     let mut engine = Engine::demo()?;
     assert_eq!(engine.project().name, crate::UNTITLED);
+    for title in ["One", "Two", "Three"] {
+        run(
+            &mut engine,
+            C::SetProperties {
+                properties: ProjectProperties {
+                    title: title.into(),
+                    ..Default::default()
+                },
+            },
+        )?;
+    }
+    engine.undo()?;
     let mut written = engine.document().clone();
     let given = crate::first_save(&mut written, Path::new("one.sparksmith"), "");
-    let (revision, before) = (engine.revision(), engine.document().clone());
-    engine.adopt_first_save(&given)?;
+    let (revision, undo, redo) = (engine.revision(), engine.undo_step(), engine.redo_step());
+    assert!(undo.is_some() && redo.is_some());
+    let key = engine.report_key();
+    engine.adopt_first_save(&given);
     assert_eq!(engine.document(), &written);
-    assert_eq!(engine.revision(), revision + 1);
-    engine.undo()?;
-    assert_eq!(engine.project().name, crate::UNTITLED);
-    assert_eq!(
-        engine.project().production.project_id,
-        written.project.production.project_id
-    );
-
-    let mut engine = Engine::demo()?;
-    assert_eq!(engine.document(), &before);
-    engine.apply(
-        engine.revision(),
-        Operation::Schematic(C::RenameProject {
-            name: "Chosen meanwhile".into(),
-        }),
-    )?;
-    let revision = engine.revision();
-    engine.adopt_first_save(&given)?;
-    assert_eq!(engine.project().name, "Chosen meanwhile");
     assert_eq!(engine.revision(), revision);
+    assert_eq!((engine.undo_step(), engine.redo_step()), (undo, redo));
+    assert_ne!(engine.report_key(), key, "kept reports name it anew");
+    let id = written.project.production.project_id.clone();
+    let kept = |engine: &Engine, title: &str| {
+        assert_eq!(engine.project().properties.title, title);
+        assert_eq!(engine.project().name, "one");
+        assert_eq!(engine.project().production.project_id, id);
+    };
+    kept(&engine, "Two");
+    engine.redo_at(revision)?;
+    kept(&engine, "Three");
+    for title in ["Two", "One", ""] {
+        engine.undo()?;
+        kept(&engine, title);
+    }
+    while engine.redo_step().is_some() {
+        engine.redo()?;
+    }
+    kept(&engine, "Three");
+    // The same name again is nothing new to take.
+    let now = engine.document().clone();
+    engine.adopt_first_save(&given);
+    assert!(std::sync::Arc::ptr_eq(
+        &engine.document().project,
+        &now.project
+    ));
+    Ok(())
+}
+
+/// A name someone chose is a step of its own and stays one: undo and redo
+/// across it and a first save give each state its own name.
+#[test]
+fn a_chosen_name_keeps_its_step_across_a_first_save() -> Result<()> {
+    use std::path::Path;
+    let rename = |name: &str| C::RenameProject { name: name.into() };
+    let mut engine = Engine::demo()?;
+    let mut copy = engine.document().clone();
+    let given = crate::first_save(&mut copy, Path::new("one.sparksmith"), "");
+    // Chosen while the file was written: it stays, and the state before it
+    // is named by the file.
+    run(&mut engine, rename("Chosen meanwhile"))?;
+    engine.adopt_first_save(&given);
+    assert_eq!(engine.project().name, "Chosen meanwhile");
     assert!(engine.project().production.project_id.is_some());
+    engine.undo()?;
+    assert_eq!(engine.project().name, "one");
+    engine.redo()?;
+    assert_eq!(engine.project().name, "Chosen meanwhile");
+
+    // Chosen, taken back, then saved: redo chooses it again.
+    let mut engine = Engine::demo()?;
+    run(&mut engine, rename("Chosen first"))?;
+    engine.undo()?;
+    engine.adopt_first_save(&given);
+    assert_eq!(engine.project().name, "one");
+    engine.redo()?;
+    assert_eq!(engine.project().name, "Chosen first");
+    engine.undo()?;
+    assert_eq!(engine.project().name, "one");
+    Ok(())
+}
+
+/// What prints the project's name shows a first save's at the same
+/// revision: the title block and the drill table. Nothing on the board
+/// prints it, so the fills are as fresh as before.
+#[test]
+fn a_first_saves_name_is_printed_without_a_revision() -> Result<()> {
+    use std::path::Path;
+    let mut engine = Engine::showcase()?;
+    let mut file = engine.to_file();
+    file.project.name = crate::UNTITLED.into();
+    engine = Engine::from_file(file)?;
+    engine.refill_stale()?;
+    let fills = engine.project().fills.clone();
+    assert!(!fills.is_empty());
+    let sheet = engine.project().sheets.first();
+    let shown = |engine: &Engine, name: &str| -> Result<()> {
+        let frame = scene::frame(engine.project(), sheet);
+        assert!(frame.texts.iter().any(|t| t.text == name), "{name}");
+        let set = crate::fabrication::generate(
+            &crate::fabrication::ProductionSnapshot::resolve(engine.project(), None)?,
+            &Default::default(),
+            &Default::default(),
+        )?;
+        let table = set
+            .files
+            .iter()
+            .find(|f| f.name.ends_with("drill-table.txt"));
+        let table = table.ok_or_else(|| Error::NotFound("drill table".into()))?;
+        assert!(String::from_utf8_lossy(&table.bytes).contains(&format!("Drill table: {name}\n")));
+        assert!(table.name.starts_with(name), "{}", table.name);
+        Ok(())
+    };
+    shown(&engine, crate::UNTITLED)?;
+    let mut copy = engine.document().clone();
+    let given = crate::first_save(&mut copy, Path::new("printed.sparksmith"), "");
+    let revision = engine.revision();
+    engine.adopt_first_save(&given);
+    shown(&engine, "printed")?;
+    assert_eq!(engine.revision(), revision);
+    assert_eq!(engine.project().fills, fills);
+    assert!(
+        layout::fill::status(engine.project())
+            .iter()
+            .all(|f| !f.stale)
+    );
     Ok(())
 }
 

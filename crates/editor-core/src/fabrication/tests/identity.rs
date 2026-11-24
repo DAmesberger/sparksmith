@@ -130,7 +130,7 @@ fn the_revision_names_what_the_files_say() -> Fallible<()> {
 /// A save that succeeds: the copy written, then the engine.
 fn first_save(engine: &mut Engine, file: &Path, nonce: &str) -> Fallible<()> {
     let given = crate::first_save(&mut engine.document().clone(), file, nonce);
-    engine.adopt_first_save(&given)?;
+    engine.adopt_first_save(&given);
     Ok(())
 }
 
