@@ -624,8 +624,8 @@ pub(crate) fn finish(native: Native, sources: Vec<Source>) -> Result<NativeModel
 /// and where that placement moved it.
 type Measured = (Volume, [f64; 3], [f64; 3], [f64; 3]);
 
-/// Via definitions by drill and diameter (their bits).
-type ViaKey = (u64, u64);
+/// Via definitions by drill and diameter (their bits), and fill.
+type ViaKey = (u64, u64, sparksmith_core::model::ViaFill);
 
 /// [`finish`] for a model whose generated definitions are `models` and
 /// whose library-model bodies with their own materials look `custom`.
@@ -2370,7 +2370,7 @@ impl Drawn<'_> {
     }
 }
 
-/// One via definition per drill and diameter: its plated barrel through
+/// One via definition per drill, diameter and fill: its plated barrel through
 /// the laminate and an annular ring on each copper layer, standing on the
 /// board's bottom face at its origin. Every via of that size is an
 /// occurrence of it, so a board of thousands of vias builds (and meshes)
@@ -2391,7 +2391,7 @@ fn via_style(
     planned: &plan::ViaPlan,
 ) -> Result<ViaStyle> {
     let stackup = &project.stackup;
-    let name = format!("via_{}_{}", mm_slug(via.drill), mm_slug(via.diameter));
+    let name = via_name(via);
     let created = b.native.component(&name, false)?;
     for body in &planned.bodies {
         let plan::Origin::Via { part, .. } = body.source else {
@@ -2403,7 +2403,7 @@ fn via_style(
         // Outer rings cap the barrel; inner rings stand round it, in the
         // circle the laminate's foil level leaves for them.
         let (offset, height): (Expr, String) = match part {
-            plan::ViaPart::Barrel => (0.into(), "board_thickness".into()),
+            plan::ViaPart::Barrel | plan::ViaPart::Fill => (0.into(), "board_thickness".into()),
             plan::ViaPart::Ring(layer) => {
                 let height = copper_param(layer);
                 let offset = match layer {
@@ -2420,7 +2420,7 @@ fn via_style(
             contours: &body.loops,
             height: height.as_str().into(),
         })?;
-        b.record(&body.name, BodyKind::ViaCopper)?;
+        b.record(&body.name, body.kind)?;
     }
     Ok(ViaStyle {
         component: created.component,
@@ -2499,7 +2499,17 @@ fn mm_slug(value: f64) -> String {
     format!("{value}").replace('.', "p").replace('-', "m")
 }
 
-/// One definition per via size ([`via_style`]), built before the laminate.
+/// The name of a via's definition: its size and fill.
+fn via_name(via: &sparksmith_core::Via) -> String {
+    let fill = if via.fill.is_none() {
+        String::new()
+    } else {
+        format!("_{}", via.fill.id())
+    };
+    format!("via_{}_{}{fill}", mm_slug(via.drill), mm_slug(via.diameter))
+}
+
+/// One definition per via size and fill ([`via_style`]), built before the laminate.
 fn via_styles(
     b: &mut Builder,
     project: &Project,
@@ -2512,7 +2522,7 @@ fn via_styles(
     }
     let mut styles: BTreeMap<ViaKey, ViaStyle> = BTreeMap::new();
     for (via, planned) in project.vias.iter().zip(planned) {
-        let key = (via.drill.to_bits(), via.diameter.to_bits());
+        let key = (via.drill.to_bits(), via.diameter.to_bits(), via.fill);
         if let std::collections::btree_map::Entry::Vacant(slot) = styles.entry(key) {
             slot.insert(via_style(b, project, via, planned)?);
         }
@@ -2600,7 +2610,7 @@ fn vias(
     let mut copies: BTreeMap<ViaKey, Vec<(usize, [f64; 3])>> = BTreeMap::new();
     let mut occurrences: Vec<Option<u64>> = vec![None; project.vias.len()];
     for (index, via) in project.vias.iter().enumerate() {
-        let key = (via.drill.to_bits(), via.diameter.to_bits());
+        let key = (via.drill.to_bits(), via.diameter.to_bits(), via.fill);
         let style = styles
             .get_mut(&key)
             .ok_or_else(|| Error::Verification("via definition missing".into()))?;
@@ -2685,6 +2695,7 @@ fn marks(
             drill: via.drill,
             diameter: via.diameter,
             tented: via.tented,
+            capped: !via.fill.is_none(),
             mask_opening: via.mask_opening(expansion),
         });
     }

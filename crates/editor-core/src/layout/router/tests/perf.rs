@@ -55,6 +55,7 @@ fn dense() -> Fallible<Project> {
                 diameter: 0.6,
                 span: ViaSpan::Through,
                 tented: true,
+                fill: Default::default(),
                 locked: false,
             });
             vias += 1;

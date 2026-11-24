@@ -6,7 +6,7 @@ use super::proof::{self, Files};
 use crate::Engine;
 use crate::fabrication::readback::{self, Mismatch};
 use crate::fabrication::{self, FabricationOptions, ProductionSnapshot};
-use crate::model::Project;
+use crate::model::{Project, ViaFill};
 
 /// What the check tells of `project`'s set, after `change`.
 fn told(project: &Project, change: impl Fn(&mut Files)) -> Fallible<Vec<Mismatch>> {
@@ -136,6 +136,151 @@ fn seeded_faults_are_told_with_the_file_and_the_place() -> Fallible<()> {
             "{what}: {found:#?}"
         );
     }
+    Ok(())
+}
+
+/// The proof board with one of its vias filled and capped, under a profile
+/// that fills it by size, with a charge that falls on it and one that does
+/// not.
+fn filled() -> Fallible<Project> {
+    let mut project = proof::board()?;
+    // The others, of the same drill, stay open.
+    assert!(project.vias.len() > 1);
+    if let Some(v) = project.vias.first_mut() {
+        v.fill = ViaFill::Capped;
+    }
+    let profile = project.rules.profile.as_mut().ok_or("no profile")?;
+    profile.drill_rules = serde_json::from_value(serde_json::json!([{
+        "id": "through", "kind": "mechanical", "layers": {"span": "board"},
+        "fills": [
+            {"fill": "none"},
+            {"fill": "capped", "source": "Test fixture.", "order": {
+                "form": [{"label": "Covering", "choice": "Capped", "unverified": true}],
+                "told_by_size": true, "asks": "Name the holes.", "source": "Test fixture."}}
+        ]
+    }]))?;
+    profile.charges = serde_json::from_value(serde_json::json!([
+        {"when": {"fill": "capped"}, "text": "Filling is charged.", "source": "Test fixture."},
+        {"when": {"drill_below_mm": 0.01}, "text": "Tiny holes are charged.",
+         "source": "Test fixture."}
+    ]))?;
+    Ok(project)
+}
+
+/// Every text file of the set.
+fn written(project: &Project) -> Fallible<Files> {
+    let files = std::cell::RefCell::new(Files::new());
+    told(project, |f| *files.borrow_mut() = f.clone())?;
+    Ok(files.into_inner())
+}
+
+#[test]
+fn a_filled_via_is_in_every_file_that_tells_the_fabricator() -> Fallible<()> {
+    let project = filled()?;
+    let found = told(&project, |_| {})?;
+    assert!(found.is_empty(), "{found:#?}");
+    let files = written(&project)?;
+    assert!(proof::file(&files, "plated.drl")?.contains("TA.AperFunction,ViaDrill,VII\n"));
+    assert!(proof::file(&files, "drill-table.txt")?.contains("capped"));
+    let notes = proof::file(&files, "order-notes.txt")?;
+    assert!(notes.contains("  Covering: Capped (form label not verified)\n"));
+    assert!(notes.contains("Name the holes."));
+    assert!(notes.contains("\"Filling is charged.\""));
+    assert!(!notes.contains("Tiny holes"));
+    let job = files.iter().find(|f| f.0 == "proof.gbrjob");
+    let job: serde_json::Value = serde_json::from_str(&job.ok_or("no job file")?.1)?;
+    assert_eq!(
+        job["GeneralSpecs"]["ViaProtection"],
+        serde_json::json!(["VII"])
+    );
+    // A board with nothing to order specially has none of it.
+    let plain = written(&proof::board()?)?;
+    assert!(!plain.iter().any(|f| f.0.ends_with("order-notes.txt")));
+    assert!(!proof::file(&plain, "plated.drl")?.contains("VII"));
+    assert!(!proof::file(&plain, "drill-table.txt")?.contains("Fill"));
+    Ok(())
+}
+
+/// Each is red when the check it names is left out of the read-back.
+#[test]
+fn seeded_faults_of_filled_vias_are_told() -> Fallible<()> {
+    fn swap(f: &mut Files, file: &str, from: &str, to: &str) {
+        for (name, text) in f.iter_mut().filter(|x| x.0.ends_with(file)) {
+            assert!(text.contains(from), "{name} has no {from:?}");
+            *text = text.replacen(from, to, 1);
+        }
+    }
+    type Seed = fn(&mut Files);
+    let faults: [(&str, &str, Seed); 11] = [
+        ("VII lost from the filled tool", "plated.drl", |f| {
+            swap(f, "proof-plated.drl", "ViaDrill,VII", "ViaDrill");
+        }),
+        ("VII on the open tool", "plated.drl", |f| {
+            swap(f, "proof-plated.drl", "ViaDrill\n", "ViaDrill,VII\n");
+        }),
+        ("filled and open vias in one tool", "plated.drl", |f| {
+            proof::edit(f, "plated.drl", |l| {
+                let at = l.iter().position(|s| s.ends_with(",VII"));
+                let number = at
+                    .and_then(|k| l.get(k + 1))
+                    .and_then(|s| s.split('C').next())
+                    .map(str::to_owned);
+                l.into_iter()
+                    .filter(|s| Some(s) != number.as_ref())
+                    .collect()
+            });
+        }),
+        ("the table calls it open", "drill-table.txt", |f| {
+            swap(f, "drill-table.txt", "capped", "none  ");
+        }),
+        ("the job file without its protection", "proof.gbrjob", |f| {
+            swap(f, "proof.gbrjob", "\"VII\"", "");
+        }),
+        ("the job file with one no tool has", "proof.gbrjob", |f| {
+            swap(f, "proof.gbrjob", "\"VII\"", "\"VII\", \"VI\"");
+        }),
+        (
+            "the order notes with another count",
+            "order-notes.txt",
+            |f| {
+                swap(f, "order-notes.txt", "1 hole\n", "2 holes\n");
+            },
+        ),
+        (
+            "the order notes fill the open tool",
+            "order-notes.txt",
+            |f| {
+                swap(f, "order-notes.txt", "Fill and cap", "Leave open ");
+            },
+        ),
+        ("a charge that does not fall", "order-notes.txt", |f| {
+            swap(
+                f,
+                "order-notes.txt",
+                "\nCharges\n",
+                "\nCharges\n  \"Tiny holes are charged.\"\n",
+            );
+        }),
+        ("a charge left out", "order-notes.txt", |f| {
+            swap(f, "order-notes.txt", "  \"Filling is charged.\"\n", "");
+        }),
+        ("no order notes", "order-notes.txt", |f| {
+            f.retain(|x| !x.0.ends_with("order-notes.txt"));
+        }),
+    ];
+    let project = filled()?;
+    for (what, file, seed) in faults {
+        let found = told(&project, seed)?;
+        assert!(
+            found.iter().any(|m| m.file.ends_with(file)),
+            "{what}: {found:#?}"
+        );
+    }
+    // Order notes for a board that needs none.
+    let found = told(&proof::board()?, |f| {
+        f.push(("proof-order-notes.txt".into(), "ORDER NOTES\n".into()));
+    })?;
+    assert!(!found.is_empty());
     Ok(())
 }
 

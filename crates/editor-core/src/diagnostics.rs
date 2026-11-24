@@ -420,6 +420,8 @@ pub enum Requirement {
     /// A board with a solder mask of `colour` (its id): the profile must
     /// offer it.
     MaskColour { colour: String },
+    /// A board with vias of `fill` (`capped`): the profile must make it.
+    ViaFill { fill: String },
 }
 
 impl Finding {

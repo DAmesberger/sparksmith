@@ -119,12 +119,14 @@ fn the_showcase_board_round_trips_collection_by_collection() -> Fallible {
             reason: "checked by hand".into(),
             accepted: Vec::new(),
             footprints: Vec::new(),
+            given_for: None,
         },
         Waiver {
             key: r#"board.clearance [{"kind":"track","id":4}]"#.into(),
             reason: "fab confirmed".into(),
             accepted: Vec::new(),
             footprints: Vec::new(),
+            given_for: None,
         },
     ];
     round_trip(&records::WAIVERS, &no_header(), &waivers)?;
@@ -253,7 +255,7 @@ fn the_declared_orders_are_pinned() {
             &records::VIAS,
             None,
             &[
-                "id", "net", "span", "drill", "diameter", "position", "tented", "locked",
+                "id", "net", "span", "drill", "diameter", "position", "tented", "fill", "locked",
             ],
         ),
         (

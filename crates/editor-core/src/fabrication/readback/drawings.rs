@@ -97,6 +97,7 @@ fn design(
             }
         }
     }
+    fills(r, data, fabrication)?;
     let [min, max] = outline_box(project);
     let (a, b) = (data.bounds.min, data.bounds.max);
     if distance(a, min) > 1e-3 || distance(b, max) > 1e-3 {
@@ -192,6 +193,63 @@ impl Runs {
     }
 }
 
+/// The filled tools of the drill table and the note that names them,
+/// against the document's filled vias.
+fn fills(r: &mut Reading<'_, '_>, data: &DrawingData, name: &str) -> Fallible<()> {
+    let mut wanted: BTreeMap<i64, usize> = BTreeMap::new();
+    for h in oracle::holes(r.project)?.iter().filter(|h| h.capped) {
+        *wanted.entry((h.width * 1e3).round() as i64).or_default() += 1;
+    }
+    let mut printed: BTreeMap<i64, usize> = BTreeMap::new();
+    let mut parts = Vec::new();
+    for t in data
+        .drills
+        .tools
+        .iter()
+        .filter(|t| t.fill == crate::model::ViaFill::Capped)
+    {
+        *printed
+            .entry((t.diameter * 1e3).round() as i64)
+            .or_default() += t.count;
+        parts.push(format!(
+            "T{} ({:.3} mm, {} holes)",
+            t.number, t.diameter, t.count
+        ));
+    }
+    if printed != wanted {
+        let words = |m: &BTreeMap<i64, usize>| {
+            let each: Vec<String> = m
+                .iter()
+                .map(|(um, n)| format!("{n} filled holes of {:.3} mm", *um as f64 / 1e3))
+                .collect();
+            if each.is_empty() {
+                "no filled hole".into()
+            } else {
+                each.join(", ")
+            }
+        };
+        r.say(name, None, &words(&printed), &words(&wanted));
+    }
+    let design = (!parts.is_empty()).then(|| {
+        format!(
+            "Vias filled and capped, IPC-4761 type VII: {}. No other via is filled.",
+            parts.join(", ")
+        )
+    });
+    let note = data
+        .notes
+        .iter()
+        .find(|n| n.starts_with("Vias filled and capped, IPC-4761"));
+    if note != design.as_ref() {
+        let words = |n: Option<&String>| {
+            n.cloned()
+                .unwrap_or_else(|| "no note of filled vias".into())
+        };
+        r.say(name, None, &words(note), &words(design.as_ref()));
+    }
+    Ok(())
+}
+
 /// Every cell of the drill and stackup tables, the title blocks and the
 /// words of the notes.
 fn tables(r: &mut Reading<'_, '_>, data: &DrawingData, name: &str, pages: &[Page]) {
@@ -203,7 +261,11 @@ fn tables(r: &mut Reading<'_, '_>, data: &DrawingData, name: &str, pages: &[Page
             format!("{:.3}", t.diameter),
             if t.plated { "yes" } else { "no" }.to_owned(),
             if t.slot { "slot" } else { "hole" }.to_owned(),
-            t.function.label().to_owned(),
+            if t.fill == crate::model::ViaFill::Capped {
+                format!("{}, capped", t.function.label())
+            } else {
+                t.function.label().to_owned()
+            },
             t.count.to_string(),
         ]);
     }

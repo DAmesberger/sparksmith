@@ -835,6 +835,7 @@ fn a_ten_thousand_via_board_is_written_in_seconds() -> Fallible<()> {
                 diameter: 0.6,
                 span: crate::model::ViaSpan::Through,
                 tented: (i + j) % 3 != 0,
+                fill: Default::default(),
                 locked: false,
             });
         }

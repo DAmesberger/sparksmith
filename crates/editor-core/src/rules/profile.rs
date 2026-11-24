@@ -138,8 +138,23 @@ pub enum Setting {
 pub struct RuleEntry {
     pub setting: Setting,
     pub source: String,
+    /// What lies past its limit that the fabricator's sources disagree on.
+    pub unclear: Option<Unclear>,
     /// In order; the first whose `when` the profile's choices meet wins.
     pub cases: Vec<RuleCase>,
+}
+
+/// Where a fabricator's own sources give different limits for one rule: the
+/// rule holds the strictest, which every source allows, and this the
+/// loosest, past which none does. What lies between is not stated: neither
+/// made nor not made. Any rule with a limit can have one.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Unclear {
+    /// The loosest limit a source gives, itself within what is unclear.
+    pub to: f64,
+    /// The sources that disagree, each quoted with the day it was read.
+    pub source: String,
 }
 
 /// A rule's value under some manufacturing choices.
@@ -149,6 +164,7 @@ pub struct RuleCase {
     pub when: BTreeMap<String, String>,
     pub value: RuleValue,
     pub source: String,
+    pub unclear: Option<Unclear>,
 }
 
 /// A manufacturing option a profile offers: a choice the fabricator
@@ -264,6 +280,7 @@ impl RuleEntry {
         Self {
             setting: Setting::Value(value),
             source: source.into(),
+            unclear: None,
             cases: Vec::new(),
         }
     }
@@ -272,6 +289,7 @@ impl RuleEntry {
         Self {
             setting: Setting::Formula(text.into()),
             source: source.into(),
+            unclear: None,
             cases: Vec::new(),
         }
     }
@@ -279,13 +297,23 @@ impl RuleEntry {
     /// The value (or formula) and source under `chosen`: the first case
     /// whose every option takes its choice, else the entry's own.
     pub fn under(&self, chosen: &BTreeMap<String, String>) -> (Setting, &str) {
-        match self
-            .cases
-            .iter()
-            .find(|c| c.when.iter().all(|(o, v)| chosen.get(o) == Some(v)))
-        {
+        match self.case(chosen) {
             Some(case) => (Setting::Value(case.value), case.source.as_str()),
             None => (self.setting.clone(), self.source.as_str()),
+        }
+    }
+
+    fn case(&self, chosen: &BTreeMap<String, String>) -> Option<&RuleCase> {
+        self.cases
+            .iter()
+            .find(|c| c.when.iter().all(|(o, v)| chosen.get(o) == Some(v)))
+    }
+
+    /// What is unclear past the limit under `chosen`.
+    pub fn unclear_under(&self, chosen: &BTreeMap<String, String>) -> Option<&Unclear> {
+        match self.case(chosen) {
+            Some(case) => case.unclear.as_ref(),
+            None => self.unclear.as_ref(),
         }
     }
 }
@@ -310,6 +338,11 @@ pub struct RuleProfile {
     pub drill_files: DrillFiles,
     /// The boards its numbers are for, when it says.
     pub boards: Option<ProfileBoards>,
+    /// What the fabricator makes of a board's drills; none is a through
+    /// drill that stays open.
+    pub drill_rules: Vec<DrillRule>,
+    /// The charges it publishes.
+    pub charges: Vec<Charge>,
     /// The manufacturing options it offers, in shown order.
     options: Vec<FabOption>,
     /// The choice of every option.
@@ -353,6 +386,8 @@ impl RuleProfile {
             source,
             drill_files,
             boards: None,
+            drill_rules: Vec::new(),
+            charges: Vec::new(),
             options: Vec::new(),
             chosen: BTreeMap::new(),
             entries,
@@ -704,6 +739,57 @@ impl RuleProfile {
         self.entry(key).map(|e| e.under(&self.chosen))
     }
 
+    /// What the fabricator's sources disagree on past one rule's limit,
+    /// under the chosen options.
+    pub fn unclear(&self, key: RuleKey) -> Option<&Unclear> {
+        self.entry(key)?.unclear_under(&self.chosen)
+    }
+
+    /// Every unclear range is of a rule that is a limit, past that limit,
+    /// and quotes its sources.
+    fn check_unclear(&self) -> Result<()> {
+        let bad = |key: RuleKey, what: &str| {
+            Err(Error::Invalid(format!(
+                "rules.unclear: what is unclear past {} {what}",
+                key.name()
+            )))
+        };
+        for (key, entry) in &self.entries {
+            let own = entry.unclear.iter().map(|u| {
+                let value = match &entry.setting {
+                    Setting::Value(v) => *v,
+                    Setting::Formula(_) => key.get(&self.rules),
+                };
+                (value, u)
+            });
+            let cases = entry
+                .cases
+                .iter()
+                .filter_map(|c| Some((c.value, c.unclear.as_ref()?)));
+            for (value, unclear) in own.chain(cases) {
+                let limit = match value {
+                    RuleValue::Length(v) | RuleValue::Area(v) | RuleValue::Ratio(Some(v)) => v,
+                    _ => return bad(*key, "needs a limit: a length, an area or a ratio"),
+                };
+                let past = if key.is_maximum() {
+                    unclear.to > limit
+                } else {
+                    unclear.to < limit && unclear.to >= 0.0
+                };
+                if !unclear.to.is_finite() || !past {
+                    return bad(*key, "must lie past its limit");
+                }
+                if unclear.source.trim().is_empty()
+                    || unclear.source.len() > MAX_PROFILE_NOTES
+                    || unclear.source.chars().any(char::is_control)
+                {
+                    return bad(*key, "must quote its sources; texts are bounded");
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Every rule's entry, in key order.
     pub fn entries(&self) -> impl Iterator<Item = (RuleKey, &RuleEntry)> {
         self.entries.iter().map(|(k, e)| (*k, e))
@@ -833,6 +919,8 @@ impl RuleProfile {
                 )));
             }
         }
+        super::drills::check(&self.drill_rules, &self.charges)?;
+        self.check_unclear()?;
         self.check_options()?;
         if s.publisher.trim().is_empty() || !valid_date(&s.date) {
             return Err(Error::Invalid(format!(
@@ -904,6 +992,13 @@ pub struct ProfileData {
     /// "…"}`. Left out, no board is checked against it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boards: Option<ProfileBoards>,
+    /// What the fabricator makes of a board's drills, as rules over layers.
+    /// Left out, it makes through drills that stay open.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drill_rules: Vec<DrillRule>,
+    /// The charges it publishes, each with the boards it falls on.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub charges: Vec<Charge>,
     /// The manufacturing options it offers, in shown order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<FabOption>,
@@ -929,6 +1024,10 @@ pub struct EntryData {
     pub formula: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub source: String,
+    /// What lies past the limit where the fabricator's sources disagree:
+    /// `{"to": 0.15, "source": "…"}`. The value is the strictest of them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unclear: Option<Unclear>,
     /// Values that apply under some manufacturing choices, in order: the
     /// first whose `when` holds wins.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -945,6 +1044,9 @@ pub struct CaseData {
     pub value: Value,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub source: String,
+    /// As the rule's own; a case without one leaves nothing unclear.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unclear: Option<Unclear>,
 }
 
 /// A JSON value that may be absent (absent differs from `null`).
@@ -1014,6 +1116,7 @@ impl From<RuleProfile> for ProfileData {
                         value,
                         formula,
                         source: entry.source,
+                        unclear: entry.unclear,
                         cases: entry
                             .cases
                             .into_iter()
@@ -1021,6 +1124,7 @@ impl From<RuleProfile> for ProfileData {
                                 when: c.when,
                                 value: to_json(c.value),
                                 source: c.source,
+                                unclear: c.unclear,
                             })
                             .collect(),
                     },
@@ -1035,6 +1139,8 @@ impl From<RuleProfile> for ProfileData {
             source: p.source,
             drill_files: p.drill_files,
             boards: p.boards,
+            drill_rules: p.drill_rules,
+            charges: p.charges,
             options: p.options,
             chosen: p.chosen,
             rules,
@@ -1084,6 +1190,7 @@ impl TryFrom<ProfileData> for RuleProfile {
                             when: c.when,
                             value,
                             source: c.source,
+                            unclear: c.unclear,
                         })
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -1095,6 +1202,7 @@ impl TryFrom<ProfileData> for RuleProfile {
                     RuleEntry {
                         setting,
                         source: entry.source,
+                        unclear: entry.unclear,
                         cases: Vec::new(),
                     },
                 )
@@ -1110,6 +1218,8 @@ impl TryFrom<ProfileData> for RuleProfile {
         let mut profile = Self::new(&data.id, &data.name, data.source, data.drill_files, entries)?;
         profile.current_table = data.current_table;
         profile.boards = data.boards;
+        profile.drill_rules = data.drill_rules;
+        profile.charges = data.charges;
         profile.fabricator = data.fabricator;
         profile.validate()?;
         if data.options.is_empty() && cases.is_empty() && data.chosen.is_empty() {

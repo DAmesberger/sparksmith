@@ -583,6 +583,7 @@ fn holes_board(features: &[(Kind, [f64; 2])]) -> Result<(Project, Vec<ObjectRef>
                     diameter: 1.6,
                     span: ViaSpan::Through,
                     tented: true,
+                    fill: Default::default(),
                     locked: false,
                 });
                 objects.push(ObjectRef::Via { id });

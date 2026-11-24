@@ -476,6 +476,7 @@ pub(super) fn board() -> Fallible<Project> {
             diameter: 0.6,
             span: ViaSpan::Through,
             tented,
+            fill: Default::default(),
             locked: false,
         });
     }
@@ -1079,6 +1080,7 @@ fn a_mask_opening_that_closes_round_a_cavity_keeps_the_mask_in_it() -> Fallible<
         diameter: 0.2,
         span: ViaSpan::Through,
         tented: false,
+        fill: Default::default(),
         locked: false,
     });
     let files = written(&project)?;
@@ -1320,6 +1322,7 @@ fn unroutable(outline: Outline) -> Fallible<()> {
             reason: "accepted".into(),
             accepted: Vec::new(),
             footprints: Vec::new(),
+            given_for: None,
         });
     let engine = Engine::from_file(file)?;
     let report = preflight(&engine)?;
@@ -1454,6 +1457,7 @@ fn the_showcases_stale_fills_cannot_be_waived() -> Fallible<()> {
             reason: "accepted".into(),
             accepted: Vec::new(),
             footprints: Vec::new(),
+            given_for: None,
         })
         .collect();
     let mut engine = Engine::from_file(file)?;
@@ -1681,6 +1685,7 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
             reason: "accepted".into(),
             accepted: loosest.clone(),
             footprints: Vec::new(),
+            given_for: None,
         })
         .collect();
     let engine = Engine::from_file(file)?;
@@ -1786,6 +1791,7 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
         reason: "accepted".into(),
         accepted: Vec::new(),
         footprints: Vec::new(),
+        given_for: None,
     });
     waivers.sort_by(|a, b| a.key.cmp(&b.key));
     let engine = Engine::from_file(file)?;

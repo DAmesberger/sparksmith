@@ -21,6 +21,43 @@
       ],
       "source": "The profile covers PCBWay's 4-layer standard service with 1 oz inner copper (see the profile's notes)."
     },
+    "drill_rules": [
+      {
+        "id": "through",
+        "kind": "mechanical",
+        "layers": {
+          "span": "board"
+        },
+        "fills": [
+          {
+            "fill": "none"
+          },
+          {
+            "fill": "capped",
+            "not_stated": true,
+            "order": {
+              "form": [
+                {
+                  "label": "Via in pad",
+                  "choice": "tick it"
+                }
+              ],
+              "source": "https://www.pcbway.com/orderonline.aspx (read 2026-11-24): \"Via in pad\", beside \"All vias filled with resin and capped\", which fills every via."
+            },
+            "source": "PCBWay offers the fill but states no limit for conventional boards (read 2026-11-24). Its HDI page (https://www.pcbway.com/hdi-pcb.html) gives \"Diameter range of resin-filled vias 0.254-6.5mm\"; its 2016-2018 roadmap (https://www.pcbway.com/advanced-pcb-capabilities.html) gives \"Min.size can be plugged: 0.15mm(CNC)\" and at most 0.7 mm, which says only plugged and is no limit for filled and capped vias. No size is taken from either."
+          }
+        ]
+      }
+    ],
+    "charges": [
+      {
+        "when": {
+          "drill_below_mm": 0.3
+        },
+        "text": "Any holes greater than 6.3mm or smaller than 0.3mm will be subject to extra charges.",
+        "source": "Manufacturing tolerances (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html), \"Drill Sizes (CNC)\"; its capabilities page says 0.2mm. No amount is published."
+      }
+    ],
     "options": [
       {
         "id": "limits",

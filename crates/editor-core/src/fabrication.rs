@@ -22,6 +22,7 @@ pub mod drill;
 pub mod excellon;
 pub mod gerber;
 pub mod job;
+pub mod order;
 pub mod preflight;
 pub mod readback;
 pub mod snapshot;
@@ -75,7 +76,8 @@ pub struct Outputs {
     /// Gerber X2 layers and the job file.
     #[serde(default = "yes")]
     pub gerber: bool,
-    /// Excellon drill files, the drill map and the drill table.
+    /// Excellon drill files, the drill map and the drill table, and the
+    /// order notes when the order must say more than the files.
     #[serde(default = "yes")]
     pub drill: bool,
     /// Pick-and-place and BOM tables.
@@ -112,6 +114,7 @@ pub enum FileGroup {
     Job,
     Assembly,
     Drawing,
+    Order,
 }
 
 /// One generated file: its name inside the output folder (or ZIP), its
@@ -200,7 +203,8 @@ pub fn base_name(project: &Project, options: &FabricationOptions) -> Result<Stri
 }
 
 /// Every text file of the set for `snapshot`: Gerber layers and the job
-/// file, drill files, drill map and table, pick-and-place and BOM, in a
+/// file, drill files, drill map and table, order notes, pick-and-place and
+/// BOM, in a
 /// fixed order, all from the snapshot's one project, and the drawings'
 /// data ([`FabricationSet::drawing`], [`drawing::data`] under the host's
 /// check `settings`). Deterministic: the same snapshot and options give
@@ -345,6 +349,9 @@ fn fabrication_files(
     if options.outputs.gerber {
         let job = job::file(project, identity, options, stem, &files)?;
         files.push(job);
+    }
+    if options.outputs.drill {
+        files.extend(order::file(project, identity, stem));
     }
     Ok(files)
 }

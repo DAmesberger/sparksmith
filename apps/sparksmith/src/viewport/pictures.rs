@@ -754,6 +754,7 @@ fn opening_3d_timings() -> Result<(), Box<dyn std::error::Error>> {
                     diameter: 0.6,
                     span: sparksmith_core::ViaSpan::Through,
                     tented: k % 2 == 0,
+                    fill: Default::default(),
                     locked: false,
                 });
             }

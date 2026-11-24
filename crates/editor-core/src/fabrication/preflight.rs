@@ -18,7 +18,7 @@ use crate::layout::{self, BoardDrawing, CopperRing, PlacedItem};
 use crate::library::{Drafts, PackageModel};
 use crate::model::board::CutoutKind;
 use crate::model::production::{
-    Acceptance, MAX_ACCEPTED, MAX_WAIVE_KEYS, MAX_WAIVER_TEXT, Production, Waiver,
+    Acceptance, MAX_ACCEPTED, MAX_WAIVE_KEYS, MAX_WAIVER_TEXT, Production, Subject, Waiver,
 };
 use crate::model::{CopperLayer, Layer, Project, Track};
 use crate::rules::RuleProfile;
@@ -91,6 +91,19 @@ pub fn apply(
                         .into(),
                 ));
             }
+            let unstated = |k: &String| {
+                needs_reason(code_of(k))
+                    || accepted
+                        .get(k)
+                        .is_some_and(|a| a.subject.given_for.is_some())
+            };
+            if reason.is_empty() && keys.iter().any(unstated) {
+                return Err(Error::Invalid(
+                    "fabrication.waiver_reason: the fabricator states nothing about this, so \
+                     accepting it needs a reason"
+                        .into(),
+                ));
+            }
             if keys.len() > MAX_WAIVE_KEYS
                 || reason.len() > MAX_WAIVER_TEXT
                 || reason.chars().any(char::is_control)
@@ -111,9 +124,10 @@ pub fn apply(
                 )));
             }
             if let Some(k) = keys.iter().find(|k| {
-                accepted
-                    .get(*k)
-                    .is_some_and(|a| a.measured.len() > MAX_ACCEPTED)
+                accepted.get(*k).is_some_and(|a| {
+                    let vias = a.subject.given_for.as_ref().map_or(0, |g| g.vias.len());
+                    a.measured.len().max(vias) > MAX_ACCEPTED
+                })
             }) {
                 return Err(Error::Limit(format!(
                     "fabrication.waiver_bounds: `{k}` measures more than {MAX_ACCEPTED} numbers"
@@ -123,7 +137,8 @@ pub fn apply(
                 let what = accepted.get(&key).cloned().unwrap_or_default();
                 let waiver = Waiver {
                     accepted: what.measured,
-                    footprints: what.footprints,
+                    footprints: what.subject.footprints,
+                    given_for: what.subject.given_for,
                     reason: reason.clone(),
                     key,
                 };
@@ -181,6 +196,11 @@ pub struct PreflightItem {
     /// ([`Self::offers_waiver`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub needs: Option<crate::rules::requirement::Needed>,
+    /// What the fab profile does not state, where the fabricator's own
+    /// sources disagree; `source` quotes them. Such a finding is waived only
+    /// with a reason, for this profile and these vias.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_stated: Option<crate::rules::requirement::Needed>,
 }
 
 /// A waiver that counts for nothing: what it accepted, and why it no longer
@@ -236,15 +256,24 @@ pub use crate::issues::{NO_WAIVER, SLOT_UNROUTABLE, can_waive};
 
 /// Whether the finding a waiver key names may not be waived.
 fn unwaivable(key: &str) -> bool {
-    let code = key.split_whitespace().next().unwrap_or_default();
-    !can_waive(code)
+    !can_waive(code_of(key))
+}
+
+/// The code a waiver key begins with.
+fn code_of(key: &str) -> &str {
+    key.split_whitespace().next().unwrap_or_default()
+}
+
+/// Whether a waiver of `code` always states its reason.
+pub fn needs_reason(code: &str) -> bool {
+    crate::issues::NEEDS_REASON.contains(&code)
 }
 
 /// What a waiver accepts of one key.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Accepted {
     pub measured: Vec<Measured>,
-    pub footprints: Vec<DefinitionId>,
+    pub subject: Subject,
 }
 
 /// What waiving `keys` accepts on `project` (a snapshot's): the numbers of
@@ -263,15 +292,20 @@ pub fn accepted(
     let mut out: BTreeMap<String, Accepted> = keys
         .iter()
         .filter_map(|k| {
-            let objects = crate::model::production::StoredKey::parse(k)?.objects;
+            let stored = crate::model::production::StoredKey::parse(k)?;
             let accepted = Accepted {
-                footprints: crate::instances::pad_footprints(project, &objects),
+                subject: crate::issues::waived_subject(
+                    project,
+                    &stored.code,
+                    &stored.objects,
+                    None,
+                ),
                 ..Accepted::default()
             };
             Some(((*k).to_owned(), accepted))
         })
         .collect();
-    let mut take = |k: String, measured: &[Measured]| {
+    let take = |out: &mut BTreeMap<String, Accepted>, k: String, measured: &[Measured]| {
         let all = &mut out.entry(k).or_default().measured;
         for m in measured {
             if !all.iter().any(|a| a.accepts(m)) {
@@ -288,7 +322,9 @@ pub fn accepted(
         if !keys.contains(k.as_str()) {
             continue;
         }
-        if let Some(requirement) = &row.finding.requirement {
+        if let Some(requirement) = &row.finding.requirement
+            && crate::issues::needs_profile(project, &row.finding)
+        {
             let need =
                 crate::rules::requirement::describe(requirement, project.rules.profile.as_ref())
                     .map_or_else(String::new, |n| format!("{}; ", n.text));
@@ -296,11 +332,21 @@ pub fn accepted(
                 "fabrication.not_waivable: `{k}` cannot be waived. {need}switch to a fab profile that allows it (fabrication.profile_suggestions) or change the design"
             )));
         }
-        take(k, &row.finding.measured);
+        if row.finding.requirement.is_some()
+            && let Some(a) = out.get_mut(&k)
+        {
+            a.subject = crate::issues::waived_subject(
+                project,
+                &row.finding.code,
+                &row.finding.objects,
+                row.finding.requirement.as_ref(),
+            );
+        }
+        take(&mut out, k, &row.finding.measured);
     }
     for (k, measured) in legend_measured(project) {
         if keys.contains(k.as_str()) {
-            take(k, &measured);
+            take(&mut out, k, &measured);
         }
     }
     Ok(out)
@@ -329,6 +375,9 @@ fn instead(code: &str) -> &'static str {
         "board.overlap" => "move the copper apart",
         "board.shape_unsolved" | layout::outline::SHAPE_OPEN | layout::outline::SHAPE_INVALID => {
             "make the board outline valid (Board shape)"
+        }
+        layout::via_fill::NOT_MADE => {
+            "choose a fab profile that makes it (fabrication.profile_suggestions), or change the via"
         }
         "fabrication.no_footprint" => {
             "choose a footprint for the part, or take it out of the design"
@@ -415,11 +464,14 @@ pub fn check(
             row.detail.fix.clone(),
             row.finding.objects.clone(),
         );
-        found.needs = row
-            .finding
-            .requirement
-            .as_ref()
-            .and_then(|r| crate::rules::requirement::describe(r, p.rules.profile.as_ref()));
+        found.not_stated = crate::issues::not_stated(p, &row.finding);
+        if found.not_stated.is_none() {
+            found.needs = row
+                .finding
+                .requirement
+                .as_ref()
+                .and_then(|r| crate::rules::requirement::describe(r, p.rules.profile.as_ref()));
+        }
         found.measured.clone_from(&row.finding.measured);
         items.push(found);
     }
@@ -439,8 +491,11 @@ pub fn check(
         if unwaivable(&i.key) || i.needs.is_some() {
             continue;
         }
-        let footprints = || crate::instances::pad_footprints(p, &i.objects);
-        match p.production.acceptance(&i.key, &i.measured, footprints) {
+        let subject = || {
+            let requirement = i.not_stated.as_ref().map(|n| &n.requirement);
+            crate::issues::waived_subject(p, &i.code, &i.objects, requirement)
+        };
+        match p.production.acceptance(&i.key, &i.measured, subject) {
             Acceptance::None => {}
             Acceptance::Holds(waiver) => i.waiver = Some(waiver.clone()),
             Acceptance::Lapsed(waiver, text) => {
@@ -489,6 +544,7 @@ fn item(
         lapsed: None,
         measured: Vec::new(),
         needs: None,
+        not_stated: None,
     }
 }
 

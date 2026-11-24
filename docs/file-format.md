@@ -151,11 +151,11 @@ The declarations are data in `sparksmith_core::format::records`, and the encoder
 | `schematic/sheet-<id>.jsonl` | `type` `drawing`: `id`, `type`, `item`<br>`junction`: `id`, `type`, `position`, `placed`<br>`label`: `id`, `type`, `name`, `kind`, `position`, `rotation`, `manual`<br>`occurrence`: `id`, `type`, `instance`, `unit`, `position`, `rotation`, `mirror`<br>`sheet_symbol`: `id`, `type`, `child`, `position`, `size`, `pins`<br>`wire`: `id`, `type`, `from`, `to`, `corners` | `type`, then `id` | refused |
 | `board/placements.jsonl` | `instance`, `layer`, `position`, `rotation_deg`, `locked` | `instance` | allowed |
 | `board/tracks.jsonl` | `id`, `net`, `layer`, `width`, `start`, `end`, `locked` | `net`, then `id` | allowed |
-| `board/vias.jsonl` | `id`, `net`, `span`, `drill`, `diameter`, `position`, `tented`, `locked` | `net`, then `id` | allowed |
+| `board/vias.jsonl` | `id`, `net`, `span`, `drill`, `diameter`, `position`, `tented`, `fill` (left out when open), `locked` | `net`, then `id` | allowed |
 | `board/fills.jsonl` | `id`, `net`, `layer`, `name`, `region`, `priority`, `settings`, `outline`, `locked` | `id` | allowed |
 | `board/keepouts.jsonl` | `id`, `name`, `layers`, `forbid`, `outline` | `id` | allowed |
 | `board/dimensions.jsonl` | `id`, `kind`, `refs`, `value`, `reference` | `id` | allowed |
-| `rules/waivers.jsonl` | `key`, `accepted`, `footprints`, `reason` | `key` | allowed (numbers a check measured, of any unit) |
+| `rules/waivers.jsonl` | `key`, `accepted`, `footprints`, `given_for`, `reason` | `key` | allowed (numbers a check measured, of any unit) |
 
 | Document | Members after `format` and `version`, in order | Tables |
 |---|---|---|

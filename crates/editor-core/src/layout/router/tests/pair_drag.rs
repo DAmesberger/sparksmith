@@ -92,6 +92,7 @@ fn large(vias: usize) -> Fallible<(Project, DiffPair)> {
             diameter: 0.6,
             span: ViaSpan::Through,
             tented: true,
+            fill: Default::default(),
             locked: false,
         });
         if k % 2 == 0 && k % columns != columns - 1 && p.tracks.len() < 1_900 {

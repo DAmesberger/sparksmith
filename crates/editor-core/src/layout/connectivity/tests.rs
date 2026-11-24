@@ -48,6 +48,7 @@ pub(super) fn via(project: &mut Project, position: Point, span: ViaSpan) -> Resu
         diameter: 0.6,
         span,
         tented: true,
+        fill: Default::default(),
         locked: false,
     });
     Ok(id)

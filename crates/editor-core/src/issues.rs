@@ -251,7 +251,13 @@ pub const NO_WAIVER: &[&str] = &[
     layout::outline::SHAPE_INVALID,
     "fabrication.no_footprint",
     crate::diagnostics::FindingCode::InstanceCheckFailed.as_str(),
+    // The fabricator does not make it, whoever accepts it.
+    layout::via_fill::NOT_MADE,
 ];
+
+/// Findings a waiver accepts only with a reason, whatever Settings say: the
+/// fabricator states nothing, so the reason is all there is.
+pub const NEEDS_REASON: &[&str] = &[layout::via_fill::NOT_STATED];
 
 /// A plated board slot the drill file cannot route (not a straight slot
 /// with round ends), with the slot's feature id after a dot. The only
@@ -307,8 +313,44 @@ fn acceptance<'a>(project: &'a Project, finding: &Finding) -> Acceptance<'a> {
     project.production.acceptance(
         &crate::model::production::waiver_key(&finding.code, &finding.objects),
         &finding.measured,
-        || crate::instances::pad_footprints(project, &finding.objects),
+        || {
+            waived_subject(
+                project,
+                &finding.code,
+                &finding.objects,
+                finding.requirement.as_ref(),
+            )
+        },
     )
+}
+
+/// What a finding of `code` about `objects` is of, as a waiver of it keeps
+/// it.
+pub(crate) fn waived_subject(
+    project: &Project,
+    code: &str,
+    objects: &[ObjectRef],
+    requirement: Option<&crate::diagnostics::Requirement>,
+) -> crate::model::production::Subject {
+    crate::model::production::Subject {
+        footprints: crate::instances::pad_footprints(project, objects),
+        given_for: layout::via_fill::given_for(project, code, objects, requirement),
+    }
+}
+
+/// What the board's profile does not state that `finding` is about.
+pub(crate) fn not_stated(
+    project: &Project,
+    finding: &Finding,
+) -> Option<crate::rules::requirement::Needed> {
+    let profile = project.rules.profile.as_ref();
+    crate::rules::requirement::not_stated(finding.requirement.as_ref()?, profile)
+}
+
+/// Whether only another profile or another design clears `finding`: it
+/// breaks a limit its profile states.
+pub(crate) fn needs_profile(project: &Project, finding: &Finding) -> bool {
+    finding.requirement.is_some() && not_stated(project, finding).is_none()
 }
 
 /// The report of `scope` from every raw finding of the project, by area:
@@ -589,19 +631,23 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
     // A waiver that no longer accepts it is why the row is here.
     let lapsed = std::iter::once(&finding)
         .chain(&also)
-        .filter(|f| can_waive(&f.code) && f.requirement.is_none())
+        .filter(|f| can_waive(&f.code) && !needs_profile(names.project(), f))
         .find_map(|f| match acceptance(names.project(), f) {
             Acceptance::Lapsed(_, text) => Some(text),
             _ => None,
         });
-    let cause = match (lapsed, cause) {
-        (Some(lapsed), Some(cause)) => Some(format!("{lapsed}; {cause}")),
-        (lapsed, cause) => lapsed.or(cause),
-    };
+    // What the fabricator's own pages disagree on, quoted.
+    let unstated = std::iter::once(&finding)
+        .chain(&also)
+        .find_map(|f| not_stated(names.project(), f))
+        .map(|n| format!("{}: {}", n.text, n.source));
+    let cause: Vec<String> = [lapsed, cause, unstated].into_iter().flatten().collect();
+    let cause = (!cause.is_empty()).then(|| cause.join("; "));
     let profile = names.project().rules.profile.as_ref();
     let needs = crate::rules::requirement::tightest(
         std::iter::once(&finding)
             .chain(&also)
+            .filter(|f| needs_profile(names.project(), f))
             .filter_map(|f| f.requirement.as_ref()),
     )
     .iter()

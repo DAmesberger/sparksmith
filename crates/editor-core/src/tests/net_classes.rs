@@ -3,8 +3,12 @@
 //! `net_class.*` queries describe membership without applying anything.
 use super::support::*;
 use crate::layout::{self, LayoutCommand, RouteRequest};
+use crate::model::CopperLayer;
 use crate::rules::netclass::{ClassBasis, NetClassReport};
-use crate::rules::{NetClassId, NetClassPattern, NetClassSpec, RulesCommand};
+use crate::rules::{
+    ClassLayer, ClassSpan, ClassVias, NetClass, NetClassId, NetClassPattern, NetClassSpec,
+    RulesCommand,
+};
 use crate::schematic::SchematicCommand;
 use crate::{Engine, Error, Layer, Operation, Outcome, Query, QueryResult, Result};
 
@@ -598,6 +602,208 @@ fn a_bad_fill_clearance_is_refused_and_an_unset_one_stays_off_the_wire() -> Resu
             .class(id)
             .and_then(|c| c.fill_clearance),
         None
+    );
+    Ok(())
+}
+
+/// Red when the class's vias are not read by one of: adding a via, a route
+/// edit set, the board check.
+#[test]
+fn a_class_allows_its_nets_so_many_vias() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let net = engine.project().nets.first().map(|n| n.id);
+    let net = net.ok_or_else(|| Error::NotFound("a net".into()))?;
+    let name = engine.project().net_name(net).to_owned();
+    let row = |max| NetClassSpec {
+        name: "B-row".into(),
+        vias: Some(ClassVias {
+            spans: Some(vec![ClassSpan::Through]),
+            max: Some(max),
+        }),
+        ..Default::default()
+    };
+    let class = add_class(&mut engine, row(1))?;
+    assign(&mut engine, vec![net], Some(class))?;
+    let [w, h] = engine.project().board_size;
+    let via = |k: f64| layout::ViaRequest::fixture(net, [w - 1.0 - 3.0 * k, h - 1.0]);
+    let add = |via| Operation::Layout(LayoutCommand::AddVia { via });
+    apply(&mut engine, add(via(0.0)))?;
+    let edits = Operation::Layout(LayoutCommand::ApplyRoute {
+        edits: layout::RouteEditSet {
+            vias: vec![via(1.0)],
+            ..Default::default()
+        },
+    });
+    for second in [add(via(1.0)), edits] {
+        let refused = apply(&mut engine, second).err().map(|e| e.to_string());
+        assert_eq!(
+            refused,
+            Some(format!("Net class B-row allows 1 via on {name}"))
+        );
+    }
+    assert!(layout::via_class::findings(engine.project()).is_empty());
+    assert!(
+        layout::via_class::check_change(engine.project(), net, CopperLayer::Bottom, true).is_err()
+    );
+    // A class edit leaves the copper and the check tells it.
+    let edited = |max| {
+        Operation::Rules(RulesCommand::EditNetClass {
+            class: NetClass::from_spec(class, row(max)),
+        })
+    };
+    apply(&mut engine, edited(2))?;
+    apply(&mut engine, add(via(1.0)))?;
+    apply(&mut engine, edited(1))?;
+    let found = layout::via_class::findings(engine.project());
+    assert_eq!(
+        found.iter().map(|f| f.message.clone()).collect::<Vec<_>>(),
+        [format!(
+            "Via on {name}: net class B-row allows 1 via, this is the 2nd"
+        )]
+    );
+    // A waiver holds for the second via, not for a third.
+    assert!(found.iter().all(|f| !f.measured.is_empty()));
+    apply(&mut engine, edited(0))?;
+    assert_eq!(layout::via_class::findings(engine.project()).len(), 2);
+    Ok(())
+}
+
+/// Red when a class's layers are not read by routing or the board check.
+#[test]
+fn a_class_keeps_its_nets_on_its_layers() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let net = engine.project().nets.first().map(|n| n.id);
+    let net = net.ok_or_else(|| Error::NotFound("a net".into()))?;
+    let name = engine.project().net_name(net).to_owned();
+    let row = |layers| NetClassSpec {
+        name: "A-row".into(),
+        layers,
+        ..Default::default()
+    };
+    let class = add_class(&mut engine, row(Some(vec![ClassLayer::Top])))?;
+    assign(&mut engine, vec![net], Some(class))?;
+    let [w, h] = engine.project().board_size;
+    let route = |layer| {
+        Operation::Layout(LayoutCommand::ApplyRoute {
+            edits: layout::RouteEditSet {
+                add: vec![RouteRequest {
+                    net,
+                    start: [w - 4.0, h - 1.0],
+                    end: [w - 2.0, h - 1.0],
+                    width: 0.25,
+                    layer,
+                }],
+                ..Default::default()
+            },
+        })
+    };
+    let refused = apply(&mut engine, route(CopperLayer::Bottom));
+    assert_eq!(
+        refused.err().map(|e| e.to_string()),
+        Some(format!("Net class A-row does not allow {name} on Bottom"))
+    );
+    let edited = |layers| {
+        Operation::Rules(RulesCommand::EditNetClass {
+            class: NetClass::from_spec(class, row(layers)),
+        })
+    };
+    apply(&mut engine, edited(None))?;
+    apply(&mut engine, route(CopperLayer::Bottom))?;
+    assert!(layout::via_class::findings(engine.project()).is_empty());
+    apply(&mut engine, edited(Some(vec![ClassLayer::Top])))?;
+    let found = layout::via_class::findings(engine.project());
+    assert_eq!(
+        found.iter().map(|f| f.message.clone()).collect::<Vec<_>>(),
+        [format!(
+            "Track on {name}: net class A-row does not allow Bottom"
+        )]
+    );
+    // A list without a layer, or with one twice, is no list.
+    for bad in [vec![], vec![ClassLayer::Top, ClassLayer::Top]] {
+        assert!(apply(&mut engine, edited(Some(bad))).is_err());
+    }
+    Ok(())
+}
+
+/// Red when a stackup edit rewrites a class's layers, or moves or drops a
+/// layer it names without a word.
+#[test]
+fn a_class_that_names_a_moved_or_lost_layer_keeps_it_and_is_told() -> Result<()> {
+    use crate::layout::restack::{LayerMove, StackupEdit};
+    let mut engine = Engine::demo()?;
+    let four = crate::model::Stackup::preset(4)?;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::SetStackup(four.clone())),
+    )?;
+    let net = engine.project().nets.first().map(|n| n.id);
+    let net = net.ok_or_else(|| Error::NotFound("a net".into()))?;
+    let named = Some(vec![ClassLayer::Top, ClassLayer::Inner(1)]);
+    let spec = NetClassSpec {
+        name: "A-row".into(),
+        layers: named.clone(),
+        ..Default::default()
+    };
+    let class = add_class(&mut engine, spec)?;
+    assign(&mut engine, vec![net], Some(class))?;
+    let told = |engine: &Engine| -> Vec<String> {
+        layout::via_class::findings(engine.project())
+            .into_iter()
+            .map(|f| f.message)
+            .collect()
+    };
+    let now = |engine: &Engine| engine.project().rules.class(class).cloned();
+    let layers = |engine: &Engine| now(engine).and_then(|c| c.layers);
+    assert!(told(&engine).is_empty());
+    let (one, two) = (CopperLayer::Inner(1), CopperLayer::Inner(2));
+    let swap = StackupEdit {
+        stackup: four,
+        moves: vec![
+            LayerMove { from: one, to: two },
+            LayerMove { from: two, to: one },
+        ],
+        removed: Vec::new(),
+    };
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::EditStackup(swap)),
+    )?;
+    assert_eq!(layers(&engine), named);
+    assert_eq!(
+        told(&engine),
+        ["Net class A-row names Inner 1, which the stackup moved"]
+    );
+    // Another edit of the class does not settle it; confirming it does.
+    let moved = now(&engine).ok_or_else(|| Error::NotFound("the class".into()))?;
+    let edit = |class| Operation::Rules(RulesCommand::EditNetClass { class });
+    apply(
+        &mut engine,
+        edit(NetClass {
+            track_width: Some(0.3),
+            ..moved.clone()
+        }),
+    )?;
+    assert_eq!(told(&engine).len(), 1);
+    apply(
+        &mut engine,
+        edit(NetClass {
+            moved_layers: Vec::new(),
+            ..moved.clone()
+        }),
+    )?;
+    assert!(told(&engine).is_empty());
+    // An edit cannot say that a layer moved.
+    apply(&mut engine, edit(moved))?;
+    assert!(told(&engine).is_empty());
+    let two_layers = crate::model::Stackup::preset(2)?;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::SetStackup(two_layers)),
+    )?;
+    assert_eq!(layers(&engine), named);
+    assert_eq!(
+        told(&engine),
+        ["Net class A-row names Inner 1, which the board does not have"]
     );
     Ok(())
 }

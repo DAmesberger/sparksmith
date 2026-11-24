@@ -50,6 +50,16 @@ pub enum CopperLayer {
     Bottom,
 }
 
+impl From<CopperLayer> for crate::rules::ClassLayer {
+    fn from(layer: CopperLayer) -> Self {
+        match layer {
+            CopperLayer::Top => Self::Top,
+            CopperLayer::Inner(n) => Self::Inner(n),
+            CopperLayer::Bottom => Self::Bottom,
+        }
+    }
+}
+
 impl CopperLayer {
     /// The board side of an outer layer; `None` for an inner layer.
     pub fn side(self) -> Option<Layer> {

@@ -206,7 +206,7 @@ pub const VIAS: Collection = Collection {
     type_field: None,
     sort: &["net", "id"],
     records: records!(&[
-        "id", "net", "span", "drill", "diameter", "position", "tented", "locked",
+        "id", "net", "span", "drill", "diameter", "position", "tented", "fill", "locked",
     ]),
     numbers: Numbers::FloatsAllowed,
 };
@@ -254,7 +254,7 @@ pub const WAIVERS: Collection = Collection {
     header: &[],
     type_field: None,
     sort: &["key"],
-    records: records!(&["key", "accepted", "footprints", "reason"]),
+    records: records!(&["key", "accepted", "footprints", "given_for", "reason"]),
     numbers: Numbers::FloatsAllowed,
 };
 

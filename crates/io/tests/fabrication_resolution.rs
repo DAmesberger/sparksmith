@@ -365,6 +365,7 @@ fn an_incomplete_graph_preserves_open_pads_and_blocks_release() -> Fallible<()> 
         reason: "Old waiver".into(),
         accepted: Vec::new(),
         footprints: Vec::new(),
+        given_for: None,
     });
     let engine = Engine::from_file(file)?;
     let after = check(&engine)?;

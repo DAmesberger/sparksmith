@@ -177,6 +177,7 @@ fn report_with_error(engine: &Engine) -> PreflightReport {
             objects: Vec::new(),
             waiver,
             needs: None,
+            not_stated: None,
             lapsed: None,
             measured: Vec::new(),
         }],
@@ -492,6 +493,7 @@ fn report_like_the_run(engine: &Engine) -> PreflightReport {
             objects: Vec::new(),
             waiver,
             needs: None,
+            not_stated: None,
             lapsed: None,
             measured: Vec::new(),
         }
@@ -1303,6 +1305,7 @@ fn a_row_says_what_was_accepted_and_what_it_is_now() -> TestResult {
         reason: "taken".into(),
         accepted: vec![Measured::at_least(0.15, 0.2, Unit::Mm, 0.0)],
         footprints: Vec::new(),
+        given_for: None,
     };
     item.waiver = Some(waiver.clone());
     assert_eq!(row_title(&item), item.title);

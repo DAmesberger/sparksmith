@@ -92,6 +92,55 @@ pub struct KVia {
     pub tenting: Option<(bool, bool)>,
     /// Inner layers where unused annular rings are removed.
     pub remove_unused_layers: bool,
+    /// Its other settings, as the file writes them ("token value"): the
+    /// public file-format documentation does not say what they mean.
+    pub unread: Vec<String>,
+}
+
+/// The children of a via the public file-format documentation describes,
+/// and the ones this importer reads beside them.
+const VIA_TOKENS: [&str; 13] = [
+    "at",
+    "size",
+    "drill",
+    "layers",
+    "net",
+    "tenting",
+    "remove_unused_layers",
+    "keep_end_layers",
+    "free",
+    "locked",
+    "tstamp",
+    "uuid",
+    "teardrops",
+];
+
+/// A list's words, bounded: its keyword and the words under it.
+fn words(node: &Node) -> String {
+    const MAX: usize = 120;
+    let mut out = String::new();
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        match node.atom() {
+            Some(text) => {
+                if !out.is_empty() {
+                    out.push(' ');
+                }
+                out.push_str(text);
+            }
+            None => {
+                stack.extend(node.args().iter().rev());
+                if let Some(head) = node.head() {
+                    out.push_str(if out.is_empty() { "" } else { " " });
+                    out.push_str(head);
+                }
+            }
+        }
+        if out.chars().count() > MAX {
+            return out.chars().take(MAX).collect();
+        }
+    }
+    out
 }
 
 /// How a zone joins pads of its net.
@@ -427,6 +476,12 @@ pub fn via(node: &Node) -> Result<KVia> {
                 .args()
                 .iter()
                 .any(|a| a.atom() == Some("remove_unused_layers")),
+        unread: node
+            .args()
+            .iter()
+            .filter(|n| n.head().is_some_and(|h| !VIA_TOKENS.contains(&h)))
+            .map(words)
+            .collect(),
     })
 }
 

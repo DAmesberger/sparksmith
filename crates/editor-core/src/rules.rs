@@ -26,6 +26,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub mod current;
+pub mod drills;
 pub mod fabricator;
 pub mod formula;
 pub mod netclass;
@@ -33,6 +34,7 @@ pub mod profile;
 pub mod requirement;
 pub mod signal;
 
+pub use drills::{Charge, DrillRule, ViaFill};
 pub use fabricator::{FABRICATOR_FILE_FORMAT, Fabricator, FabricatorFile};
 pub use profile::{
     BoardSetting, ChoiceRequires, DrillFiles, FabChoice, FabOption, PROFILE_FILE_FORMAT,
@@ -40,8 +42,8 @@ pub use profile::{
 };
 
 pub use netclass::{
-    ClassClearance, NetClass, NetClassAssignment, NetClassId, NetClassPattern, NetClassSpec,
-    glob_matches,
+    ClassClearance, ClassLayer, ClassSpan, ClassVias, NetClass, NetClassAssignment, NetClassId,
+    NetClassPattern, NetClassSpec, glob_matches,
 };
 
 /// A fab profile as a request names it: by id, or the whole profile.
@@ -287,6 +289,13 @@ pub struct HoleRules {
     pub aspect_ratio_max: Option<f64>,
     pub via_drill_default: f64,
     pub via_diameter_default: f64,
+    /// Smallest finished hole of a via that is filled and capped; unset
+    /// where the fabricator states none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capped_drill_min: Option<f64>,
+    /// Largest one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capped_drill_max: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -489,6 +498,8 @@ impl DesignRules {
                 aspect_ratio_max: None,
                 via_drill_default: 0.0,
                 via_diameter_default: 0.0,
+                capped_drill_min: None,
+                capped_drill_max: None,
             },
             mask: MaskRules {
                 expansion: 0.0,
@@ -558,6 +569,8 @@ impl Default for DesignRules {
                 aspect_ratio_max: None,
                 via_drill_default: 0.3,
                 via_diameter_default: 0.6,
+                capped_drill_min: None,
+                capped_drill_max: None,
             },
             mask: MaskRules {
                 expansion: 0.05,
@@ -676,6 +689,8 @@ pub enum RuleKey {
     ThermalAngleRound,
     FiducialCountMin,
     FiducialsAsymmetric,
+    CappedDrillMin,
+    CappedDrillMax,
 }
 
 /// A rule's value.
@@ -747,6 +762,8 @@ impl RuleKey {
             Self::PairGapToleranceShare,
             Self::FiducialCountMin,
             Self::FiducialsAsymmetric,
+            Self::CappedDrillMin,
+            Self::CappedDrillMax,
         ]);
         keys
     }
@@ -770,15 +787,25 @@ impl RuleKey {
         Self::all().into_iter().find(|k| k.name() == name)
     }
 
+    /// Whether the rule is a most; every other limit is a least.
+    pub fn is_maximum(self) -> bool {
+        matches!(self, Self::AspectRatioMax | Self::CappedDrillMax)
+    }
+
     /// Whether a profile may leave this key out. [`Self::ThermalAngleRound`]
     /// may: without it, round pads and vias take [`Self::ThermalAngle`] as
     /// every other pad does, as profiles written before it was added say.
     /// So may the assembly rules ([`AssemblyRules`]): a fabricator that
     /// does not assemble boards publishes none, and they are not checked.
+    /// So may the hole sizes of filled and capped vias.
     pub fn optional(self) -> bool {
         matches!(
             self,
-            Self::ThermalAngleRound | Self::FiducialCountMin | Self::FiducialsAsymmetric
+            Self::ThermalAngleRound
+                | Self::FiducialCountMin
+                | Self::FiducialsAsymmetric
+                | Self::CappedDrillMin
+                | Self::CappedDrillMax
         )
     }
 
@@ -789,6 +816,8 @@ impl RuleKey {
             Self::ThermalAngleRound => rules.fill.thermal_angle_round.is_some(),
             Self::FiducialCountMin => rules.assembly.fiducial_count_min.is_some(),
             Self::FiducialsAsymmetric => rules.assembly.fiducials_asymmetric.is_some(),
+            Self::CappedDrillMin => rules.holes.capped_drill_min.is_some(),
+            Self::CappedDrillMax => rules.holes.capped_drill_max.is_some(),
             _ => true,
         }
     }
@@ -825,7 +854,9 @@ impl RuleKey {
             | Self::NpthAnnularRingMin
             | Self::AspectRatioMax
             | Self::ViaDrillDefault
-            | Self::ViaDiameterDefault => RuleGroup::HolesAndVias,
+            | Self::ViaDiameterDefault
+            | Self::CappedDrillMin
+            | Self::CappedDrillMax => RuleGroup::HolesAndVias,
             Self::MaskExpansion | Self::MaskWebMin | Self::TentVias => RuleGroup::Mask,
             Self::SilkLineWidthMin
             | Self::SilkTextHeightMin
@@ -871,6 +902,8 @@ impl RuleKey {
                 Self::AspectRatioMax => "max aspect ratio",
                 Self::ViaDrillDefault => "default via drill",
                 Self::ViaDiameterDefault => "default via diameter",
+                Self::CappedDrillMin => "min filled via hole",
+                Self::CappedDrillMax => "max filled via hole",
                 Self::MaskExpansion => "mask expansion",
                 Self::MaskWebMin => "min mask web",
                 Self::TentVias => "tent vias",
@@ -962,6 +995,8 @@ impl RuleKey {
             Self::PairGapToleranceShare => Fraction(rules.pair.gap_tolerance_share),
             Self::FiducialCountMin => Count(rules.assembly.fiducial_count_min.unwrap_or(0)),
             Self::FiducialsAsymmetric => Flag(rules.assembly.fiducials_asymmetric.unwrap_or(false)),
+            Self::CappedDrillMin => Length(rules.holes.capped_drill_min.unwrap_or(0.0)),
+            Self::CappedDrillMax => Length(rules.holes.capped_drill_max.unwrap_or(0.0)),
         }
     }
 
@@ -1076,6 +1111,8 @@ impl RuleKey {
                 rules.assembly.fiducials_asymmetric = Some(f);
                 return Ok(());
             }
+            Self::CappedDrillMin => rules.holes.capped_drill_min.insert(0.0),
+            Self::CappedDrillMax => rules.holes.capped_drill_max.insert(0.0),
         };
         let Some(mm) = length(value) else {
             return wrong();

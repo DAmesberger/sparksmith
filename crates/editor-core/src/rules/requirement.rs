@@ -158,6 +158,28 @@ pub fn describe(requirement: &Requirement, profile: Option<&RuleProfile>) -> Opt
                 text: format!("Needs a profile for {count}-layer boards"),
             }
         }
+        Requirement::ViaFill { fill } => {
+            let fill = super::ViaFill::ALL.into_iter().find(|f| f.id() == fill)?;
+            let words = fill.label().to_lowercase();
+            let verdict = profile.map(|p| super::drills::through_fill(&p.drill_rules, fill));
+            let source = match verdict {
+                Some(super::drills::Verdict::NotMade(source)) => source.to_owned(),
+                Some(super::drills::Verdict::NotStated(rule)) => rule.source.clone(),
+                _ => String::new(),
+            };
+            Needed {
+                requirement: requirement.clone(),
+                rule: "via fill".into(),
+                measured: format!("{words} vias"),
+                limit: profile.map(|_| "open vias".into()),
+                source: match profile {
+                    Some(p) if source.trim().is_empty() => document(p),
+                    _ => source,
+                },
+                profile: name,
+                text: format!("Needs {words} vias"),
+            }
+        }
         Requirement::MaskColour { colour } => {
             let option = profile.and_then(|p| p.following(super::BoardSetting::MaskColour));
             Needed {
@@ -178,6 +200,54 @@ pub fn describe(requirement: &Requirement, profile: Option<&RuleProfile>) -> Opt
         }
     };
     Some(needed)
+}
+
+/// What `profile` does not state of `requirement`: what the board has lies
+/// past the rule's limit and within what the fabricator's own sources
+/// disagree on ([`super::profile::Unclear`]), or is a via fill it offers
+/// without stating it. The source quotes the fabricator.
+pub fn not_stated(requirement: &Requirement, profile: Option<&RuleProfile>) -> Option<Needed> {
+    // A limit a source names is met by the same size entered.
+    const SAME: f64 = 1e-9;
+    let profile = profile?;
+    if let Requirement::ViaFill { fill } = requirement {
+        let fill = super::ViaFill::ALL.into_iter().find(|f| f.id() == fill)?;
+        let verdict = super::drills::through_fill(&profile.drill_rules, fill);
+        let need = describe(requirement, Some(profile))?;
+        return matches!(verdict, super::drills::Verdict::NotStated(_)).then(|| Needed {
+            text: format!(
+                "{} does not state what it makes of {}",
+                profile.name, need.measured
+            ),
+            ..need
+        });
+    }
+    let (Requirement::AtMost { rule, value } | Requirement::AtLeast { rule, value }) = requirement
+    else {
+        return None;
+    };
+    let key = RuleKey::from_name(rule)?;
+    let unclear = profile.unclear(key)?;
+    let limit = scalar(key.get(profile.rules()))?;
+    let within = if key.is_maximum() {
+        *value <= unclear.to + SAME
+    } else {
+        *value >= unclear.to - SAME
+    };
+    let need = describe(requirement, Some(profile)).filter(|_| within)?;
+    let kind = key.kind();
+    let (low, high) = (unclear.to.min(limit), unclear.to.max(limit));
+    Some(Needed {
+        text: format!(
+            "{} does not state {} between {} and {}",
+            profile.name,
+            key.label(),
+            with_unit(kind, &number(low)),
+            with_unit(kind, &number(high))
+        ),
+        source: unclear.source.clone(),
+        ..need
+    })
 }
 
 /// Whether `a` asks at least as much as `b` of a profile: the same kind of

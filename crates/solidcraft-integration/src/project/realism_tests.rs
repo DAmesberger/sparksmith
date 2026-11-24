@@ -36,6 +36,7 @@ fn four_layer() -> Result<(Project, [Id; 2], [Id; 2])> {
             diameter: 0.6,
             span: ViaSpan::Through,
             tented,
+            fill: Default::default(),
             locked: false,
         });
         vias[k] = id;

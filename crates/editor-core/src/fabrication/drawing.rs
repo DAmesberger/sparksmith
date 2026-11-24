@@ -414,6 +414,17 @@ fn notes(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Stri
             )
         ),
     ];
+    let table = super::drill::table(&super::drill::holes(project));
+    let capped: Vec<String> = table
+        .capped()
+        .map(|t| format!("T{} ({:.3} mm, {} holes)", t.number, t.diameter, t.count))
+        .collect();
+    if !capped.is_empty() {
+        out.push(format!(
+            "Vias filled and capped, IPC-4761 type VII: {}. No other via is filled.",
+            capped.join(", ")
+        ));
+    }
     out.extend(waived(project, settings));
     out.push(
         concat!(
@@ -437,32 +448,41 @@ fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Str
         return Vec::new();
     }
     let findings = layout::checks(project, settings);
-    let mut now: BTreeMap<String, Vec<&[crate::diagnostics::Measured]>> = BTreeMap::new();
+    type Now<'a> = (
+        &'a [crate::diagnostics::Measured],
+        Option<&'a crate::diagnostics::Requirement>,
+    );
+    let mut now: BTreeMap<String, Vec<Now<'_>>> = BTreeMap::new();
     for f in &findings {
         let key = crate::model::production::waiver_key(&f.code, &f.objects);
-        now.entry(key).or_default().push(&f.measured);
+        let found = (f.measured.as_slice(), f.requirement.as_ref());
+        now.entry(key).or_default().push(found);
     }
     let legend = super::preflight::legend_measured(project);
     for (key, measured) in &legend {
-        now.entry(key.clone()).or_default().push(measured);
+        now.entry(key.clone()).or_default().push((measured, None));
     }
-    let footprints = |key: &str| {
-        crate::model::production::StoredKey::parse(key).map_or_else(Vec::new, |k| {
-            crate::instances::pad_footprints(project, &k.objects)
-        })
+    let subject = |key: &str, requirement| {
+        crate::model::production::StoredKey::parse(key)
+            .map(|k| crate::issues::waived_subject(project, &k.code, &k.objects, requirement))
+            .unwrap_or_default()
     };
     waivers
         .iter()
         .filter(|w| {
             super::preflight::can_waive(w.key.split_whitespace().next().unwrap_or_default())
-                && now.get(&w.key).into_iter().flatten().all(|measured| {
-                    matches!(
-                        project
-                            .production
-                            .acceptance(&w.key, measured, || footprints(&w.key)),
-                        crate::model::production::Acceptance::Holds(_)
-                    )
-                })
+                && now
+                    .get(&w.key)
+                    .into_iter()
+                    .flatten()
+                    .all(|(measured, requirement)| {
+                        matches!(
+                            project
+                                .production
+                                .acceptance(&w.key, measured, || subject(&w.key, *requirement)),
+                            crate::model::production::Acceptance::Holds(_)
+                        )
+                    })
         })
         .map(|w| {
             let what = findings
@@ -829,12 +849,14 @@ mod tests {
                 reason: String::new(),
                 accepted: Vec::new(),
                 footprints: Vec::new(),
+                given_for: None,
             },
             Waiver {
                 key: waiver_key(&finding.code, &finding.objects),
                 reason: "Checked with the fab".into(),
                 accepted: finding.measured.clone(),
                 footprints: Vec::new(),
+                given_for: None,
             },
         ];
         project.production.waivers.sort_by(|a, b| a.key.cmp(&b.key));

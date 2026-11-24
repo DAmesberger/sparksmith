@@ -29,6 +29,52 @@ pub(super) fn frame(
     (output, command)
 }
 
+/// Red without the fill in the hover text, in the Via tool's request, or
+/// with a fill offered that the profile does not make.
+#[test]
+fn a_via_s_fill_is_offered_placed_and_named() -> TestResult {
+    use sparksmith_core::model::ViaFill;
+    use sparksmith_core::rules::RulesCommand;
+    let mut engine = Engine::demo()?;
+    let net = engine.project().nets.first().ok_or("a net")?.id;
+    let at = [3.0, 3.0];
+    let via = |fill| Via {
+        id: 1,
+        net,
+        position: at,
+        drill: 0.15,
+        diameter: 0.25,
+        span: sparksmith_core::ViaSpan::Through,
+        tented: true,
+        fill,
+        locked: false,
+    };
+    let name = engine.project().net_name(net).to_owned();
+    assert_eq!(
+        via_card::hover_text(engine.project(), &via(ViaFill::Capped)),
+        format!("Via on {name} · through, filled and capped · 0.15 / 0.25 mm")
+    );
+    assert_eq!(
+        via_card::hover_text(engine.project(), &via(ViaFill::None)),
+        format!("Via on {name} · through · 0.15 / 0.25 mm")
+    );
+    // The demo's profile makes open vias only; one that fills offers both.
+    let offered = |engine: &Engine| via_card::fill_options(engine.project(), ViaFill::None);
+    assert_eq!(offered(&engine).len(), 1);
+    let mut profile = engine.project().rules.profile.clone().ok_or("a profile")?;
+    profile.id = "test-filling".into();
+    profile.drill_rules = serde_json::from_value(serde_json::json!([{
+        "id": "through", "kind": "mechanical", "layers": {"span": "board"},
+        "fills": [{"fill": "none"}, {"fill": "capped", "source": "Test fixture."}]
+    }]))?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::set_profile(profile, true)),
+    )?;
+    assert_eq!(offered(&engine).len(), 2);
+    Ok(())
+}
+
 /// Where board point `p` is on the test canvas.
 pub(super) fn screen(editor: &PcbEditor, engine: &Engine, p: Point) -> Pos2 {
     let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(SCREEN[0], SCREEN[1]));

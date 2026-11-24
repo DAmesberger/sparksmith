@@ -16,6 +16,7 @@ use crate::model::fill::KeepoutLayers;
 use crate::model::{
     CopperLayer, DielectricKind, MAX_COPPER_LAYERS, Project, Stackup, StackupPresets, ViaSpan,
 };
+use crate::rules::ClassLayer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -117,6 +118,20 @@ pub(super) fn apply(project: &mut Project, edit: StackupEdit) -> Result<()> {
             layer.name(),
             carried.describe()
         )));
+    }
+    // A class that names a layer keeps naming it, whatever lies there now:
+    // [`super::via_class`] tells it.
+    for class in &mut project.rules.net_classes {
+        for named in class.layers.iter().flatten() {
+            let moved = project
+                .stackup
+                .layers()
+                .into_iter()
+                .any(|l| ClassLayer::from(l) == *named && to(l) != Ok(l));
+            if moved && !class.moved_layers.contains(named) {
+                class.moved_layers.push(*named);
+            }
+        }
     }
     project.stackup = stackup;
     Ok(())

@@ -579,6 +579,7 @@ fn build_timings() -> Result<()> {
             diameter: 0.6,
             span: sparksmith_core::ViaSpan::Through,
             tented: k % 2 == 0,
+            fill: Default::default(),
             locked: false,
         });
         if k % 2 == 0 {
@@ -1893,6 +1894,7 @@ pub(super) fn via_board(count: usize) -> Result<Project> {
             diameter: 0.6,
             span: sparksmith_core::ViaSpan::Through,
             tented: k % 2 == 0,
+            fill: Default::default(),
             locked: false,
         });
         if k % stride == 0 && k % columns != columns - 1 {
@@ -2312,6 +2314,65 @@ fn the_build_makes_the_plans_flat_bodies_and_no_others() -> Result<()> {
     Ok(())
 }
 
+/// A filled and capped via beside open ones of its size: its end foils are
+/// full discs and a body fills its bore, in the plan, the exact build and
+/// the meshes alike. Red when the builder takes the open via's definition
+/// for it, or the plan leaves its bore open.
+#[test]
+fn a_capped_via_is_filled_and_closed_in_the_plan_the_build_and_the_meshes() -> Result<()> {
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let mut project = via_board(4)?;
+    let via = project
+        .vias
+        .last_mut()
+        .ok_or_else(|| Error::Verification("a via".into()))?;
+    via.fill = sparksmith_core::model::ViaFill::Capped;
+    let (id, bore, ring) = (via.id, via.drill / 2.0, via.diameter / 2.0);
+    let plan = plan::of(&project)?;
+    let capped = plan
+        .vias
+        .iter()
+        .find(|v| v.via == id)
+        .ok_or_else(|| Error::Verification("the via's plan".into()))?;
+    let radii = |body: &plan::PlanBody| -> Vec<f64> {
+        body.loops
+            .iter()
+            .filter_map(|l| match l {
+                Contour::Circle { radius, .. } => Some(*radius),
+                _ => None,
+            })
+            .collect()
+    };
+    for body in &capped.bodies {
+        match body.source {
+            plan::Origin::Via {
+                part: plan::ViaPart::Fill,
+                ..
+            } => {
+                assert_eq!(radii(body), [bore]);
+                assert_eq!(body.kind, BodyKind::ViaFill);
+            }
+            plan::Origin::Via {
+                part: plan::ViaPart::Ring(layer),
+                ..
+            } if layer.side().is_some() => assert_eq!(radii(body), [ring]),
+            _ => assert_eq!(radii(body).len(), 2),
+        }
+    }
+    let fills = plan.bodies().filter(|b| b.kind == BodyKind::ViaFill);
+    assert_eq!(fills.count(), 1);
+    let differences = plan::parity(&plan, &build(&project)?)?;
+    assert!(differences.is_empty(), "{differences:#?}");
+    let (meshed, _) = mesh::bodies(
+        &plan,
+        &mesh::plan_sources(&plan),
+        &mut mesh::Memo::default(),
+    )?;
+    let differences = mesh::parity(&plan, &meshed)?;
+    assert!(differences.is_empty(), "{differences:#?}");
+    Ok(())
+}
+
 /// The parity check sees a body the plan lacks, a body it holds that is
 /// not built and one built in another shape.
 #[test]
@@ -2461,6 +2522,7 @@ pub(super) fn four_layer_shaped() -> Result<Project> {
         diameter: 0.6,
         span: sparksmith_core::ViaSpan::Through,
         tented: false,
+        fill: Default::default(),
         locked: false,
     });
     Ok(project)

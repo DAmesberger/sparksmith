@@ -309,6 +309,7 @@ fn via_showcase(count: usize) -> Result<Project, Box<dyn std::error::Error>> {
             diameter: 0.6,
             span: sparksmith_core::ViaSpan::Through,
             tented: k % 2 == 0,
+            fill: Default::default(),
             locked: false,
         });
     }

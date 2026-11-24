@@ -20,6 +20,16 @@ pub struct Suggested {
     pub profiles: Vec<RuleProfile>,
 }
 
+/// The button that switches to a suggested profile; one that leaves a need
+/// unstated says so.
+pub fn switch_label(suggestion: &fabrication::Suggestion) -> String {
+    if suggestion.not_stated.is_empty() {
+        format!("Switch to {}", suggestion.name)
+    } else {
+        format!("Switch to {} (not stated)", suggestion.name)
+    }
+}
+
 impl Suggested {
     /// The first suggestion: the one a row's "Switch to …" offers.
     pub fn first(&self) -> Option<&fabrication::Suggestion> {

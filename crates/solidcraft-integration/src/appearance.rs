@@ -227,15 +227,18 @@ pub struct ViaMark {
     pub drill: f64,
     pub diameter: f64,
     pub tented: bool,
+    /// Its hole is filled and plated over.
+    pub capped: bool,
     /// The mask opening's diameter where the via is open
     /// ([`sparksmith_core::Via::mask_opening`], as the Gerber draws it).
     pub mask_opening: f64,
 }
 
 impl ViaMark {
-    /// The finished bore radius: the via's stated (finished) drill.
+    /// The finished bore radius: the via's stated (finished) drill; 0 for
+    /// a capped via, which shows none.
     pub fn bore(&self) -> f64 {
-        self.drill / 2.0
+        if self.capped { 0.0 } else { self.drill / 2.0 }
     }
 
     /// Whether the mask covers the via on `side` of `board`.
@@ -253,7 +256,7 @@ impl ViaMark {
                 pick: Some(self.pick),
                 layer,
                 copper: Some(circle(self.at, self.diameter / 2.0)),
-                bore: Some(circle(self.at, self.bore())),
+                bore: (!self.capped).then(|| circle(self.at, self.bore())),
                 openings: vec![circle(self.at, self.mask_opening / 2.0)],
             })
             .collect()
@@ -523,6 +526,7 @@ pub fn board_with(
             via.drill.to_bits(),
             via.diameter.to_bits(),
             u64::from(via.tented),
+            u64::from(via.capped),
             via.mask_opening.to_bits(),
         ];
         let local = ViaMark {

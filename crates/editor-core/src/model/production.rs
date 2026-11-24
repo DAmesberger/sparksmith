@@ -45,6 +45,46 @@ pub struct Waiver {
     /// footprint the same pad id is other copper, which nobody accepted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub footprints: Vec<DefinitionId>,
+    /// The fab profile and the vias it was given for, where the finding is
+    /// what that profile does not state: under another profile, or with
+    /// vias of other sizes, it accepts nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub given_for: Option<GivenFor>,
+}
+
+/// The fab profile and the vias a waiver of what the fabricator does not
+/// state was given for.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GivenFor {
+    /// The profile's id.
+    pub profile: String,
+    /// Its version: the day its source was read, and a digest of its source
+    /// and what it says of drills.
+    pub read: String,
+    pub statement: String,
+    /// The sizes of the vias concerned, in order, each once.
+    pub vias: Vec<GivenVia>,
+}
+
+/// One size of via, in whole nanometres.
+#[derive(
+    Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord,
+)]
+#[serde(deny_unknown_fields)]
+pub struct GivenVia {
+    pub fill: super::ViaFill,
+    pub drill_nm: i64,
+    pub diameter_nm: i64,
+}
+
+/// What a finding is of beside the objects it names: a waiver holds only
+/// for the same.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Subject {
+    /// The footprint of each pad it names (`instances::pad_footprints`).
+    pub footprints: Vec<DefinitionId>,
+    pub given_for: Option<GivenFor>,
 }
 
 /// What a project's waivers say of a finding.
@@ -162,6 +202,15 @@ mod stored_key {
     }
 }
 
+impl GivenFor {
+    fn within_bounds(&self) -> bool {
+        self.vias.len() <= MAX_ACCEPTED
+            && [&self.profile, &self.read, &self.statement]
+                .iter()
+                .all(|t| t.len() <= MAX_WAIVER_TEXT && !t.chars().any(char::is_control))
+    }
+}
+
 /// The waiver key of a finding: its code and the objects it names
 /// (`fabrication::preflight::key`).
 pub fn waiver_key(code: &str, objects: &[ObjectRef]) -> String {
@@ -199,26 +248,39 @@ impl Production {
     }
 
     /// Whether the waivers accept a finding of `key` that measures
-    /// `measured` now, its pads being of `footprints`
-    /// (`instances::pad_footprints`). Each number must be one the waiver
+    /// `measured` now, of `subject`. Each number must be one the waiver
     /// accepted, or better, and no farther from its limit, whatever the
     /// limit is now ([`Measured::accepts`]).
     pub fn acceptance(
         &self,
         key: &str,
         measured: &[Measured],
-        footprints: impl FnOnce() -> Vec<DefinitionId>,
+        subject: impl FnOnce() -> Subject,
     ) -> Acceptance<'_> {
         let Some(waiver) = self.waiver(key) else {
             return Acceptance::None;
         };
         let lapsed = |text: String| Acceptance::Lapsed(waiver, text);
-        if waiver.footprints != footprints() {
+        let subject = subject();
+        if waiver.footprints != subject.footprints {
             return lapsed(if waiver.footprints.is_empty() {
                 "Was accepted without its footprint; accept it again".into()
             } else {
                 "Was accepted on another footprint".into()
             });
+        }
+        match (&waiver.given_for, &subject.given_for) {
+            (then, now) if then == now => {}
+            (None, _) => {
+                return lapsed("Was accepted without its profile and vias; accept it again".into());
+            }
+            (Some(then), Some(now))
+                if (&then.profile, &then.read, &then.statement)
+                    == (&now.profile, &now.read, &now.statement) =>
+            {
+                return lapsed("Was accepted for vias of other sizes".into());
+            }
+            _ => return lapsed("Was accepted under another fab profile".into()),
         }
         if measured.is_empty() {
             // It had a number and has none now: copper that touches, or
@@ -261,6 +323,7 @@ impl Production {
                     && !w.key.chars().chain(w.reason.chars()).any(char::is_control)
                     && w.accepted.len() <= MAX_ACCEPTED
                     && w.footprints.len() <= MAX_ACCEPTED
+                    && w.given_for.as_ref().is_none_or(GivenFor::within_bounds)
                     && w.accepted.iter().all(|m| {
                         m.value.is_finite()
                             && m.limit.is_finite()

@@ -82,6 +82,25 @@ pub(super) fn job(r: &mut Reading<'_, '_>) -> Fallible<()> {
             );
         }
     }
+    // The fills the design has, as IPC-4761 types.
+    let capped = project
+        .vias
+        .iter()
+        .any(|v| v.fill == crate::model::ViaFill::Capped);
+    let design = if capped {
+        serde_json::json!(["VII"])
+    } else {
+        Value::Null
+    };
+    let stated = &specs["ViaProtection"];
+    if *stated != design {
+        r.say(
+            &name,
+            None,
+            &format!("the via protection {stated}"),
+            &design.to_string(),
+        );
+    }
     let stack = &project.stackup;
     let [min, max] = outline_box(project);
     let thickness: f64 = stack

@@ -423,6 +423,9 @@ pub struct PcbEditor {
     /// Whether vias the Via tool and layer changes place are tented:
     /// the tool's own choice, else the rules' `tent vias` ([`Self::via_tented`]).
     via_tented: Option<bool>,
+    /// What closes the holes of the vias the Via tool and layer changes
+    /// place.
+    via_fill: sparksmith_core::model::ViaFill,
     property_key: Option<((u64, u64), Option<Id>)>,
     position: Point,
     rotation: f64,
@@ -633,6 +636,7 @@ impl Default for PcbEditor {
             route: Default::default(),
             shoved: Default::default(),
             via_tented: None,
+            via_fill: Default::default(),
             property_key: None,
             position: [0.0; 2],
             rotation: 0.0,
@@ -1983,6 +1987,9 @@ impl PcbEditor {
         if self.tool == Tool::Route && response.hovered() {
             let at = cursor.map(|at| self.route_point(project, at, scale));
             self.hover_at = at;
+            if let Some(why) = self.refuse_layer_change(project) {
+                kit::toast::post(ui.ctx(), kit::severity::Level::Warning, why, Vec::new());
+            }
             if let Some(back) = self.route_keys(ui, project, engine.revision(), at) {
                 operation = Some(back);
             }
@@ -2245,6 +2252,13 @@ impl PcbEditor {
             _ => None,
         };
         self.hover_board(hovered_part.map(group::Pick::Part));
+        if self.tool == Tool::Select
+            && response.hovered()
+            && let Some(via) = cursor.and_then(|at| self.pick_via(project, at))
+        {
+            let text = via_card::hover_text(project, via);
+            response.clone().on_hover_text_at_pointer(text);
+        }
         self.paint_cross_highlight(ui, &painter, view, project);
         let shown_pointer = pointer.filter(|_| response.hovered());
         if let Some(dimensioned) =
@@ -2555,6 +2569,7 @@ impl PcbEditor {
         Some(Operation::Layout(LayoutCommand::AddVia {
             via: layout::ViaRequest {
                 tented: self.via_tented(project),
+                fill: self.via_fill,
                 ..layout::class_via(project, net, position)
             },
         }))
@@ -3277,7 +3292,19 @@ impl PcbEditor {
                     Stroke::new(1.0, ink.unplated),
                 );
             }
-            painter.circle(at, drill, ink.drill, Stroke::new(0.75, ink.plated));
+            if via.fill.is_none() {
+                painter.circle(at, drill, ink.drill, Stroke::new(0.75, ink.plated));
+            } else {
+                // Copper over the hole, with a cross.
+                let copper = ink.on_board(ring, share);
+                painter.circle(at, drill, copper, Stroke::new(0.75, ink.plated));
+                let d = drill * std::f32::consts::FRAC_1_SQRT_2;
+                let stroke = Stroke::new(0.75, ink.drill);
+                for (x, y) in [(d, d), (d, -d)] {
+                    let half = egui::vec2(x, y);
+                    painter.line_segment([at - half, at + half], stroke);
+                }
+            }
         }
     }
 

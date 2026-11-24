@@ -308,6 +308,7 @@ fn an_inner_fill_lies_in_its_own_foil_level() -> Result<()> {
             diameter: 0.6,
             span: sparksmith_core::ViaSpan::Through,
             tented: true,
+            fill: Default::default(),
             locked: false,
         });
     }

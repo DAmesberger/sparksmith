@@ -10,7 +10,9 @@
 //! [`check`]): a profile qualifies when no profile-limited finding is left
 //! and the design can take it. The ones that qualify are ordered by the
 //! fabricator hierarchy: profiles of the board's own fabricator first, then
-//! other fabricators', then profiles that name none, each by name. When
+//! other fabricators', then profiles that name none, each by name. One that
+//! leaves a need unstated comes after all that state everything, with what
+//! it does not state and the sources. When
 //! none qualifies the answer is only what is needed.
 //!
 //! Nothing here names a fabricator: the profiles and fabricator records are
@@ -45,6 +47,11 @@ pub struct Suggestion {
     /// Whether it is a profile of the board's own fabricator.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub same_fabricator: bool,
+    /// What the board needs that this profile neither allows nor excludes,
+    /// with the sources that say so: ask the fabricator. Empty for a profile
+    /// that states everything the board needs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub not_stated: Vec<Needed>,
 }
 
 /// `fabrication.profile_suggestions`.
@@ -60,23 +67,34 @@ pub struct ProfileSuggestions {
     /// Empty when no finding is profile-limited.
     pub needs: Vec<Needed>,
     /// The installed profiles under which every profile-limited finding
-    /// clears: the board's own fabricator's first, then other
+    /// clears, those that leave something unstated last: the board's own fabricator's first, then other
     /// fabricators', then those that name none. Empty when none does.
     pub suggestions: Vec<Suggestion>,
 }
 
-/// Whether `project` checked under `profile` leaves no profile-limited
-/// finding: `false` when the design cannot take the profile.
+/// What `project` checked under `profile` leaves unstated, when it leaves no
+/// profile-limited finding: `None` when it does, or when the design cannot
+/// take the profile.
 fn clears(
     project: &Project,
     drafts: &Drafts,
     settings: &CheckSettings,
     profile: &RuleProfile,
-) -> bool {
-    let Ok(snapshot) = ProductionSnapshot::resolve(project, Some(profile)) else {
-        return false;
-    };
-    check(&snapshot, drafts, settings).is_ok_and(|r| r.items.iter().all(|i| i.needs.is_none()))
+) -> Option<Vec<Needed>> {
+    let snapshot = ProductionSnapshot::resolve(project, Some(profile)).ok()?;
+    let report = check(&snapshot, drafts, settings).ok()?;
+    if report.items.iter().any(|i| i.needs.is_some()) {
+        return None;
+    }
+    let unstated = || report.items.iter().filter_map(|i| i.not_stated.as_ref());
+    // The tightest of each rule, as its finding says it.
+    let tightest = tightest(unstated().map(|n| &n.requirement));
+    Some(
+        tightest
+            .iter()
+            .filter_map(|r| unstated().find(|n| n.requirement == *r).cloned())
+            .collect(),
+    )
 }
 
 /// What `project` needs of a fab profile under `profile` (the board's own
@@ -116,29 +134,31 @@ pub fn suggest(
         return Ok(out);
     }
     let mut seen = std::collections::BTreeSet::new();
-    let mut fitting: Vec<(u8, &RuleProfile)> = candidates
+    let mut fitting: Vec<(u8, &RuleProfile, Vec<Needed>)> = candidates
         .iter()
         .take(MAX_CANDIDATES)
         .filter(|c| seen.insert(c.id.as_str()))
         .filter(|c| current != Some(*c))
-        .filter(|c| clears(project, drafts, settings, c))
-        .map(|c| {
+        .filter_map(|c| Some((c, clears(project, drafts, settings, c)?)))
+        .map(|(c, unstated)| {
             let rank = match (&c.fabricator, &own) {
                 (Some(f), Some(o)) if f == o => 0,
                 (Some(_), _) => 1,
                 (None, _) => 2,
             };
-            (rank, c)
+            (rank, c, unstated)
         })
         .collect();
-    fitting.sort_by(|(ra, a), (rb, b)| {
-        ra.cmp(rb)
+    // Those that state everything first.
+    fitting.sort_by(|(ra, a, ua), (rb, b, ub)| {
+        (!ua.is_empty(), ra)
+            .cmp(&(!ub.is_empty(), rb))
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
             .then_with(|| a.id.cmp(&b.id))
     });
     out.suggestions = fitting
         .into_iter()
-        .map(|(rank, c)| Suggestion {
+        .map(|(rank, c, not_stated)| Suggestion {
             id: c.id.clone(),
             name: c.name.clone(),
             fabricator: c.fabricator.clone(),
@@ -147,6 +167,7 @@ pub fn suggest(
                 .as_deref()
                 .map(|f| name_of(fabricators, f).to_owned()),
             same_fabricator: rank == 0,
+            not_stated,
         })
         .collect();
     Ok(out)

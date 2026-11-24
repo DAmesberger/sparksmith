@@ -1382,6 +1382,7 @@ fn a_large_board_fills_in_seconds() -> Fallible<()> {
                 diameter: 0.6,
                 span: crate::model::ViaSpan::Through,
                 tented: true,
+                fill: Default::default(),
                 locked: false,
             });
         }

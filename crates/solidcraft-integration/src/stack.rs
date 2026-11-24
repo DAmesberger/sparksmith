@@ -110,7 +110,7 @@ impl BodyKind {
             BodyKind::CopperTrack | BodyKind::PadCopper | BodyKind::FillCopper => {
                 layer.map_or(Slot::Vias, Slot::Copper)
             }
-            BodyKind::ViaCopper | BodyKind::ViaBore => Slot::Vias,
+            BodyKind::ViaCopper | BodyKind::ViaBore | BodyKind::ViaFill => Slot::Vias,
             BodyKind::PackageBody
             | BodyKind::ChipResistor
             | BodyKind::ChipCapacitor

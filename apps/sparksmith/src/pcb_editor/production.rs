@@ -1150,10 +1150,17 @@ fn needs(
             .fabricator_name
             .as_deref()
             .unwrap_or("No fabricator named");
-        if kit::summary_row(ui, maker, Some(&format!("Switch to {}", s.name))) {
+        let switch = crate::fab_suggestions::switch_label(s);
+        if kit::summary_row(ui, maker, Some(&switch)) {
             picked = Some(s.id.clone());
         }
     });
+    // What a listed profile does not state, with its sources on hover.
+    for s in found.suggestions.iter() {
+        for unstated in &s.not_stated {
+            kit::hint(ui, &unstated.text, &unstated.source);
+        }
+    }
     let id = picked?;
     match suggested.switch(engine, &id) {
         Ok(operation) => {
@@ -1470,6 +1477,10 @@ fn row_tip(item: &PreflightItem) -> String {
         if !more.is_empty() {
             tip.push(more);
         }
+    }
+    if let Some(unstated) = &item.not_stated {
+        tip.push(unstated.text.clone());
+        tip.push(unstated.source.clone());
     }
     if let Some(waiver) = &item.waiver {
         tip.push(if waiver.reason.is_empty() {

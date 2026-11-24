@@ -518,6 +518,7 @@ pub(crate) fn via_board(count: usize, tracks: usize) -> Result<Project> {
             diameter: 0.6,
             span: ViaSpan::Through,
             tented: k % 2 == 0,
+            fill: Default::default(),
             locked: false,
         });
         if wanted > 0 && k % 2 == 0 {

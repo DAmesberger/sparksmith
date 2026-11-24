@@ -149,7 +149,15 @@ pub fn excellon(
     );
     let tools: Vec<_> = table.tools.iter().filter(|t| t.plated == plated).collect();
     for tool in &tools {
-        let _ = writeln!(s, "; #@! TA.AperFunction,{}", tool.function.aper_function());
+        let fill = tool
+            .fill
+            .ipc_4761()
+            .map_or_else(String::new, |t| format!(",{t}"));
+        let _ = writeln!(
+            s,
+            "; #@! TA.AperFunction,{}{fill}",
+            tool.function.aper_function()
+        );
         let _ = writeln!(s, "T{}C{}", tool.number, fixed(file_size(tool.diameter)));
     }
     s.push_str("%\nG90\nG05\n");
@@ -284,22 +292,35 @@ pub fn drill_table_text(project: &Project, table: &DrillTable) -> String {
             .as_ref()
             .map_or_else(String::new, |p| p.drill_files.note())
     );
+    // The Fill column, where a tool is filled.
+    let filled = table.tools.iter().any(|t| !t.fill.is_none());
+    let fill = |words: &str| match filled {
+        true => format!("{words:<8}"),
+        false => String::new(),
+    };
     let _ = writeln!(s);
     let _ = writeln!(
         s,
-        "{:<6}{:<10}{:<12}{:<7}{:<12}{:>7}  Symbol",
-        "Tool", "Diameter", "Plating", "Kind", "Function", "Count"
+        "{:<6}{:<10}{:<12}{:<7}{:<12}{}{:>7}  Symbol",
+        "Tool",
+        "Diameter",
+        "Plating",
+        "Kind",
+        "Function",
+        fill("Fill"),
+        "Count"
     );
     let (mut plated, mut other, mut slots) = (0usize, 0usize, 0usize);
     for (i, tool) in table.tools.iter().enumerate() {
         let _ = writeln!(
             s,
-            "{:<6}{:<10}{:<12}{:<7}{:<12}{:>7}  {}",
+            "{:<6}{:<10}{:<12}{:<7}{:<12}{}{:>7}  {}",
             format!("T{}", tool.number),
             fixed(tool.diameter),
             if tool.plated { "plated" } else { "non-plated" },
             if tool.slot { "slot" } else { "hit" },
             tool.function.label(),
+            fill(tool.fill.id()),
             tool.count,
             SYMBOLS[i % SYMBOLS.len()]
         );

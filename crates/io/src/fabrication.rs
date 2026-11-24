@@ -886,6 +886,7 @@ mod tests {
             reason: "as it is".into(),
             accepted: Vec::new(),
             footprints: Vec::new(),
+            given_for: None,
         }];
         for zip in [false, true] {
             for (what, file, fault) in seeded::faults() {
