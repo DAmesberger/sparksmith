@@ -235,6 +235,8 @@ struct Obstacle {
     /// Whether a fill of its own net may meet it: copper, and a plated
     /// hole, drilled out of copper of its own net.
     joins: bool,
+    /// A pad's own fill clearance, in place of the fill's.
+    own: Option<f64>,
 }
 
 /// A rule an object's gap is short of: the gap, the rule and the object's
@@ -414,10 +416,20 @@ impl<'a> Audit<'a> {
                 nets: hole.net.into_iter().collect(),
                 on,
                 joins: hole.plated,
+                own: None,
             });
         }
+        let overrides: std::collections::BTreeMap<_, f64> = ctx
+            .pads
+            .iter()
+            .filter_map(|p| Some(((p.instance, p.pad.id), p.fill_override.clearance_mm()?)))
+            .collect();
         // Every land: pads with or without a net, and mounting-hole washers.
         for land in physical::lands_of(project, &ctx.pads) {
+            let own = match land.object() {
+                ObjectRef::Pad { instance, pad } => overrides.get(&(instance, pad)).copied(),
+                _ => None,
+            };
             obstacles.push(Obstacle {
                 object: land.object(),
                 ring: land.outline.flatten(FILL_CHORD_MM),
@@ -429,6 +441,7 @@ impl<'a> Audit<'a> {
                     On::One(CopperLayer::from(land.layer))
                 },
                 joins: true,
+                own,
             });
         }
         for (k, v) in project.vias.iter().enumerate() {
@@ -439,6 +452,7 @@ impl<'a> Audit<'a> {
                 nets: vec![v.net],
                 on: On::Via(k),
                 joins: true,
+                own: None,
             });
         }
         for t in &project.tracks {
@@ -449,6 +463,7 @@ impl<'a> Audit<'a> {
                 nets: vec![t.net],
                 on: On::One(t.layer),
                 joins: true,
+                own: None,
             });
         }
         // A net tie's bridge keeps clear of every fill, also of the nets it
@@ -461,10 +476,18 @@ impl<'a> Audit<'a> {
                 nets: b.nets,
                 on: On::One(b.layer),
                 joins: false,
+                own: None,
             });
         }
         let limits = crate::layout::limits::BoardRules::of(project);
-        let reach = super::super::copper::check_reach(&limits) + FILL_CHORD_MM;
+        // As far as any clearance asks: the rules', the fills' own, a pad's.
+        let own = project
+            .fills
+            .iter()
+            .filter_map(|f| f.settings.clearance)
+            .chain(overrides.values().copied())
+            .fold(limits.rules().fill.clearance, f64::max);
+        let reach = super::super::copper::check_reach(&limits).max(own) + FILL_CHORD_MM;
         let grid = super::super::grid::BoundsGrid::new(
             obstacles
                 .iter()
@@ -494,8 +517,35 @@ impl<'a> Audit<'a> {
         }
     }
 
-    /// The largest clearance of `fill` to an object of `kind` on `nets`.
-    fn need(&self, fill: &Fill, kind: CopperObject, nets: &[Id]) -> Need {
+    /// The largest clearance of `fill` to an object of `kind` on `nets`:
+    /// the rules' and, for copper, `own` (a pad's fill clearance) or else
+    /// the fill's own clearance, as the fill computation keeps it.
+    fn need(&self, fill: &Fill, kind: CopperObject, nets: &[Id], own: Option<f64>) -> Need {
+        let rule = self.rule(fill, kind, nets);
+        if !kind.is_copper() {
+            return rule;
+        }
+        let own = match (own, fill.settings.clearance) {
+            (Some(mm), _) => Need {
+                mm,
+                source: "the pad's fill override".into(),
+                rule: "clearance".into(),
+                profile_rule: None,
+            },
+            (None, Some(mm)) => Need {
+                mm,
+                source: "the fill".into(),
+                rule: "clearance".into(),
+                profile_rule: None,
+            },
+            (None, None) => self.limits.need(crate::rules::RuleKey::FillClearance),
+        };
+        if own.mm > rule.mm { own } else { rule }
+    }
+
+    /// The largest clearance the rules ask between `fill` and an object of
+    /// `kind` on `nets`.
+    fn rule(&self, fill: &Fill, kind: CopperObject, nets: &[Id]) -> Need {
         let need = |net| {
             self.limits
                 .clearance_need(CopperObject::Fill, fill.net, kind, net)
@@ -589,7 +639,7 @@ impl<'a> Audit<'a> {
             if !on || o.joins && fill.net.is_some_and(|n| o.nets.contains(&n)) {
                 continue;
             }
-            let need = self.need(fill, o.kind, &o.nets);
+            let need = self.need(fill, o.kind, &o.nets, o.own);
             let Some(gap) = stored.meets(&o.ring, need.mm, refills) else {
                 continue;
             };
@@ -632,12 +682,14 @@ impl<'a> Audit<'a> {
                         .computed
                         .as_ref()
                         .is_some_and(|c| ctx.key(theirs.id).ok().as_ref() == Some(&c.key)));
-            let need = self.limits.clearance_need(
-                CopperObject::Fill,
-                fill.net,
-                CopperObject::Fill,
-                theirs.net,
-            );
+            // The lower ranking fill kept away from the other's copper.
+            let (low, high) = if super::compute::outranks(fill, theirs) {
+                (theirs, fill)
+            } else {
+                (fill, theirs)
+            };
+            let nets: Vec<Id> = high.net.into_iter().collect();
+            let need = self.need(low, CopperObject::Fill, &nets, None);
             // Overlap by area (an island in the other's hole is not in
             // it), then the gap between their edges.
             let limit = need.mm - AUDIT_SLACK_MM;
