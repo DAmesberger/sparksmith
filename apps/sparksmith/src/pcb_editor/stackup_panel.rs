@@ -397,12 +397,7 @@ fn kind_label(kind: DielectricKind) -> &'static str {
 }
 
 fn glass_label(glass: GlassStyle) -> &'static str {
-    match glass {
-        GlassStyle::Style106 => "106",
-        GlassStyle::Style1080 => "1080",
-        GlassStyle::Style2116 => "2116",
-        GlassStyle::Style7628 => "7628",
-    }
+    glass.designation().unwrap_or("Not stated")
 }
 
 /// The selected row's fields, edited in the draft, and its move and
@@ -444,13 +439,7 @@ fn row_editor(ui: &mut Ui, draft: &mut StackupDraft, row: DraftRow) -> Option<Ro
                 "mm",
                 DIELECTRIC_MM_RANGE,
             );
-            let glasses = [
-                GlassStyle::Style106,
-                GlassStyle::Style1080,
-                GlassStyle::Style2116,
-                GlassStyle::Style7628,
-            ]
-            .map(|g| (g, glass_label(g).to_owned()));
+            let glasses = GlassStyle::ALL.map(|g| (g, glass_label(g).to_owned()));
             kit::choice_row(ui, "Glass", &mut d.glass, &glasses);
             // No entered Dk and no estimate for the glass: the field
             // starts at the bottom of the accepted range.

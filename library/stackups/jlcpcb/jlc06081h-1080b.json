@@ -68,7 +68,8 @@
       },
       {
         "role": "prepreg",
-        "glass": "S1000-2M",
+        "glass": "7628",
+        "brand": "S1000-2M",
         "material": "7628 RC50% 8.5mil",
         "thickness_mm": 0.2008,
         "dk": 4.46,
@@ -138,7 +139,7 @@
       "1080 prepreg Dk 3.99 in the calculator data; the impedance page's prepreg table says 3.91. The data is used.",
       "The 1080 prepreg's name says 3.39mil (0.08611 mm) while its thickness is 0.0784 mm; the thickness is used.",
       "Core L2/L3 Dk 4.35 in the calculator data; the impedance page's \"Core dielectric constant\" says 4.6 for every core.",
-      "The S1000-2M prepreg's name says 8.5mil (0.2159 mm) while its thickness is 0.2008 mm; the thickness is used.",
+      "The 7628 (brand S1000-2M) prepreg's name says 8.5mil (0.2159 mm) while its thickness is 0.2008 mm; the thickness is used.",
       "Core L4/L5 Dk 4.35 in the calculator data; the impedance page's \"Core dielectric constant\" says 4.6 for every core.",
       "External 1 oz copper is 0.035 mm in the calculator data; the User Guide to the JLCPCB Impedance Calculator lists \"External copper thickness (1 oz) 1.6 mil\" (0.0406 mm). The data is used."
     ]
