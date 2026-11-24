@@ -983,7 +983,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             center: [
                 centred(0, d.pins, d.pitch),
                 half(d.land[1])
-                    + mask_expansion
+                    + mask_expansion.max(0)
                     + land::SILK_PAD_CLEARANCE_NM
                     + 2 * PIN_ONE_DOT_RADIUS_NM,
             ],

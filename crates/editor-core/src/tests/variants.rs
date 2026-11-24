@@ -1201,6 +1201,131 @@ fn purchasing_population_and_placement_are_separate_answers() -> Result<()> {
     Ok(())
 }
 
+/// An exclusion removes the part's own row from its own file and changes
+/// nothing else: not its value in the other file or on the assembly
+/// drawing, nor any other part's row, in the default and in a variant that
+/// fits another part. The parts hold no field value, so their Value is the
+/// fitted Part's MPN.
+#[test]
+fn an_exclusion_removes_its_own_row_and_changes_nothing_else() -> Result<()> {
+    type Rows = std::collections::BTreeMap<String, String>;
+    /// The rows of a file by their first column.
+    fn rows(csv: &str) -> Rows {
+        csv.lines()
+            .skip(1)
+            .filter_map(|l| {
+                let (key, rest) = l.split_once(',')?;
+                Some((key.to_owned(), rest.to_owned()))
+            })
+            .collect()
+    }
+    /// The grouped BOM by designator, without the line number, quantity and
+    /// designators an exclusion does change.
+    fn grouped(csv: &str) -> Rows {
+        csv.lines()
+            .skip(1)
+            .flat_map(|l| {
+                let fields: Vec<&str> = l.splitn(4, ',').collect();
+                let rest = fields.get(3).copied().unwrap_or_default().to_owned();
+                fields
+                    .get(2)
+                    .copied()
+                    .unwrap_or_default()
+                    .split(' ')
+                    .map(|d| (d.to_owned(), rest.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+    /// Pick-and-place, per-part BOM, grouped BOM and assembly drawing.
+    fn outputs(engine: &Engine) -> Result<[Rows; 4]> {
+        let project = engine.project();
+        let placed = assembly::rows(project, &PlacementConvention::default())?;
+        let drawing = crate::fabrication::drawing::data(
+            &crate::fabrication::ProductionSnapshot::resolve(project, None)?,
+            &Default::default(),
+            engine.check_settings(),
+        )?;
+        Ok([
+            rows(&assembly::placement_csv(&placed)),
+            rows(&assembly::bom_parts_csv(project)?),
+            grouped(&assembly::bom_csv(project)?),
+            drawing
+                .sides
+                .iter()
+                .flat_map(|s| &s.parts)
+                .map(|p| (p.designator.clone(), p.value.clone()))
+                .collect(),
+        ])
+    }
+    let b = board()?;
+    let mut file = b.engine.to_file();
+    for i in &mut file.project.instances {
+        if [b.r1, b.r2].contains(&i.id) {
+            i.properties.clear();
+            i.part = Some(b.zero);
+        }
+    }
+    let mut engine = Engine::from_file(file)?;
+    let alt = add(&mut engine, "Alt")?;
+    variant(
+        &mut engine,
+        VariantCommand::SetPart {
+            instance: b.r1,
+            variant: alt,
+            part: Some(b.cap),
+        },
+    )?;
+    for active in [None, Some(alt)] {
+        activate(&mut engine, active)?;
+        let all = outputs(&engine)?;
+        let r1 = if active.is_some() {
+            "EX-C0603-100N"
+        } else {
+            "EX-R0603-0R"
+        };
+        for (designator, value) in [("R1", r1), ("R2", "EX-R0603-0R")] {
+            let starts = |rows: &Rows| {
+                rows.get(designator)
+                    .is_some_and(|row| row.starts_with(value))
+            };
+            assert!(all.iter().all(starts), "{active:?} {designator}: {all:?}");
+        }
+        for (designator, id) in [("R1", b.r1), ("R2", b.r2)] {
+            for (bom, placement) in [(true, false), (false, true), (true, true)] {
+                let set = |engine: &mut Engine, bom, placement| {
+                    variant(
+                        engine,
+                        VariantCommand::SetExclusions {
+                            instances: vec![id],
+                            bom: Some(bom),
+                            placement: Some(placement),
+                        },
+                    )
+                };
+                set(&mut engine, bom, placement)?;
+                let mut expected = all.clone();
+                let [placed, parts, lines, _] = &mut expected;
+                if placement {
+                    placed.remove(designator);
+                }
+                if bom {
+                    parts.remove(designator);
+                    lines.remove(designator);
+                }
+                assert_eq!(
+                    outputs(&engine)?,
+                    expected,
+                    "{active:?}: {designator} bom {bom} placement {placement}"
+                );
+                set(&mut engine, false, false)?;
+            }
+        }
+        assert_eq!(outputs(&engine)?, all);
+    }
+    Ok(())
+}
+
 #[test]
 fn paired_zero_ohm_package_accepts_reordered_equivalents_and_refuses_crossed_links() -> Result<()> {
     use crate::ids::{TerminalId, TieId};

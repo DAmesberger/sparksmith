@@ -72,8 +72,9 @@ pub fn courtyard_from(
     ))
 }
 
-/// The silkscreen keep-out of a pad: its box grown by its mask expansion,
-/// the clearance and half the stroke.
+/// The silkscreen keep-out of a pad: its box grown where its mask opening
+/// reaches beyond it, by the clearance and by half the stroke. The generator
+/// SDK's drawing (`land::silk_box`) is held to the same `silk_cases`.
 fn keep_out(pad: &Pad, defaults: &PadDefaults, stroke: f64) -> Bounds {
     let grow = pad.mask_expansion(defaults).unwrap_or(0.0);
     pad.bounds()
@@ -257,6 +258,10 @@ pub fn cleared(footprint: &FootprintDefinition) -> FootprintDefinition {
 }
 
 #[cfg(test)]
+#[path = "../../../generator-sdk/src/silk_cases.rs"]
+mod silk_cases;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::ids::{PackageTerminalId, PadId};
@@ -327,6 +332,86 @@ mod tests {
             assert!((a[1].abs() - 0.75).abs() < 1e-9, "0.15 mm outside the body");
             // Pad keep-out starts at 0.7 - 0.05 - 0.1 - 0.075 = 0.475.
             assert!((a[0].abs() - 0.475).abs() < 1e-9 && (b[0].abs() - 0.475).abs() < 1e-9);
+        }
+        Ok(())
+    }
+
+    /// Every mask opening of the shared cases, which the generator SDK's
+    /// drawing is held to as well: the outline stops where they say, and the
+    /// silkscreen check, which measures from the copper, passes it at the
+    /// drawing's own clearance.
+    #[test]
+    fn silkscreen_keeps_out_as_the_generator_sdk_does() -> Result<()> {
+        use crate::library::{ApertureId, MaskRule, PasteRule, PasteWindow};
+        use silk_cases::{BODY, CASES, Mask, PAD_AT, PAD_SIZE, TOP_LINE_Y};
+        let mm = |nm: i64| nm as f64 / 1e6;
+        let mut rules = crate::rules::fixtures::rules()?;
+        crate::rules::apply(
+            &mut rules,
+            crate::rules::RulesCommand::SetOverride {
+                key: crate::rules::RuleKey::SilkPadClearance,
+                value: crate::rules::RuleValue::Length(SILK_PAD_CLEARANCE_MM),
+            },
+        )?;
+        for case in CASES {
+            let mut pad = Pad::smd_rect(
+                PadId(1),
+                PackageTerminalId(1),
+                "1",
+                pt(PAD_AT.map(mm)),
+                pt(PAD_SIZE.map(mm)),
+            );
+            match case.mask {
+                Mask::Inherit => {}
+                Mask::Expansion(by) => pad.mask = MaskRule::Expansion(nm(mm(by))),
+                Mask::Tented => pad.mask = MaskRule::Tented,
+                Mask::PasteWindows => {
+                    pad.paste = PasteRule::Windows(vec![PasteWindow {
+                        id: ApertureId(1),
+                        shape: shape_nm(Shape::rect([-0.1, -0.1], [0.1, 0.1])),
+                    }]);
+                }
+            }
+            let mut footprint = FootprintDefinition {
+                next_local: 2,
+                pads: vec![pad],
+                ..FootprintDefinition::default()
+            };
+            footprint.defaults.mask_expansion_nm = nm(mm(case.default_nm));
+            let half = [mm(BODY[0]) / 2.0, mm(BODY[1]) / 2.0];
+            let body = Bounds {
+                min: [-half[0], -half[1]],
+                max: half,
+            };
+            let mut ends: Vec<f64> = silk_outline(&footprint, body)
+                .iter()
+                .filter_map(|s| match s {
+                    Shape::Line { a, b }
+                        if [a, b].iter().all(|p| (p[1] - mm(TOP_LINE_Y)).abs() < 1e-9) =>
+                    {
+                        Some([a[0], b[0]])
+                    }
+                    _ => None,
+                })
+                .flatten()
+                .collect();
+            ends.sort_by(f64::total_cmp);
+            let end = half[0] + SILK_OUTSET_MM;
+            let expected = [-end, -mm(case.half_nm), mm(case.half_nm), end];
+            assert!(
+                ends.len() == 4 && ends.iter().zip(expected).all(|(a, b)| (a - b).abs() < 1e-9),
+                "{}: {ends:?}, not {expected:?}",
+                case.name
+            );
+            add_standard_graphics_over(&mut footprint, &PackageDefinition::default(), body)?;
+            let found = footprint.lint_with(crate::ids::DefinitionId(1), &rules);
+            assert!(
+                found
+                    .iter()
+                    .all(|f| f.code.to_string() != "footprint.silk_over_pad"),
+                "{}: {found:?}",
+                case.name
+            );
         }
         Ok(())
     }

@@ -746,3 +746,94 @@ fn a_symbol_without_a_footprint_is_kept_as_a_part_without_one() -> Fallible<()> 
     assert!(row.1.contains("R2"), "{}", row.1);
     Ok(())
 }
+
+/// The hierarchy is the files its sheets name: from the project's folder or
+/// from the naming sheet's, never outside the project, never a file no
+/// sheet names, and never one of two that could be meant.
+#[test]
+fn a_hierarchy_is_collected_by_reference() -> Fallible<()> {
+    use sparksmith_kicad::schematic::{self, SchematicError, SchematicFiles};
+    let sheet = |files: &[&str]| {
+        let sheets: String = files
+            .iter()
+            .map(|f| {
+                format!(
+                    "(sheet (at 50 50) (size 20 10) (uuid \"u\") (property \"Sheetfile\" \"{f}\"))"
+                )
+            })
+            .collect();
+        format!("(kicad_sch (version 20231120) (uuid \"r\") {sheets})").into_bytes()
+    };
+    // What is read of `folder`, by name, and the sheets of the hierarchy.
+    let read = |folder: &[(&str, Vec<u8>)]| {
+        let mut asked = Vec::new();
+        let files = schematic::collect("root.kicad_sch", |name| {
+            asked.push(name.to_owned());
+            let found = folder.iter().find(|(n, _)| *n == name);
+            Ok::<_, std::convert::Infallible>(found.map(|(_, bytes)| bytes.clone()))
+        })
+        .unwrap_or_default();
+        let sheets = schematic::read(SchematicFiles {
+            root: "root.kicad_sch",
+            files: &files,
+        })
+        .map(|s| s.sheets.into_iter().map(|s| s.file).collect::<Vec<_>>());
+        (asked, sheets)
+    };
+    let folder = [
+        (
+            "root.kicad_sch",
+            sheet(&["./a.kicad_sch", "sub\\\\b.kicad_sch"]),
+        ),
+        ("a.kicad_sch", sheet(&[])),
+        ("sub/b.kicad_sch", sheet(&["c.kicad_sch", "../a.kicad_sch"])),
+        ("sub/c.kicad_sch", sheet(&["sub/b2.kicad_sch"])),
+        ("sub/b2.kicad_sch", sheet(&[])),
+        ("other.kicad_sch", sheet(&["more.kicad_sch"])),
+    ];
+    let (asked, sheets) = read(&folder);
+    assert_eq!(
+        sheets,
+        Ok([
+            "root.kicad_sch",
+            "a.kicad_sch",
+            "sub/b.kicad_sch",
+            "sub/c.kicad_sch",
+            "sub/b2.kicad_sch",
+            "a.kicad_sch"
+        ]
+        .map(str::to_owned)
+        .to_vec())
+    );
+    assert!(
+        !asked
+            .iter()
+            .any(|n| n.contains("other") || n.contains("more"))
+    );
+
+    for outside in [
+        "../out.kicad_sch",
+        "/out.kicad_sch",
+        "C:\\\\out.kicad_sch",
+        "",
+    ] {
+        let (asked, sheets) = read(&[("root.kicad_sch", sheet(&[outside]))]);
+        assert_eq!(asked, ["root.kicad_sch"], "{outside}");
+        assert_eq!(sheets, Err(SchematicError::Missing), "{outside}");
+    }
+    let (_, two) = read(&[
+        ("root.kicad_sch", sheet(&["sub/b.kicad_sch"])),
+        ("sub/b.kicad_sch", sheet(&["c.kicad_sch"])),
+        ("c.kicad_sch", sheet(&[])),
+        ("sub/c.kicad_sch", sheet(&[])),
+    ]);
+    assert!(matches!(two, Err(SchematicError::Value(_))), "{two:?}");
+    // A sheet that names itself is read once and refused as too deep.
+    let (asked, itself) = read(&[("root.kicad_sch", sheet(&["root.kicad_sch"]))]);
+    assert_eq!(asked.len(), 1);
+    assert!(
+        matches!(itself, Err(SchematicError::Limit(_))),
+        "{itself:?}"
+    );
+    Ok(())
+}
