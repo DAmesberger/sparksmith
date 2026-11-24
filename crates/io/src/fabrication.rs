@@ -260,9 +260,10 @@ impl Staged {
                     zip::ZipArchive::new(Cursor::new(bytes.as_slice())).map_err(broken)?;
                 for k in 0..archive.len() {
                     let mut file = archive.by_index(k).map_err(broken)?;
+                    let name = file.name().map_err(broken)?.into_owned();
                     let mut bytes = Vec::new();
                     file.read_to_end(&mut bytes)?;
-                    out.push((file.name().to_owned(), bytes));
+                    out.push((name, bytes));
                 }
             }
         }
