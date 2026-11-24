@@ -634,44 +634,117 @@ fn drill_size(project: &Project, drill_min: &super::limits::Need, hole: &Hole) -
     Some(Finding::new(code, text, vec![hole.object()]).requiring(drill_min.at_most(size)))
 }
 
-/// A closed outline that is a straight slot (two half-turn arcs joined by
-/// two lines, or a circle of two half turns) as a routed slot or a round
-/// hit; `None` for any other shape.
+/// How far, mm, an outline may lie from the slot or circle [`stadium`]
+/// reads it as: a tenth of the drill files' 1 µm step, so the drilled
+/// shape is the outline to the precision it is written with. A drawn
+/// slot's solved corners lie well inside it.
+const STADIUM_MM: f64 = 1e-4;
+
+/// A closed outline that is a straight slot (two parallel lines joined by
+/// two half turns, both bulging outwards) as a routed slot, or a circle of
+/// two half turns as a round hit; `None` for any other shape.
+///
+/// The slot or circle is read from the outline's two arcs, and the whole
+/// outline must then lie within [`STADIUM_MM`] of it: the segments
+/// alternate arc, line, arc, line (or are the circle's two arcs), close,
+/// and every corner and each arc's middle lie where that slot has them.
+/// So arcs that bulge inwards, sides that are not parallel, do not meet the
+/// arcs tangentially or do not close, and arcs of another sweep are not
+/// slots.
 pub fn stadium(outline: &Outline) -> Option<HoleFeature> {
     let mut from = outline.start;
-    let mut arcs = Vec::new();
-    let mut lines = 0;
+    // Each segment with length: its ends, and the arc.
+    let mut segments = Vec::new();
     for s in &outline.segments {
         let to = s.to();
-        match *s {
-            Segment::Line { .. } if distance(from, to) > 1e-9 => lines += 1,
-            Segment::Line { .. } => {}
-            Segment::Arc { bulge, .. } => {
-                let arc = arc_geometry(from, to, bulge)?;
-                if (arc.sweep.abs() - std::f64::consts::PI).abs() > 1e-6 {
-                    return None;
-                }
-                arcs.push(arc);
+        let arc = match *s {
+            Segment::Arc { bulge, .. } if bulge.abs() > 1e-12 => {
+                Some(arc_geometry(from, to, bulge)?)
             }
+            _ => None,
+        };
+        if arc.is_some() || distance(from, to) > 1e-9 {
+            segments.push((from, to, arc));
         }
         from = to;
+        if segments.len() > 4 {
+            return None;
+        }
     }
-    let [a, b] = arcs.as_slice() else {
+    let near = |a: Point, b: Point| distance(a, b) <= STADIUM_MM;
+    if !near(from, outline.start) {
         return None;
+    }
+    if segments.first().is_some_and(|s| s.2.is_none()) {
+        segments.rotate_left(1);
+    }
+    let (a, b, slot) = match segments.as_slice() {
+        [(_, _, Some(a)), (_, _, None), (_, _, Some(b)), (_, _, None)] => (*a, *b, true),
+        [(_, _, Some(a)), (_, _, Some(b))] => (*a, *b, false),
+        _ => return None,
     };
-    if (a.radius - b.radius).abs() > 1e-6 || !(lines == 2 || lines == 0) {
+    let radius = (a.radius + b.radius) / 2.0;
+    if a.sweep.signum() != b.sweep.signum()
+        || (a.radius - b.radius).abs() > STADIUM_MM
+        || radius <= STADIUM_MM
+    {
         return None;
     }
-    if distance(a.center, b.center) <= 1e-6 {
-        return Some(HoleFeature::Round {
-            at: a.center,
-            diameter: 2.0 * a.radius,
-        });
+    let [ca, cb] = if slot {
+        [a.center, b.center]
+    } else {
+        // The circle's one centre, its two halves meeting on a diameter.
+        let c = [
+            (a.center[0] + b.center[0]) / 2.0,
+            (a.center[1] + b.center[1]) / 2.0,
+        ];
+        [c, c]
+    };
+    let length = distance(ca, cb);
+    // Outwards from arc `a`: away from the other end, or from the middle of
+    // a circle's half.
+    let out = if length > STADIUM_MM {
+        [(ca[0] - cb[0]) / length, (ca[1] - cb[1]) / length]
+    } else {
+        let m = a.at(a.start + a.sweep / 2.0);
+        let l = distance(m, ca);
+        if l <= STADIUM_MM {
+            return None;
+        }
+        [(m[0] - ca[0]) / l, (m[1] - ca[1]) / l]
+    };
+    // A half turn about `c` whose middle is at `c + dir·radius`, the way
+    // the arcs turn: its first corner, middle and last corner.
+    let turn = a.sweep.signum();
+    let half = |c: Point, dir: Point| {
+        let side = [turn * dir[1], -turn * dir[0]];
+        let at = |d: Point| [c[0] + radius * d[0], c[1] + radius * d[1]];
+        [at(side), at(dir), at([-side[0], -side[1]])]
+    };
+    let follows = |k: usize, expected: [Point; 3]| {
+        segments.get(k).is_some_and(|(from, to, arc)| {
+            let Some(arc) = arc else {
+                return false;
+            };
+            let middle = arc.at(arc.start + arc.sweep / 2.0);
+            near(*from, expected[0]) && near(middle, expected[1]) && near(*to, expected[2])
+        })
+    };
+    let last = if slot { 2 } else { 1 };
+    if !follows(0, half(ca, out)) || !follows(last, half(cb, [-out[0], -out[1]])) {
+        return None;
     }
-    (lines == 2).then_some(HoleFeature::Slot {
-        from: a.center,
-        to: b.center,
-        width: 2.0 * a.radius,
+    Some(if length > STADIUM_MM {
+        HoleFeature::Slot {
+            from: ca,
+            to: cb,
+            width: 2.0 * radius,
+        }
+    } else {
+        HoleFeature::Round {
+            at: [(ca[0] + cb[0]) / 2.0, (ca[1] + cb[1]) / 2.0],
+            diameter: 2.0 * radius,
+        }
     })
 }
 
