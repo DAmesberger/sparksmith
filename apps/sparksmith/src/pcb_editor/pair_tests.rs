@@ -5,7 +5,7 @@
 //! places a via pair, a click on a pad of the pair fans in and finishes,
 //! P routes a single net instead, and the Tune tool meanders a segment
 //! to its pair partner's length.
-use super::route_tests::{Canvas, TestResult, close, edits};
+use super::route_tests::{Canvas, TestResult, close, edits, screen};
 use super::*;
 use sparksmith_core::layout::length;
 use sparksmith_core::rules::signal::{DiffPairSpec, SignalRules};
@@ -694,5 +694,105 @@ fn the_high_speed_footer_buttons_share_one_height() -> TestResult {
     let height = |label: &str| heights.iter().find(|(t, _)| t == label).map(|(_, h)| *h);
     let done = height("Done").ok_or("no Done")?;
     assert_eq!(height("Delete pair"), Some(done), "{heights:?}");
+    Ok(())
+}
+
+/// K10: a pair's pad on another layer than the active one starts both
+/// halves there, as a single route starts on the pad's layer.
+#[test]
+fn a_pair_pad_on_another_layer_starts_both_halves_there() -> TestResult {
+    let Usb {
+        engine,
+        nets,
+        start,
+        ..
+    } = usb()?;
+    let mut canvas = Canvas::new();
+    let mut editor = PcbEditor::default();
+    editor.on_tool("route", &engine);
+    canvas.frame(&mut editor, &engine, vec![], egui::Modifiers::NONE);
+    editor.layer = CopperLayer::Bottom;
+    assert!(canvas.click(&mut editor, &engine, start[0]).is_none());
+    let pair = editor.route.pair.as_ref().ok_or("one net was started")?;
+    assert_eq!(pair.nets, nets);
+    assert_eq!(editor.layer, CopperLayer::Top);
+    Ok(())
+}
+
+/// A pair whose partner has no pad on that layer does not start one net
+/// silently: the click is refused in words.
+#[test]
+fn a_pair_without_a_partner_pad_on_the_layer_is_refused_in_words() -> TestResult {
+    let Usb { mut engine, .. } = usb()?;
+    let project = engine.project();
+    let id = |d: &str| {
+        project
+            .instance_by_designator(d)
+            .map(|i| i.id)
+            .ok_or("part")
+    };
+    let (r1, r2) = (id("R1")?, id("R2")?);
+    let net = |instance, terminal| {
+        layout::pads(project)
+            .into_iter()
+            .find(|p| p.terminal.instance == instance && p.terminal.terminal.0 == terminal)
+            .map(|p| p.net)
+            .ok_or("net")
+    };
+    let (positive, negative) = (net(r1, 1)?, net(r2, 2)?);
+    let place = |p: Point, instance, layer| {
+        Operation::Layout(LayoutCommand::Move {
+            instance,
+            position: p,
+            rotation_deg: 0.0,
+            layer,
+        })
+    };
+    apply(&mut engine, place([10.0, 10.0], r1, Layer::Top))?;
+    apply(&mut engine, place([25.0, 10.0], r2, Layer::Bottom))?;
+    apply(
+        &mut engine,
+        Operation::Rules(RulesCommand::AddDiffPair {
+            pair: DiffPairSpec {
+                target: None,
+                name: "ODD".into(),
+                positive,
+                negative,
+            },
+        }),
+    )?;
+    let at = pad(&engine, r1, 1)?;
+    let mut canvas = Canvas::new();
+    let mut editor = PcbEditor::default();
+    editor.on_tool("route", &engine);
+    canvas.frame(&mut editor, &engine, vec![], egui::Modifiers::NONE);
+    let p = screen(&editor, &engine, at);
+    let button = |pressed| egui::Event::PointerButton {
+        pos: p,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    canvas.frame(
+        &mut editor,
+        &engine,
+        vec![egui::Event::PointerMoved(p)],
+        egui::Modifiers::NONE,
+    );
+    let sent = canvas.frame(
+        &mut editor,
+        &engine,
+        vec![button(true), button(false)],
+        egui::Modifiers::NONE,
+    );
+    assert!(sent.is_none() && editor.route.pair.is_none() && editor.route_start.is_none());
+    let said: Vec<String> = crate::kit::toast::take_posted(canvas.ctx())
+        .into_iter()
+        .map(|t| t.text)
+        .collect();
+    assert!(
+        said.iter().any(|t| t.contains("has no pad on Top")),
+        "{said:?}"
+    );
     Ok(())
 }
