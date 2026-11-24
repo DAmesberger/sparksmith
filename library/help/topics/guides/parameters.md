@@ -34,4 +34,4 @@ A parameter is a named value. Dimensions that use it follow when you change it.
 - Change the value under Board parameters and press Enter. The outline and everything that uses it follow.
 - “Add a board parameter” makes one without a dimension.
 
-If a value is refused, nothing changes. Choose a value that keeps the shape as drawn, or change the dimension that holds it. A parameter cannot be removed while it is read.
+If a value is refused, nothing changes, and the reason stands under its row. Choose a value that keeps the shape as drawn, or change the dimension that holds it. A parameter cannot be removed while it is read.

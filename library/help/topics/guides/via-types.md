@@ -35,4 +35,4 @@ A via is a plated hole that joins layers. All vias go through the whole board to
 - The list offers what the board's fab profile makes. “(not stated)” means the fabricator does not say: ask before ordering. When only open vias are made, the card says so.
 - The drill and the pad come from the net class or the rules. Change them on the Route card while routing.
 
-“Via ring too thin” and “too small a drill” compare the via with the fab profile. Use a larger pad or drill, or another profile. Filling can cost extra: Production files lists what to write on the order.
+Findings about a thin annular ring or a small via drill compare the via with the fab profile. Use a larger pad or drill, or another profile. Filling can cost extra: Production files lists what to write on the order.

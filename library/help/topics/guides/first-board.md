@@ -22,7 +22,7 @@
   ],
   "kind": "guide",
   "related": [
-    "guide/board-outline",
+    "guide/board-shape",
     "guide/libraries",
     "guide/wiring",
     "guide/update-pcb",
@@ -42,7 +42,7 @@ Start a project with [[command/file.new]]. Its board starts with the Standard fa
 
 - In Schematic, choose Place and type a package and a type, such as resistor 0603. A new project has no parts of its own: a generator makes the one you choose. Press Enter, then click the sheet. Place two parts. [[guide/libraries]] says more.
 - Choose Wire, click a pin of one part, then a pin of the other. Select the wire to see its net and members in Properties. [[guide/wiring]] says more.
-- Go to PCB and choose Update PCB. Read the review and press Apply update. Set the board outline in Board shape and constrain it ([[guide/board-outline]]), then drag the parts inside it. A thin line, the airwire, shows the connection. See [[guide/update-pcb]].
+- Go to PCB and choose Update PCB. Read the review and press Apply update. Set the board outline in Board shape and constrain it ([[guide/board-shape]]), then drag the parts inside it. A thin line, the airwire, shows the connection. See [[guide/update-pcb]].
 - Choose Route, click the first pad, then the matching pad. Look at the board in the 3D tab, and read Issues. [[guide/routing]] and [[guide/issues]] help.
 - Save the project. [[guide/fab-output]] makes the files to order it.
 
