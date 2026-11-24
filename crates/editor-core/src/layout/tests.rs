@@ -986,6 +986,74 @@ fn track_set_changes_width_and_layer_in_place() -> Result<()> {
     Ok(())
 }
 
+/// A track that keeps its clearance from another net's via pad and not
+/// from the via's drilled hole is refused naming the hole and the hole's
+/// rule, not the pad's smaller one.
+#[test]
+fn a_track_too_close_to_a_via_hole_is_refused_with_the_hole_rule() -> Result<()> {
+    use crate::rules::{CopperObject, RuleKey, RuleValue, RulesCommand};
+    let mut project = fixture()?;
+    // The prototype keeps tracks 0.2 mm from a via's pad; hold its hole
+    // to 0.4 mm.
+    crate::rules::apply(
+        &mut project.rules,
+        RulesCommand::SetOverride {
+            key: RuleKey::Clearance {
+                a: CopperObject::Track,
+                b: CopperObject::ViaHole,
+            },
+            value: RuleValue::Length(0.4),
+        },
+    )?;
+    apply(
+        &mut project,
+        LayoutCommand::AddVia {
+            via: ViaRequest {
+                net: R1_1,
+                position: [17.0, 14.0],
+                drill: 0.3,
+                diameter: 0.5,
+                span: crate::model::ViaSpan::Through,
+                tented: true,
+            },
+        },
+    )?;
+    let before = project.clone();
+    // A 0.3 mm track 0.65 mm from the via's centre: 0.25 mm from its pad
+    // (0.2 mm needed) and 0.35 mm from its hole (0.4 mm needed).
+    let route = |y: f64| LayoutCommand::Route {
+        request: RouteRequest {
+            net: SHARED,
+            start: [14.0, y],
+            end: [20.0, y],
+            width: 0.3,
+            layer: Layer::Top.into(),
+        },
+    };
+    let Err(Error::Conflict(text)) = apply(&mut project, route(14.65)) else {
+        return Err(Error::Invalid("a hole clearance conflict expected".into()));
+    };
+    let net = project.net_name(R1_1).to_owned();
+    assert!(
+        text.starts_with(&format!(
+            "Too close to the hole of a via on {net}: needs 0.4 mm ("
+        )),
+        "{text}"
+    );
+    assert_eq!(crate::issues::style::check(&text), vec![], "{text}");
+    assert_eq!(project, before);
+    // Nearer, the pad's own clearance is missed: the refusal names it.
+    let Err(Error::Conflict(text)) = apply(&mut project, route(14.5)) else {
+        return Err(Error::Invalid("a clearance conflict expected".into()));
+    };
+    assert!(
+        text.starts_with(&format!("Too close to a via on {net}: needs 0.2 mm (")),
+        "{text}"
+    );
+    // At 0.7 mm both are kept.
+    apply(&mut project, route(14.7))
+}
+
 /// Every refusal leaves the project exactly as it was: nothing to change,
 /// an unknown or locked track, a width out of range or not finite, and a
 /// width that breaks clearance to another net's pad.
