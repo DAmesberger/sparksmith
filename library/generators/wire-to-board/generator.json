@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "wire-to-board.wasm",
-    "sha256": "54d6306f407da8619777181badf57b7ee07d053aab4448ccfb3caa44e66bc6fe"
+    "sha256": "935787e1ee71b0c11140e1b4670953b1bdf2e542fcc2bdc2e3e859c193b5521e"
   },
   "name": "wire-to-board",
   "parts": [
