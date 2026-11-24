@@ -205,7 +205,8 @@ impl ShapeTool {
     /// U cutout, E name edge, S spline, and Shift on the curve each
     /// generalises: Shift+C ellipse (a stretched circle) and Shift+A conic
     /// (a shaped arc). A constraint's key is a letter of its name, or of
-    /// what it does (J joins, K locks), that no drawing tool has.
+    /// what it does (J joins); Shift gives the second of a letter (Parallel
+    /// and Perpendicular, Fillet and Fix).
     pub(crate) fn key(self) -> Option<(egui::Key, bool)> {
         use GeomConstraint as G;
         use egui::Key as K;
@@ -235,7 +236,7 @@ impl ShapeTool {
                 G::PointOnCurve => (K::O, false),
                 G::Concentric => (K::N, false),
                 G::Symmetric => (K::Y, false),
-                G::Fixed => (K::K, false),
+                G::Fixed => (K::F, true),
             }),
             Self::Select => None,
         }

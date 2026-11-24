@@ -4286,7 +4286,7 @@
     "facts": {
       "kind": "command",
       "context": "PCB › Board shape",
-      "default_key": "K",
+      "default_key": "Shift+F",
       "reaches": "panel/layout"
     }
   },
