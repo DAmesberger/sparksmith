@@ -20,10 +20,13 @@ use serde_json::{Value, json};
 use sparksmith_automation::Session;
 use sparksmith_core::geometry::Point;
 use sparksmith_core::issues::IssueScope;
+use sparksmith_core::layout::outline::BoardEdit;
 use sparksmith_core::layout::{self, CopperGraph};
-use sparksmith_core::library::footprint_source::SolveStatus;
+use sparksmith_core::library::footprint_source::{Expr, SketchEdit, SketchRef, SolveStatus};
 use sparksmith_core::library::{Outline, Segment};
-use sparksmith_core::model::board::{BoardShape, BoardSketch, ConstraintTarget, CutoutKind};
+use sparksmith_core::model::board::{
+    BoardShape, BoardSketch, ConstraintTarget, CutoutKind, ShapeFault, ShapeFaultKind,
+};
 use sparksmith_core::model::dimension::BoardRef;
 use sparksmith_core::model::fill::FillRegion;
 use sparksmith_core::{Engine, Project, Query, QueryResult};
@@ -743,63 +746,102 @@ fn a_parameter_change_that_breaks_the_design_is_reported() -> Fallible {
     Ok(())
 }
 
-/// GUI check K1: the board is made 30 mm wide, which its outline cannot
-/// be. The drawn outline crosses itself, so the board keeps its last valid
-/// shape, 40 by 64 mm, beside a width of 30. No way leads from there to
-/// files of the old outline: the waive command refuses, an export writes
-/// nothing, and a waiver a saved project holds counts for nothing, then and
-/// when the outline is made valid and invalid again.
-#[test]
-fn an_invalid_outline_is_never_waived_into_files_of_the_last_one() -> Fallible {
-    let dir = tempfile::tempdir()?;
-    let mut session = open(dir.path())?;
-    let invalid = "board.shape_invalid";
-    let report = |session: &mut Session| -> Fallible<Value> {
-        ok(
-            session,
-            json!({"command": "project.query", "params": {
-                "query": "fabrication.preflight", "params": {}}}),
-        )
-        .map(|r| r["result"].clone())
-    };
-    let items = |report: &Value, code: &str| -> Vec<Value> {
-        report["items"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter(|i| i["code"] == code)
-            .cloned()
-            .collect()
-    };
-    // Writes nothing, and says what it waits for.
-    let blocked = |session: &mut Session, out: &str| -> Fallible {
-        for zip in [false, true] {
-            let output = dir.path().join(if zip {
-                format!("{out}.zip")
-            } else {
-                out.to_owned()
-            });
-            let reply = session.dispatch(json!({"command": "project.export_fabrication",
-                "params": {"output": output.display().to_string(), "zip": zip}}));
-            assert_eq!(reply["ok"], false, "{reply}");
-            assert!(
-                reply["error"].to_string().contains("fabrication.blocked"),
-                "{reply}"
-            );
-            assert!(!output.exists(), "{} was written", output.display());
-        }
-        Ok(())
-    };
-    assert!(items(&report(&mut session)?, invalid).is_empty());
-    set(&mut session, &[("width", "30 mm")])?;
-    assert_eq!(session.engine().project().board_size, [40.0, 64.0]);
-    let found = report(&mut session)?;
-    let [outline] = &items(&found, invalid)[..] else {
-        return Err(format!("{found}").into());
+/// The production check's report.
+fn production(session: &mut Session) -> Fallible<Value> {
+    let reply = ok(
+        session,
+        json!({"command": "project.query", "params": {
+            "query": "fabrication.preflight", "params": {}}}),
+    )?;
+    Ok(reply["result"].clone())
+}
+
+/// The report's items of one code.
+fn items(report: &Value, code: &str) -> Vec<Value> {
+    report["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|i| i["code"] == code)
+        .cloned()
+        .collect()
+}
+
+/// An export is refused, as a folder and as a ZIP file, and writes nothing.
+fn assert_not_exported(session: &mut Session, output: &Path) -> Fallible {
+    for zip in [false, true] {
+        let output = output.with_extension(if zip { "zip" } else { "files" });
+        let reply = session.dispatch(json!({"command": "project.export_fabrication",
+            "params": {"output": output.display().to_string(), "zip": zip}}));
+        assert_eq!(reply["ok"], false, "{reply}");
+        assert!(
+            reply["error"].to_string().contains("fabrication.blocked"),
+            "{reply}"
+        );
+        assert!(!output.exists(), "{} was written", output.display());
+    }
+    Ok(())
+}
+
+fn open_at(path: &Path) -> Fallible<Session> {
+    let mut session = Session::new(Engine::default());
+    ok(
+        &mut session,
+        json!({"command": "project.open", "params": {"expected_revision": 0,
+            "path": path.display().to_string()}}),
+    )?;
+    Ok(session)
+}
+
+fn save_at(engine: Engine, path: &Path) -> Fallible {
+    ok(
+        &mut Session::new(engine),
+        json!({"command": "project.save", "params": {"path": path.display().to_string()}}),
+    )?;
+    Ok(())
+}
+
+/// Apply one edit of the board sketch; the curves it created.
+fn draw(session: &mut Session, edit: SketchEdit) -> Fallible<Vec<SketchRef>> {
+    let edit = BoardEdit::Sketch { edit };
+    let outcome = apply(session, "Board", "board.edit", json!({"edits": [edit]}))?;
+    let created: Option<Vec<SketchRef>> =
+        serde_json::from_value(outcome["outcome"]["created"].clone())?;
+    Ok(created
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| matches!(r, SketchRef::Curve(_)))
+        .collect())
+}
+
+/// A circle off the board: a second region, so the drawn curves are no board
+/// and the last valid one stays.
+fn second_region() -> SketchEdit {
+    SketchEdit::AddCircle {
+        center: [100.0, 20.0],
+        radius: 2.0,
+        construction: false,
+    }
+}
+
+/// From the board of `session`, whose outline `code` reports, no way leads to
+/// files: the waive command refuses, an export writes nothing, and a waiver a
+/// saved project holds counts for nothing, then and when the outline is
+/// `repair`ed, which exports, and drawn wrong `again`.
+fn assert_never_waived(
+    mut session: Session,
+    dir: &Path,
+    code: &str,
+    repair: impl Fn(&mut Session) -> Fallible,
+    again: impl Fn(&mut Session) -> Fallible,
+) -> Fallible {
+    let found = production(&mut session)?;
+    let [outline] = &items(&found, code)[..] else {
+        return Err(format!("{code}: {found}").into());
     };
     assert!(outline.get("waiver").is_none() && outline["severity"] == "error");
     assert!(outline["fix"].as_str().is_some_and(|f| !f.is_empty()));
-    blocked(&mut session, "fresh")?;
+    assert_not_exported(&mut session, &dir.join("fresh"))?;
 
     // The command refuses, by itself and among others, and changes nothing.
     let keys: Vec<String> = found["items"]
@@ -839,26 +881,17 @@ fn an_invalid_outline_is_never_waived_into_files_of_the_last_one() -> Fallible {
             reason: "known".into(),
         })
         .collect();
-    let saved = dir.path().join("waived.sparksmith");
-    let mut writer = Session::new(Engine::from_file(file)?);
-    ok(
-        &mut writer,
-        json!({"command": "project.save", "params": {"path": saved.display().to_string()}}),
-    )?;
-    let mut reopened = Session::new(Engine::default());
-    ok(
-        &mut reopened,
-        json!({"command": "project.open", "params": {"expected_revision": 0,
-            "path": saved.display().to_string()}}),
-    )?;
+    let saved = dir.join("waived.sparksmith");
+    save_at(Engine::from_file(file)?, &saved)?;
+    let mut reopened = open_at(&saved)?;
     let held = |session: &mut Session, what: &str| -> Fallible {
         let project = session.engine().project();
         assert!(
             project.production.waivers.iter().any(|w| w.key == key),
             "{what}: the waiver is gone"
         );
-        let found = report(session)?;
-        let [outline] = &items(&found, invalid)[..] else {
+        let found = production(session)?;
+        let [outline] = &items(&found, code)[..] else {
             return Err(format!("{what}: {found}").into());
         };
         assert!(outline.get("waiver").is_none(), "{what}: {outline}");
@@ -872,26 +905,122 @@ fn an_invalid_outline_is_never_waived_into_files_of_the_last_one() -> Fallible {
             return Err("not an issue report".into());
         };
         assert!(
-            issues.rows.iter().any(|r| r.group.code == invalid),
+            issues.rows.iter().any(|r| r.group.code == code),
             "{what}: not in Issues"
         );
         Ok(())
     };
-    held(&mut reopened, "reopened")?;
-    blocked(&mut reopened, "reopened")?;
-    set(&mut reopened, &[("width", "40 mm")])?;
-    assert!(items(&report(&mut reopened)?, invalid).is_empty());
-    // Made valid and refilled, the same project writes its files.
     refill(&mut reopened)?;
-    let output = dir.path().join("valid");
+    held(&mut reopened, "reopened")?;
+    assert_not_exported(&mut reopened, &dir.join("reopened"))?;
+
+    // Made valid and refilled, the same project writes its files.
+    repair(&mut reopened)?;
+    refill(&mut reopened)?;
+    assert!(items(&production(&mut reopened)?, code).is_empty());
+    let output = dir.join("valid");
     ok(
         &mut reopened,
         json!({"command": "project.export_fabrication",
             "params": {"output": output.display().to_string(), "zip": false}}),
     )?;
     assert!(output.exists());
-    set(&mut reopened, &[("width", "30 mm")])?;
+
+    again(&mut reopened)?;
     refill(&mut reopened)?;
-    held(&mut reopened, "invalid again")?;
-    blocked(&mut reopened, "again")
+    held(&mut reopened, "wrong again")?;
+    assert_not_exported(&mut reopened, &dir.join("again"))
+}
+
+/// An outline drawn wrong is never waived into files: a second region, which
+/// leaves the board its last valid outline, and a line that closes nothing.
+/// The held parts still solve, so nothing refuses the edit itself.
+#[test]
+fn an_invalid_outline_is_never_waived_into_files_of_the_last_one() -> Fallible {
+    let stray = || SketchEdit::AddLine {
+        a: [100.0, 20.0],
+        b: [110.0, 20.0],
+        construction: false,
+    };
+    let cases: [(&str, bool, fn() -> SketchEdit); 2] = [
+        ("board.shape_invalid", false, second_region),
+        ("board.shape_open", true, stray),
+    ];
+    for (code, current, wrong) in cases {
+        let dir = tempfile::tempdir()?;
+        let mut session = open(dir.path())?;
+        assert!(items(&production(&mut session)?, code).is_empty());
+        let last = sketch(session.engine().project())?.solved.clone();
+        let curves = draw(&mut session, wrong())?;
+        assert!(!curves.is_empty(), "{code}");
+        refill(&mut session)?;
+        let drawn = sketch(session.engine().project())?;
+        assert_eq!(drawn.current, current, "{code}");
+        assert!(drawn.fault.is_some(), "{code}");
+        if !current {
+            assert_eq!(drawn.solved, last, "{code}: the last valid outline");
+        }
+        assert_never_waived(
+            session,
+            dir.path(),
+            code,
+            |s| {
+                draw(
+                    s,
+                    SketchEdit::Delete {
+                        ids: curves.clone(),
+                    },
+                )?;
+                Ok(())
+            },
+            |s| draw(s, wrong()).map(|_| ()),
+        )?;
+    }
+    Ok(())
+}
+
+/// GUI check K1: a project a build saved with `width` 30 mm, which its
+/// outline cannot be, beside its last valid outline of 40 by 64 mm (the
+/// command now refuses that width). It opens as it was saved, and nothing
+/// but a valid outline makes files of it.
+#[test]
+fn a_project_saved_with_an_invalid_outline_opens_and_is_never_exported() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let mut file = open(dir.path())?.engine().to_file();
+    let BoardShape::Sketch(stored) = &mut file.project.board_shape else {
+        return Err("the board is a plain rectangle".into());
+    };
+    let width = stored
+        .parameters
+        .iter_mut()
+        .find(|p| p.name.0 == "width")
+        .ok_or("width")?;
+    width.expr = Expr("30 mm".into());
+    stored.current = false;
+    stored.fault = Some(ShapeFault {
+        kind: ShapeFaultKind::Invalid,
+        message: "The board's curves cross or touch at (26.6, 61.85).".into(),
+        at: vec![[26.6, 61.85]],
+    });
+    let saved = dir.path().join("saved.sparksmith");
+    save_at(Engine::from_file(file)?, &saved)?;
+
+    let mut session = open_at(&saved)?;
+    refill(&mut session)?;
+    let project = session.engine().project();
+    assert_eq!(project.board_size, [40.0, 64.0]);
+    assert!(project.board_shape.invalid().is_some());
+    let width = sketch(project)?
+        .parameters
+        .iter()
+        .find(|p| p.name.0 == "width")
+        .ok_or("width")?;
+    assert_eq!(width.expr.0, "30 mm");
+    assert_never_waived(
+        session,
+        dir.path(),
+        "board.shape_invalid",
+        |s| set(s, &[("width", "40 mm")]).map(|_| ()),
+        |s| draw(s, second_region()).map(|_| ()),
+    )
 }
