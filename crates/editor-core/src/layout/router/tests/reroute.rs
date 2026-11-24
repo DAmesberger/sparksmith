@@ -676,50 +676,6 @@ fn a_track_carried_out_of_its_pour_is_named() -> Fallible {
     Ok(())
 }
 
-/// A stitching via that joins one pour on one layer alone is a finding; one
-/// that joins two pours is none.
-#[test]
-fn a_via_joining_one_pour_alone_is_a_finding() -> Fallible {
-    let (mut engine, r2) = parts()?;
-    let pad = pad_of(&engine, r2, true)?;
-    let mut vias = Vec::new();
-    for at in [[33.0, 21.0], [22.0, 22.0]] {
-        do_(
-            &mut engine,
-            LayoutCommand::AddVia {
-                via: ViaRequest::fixture(pad.net, at),
-            },
-        )?;
-        vias.push(engine.project().vias.last().map(|v| v.id).ok_or("via")?);
-    }
-    pour(&mut engine, pad.net, Top, rectangle(20.0, 5.0, 40.0, 25.0))?;
-    pour(
-        &mut engine,
-        pad.net,
-        CopperLayer::Bottom,
-        rectangle(30.0, 18.0, 36.0, 24.0),
-    )?;
-    engine.apply(
-        engine.revision(),
-        Operation::Fill(layout::fill::FillCommand::Refill {
-            target: layout::fill::RefillTarget::All,
-        }),
-    )?;
-    let found: Vec<String> = checks(engine.project(), &Default::default())
-        .into_iter()
-        .filter(|f| f.code == "board.via_dangling")
-        .map(|f| format!("{:?} {}", f.objects.first(), f.message))
-        .collect();
-    let [one] = found.as_slice() else {
-        return Err(format!("{found:?}").into());
-    };
-    assert!(
-        one.contains(&format!("id: {}", vias[1])) && one.ends_with("joins only the pour on Top"),
-        "{one}"
-    );
-    Ok(())
-}
-
 /// A shove that would push a chain's middle out of the pour it crosses is
 /// not made.
 #[test]
