@@ -302,6 +302,26 @@ impl CopperGraph {
         })
     }
 
+    /// The one layer on which the via at `index` joins a fill, when it
+    /// joins nothing else: no track, pad or via, and no fill elsewhere.
+    fn only_pour(&self, index: usize) -> Option<CopperLayer> {
+        let mut on: BTreeSet<CopperLayer> = BTreeSet::new();
+        for land in self.via_lands.get(index)?.clone() {
+            for v in self.vertices_of(land) {
+                for w in self.neighbours(v) {
+                    match self.element_of(*w)? {
+                        ElementKind::Via { index: i } if i == index => {}
+                        ElementKind::Fill { .. } => {
+                            on.insert(self.elements.get(land)?.layer);
+                        }
+                        _ => return None,
+                    }
+                }
+            }
+        }
+        on.pop_first().filter(|_| on.is_empty())
+    }
+
     /// A partial graph can certify an open if a gap separates pads on either
     /// axis even after projecting *all* of the net's candidate copper onto
     /// that axis. Include each known island as one box so verified joints
@@ -422,8 +442,9 @@ impl CopperGraph {
     /// The connectivity findings: `board.unrouted` (one per pad of a net
     /// whose pads lie in more than one island), `board.track_dangling` (one
     /// per stub with tracks, naming its tracks and vias) and
-    /// `board.via_dangling` (a via joining nothing, or whose island holds
-    /// no pad, that no stub finding names). A partial graph preserves known
+    /// `board.via_dangling` (a via joining nothing, whose island holds no
+    /// pad, or that joins one pour on one layer alone, that no stub finding
+    /// names). A partial graph preserves known
     /// opens and names the pads whose connectivity remains unverified.
     pub fn findings(&self, project: &Project) -> Vec<Finding> {
         if self.partial {
@@ -481,6 +502,20 @@ impl CopperGraph {
                 out.push(Finding::new(
                     FindingCode::BoardViaDangling,
                     format!("a via on {} {what}", project.net_name(via.net)),
+                    vec![
+                        ObjectRef::Via { id: via.id },
+                        ObjectRef::Net { id: via.net },
+                    ],
+                ));
+            } else if let Some(layer) = self.only_pour(index) {
+                // A stitch that has lost, or never had, its other side.
+                out.push(Finding::new(
+                    FindingCode::BoardViaDangling,
+                    format!(
+                        "a via on {} joins only the pour on {}",
+                        project.net_name(via.net),
+                        layer.name()
+                    ),
                     vec![
                         ObjectRef::Via { id: via.id },
                         ObjectRef::Net { id: via.net },

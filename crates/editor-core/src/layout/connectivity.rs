@@ -46,7 +46,7 @@ pub use ties::{TieIsland, TieJoin};
 
 pub(crate) use build::{islands_joined, track_copper, via_copper};
 pub use islands::Island;
-pub use joints::{Meets, TrackEnd, TrackJoint, keeps_joint, leaves_pour};
+pub use joints::{Meets, TrackEnd, TrackJoint, keeps_joint, leaves_pour, pours_met};
 pub use lengths::{MAX_PATH_WORK, NetPaths, PadEnd, PathEdge, PathTree, Walk};
 pub use queries::Stub;
 pub use wedges::Wedge;

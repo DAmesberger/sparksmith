@@ -286,3 +286,47 @@ fn track_drag_timings() -> Fallible {
     );
     Ok(())
 }
+
+/// A dragged track's end that only a drawn pour meets stays there and jogs
+/// to the moved segment, instead of leaving the pour with it.
+#[test]
+fn a_dragged_tracks_end_in_a_pour_stays_in_it() -> Fallible {
+    let mut p = board()?;
+    let id = track(&mut p, A, [20.0, 25.0], [31.0, 25.0])?;
+    let corners = [[29.0, 24.0], [33.0, 24.0], [33.0, 26.0], [29.0, 26.0]];
+    layout::fill::apply(
+        &mut p,
+        layout::fill::FillCommand::Add {
+            fill: Box::new(crate::model::fill::FillSpec {
+                region: crate::model::fill::FillRegion::Drawn,
+                name: String::new(),
+                net: Some(A),
+                layer: Top,
+                outline: crate::library::Outline {
+                    start: corners[0],
+                    segments: [corners[1], corners[2], corners[3], corners[0]]
+                        .into_iter()
+                        .map(|to| crate::library::Segment::Line { to })
+                        .collect(),
+                },
+                priority: 0,
+                settings: crate::model::fill::FillSettings::default(),
+            }),
+        },
+    )?;
+    // Within the pour both ends still move with the segment.
+    let within = run_drag(&p, &drag(id, 0.5, RouteMode::Shove));
+    assert!(within.reached && within.edits.add.is_empty(), "{within:?}");
+    let plan = run_drag(&p, &drag(id, 3.0, RouteMode::Shove));
+    assert!(plan.reached, "{:?}", plan.blocked);
+    commit(&mut p, &plan)?;
+    assert!(
+        p.tracks
+            .iter()
+            .any(|t| close(t.start, [31.0, 25.0]) || close(t.end, [31.0, 25.0])),
+        "{:?}",
+        p.tracks
+    );
+    assert!(close(track_of(&p, id)?.start, [20.0, 28.0]), "the open end");
+    Ok(())
+}

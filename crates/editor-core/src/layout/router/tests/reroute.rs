@@ -565,3 +565,193 @@ fn a_shoved_via_stays_in_its_pour() -> Fallible {
     assert!((18.0..=20.22).contains(&y), "shoved out to {y}");
     Ok(())
 }
+
+fn pour(engine: &mut Engine, net: Id, layer: CopperLayer, outline: Outline) -> Fallible {
+    engine.apply(
+        engine.revision(),
+        Operation::Fill(layout::fill::FillCommand::Add {
+            fill: Box::new(crate::model::fill::FillSpec {
+                region: crate::model::fill::FillRegion::Drawn,
+                name: String::new(),
+                net: Some(net),
+                layer,
+                outline,
+                priority: 0,
+                settings: crate::model::fill::FillSettings::default(),
+            }),
+        }),
+    )?;
+    Ok(())
+}
+
+/// A carried piece that meets three places, two of them joined elsewhere
+/// too, is laid again to all three: before, one leg of the second way
+/// round was dropped and left hanging.
+#[test]
+fn a_carried_piece_of_three_ends_keeps_every_leg() -> Fallible {
+    let (mut engine, r2) = parts()?;
+    let (r1, _) = ids()?;
+    let (a, b) = ([11.2, 10.0], [23.8, 10.0]);
+    let mut legs = Vec::new();
+    for (start, end) in [
+        (a, b),
+        (a, [11.2, 14.0]),
+        ([11.2, 14.0], [23.8, 14.0]),
+        ([23.8, 14.0], b),
+        ([17.5, 14.0], [17.5, 16.0]),
+    ] {
+        do_(
+            &mut engine,
+            LayoutCommand::Route {
+                request: RouteRequest {
+                    net: SHARED,
+                    start,
+                    end,
+                    width: 0.3,
+                    layer: Top,
+                },
+            },
+        )?;
+        legs.push(engine.project().tracks.last().map(|t| t.id).ok_or("leg")?);
+    }
+    locked_wall(&mut engine, [14.0, 27.5], [14.0, 33.0])?;
+    let to = |instance, x| layout::arrange::PartMove {
+        instance,
+        position: [x, 25.0],
+        rotation_deg: 0.0,
+        layer: Layer::Top,
+    };
+    do_(
+        &mut engine,
+        LayoutCommand::MoveParts {
+            moves: vec![to(r1, 10.0), to(r2, 25.0)],
+            copper: None,
+        },
+    )?;
+    let after = engine.project();
+    // Only the stub that hung before hangs now, and it is still there.
+    let hanging: Vec<Id> = CopperGraph::of(after)
+        .stubs()
+        .into_iter()
+        .filter(|s| s.net == SHARED)
+        .flat_map(|s| s.tracks)
+        .collect();
+    assert_eq!(hanging, [legs[4]]);
+    assert!(engine.rerouted().unrouted.is_empty());
+    assert_eq!(violations(after), Vec::<String>::new());
+    Ok(())
+}
+
+/// A track carried out of the drawn pour it ended in is named as unrouted.
+#[test]
+fn a_track_carried_out_of_its_pour_is_named() -> Fallible {
+    let (mut engine, r2) = parts()?;
+    let pad = pad_of(&engine, r2, true)?;
+    let [x, y] = pad.position;
+    do_(
+        &mut engine,
+        LayoutCommand::Route {
+            request: RouteRequest {
+                net: pad.net,
+                start: [x, y],
+                end: [x + 3.0, y],
+                width: 0.3,
+                layer: Top,
+            },
+        },
+    )?;
+    pour(
+        &mut engine,
+        pad.net,
+        Top,
+        rectangle(x + 2.0, y - 2.0, x + 6.0, y + 2.0),
+    )?;
+    engine.apply(engine.revision(), mv(r2, [25.5, 10.5]))?;
+    assert!(engine.rerouted().is_empty(), "still in it");
+    engine.apply(engine.revision(), mv(r2, [45.0, 25.0]))?;
+    assert_eq!(
+        engine.rerouted().unrouted,
+        vec![engine.project().net_name(pad.net).to_owned()]
+    );
+    Ok(())
+}
+
+/// A stitching via that joins one pour on one layer alone is a finding; one
+/// that joins two pours is none.
+#[test]
+fn a_via_joining_one_pour_alone_is_a_finding() -> Fallible {
+    let (mut engine, r2) = parts()?;
+    let pad = pad_of(&engine, r2, true)?;
+    let mut vias = Vec::new();
+    for at in [[33.0, 21.0], [22.0, 22.0]] {
+        do_(
+            &mut engine,
+            LayoutCommand::AddVia {
+                via: ViaRequest::fixture(pad.net, at),
+            },
+        )?;
+        vias.push(engine.project().vias.last().map(|v| v.id).ok_or("via")?);
+    }
+    pour(&mut engine, pad.net, Top, rectangle(20.0, 5.0, 40.0, 25.0))?;
+    pour(
+        &mut engine,
+        pad.net,
+        CopperLayer::Bottom,
+        rectangle(30.0, 18.0, 36.0, 24.0),
+    )?;
+    engine.apply(
+        engine.revision(),
+        Operation::Fill(layout::fill::FillCommand::Refill {
+            target: layout::fill::RefillTarget::All,
+        }),
+    )?;
+    let found: Vec<String> = checks(engine.project(), &Default::default())
+        .into_iter()
+        .filter(|f| f.code == "board.via_dangling")
+        .map(|f| format!("{:?} {}", f.objects.first(), f.message))
+        .collect();
+    let [one] = found.as_slice() else {
+        return Err(format!("{found:?}").into());
+    };
+    assert!(
+        one.contains(&format!("id: {}", vias[1])) && one.ends_with("joins only the pour on Top"),
+        "{one}"
+    );
+    Ok(())
+}
+
+/// A shove that would push a chain's middle out of the pour it crosses is
+/// not made.
+#[test]
+fn a_shoved_chain_stays_in_the_pour_its_middle_crosses() -> Fallible {
+    let mut p = board()?;
+    track(&mut p, A, [25.0, 20.0], [35.0, 20.0])?;
+    layout::fill::apply(
+        &mut p,
+        layout::fill::FillCommand::Add {
+            fill: Box::new(crate::model::fill::FillSpec {
+                region: crate::model::fill::FillRegion::Drawn,
+                name: String::new(),
+                net: Some(A),
+                layer: Top,
+                outline: rectangle(29.8, 19.8, 30.2, 20.2),
+                priority: 0,
+                settings: crate::model::fill::FillSettings::default(),
+            }),
+        },
+    )?;
+    let plan = run(
+        &p,
+        &request(B, [30.0, 14.0], [30.0, 19.95], RouteMode::Shove),
+    );
+    commit(&mut p, &plan)?;
+    let lines: Vec<(Point, Point)> = p
+        .tracks
+        .iter()
+        .filter(|t| t.net == A)
+        .map(|t| (t.start, t.end))
+        .collect();
+    let met = crate::layout::connectivity::pours_met(&p, A, Top, &lines);
+    assert_eq!(met.len(), 1, "{lines:?}");
+    Ok(())
+}

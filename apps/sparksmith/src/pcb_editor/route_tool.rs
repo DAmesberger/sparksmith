@@ -409,10 +409,13 @@ impl PcbEditor {
     }
 
     /// Drop the route in progress: its head, pending via and steps. The
-    /// tool, net and settings stay.
+    /// tool, net and settings stay; the layer is the one the route's copper
+    /// is on, not one a via still pending would have led to.
     pub(super) fn reset_route(&mut self) {
         self.route_start = None;
-        self.pending_via = None;
+        if let Some((_, from)) = self.pending_via.take() {
+            self.layer = from;
+        }
         self.route.steps.clear();
         self.route.commit = None;
         self.route.pair = None;
@@ -423,9 +426,6 @@ impl PcbEditor {
     /// or a step onto the net's copper): its accepted steps stay, a via
     /// still pending is dropped, and Route stays armed.
     pub(super) fn finish_route(&mut self) {
-        if let Some((_, from)) = self.pending_via {
-            self.layer = from;
-        }
         self.reset_route();
         self.route.ended = true;
     }
