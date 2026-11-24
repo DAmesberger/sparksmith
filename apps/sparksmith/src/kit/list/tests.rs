@@ -319,7 +319,7 @@ fn the_filter_bar_shows_chips_and_removes_a_term() {
 /// below it move down, and in a window too small for the list it is
 /// scrolled to with its row.
 #[test]
-fn an_error_shows_under_its_row_and_in_sight() {
+fn an_error_shows_under_its_row_and_in_sight() -> Result<(), Box<dyn std::error::Error>> {
     let lines = lines();
     let why = "R1: out of range";
     let paint = |ui: &mut egui::Ui| {
@@ -341,7 +341,7 @@ fn an_error_shows_under_its_row_and_in_sight() {
     let painted = h.frame(vec![], paint);
     let at = |text: &str| painted.iter().find(|p| p.text == text).map(|p| p.rect);
     let (Some(row), Some(error), Some(next)) = (at("R10"), at(why), at("U1")) else {
-        panic!("{painted:?}");
+        return Err(format!("{painted:?}").into());
     };
     assert!(error.top() >= row.bottom() - 1.0 && error.top() < row.bottom() + 12.0);
     assert!(next.top() > error.bottom(), "{next:?} {error:?}");
@@ -355,11 +355,12 @@ fn an_error_shows_under_its_row_and_in_sight() {
     }
     for text in ["R10", why] {
         let Some(p) = painted.iter().find(|p| p.text == text) else {
-            panic!("{text}: {painted:?}");
+            return Err(format!("{text}: {painted:?}").into());
         };
         assert!(
             p.clip.expand(0.5).contains_rect(p.rect),
             "{text} is out of sight: {p:?}"
         );
     }
+    Ok(())
 }

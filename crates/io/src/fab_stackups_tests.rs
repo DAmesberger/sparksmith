@@ -161,7 +161,8 @@ fn a_bad_library_names_its_file() -> Fallible<()> {
         .as_str()
         .ok_or("no maker")?
         .to_owned();
-    let cases: [(&str, Vec<(String, Vec<u8>)>); 4] = [
+    type Files = Vec<(String, Vec<u8>)>;
+    let cases: [(&str, Files); 4] = [
         (
             "broken.json",
             vec![(format!("{maker}/broken.json"), b"{".to_vec())],
