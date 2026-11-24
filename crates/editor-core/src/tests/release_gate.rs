@@ -749,6 +749,7 @@ fn an_undersized_hole_is_never_waived_and_each_is_its_own_row() -> Result<()> {
         Operation::Fabrication(FabricationCommand::Waive {
             keys: vec![first],
             reason: "the fabricator drills it".into(),
+            profile: None,
         }),
     );
     assert!(
@@ -907,6 +908,7 @@ fn each_board_side_has_its_own_fiducial_count_finding_and_waiver() -> Result<()>
         Operation::Fabrication(FabricationCommand::Waive {
             keys: vec![top],
             reason: "Top assembly waiver".into(),
+            profile: None,
         }),
     )?;
     let pf = report(&engine)?;

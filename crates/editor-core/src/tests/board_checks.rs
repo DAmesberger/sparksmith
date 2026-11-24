@@ -1054,9 +1054,12 @@ fn a_waived_finding_leaves_issues_and_stays_waived_in_production() -> Result<()>
         })
         .ok_or_else(|| Error::NotFound("a board finding".into()))?;
     let key = preflight::key(&row.finding.code, &row.finding.objects);
+    let footprints = crate::instances::pad_footprints(&project, &row.finding.objects);
     project.production.waivers.push(Waiver {
         key: key.clone(),
         reason: "Accepted".into(),
+        accepted: row.finding.measured.clone(),
+        footprints,
     });
     let after = issues::report(&project, &drafts, &IssueScope::All, &Default::default())?;
     let keyed = |r: &issues::IssueRow| preflight::key(&r.finding.code, &r.finding.objects);

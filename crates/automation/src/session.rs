@@ -9,7 +9,7 @@ use sparksmith_core::{
     Class, DefinitionId, Engine, LibraryCommand, Operation, Project, Query, QueryResult,
     catalog::EntryKey,
     erc,
-    fabrication::ProfileChoice,
+    fabrication::{FabricationCommand, ProfileChoice},
     format::EditorFile,
     geometry::Point,
     ids::{DefinitionRef, LibraryId, Revision, SourceLineageId},
@@ -1984,6 +1984,17 @@ impl Session {
                 profile: Self::hosted_profile(project, profile)?,
                 options,
                 keep_overrides,
+            }),
+            Operation::Fabrication(FabricationCommand::Waive {
+                keys,
+                reason,
+                profile,
+            }) => Operation::Fabrication(FabricationCommand::Waive {
+                keys,
+                reason,
+                profile: profile
+                    .map(|p| Self::hosted_profile(project, p))
+                    .transpose()?,
             }),
             other => other,
         })

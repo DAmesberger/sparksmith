@@ -302,6 +302,103 @@ pub struct Finding {
     /// allow. Another profile that allows it clears the finding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requirement: Option<Requirement>,
+    /// What the check measured against its limits, as it compared them: a
+    /// waiver accepts these numbers and no worse ones. None for a finding
+    /// that is a fact without a number. Told with a production finding
+    /// (`fabrication.preflight`), not with every finding.
+    #[serde(skip)]
+    pub measured: Vec<Measured>,
+}
+
+/// One number a check measured and the limit it compared it with.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Measured {
+    pub value: f64,
+    pub limit: f64,
+    pub sense: Sense,
+    pub unit: Unit,
+    /// Which number of a finding that measures several ("the drill").
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub of: String,
+    /// How far apart two numbers are the same to this check: the slack it
+    /// compares with its limit. Never stored.
+    #[serde(skip)]
+    pub within: f64,
+}
+
+/// Which side of its limit a number must be on.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Sense {
+    /// A minimum: smaller is worse.
+    AtLeast,
+    /// A maximum: larger is worse.
+    AtMost,
+}
+
+/// What a measured number counts.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Unit {
+    Mm,
+    Degrees,
+    /// To one, as an aspect ratio.
+    Ratio,
+    Percent,
+    Count,
+    Amperes,
+}
+
+impl Measured {
+    /// `value` against a minimum of `limit`, the same within `within`.
+    pub fn at_least(value: f64, limit: f64, unit: Unit, within: f64) -> Self {
+        Self {
+            value,
+            limit,
+            sense: Sense::AtLeast,
+            unit,
+            of: String::new(),
+            within,
+        }
+    }
+
+    /// `value` against a maximum of `limit`, the same within `within`.
+    pub fn at_most(value: f64, limit: f64, unit: Unit, within: f64) -> Self {
+        Self {
+            sense: Sense::AtMost,
+            ..Self::at_least(value, limit, unit, within)
+        }
+    }
+
+    #[must_use]
+    pub fn of(mut self, of: impl Into<String>) -> Self {
+        self.of = of.into();
+        self
+    }
+
+    /// How far past its limit the number is, the wrong way.
+    fn short(&self) -> f64 {
+        match self.sense {
+            Sense::AtLeast => self.limit - self.value,
+            Sense::AtMost => self.value - self.limit,
+        }
+    }
+
+    /// Whether the two are the same number of one check.
+    pub fn alike(&self, other: &Self) -> bool {
+        (self.sense, self.unit, &self.of) == (other.sense, other.unit, &other.of)
+    }
+
+    /// Whether accepting `self` accepts `now`: the same number, no worse,
+    /// and no farther from its limit (which may have changed).
+    pub fn accepts(&self, now: &Self) -> bool {
+        let worse = match now.sense {
+            Sense::AtLeast => self.value - now.value,
+            Sense::AtMost => now.value - self.value,
+        };
+        self.alike(now) && worse <= now.within && now.short() - self.short() <= now.within
+    }
 }
 
 /// What a board needs of its fab profile: a profile-limited finding's
@@ -334,7 +431,20 @@ impl Finding {
             objects,
             blocks: None,
             requirement: None,
+            measured: Vec::new(),
         }
+    }
+
+    /// This finding with what the check measured (a number that is none is
+    /// left out).
+    #[must_use]
+    pub fn measuring(mut self, measured: impl IntoIterator<Item = Measured>) -> Self {
+        self.measured.extend(
+            measured
+                .into_iter()
+                .filter(|m| m.value.is_finite() && m.limit.is_finite()),
+        );
+        self
     }
 
     /// This finding with what it needs of the fab profile (none leaves it

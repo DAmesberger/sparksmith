@@ -1303,6 +1303,7 @@ fn unroutable(outline: Outline) -> Fallible<()> {
         Operation::Fabrication(fabrication::FabricationCommand::Waive {
             keys: vec![item.key.clone()],
             reason: "accepted".into(),
+            profile: None,
         }),
     );
     assert!(
@@ -1317,6 +1318,8 @@ fn unroutable(outline: Outline) -> Fallible<()> {
         .push(crate::model::production::Waiver {
             key: item.key.clone(),
             reason: "accepted".into(),
+            accepted: Vec::new(),
+            footprints: Vec::new(),
         });
     let engine = Engine::from_file(file)?;
     let report = preflight(&engine)?;
@@ -1433,6 +1436,7 @@ fn the_showcases_stale_fills_cannot_be_waived() -> Fallible<()> {
         Operation::Fabrication(fabrication::FabricationCommand::Waive {
             keys: stale.clone(),
             reason: "accepted".into(),
+            profile: None,
         }),
     );
     assert!(
@@ -1448,6 +1452,8 @@ fn the_showcases_stale_fills_cannot_be_waived() -> Fallible<()> {
         .map(|key| crate::model::production::Waiver {
             key,
             reason: "accepted".into(),
+            accepted: Vec::new(),
+            footprints: Vec::new(),
         })
         .collect();
     let mut engine = Engine::from_file(file)?;
@@ -1649,7 +1655,10 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
         }),
     )?;
     // 2. Held by the document, whatever the command accepts: each pour's
-    // staleness, and its gap to every via.
+    // staleness, and its gap to every via, however small.
+    let loosest: Vec<_> = ["", "drill"]
+        .map(|of| crate::layout::limits::at_least_mm(0.0, 10.0).of(of))
+        .into();
     let mut file = engine.to_file();
     let project = &mut file.project;
     let mut keys = Vec::new();
@@ -1670,6 +1679,8 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
         .map(|key| Waiver {
             key,
             reason: "accepted".into(),
+            accepted: loosest.clone(),
+            footprints: Vec::new(),
         })
         .collect();
     let engine = Engine::from_file(file)?;
@@ -1773,6 +1784,8 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
     waivers.push(Waiver {
         key: waiver_key("fill.overlap", &names),
         reason: "accepted".into(),
+        accepted: Vec::new(),
+        footprints: Vec::new(),
     });
     waivers.sort_by(|a, b| a.key.cmp(&b.key));
     let engine = Engine::from_file(file)?;

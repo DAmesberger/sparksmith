@@ -593,6 +593,7 @@ fn track_width(project: &Project, track: &crate::model::Track) -> Option<Finding
             RuleKey::TrackWidthMin,
             track.width,
         ))
+        .measuring([super::limits::at_least_mm(track.width, min.value)])
     })
 }
 
@@ -631,7 +632,11 @@ fn drill_size(project: &Project, drill_min: &super::limits::Need, hole: &Hole) -
             ),
         ),
     };
-    Some(Finding::new(code, text, vec![hole.object()]).requiring(drill_min.at_most(size)))
+    Some(
+        Finding::new(code, text, vec![hole.object()])
+            .requiring(drill_min.at_most(size))
+            .measuring([drill_min.measured(size)]),
+    )
 }
 
 /// How far, mm, an outline may lie from the slot or circle [`stadium`]

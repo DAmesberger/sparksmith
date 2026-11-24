@@ -132,6 +132,140 @@ fn files_that_are_not_the_design_are_refused() -> Fallible<()> {
     Ok(())
 }
 
+/// A waiver over the JSON contract keeps what the finding measured: the
+/// check shows it, saving and undo keep it, and a stricter limit ends it,
+/// saying what it was and is.
+#[test]
+fn a_waiver_states_the_value_it_accepts_and_lapses_when_it_gets_worse() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    let mut session = Session::new(showcase(
+        sparksmith_core::library::standards::Context::fixture()?,
+        &sparksmith_core::StackupPresets::fixture()?,
+        sparksmith_core::rules::fixtures::prototype()?,
+    )?);
+    let apply = |session: &mut Session, editor: &str, command: &str, params: Value| {
+        let revision = session.engine().revision();
+        ok(
+            session,
+            json!({"command": "project.apply", "params": {"expected_revision": revision,
+                "operation": {"editor": editor, "operation": {
+                    "command": command, "params": params}}}}),
+        )
+    };
+    let minimum = |session: &mut Session, mm: f64| -> Fallible<()> {
+        for (key, mm) in [("track_width_default", 0.5), ("track_width_min", mm)] {
+            let key = serde_json::to_value(match key {
+                "track_width_min" => sparksmith_core::rules::RuleKey::TrackWidthMin,
+                _ => sparksmith_core::rules::RuleKey::TrackWidthDefault,
+            })?;
+            let value = serde_json::to_value(sparksmith_core::rules::RuleValue::Length(mm))?;
+            apply(
+                session,
+                "Rules",
+                "rules.set_override",
+                json!({"key": key, "value": value}),
+            )?;
+        }
+        Ok(())
+    };
+    let narrow = |session: &mut Session| -> Fallible<Value> {
+        let reply = ok(
+            session,
+            json!({"command": "project.query", "params": {
+                "query": "fabrication.preflight", "params": {}}}),
+        )?;
+        reply["result"]["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|i| i["code"] == "board.track_width")
+            .cloned()
+            .ok_or_else(|| "no narrow track".into())
+    };
+    minimum(&mut session, 0.4)?;
+    let found = narrow(&mut session)?;
+    let measured = found["measured"][0].clone();
+    assert_eq!(measured["limit"], 0.4);
+    assert_eq!(measured["unit"], "mm");
+    let key = found["key"].clone();
+    apply(
+        &mut session,
+        "Fabrication",
+        "fabrication.waive",
+        json!({"keys": [key], "reason": "taken"}),
+    )?;
+    let of = |report: &Value| report["waiver"]["accepted"][0].clone();
+    let waived = |session: &mut Session| -> Fallible<Value> {
+        let reply = ok(
+            session,
+            json!({"command": "project.query", "params": {
+                "query": "fabrication.preflight", "params": {}}}),
+        )?;
+        reply["result"]["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|i| i["key"] == key)
+            .cloned()
+            .ok_or_else(|| "no such finding".into())
+    };
+    assert_eq!(of(&waived(&mut session)?), measured);
+    let file = dir.path().join("waived.sparksmith");
+    ok(
+        &mut session,
+        json!({"command": "project.save", "params": {"path": file.display().to_string()}}),
+    )?;
+    let mut reopened = Session::new(Engine::default());
+    ok(
+        &mut reopened,
+        json!({"command": "project.open", "params": {"expected_revision": 0,
+            "path": file.display().to_string()}}),
+    )?;
+    assert_eq!(of(&waived(&mut reopened)?), measured);
+    minimum(&mut reopened, 0.45)?;
+    let lapsed = waived(&mut reopened)?;
+    assert!(lapsed.get("waiver").is_none(), "{lapsed}");
+    let text = lapsed["lapsed"]["text"].as_str().unwrap_or_default();
+    assert!(
+        text.starts_with("Was accepted at") && text.contains("0.45 mm"),
+        "{text}"
+    );
+    let now = session.engine().revision();
+    ok(
+        &mut session,
+        json!({"command": "project.undo", "params": {"expected_revision": now}}),
+    )?;
+    assert!(waived(&mut session)?.get("waiver").is_none());
+    Ok(())
+}
+
+/// An agent's cancellation ends an export within its read-back: refused as
+/// stopped, with nothing written.
+#[test]
+fn a_cancelled_export_writes_nothing() -> Fallible<()> {
+    use sparksmith_generators::cancel::Cancel;
+    let mut session = Session::new(showcase(
+        sparksmith_core::library::standards::Context::fixture()?,
+        &sparksmith_core::StackupPresets::fixture()?,
+        sparksmith_core::rules::fixtures::prototype()?,
+    )?);
+    for zip in [false, true] {
+        let dir = tempfile::tempdir()?;
+        let output = dir.path().join(if zip { "fab.zip" } else { "fab" });
+        let cancel = Cancel::default();
+        let call = cancel.clone();
+        // Cancelled once the files are made, before they are read back.
+        sparksmith_io::fabrication::seeded::seed(&output, Box::new(move |_| call.set()));
+        let refused = cancel.scope(|| session.dispatch(export(&output, zip, None)));
+        assert_eq!(refused["error"]["rule"], "fabrication.stopped", "{refused}");
+        assert_eq!(std::fs::read_dir(dir.path())?.count(), 0);
+        // Another call is not cancelled.
+        let other = dir.path().join("other");
+        ok(&mut session, export(&other, false, None))?;
+    }
+    Ok(())
+}
+
 /// `project.rename` over the JSON contract names every output, and one
 /// undo step takes it back.
 #[test]

@@ -8,7 +8,7 @@
 //! `(net class Power: clearance)` when a class sets it, after a `; ` so an
 //! issue's title (its first clause) stays the same across profile
 //! switches while its cause names the rule, value and source.
-use crate::diagnostics::Requirement;
+use crate::diagnostics::{Measured, Requirement, Unit};
 use crate::ids::Id;
 use crate::model::Project;
 use crate::rules::{
@@ -45,6 +45,11 @@ impl Need {
         })
     }
 
+    /// `measured` mm against this minimum, as the checks compare lengths.
+    pub fn measured(&self, measured: f64) -> Measured {
+        at_least_mm(measured, self.mm)
+    }
+
     /// `Fine 4/4: min mask web`.
     pub fn cite(&self) -> String {
         format!("{}: {}", self.source, self.rule)
@@ -60,6 +65,12 @@ impl Need {
     pub fn short(&self) -> String {
         format!("needs {} mm ({})", mm(self.mm), self.source)
     }
+}
+
+/// A length of `value` mm against a minimum, the same to the checks within
+/// the layout tolerance.
+pub fn at_least_mm(value: f64, limit: f64) -> Measured {
+    Measured::at_least(value, limit, Unit::Mm, super::EPS)
 }
 
 /// A length for a message: at most three decimals, no trailing zeros

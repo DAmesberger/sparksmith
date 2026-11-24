@@ -1035,11 +1035,13 @@ fn a_saved_waiver_of_what_cannot_be_waived_is_not_listed() -> Fallible<()> {
         .map(|key| sparksmith_core::model::production::Waiver {
             key: (*key).into(),
             reason: String::new(),
+            accepted: Vec::new(),
+            footprints: Vec::new(),
         })
         .collect();
     let engine = Engine::from_file(file)?;
     assert_eq!(engine.project().production.waivers.len(), keys.len());
-    assert_eq!(waived_rows(&engine).keys, [keys[0]]);
+    assert_eq!(waived_rows(&engine, None).keys, [keys[0]]);
     Ok(())
 }
 
@@ -1101,7 +1103,7 @@ fn a_waived_row_moves_to_waived_and_restore_brings_it_back() -> Fallible<()> {
     let Some(Request::Fix(Fix::Apply { operation, .. })) = request else {
         return Err(format!("expected the waive, got {request:?}").into());
     };
-    let Operation::Fabrication(FabricationCommand::Waive { keys, reason }) = *operation.clone()
+    let Operation::Fabrication(FabricationCommand::Waive { keys, reason, .. }) = *operation.clone()
     else {
         return Err(format!("expected fabrication.waive, got {operation:?}").into());
     };
@@ -1127,7 +1129,7 @@ fn a_waived_row_moves_to_waived_and_restore_brings_it_back() -> Fallible<()> {
         surface.card(ui, &engine, Workspace::Pcb, &[])
     });
     assert!(at(&painted, "WAIVED").is_some(), "{painted:?}");
-    let waived = waived_rows(&engine);
+    let waived = waived_rows(&engine, None);
     let at_waived = waived
         .keys
         .iter()
@@ -1347,4 +1349,27 @@ fn a_board_without_a_profile_is_not_shown_as_passed() -> Fallible<()> {
     let schematic = passed(&engine, Workspace::Schematic);
     assert!(schematic.iter().any(|t| t == "No issues"), "{schematic:?}");
     Ok(())
+}
+
+/// The Waived list shows what each waiver accepted, and that one whose
+/// finding is open again no longer holds.
+#[test]
+fn the_waived_list_shows_the_accepted_value() {
+    use sparksmith_core::diagnostics::{Measured, Unit};
+    let waiver = |accepted, reason: &str| sparksmith_core::model::production::Waiver {
+        key: "board.clearance []".into(),
+        reason: reason.into(),
+        accepted,
+        footprints: Vec::new(),
+    };
+    let number = vec![Measured::at_least(0.15, 0.2, Unit::Mm, 0.0)];
+    assert_eq!(
+        waived_reason(&waiver(number.clone(), "taken"), false),
+        "Accepted: 0.15 mm, needs at least 0.2 mm \u{b7} taken"
+    );
+    assert_eq!(
+        waived_reason(&waiver(number, ""), true),
+        "No longer holds \u{b7} Accepted: 0.15 mm, needs at least 0.2 mm"
+    );
+    assert_eq!(waived_reason(&waiver(Vec::new(), "taken"), false), "taken");
 }

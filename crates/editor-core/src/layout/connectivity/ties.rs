@@ -585,7 +585,8 @@ fn bridge_holes(
                     hole.object(),
                 ],
             )
-            .requiring(need.at_most(gap)),
+            .requiring(need.at_most(gap))
+            .measuring([need.measured(gap)]),
         );
     }
     out

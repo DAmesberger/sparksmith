@@ -879,6 +879,8 @@ fn assert_never_waived(
         .map(|key| sparksmith_core::model::production::Waiver {
             key,
             reason: "known".into(),
+            accepted: Vec::new(),
+            footprints: Vec::new(),
         })
         .collect();
     let saved = dir.join("waived.sparksmith");

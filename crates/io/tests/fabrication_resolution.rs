@@ -256,6 +256,7 @@ fn a_conflicting_kept_override_is_refused_and_cannot_be_waived() -> Fallible<()>
         Operation::Fabrication(FabricationCommand::Waive {
             keys: vec!["fabrication.profile_refused []".into()],
             reason: "check release guard".into(),
+            profile: None,
         }),
     )?;
     assert_refused(&engine, &strict, "default track width")?;
@@ -349,6 +350,7 @@ fn an_incomplete_graph_preserves_open_pads_and_blocks_release() -> Fallible<()> 
             Operation::Fabrication(FabricationCommand::Waive {
                 keys: vec![limit.key.clone()],
                 reason: "Reviewed the dense region".into(),
+                profile: None,
             }),
         )
         .err()
@@ -361,6 +363,8 @@ fn an_incomplete_graph_preserves_open_pads_and_blocks_release() -> Fallible<()> 
     file.project.production.waivers.push(Waiver {
         key: limit.key.clone(),
         reason: "Old waiver".into(),
+        accepted: Vec::new(),
+        footprints: Vec::new(),
     });
     let engine = Engine::from_file(file)?;
     let after = check(&engine)?;

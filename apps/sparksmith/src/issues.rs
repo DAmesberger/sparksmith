@@ -603,16 +603,20 @@ const WAIVED_FOLD: &str = "\u{1f}waived";
 /// The project's waivers as the Waived group shows them: the objects each
 /// names (the key holds its code and objects) and its reason, computed
 /// once per document revision. Titles would need the production check,
-/// so the objects stand in for them. A saved waiver of a finding that may
-/// not be waived counts for nothing and is not shown.
+/// so the objects stand in for them, with the value each accepted. A saved
+/// waiver of a finding that may not be waived counts for nothing and is not
+/// shown; one that no longer holds says so (its finding is listed above).
 struct WaivedRows {
     at: sparksmith_core::ReportKey,
+    /// Whether the report of that state was there to tell which hold.
+    told: bool,
     /// The waiver keys, for Restore.
     keys: Vec<String>,
     views: Vec<WaivedView>,
 }
 
-fn waived_rows(engine: &Engine) -> WaivedRows {
+/// `report` is the current state's, when it is made.
+fn waived_rows(engine: &Engine, report: Option<&IssueReport>) -> WaivedRows {
     let project = engine.project();
     let waivers: Vec<_> = project
         .production
@@ -630,6 +634,12 @@ fn waived_rows(engine: &Engine) -> WaivedRows {
         })
         .collect();
     let all: Vec<ObjectRef> = parsed.iter().flatten().copied().collect();
+    let open: BTreeSet<String> = report
+        .into_iter()
+        .flat_map(|r| &r.rows)
+        .flat_map(findings)
+        .map(|f| preflight::key(&f.code, &f.objects))
+        .collect();
     let mut names =
         sparksmith_core::issues::object_names(project, engine.drafts(), &all).into_iter();
     let views = waivers
@@ -644,15 +654,31 @@ fn waived_rows(engine: &Engine) -> WaivedRows {
                 } else {
                     named.join(" \u{b7} ")
                 },
-                reason: w.reason.clone(),
+                reason: waived_reason(w, open.contains(&w.key)),
             }
         })
         .collect();
     WaivedRows {
         at: engine.report_key(),
+        told: report.is_some(),
         keys: waivers.iter().map(|w| w.key.clone()).collect(),
         views,
     }
+}
+
+/// What the Waived group says of a waiver: that its finding is open again,
+/// what it accepted and its reason.
+fn waived_reason(w: &sparksmith_core::model::production::Waiver, open: bool) -> String {
+    let accepted = sparksmith_core::model::production::accepted_words(&w.accepted);
+    [
+        open.then(|| "No longer holds".to_owned()),
+        accepted.map(|a| format!("Accepted: {a}")),
+        (!w.reason.is_empty()).then(|| w.reason.clone()),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" \u{b7} ")
 }
 
 /// A waive reason being typed under a row.
@@ -1033,13 +1059,21 @@ impl Surface {
     }
 
     /// The project's waivers as the Waived group shows them, recomputed
-    /// only when the document changes.
+    /// only when the document changes and once its report is made.
     fn waived(&mut self, engine: &Engine) -> Arc<WaivedRows> {
         let at = engine.report_key();
+        let told = self.reports.shows(at);
         match &self.waived {
-            Some(rows) if rows.at == at => rows.clone(),
+            Some(rows) if rows.at == at && rows.told == told => rows.clone(),
             _ => {
-                let rows = Arc::new(waived_rows(engine));
+                let report = match self.reports.latest(engine).filter(|_| told) {
+                    Some(Answer::Report(report)) => Some(report),
+                    _ => None,
+                };
+                let rows = Arc::new(WaivedRows {
+                    told,
+                    ..waived_rows(engine, report.as_deref())
+                });
                 self.waived = Some(rows.clone());
                 rows
             }
@@ -1300,6 +1334,7 @@ impl Surface {
                     operation: Box::new(Operation::Fabrication(FabricationCommand::Waive {
                         keys: waiver_keys(row),
                         reason: w.text.trim().to_owned(),
+                        profile: None,
                     })),
                 }))
             }

@@ -428,18 +428,41 @@ fn notes(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Stri
 
 /// One note per waived production finding, asking the fabricator to
 /// confirm it in its DFM review: the board check's message (the code when
-/// no current board finding matches) and the waiver's reason. A saved
-/// waiver of a finding that may not be waived is ignored.
+/// no current board finding matches), what was accepted and the waiver's
+/// reason. A saved waiver of a finding that may not be waived is ignored,
+/// and one that no longer holds is no note.
 fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<String> {
     let waivers = &project.production.waivers;
     if waivers.is_empty() {
         return Vec::new();
     }
     let findings = layout::checks(project, settings);
+    let mut now: BTreeMap<String, Vec<&[crate::diagnostics::Measured]>> = BTreeMap::new();
+    for f in &findings {
+        let key = crate::model::production::waiver_key(&f.code, &f.objects);
+        now.entry(key).or_default().push(&f.measured);
+    }
+    let legend = super::preflight::legend_measured(project);
+    for (key, measured) in &legend {
+        now.entry(key.clone()).or_default().push(measured);
+    }
+    let footprints = |key: &str| {
+        crate::model::production::StoredKey::parse(key).map_or_else(Vec::new, |k| {
+            crate::instances::pad_footprints(project, &k.objects)
+        })
+    };
     waivers
         .iter()
         .filter(|w| {
             super::preflight::can_waive(w.key.split_whitespace().next().unwrap_or_default())
+                && now.get(&w.key).into_iter().flatten().all(|measured| {
+                    matches!(
+                        project
+                            .production
+                            .acceptance(&w.key, measured, || footprints(&w.key)),
+                        crate::model::production::Acceptance::Holds(_)
+                    )
+                })
         })
         .map(|w| {
             let what = findings
@@ -455,12 +478,16 @@ fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Str
                     },
                     |f| f.message.clone(),
                 );
+            let accepted = crate::model::production::accepted_words(&w.accepted)
+                .map_or_else(String::new, |a| format!(" Accepted: {a}."));
             let reason = if w.reason.is_empty() {
                 String::new()
             } else {
                 format!(" Reason: {}.", w.reason.trim_end_matches('.'))
             };
-            format!("Waived by the designer, please confirm in DFM review: {what}.{reason}")
+            format!(
+                "Waived by the designer, please confirm in DFM review: {what}.{accepted}{reason}"
+            )
         })
         .collect()
 }
@@ -800,10 +827,14 @@ mod tests {
             Waiver {
                 key: "board.clearance []".into(),
                 reason: String::new(),
+                accepted: Vec::new(),
+                footprints: Vec::new(),
             },
             Waiver {
                 key: waiver_key(&finding.code, &finding.objects),
                 reason: "Checked with the fab".into(),
+                accepted: finding.measured.clone(),
+                footprints: Vec::new(),
             },
         ];
         project.production.waivers.sort_by(|a, b| a.key.cmp(&b.key));
@@ -815,6 +846,8 @@ mod tests {
         .notes;
         let waived: Vec<&String> = notes.iter().filter(|n| n.starts_with("Waived")).collect();
         assert_eq!(waived.len(), 2, "{notes:?}");
+        let accepted = crate::model::production::accepted_words(&finding.measured)
+            .ok_or(crate::Error::Invalid("no value".into()))?;
         let prefix = "Waived by the designer, please confirm in DFM review: ";
         assert!(
             waived.contains(&&format!("{prefix}board.clearance.")),
@@ -822,7 +855,7 @@ mod tests {
         );
         assert!(
             waived.contains(&&format!(
-                "{prefix}{}. Reason: Checked with the fab.",
+                "{prefix}{}. Accepted: {accepted}. Reason: Checked with the fab.",
                 finding.message
             )),
             "{waived:?}"

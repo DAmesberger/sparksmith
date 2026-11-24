@@ -1,6 +1,6 @@
 //! Cross-section of a fabricated neck between the lands named by its bridge.
 use super::CopperGraph;
-use crate::diagnostics::{Finding, FindingCode};
+use crate::diagnostics::{Finding, FindingCode, Measured, Unit};
 use crate::ids::Id;
 use crate::instances::{self, ties::TieRow};
 use crate::layout::{PlacedBridge, PlacedPad, fill::geom, physical, placed_pads};
@@ -170,7 +170,8 @@ impl CopperGraph {
                         current.source.as_deref().unwrap_or("the supplied table")
                     ),
                     row.objects([]),
-                ),
+                )
+                .measuring([Measured::at_least(cap, need, Unit::Amperes, 0.0)]),
                 _ => continue,
             };
             out.push(finding);

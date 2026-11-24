@@ -771,7 +771,8 @@ pub(super) fn edge_finding(
                     ),
                     vec![object],
                 )
-                .requiring(need.at_most(gap)),
+                .requiring(need.at_most(gap))
+                .measuring([need.measured(gap)]),
             )
         }
     }
@@ -879,11 +880,9 @@ impl<'a> ClearanceCx<'a> {
             if a.ring.closer_than(b.ring, gap) {
                 let need =
                     isolation.unwrap_or_else(|| limits.clearance_need(a.kind, an, b.kind, bn));
-                // What a profile would have to allow: the gap measured, once
-                // a pair is found too close.
-                let needs = need
-                    .profile_rule
-                    .and_then(|_| need.at_most(a.ring.gap(b.ring, need.mm + 1.0)));
+                // The gap is measured once a pair is found too close.
+                let apart = a.ring.gap(b.ring, need.mm + 1.0);
+                let needs = need.at_most(apart);
                 issues.push(
                     Finding::new(
                         FindingCode::BoardClearance,
@@ -896,7 +895,8 @@ impl<'a> ClearanceCx<'a> {
                         ),
                         vec![a.object, b.object],
                     )
-                    .requiring(needs),
+                    .requiring(needs)
+                    .measuring([need.measured(apart)]),
                 );
             }
         }

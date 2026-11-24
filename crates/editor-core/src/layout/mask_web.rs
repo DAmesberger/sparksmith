@@ -11,7 +11,7 @@
 //! opening (no web lies between them). A tented pad opens nothing.
 use super::limits::{BoardRules, mm_against};
 use super::{CopperRing, PlacedPad, placed_pads};
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, Measured, ObjectRef, Unit};
 use crate::ids::Id;
 use crate::instances;
 use crate::library::{PadCopper, PadDefaults};
@@ -142,7 +142,13 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                         },
                     ],
                 )
-                .requiring(need.at_most(web)),
+                .requiring(need.at_most(web))
+                .measuring([Measured::at_least(
+                    web,
+                    min,
+                    Unit::Mm,
+                    WEB_TOLERANCE_MM,
+                )]),
             );
         }
     }

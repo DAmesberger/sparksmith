@@ -2,7 +2,7 @@
 use super::build::joins;
 use super::{CopperGraph, Dsu, EdgeKind, ElementKind, JOIN_TOLERANCE_MM};
 use crate::diagnostics::FindingCode;
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, Measured, ObjectRef, Unit};
 use crate::geometry::Point;
 use crate::ids::Id;
 use crate::layout::limits::mm;
@@ -581,11 +581,19 @@ impl CopperGraph {
             .filter_map(|(id, count)| {
                 let fill = project.fill(id)?;
                 let label = crate::layout::fill::fill_label(project, fill);
-                Some(Finding::new(
-                    FindingCode::FillIslandUnconnected,
-                    format!("{label} has {count} unconnected copper islands"),
-                    vec![ObjectRef::Fill { id }],
-                ))
+                Some(
+                    Finding::new(
+                        FindingCode::FillIslandUnconnected,
+                        format!("{label} has {count} unconnected copper islands"),
+                        vec![ObjectRef::Fill { id }],
+                    )
+                    .measuring([Measured::at_most(
+                        count as f64,
+                        0.0,
+                        Unit::Count,
+                        0.0,
+                    )]),
+                )
             })
             .collect()
     }

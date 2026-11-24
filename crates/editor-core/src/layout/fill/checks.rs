@@ -20,7 +20,7 @@ use super::FILL_CHORD_MM;
 use super::compute::Ctx;
 use super::geom::{self, Region, RegionIndex};
 use crate::diagnostics::FindingCode;
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, Measured, ObjectRef, Unit};
 use crate::geometry::{Point, polygon_contains, polygons_overlap};
 use crate::ids::Id;
 use crate::layout::limits::Need;
@@ -226,7 +226,7 @@ struct Obstacle {
 
 /// A rule an object's gap is short of: the gap, the rule and the object's
 /// name in a message.
-type Short = (f64, Need, String);
+type Short = (f64, Need, String, &'static str);
 
 /// One stored fill's copper, prepared once for the audit.
 struct Stored {
@@ -589,7 +589,7 @@ impl<'a> Audit<'a> {
             }
             let gaps: Vec<String> = hits
                 .iter()
-                .map(|(gap, need, them)| {
+                .map(|(gap, need, them, _)| {
                     format!(
                         "{} mm from {them}",
                         crate::layout::limits::mm_against(*gap, need.mm)
@@ -628,10 +628,12 @@ impl<'a> Audit<'a> {
                 continue;
             };
             let them = describe(project, &o.object);
-            let them = match (o.object, o.kind) {
-                (ObjectRef::Via { .. }, CopperObject::ViaHole) => format!("the drill of {them}"),
-                (ObjectRef::Instance { .. }, _) => format!("the net tie bridge of {them}"),
-                _ => them,
+            let (them, of) = match (o.object, o.kind) {
+                (ObjectRef::Via { .. }, CopperObject::ViaHole) => {
+                    (format!("the drill of {them}"), "drill")
+                }
+                (ObjectRef::Instance { .. }, _) => (format!("the net tie bridge of {them}"), ""),
+                _ => (them, ""),
             };
             // Copper of two nets that touches is a short, a finding of its
             // own beside any gap to the same object.
@@ -644,12 +646,27 @@ impl<'a> Audit<'a> {
             };
             let at = *at_object.entry((o.object, shorts)).or_insert(short.len());
             match short.get_mut(at) {
-                Some((_, _, hits)) => hits.push((gap, need, them)),
-                None => short.push((o.object, code, vec![(gap, need, them)])),
+                Some((_, _, hits)) => hits.push((gap, need, them, of)),
+                None => short.push((o.object, code, vec![(gap, need, them, of)])),
             }
         }
+        // Copper that overlaps has no gap: it is said, not measured.
+        let measured = |hits: &[Short]| -> Vec<Measured> {
+            hits.iter()
+                .filter(|h| h.0 > 0.0)
+                .map(|(gap, need, _, of)| {
+                    Measured::at_least(*gap, need.mm, Unit::Mm, AUDIT_SLACK_MM).of(*of)
+                })
+                .collect()
+        };
+        let touches = |hits: &[Short]| hits.iter().any(|h| h.0 <= 0.0);
         for (object, code, hits) in &short {
-            report(Finding::new(*code, words(hits), vec![me, *object]));
+            let found = Finding::new(*code, words(hits), vec![me, *object]);
+            report(if touches(hits) {
+                found
+            } else {
+                found.measuring(measured(hits))
+            });
         }
         // Other fills on the layer, each pair once (from the lower id).
         for (k, theirs) in project.fills.iter().enumerate() {
@@ -694,15 +711,19 @@ impl<'a> Audit<'a> {
             };
             if gap.is_finite() {
                 let shorts = gap <= 0.0 && fill.net.is_some() && theirs.net.is_some();
-                report(Finding::new(
-                    if shorts {
-                        FindingCode::FillOverlap
-                    } else {
-                        FindingCode::FillClearance
-                    },
-                    words(&[(gap, need, fill_label(project, theirs))]),
-                    vec![me, ObjectRef::Fill { id: theirs.id }],
-                ));
+                let hits = [(gap, need, fill_label(project, theirs), "")];
+                report(
+                    Finding::new(
+                        if shorts {
+                            FindingCode::FillOverlap
+                        } else {
+                            FindingCode::FillClearance
+                        },
+                        words(&hits),
+                        vec![me, ObjectRef::Fill { id: theirs.id }],
+                    )
+                    .measuring(measured(&hits)),
+                );
             }
         }
         // The board shape.
@@ -731,36 +752,50 @@ impl<'a> Audit<'a> {
                 && edge_limit > 0.0
                 && let Some(gap) = stored.distance(&self.outer, edge_limit)
             {
-                report(Finding::new(
-                    FindingCode::FillBoardEdge,
-                    format!(
-                        "{what}: copper is {} mm from the board edge; {}; refill it",
-                        crate::layout::limits::mm_against(gap, edge.mm),
-                        edge.text()
-                    ),
-                    vec![me, ObjectRef::Board],
-                ));
+                report(
+                    Finding::new(
+                        FindingCode::FillBoardEdge,
+                        format!(
+                            "{what}: copper is {} mm from the board edge; {}; refill it",
+                            crate::layout::limits::mm_against(gap, edge.mm),
+                            edge.text()
+                        ),
+                        vec![me, ObjectRef::Board],
+                    )
+                    .measuring([Measured::at_least(
+                        gap,
+                        edge.mm,
+                        Unit::Mm,
+                        AUDIT_SLACK_MM,
+                    )]),
+                );
             }
         }
         for (ring, object) in &self.cutouts {
             if let Some(gap) = stored.meets(ring, edge.mm, stale) {
-                report(Finding::new(
-                    FindingCode::FillBoardEdge,
-                    if gap <= 0.0 {
-                        format!(
-                            "{what}: copper lies in {}; refill it",
-                            describe(project, object)
-                        )
-                    } else {
-                        format!(
-                            "{what}: copper is {} mm from {}; {}; refill it",
-                            crate::layout::limits::mm_against(gap, edge.mm),
-                            describe(project, object),
-                            edge.text()
-                        )
-                    },
-                    vec![me, *object],
-                ));
+                report(
+                    Finding::new(
+                        FindingCode::FillBoardEdge,
+                        if gap <= 0.0 {
+                            format!(
+                                "{what}: copper lies in {}; refill it",
+                                describe(project, object)
+                            )
+                        } else {
+                            format!(
+                                "{what}: copper is {} mm from {}; {}; refill it",
+                                crate::layout::limits::mm_against(gap, edge.mm),
+                                describe(project, object),
+                                edge.text()
+                            )
+                        },
+                        vec![me, *object],
+                    )
+                    .measuring(
+                        (gap > 0.0)
+                            .then(|| Measured::at_least(gap, edge.mm, Unit::Mm, AUDIT_SLACK_MM)),
+                    ),
+                );
             }
         }
         // Keepouts that forbid fills on the layer.

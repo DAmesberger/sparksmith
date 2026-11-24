@@ -25,7 +25,7 @@
 //! findings.
 use super::{CopperGraph, impedance};
 use crate::diagnostics::FindingCode;
-use crate::diagnostics::{Error, Finding, ObjectRef, Result};
+use crate::diagnostics::{Error, Finding, Measured as Number, ObjectRef, Result, Unit};
 use crate::geometry::Point;
 use crate::ids::Id;
 use crate::model::{CopperLayer, Project, Track};
@@ -635,27 +635,34 @@ pub(crate) fn checks_from(
             } else {
                 ("long", l - hi)
             };
-            findings.push(Finding::new(
-                FindingCode::LengthMismatch,
-                format!(
-                    "{} is {} mm too {word} for length group {}; {} mm, needs {} ± {} mm",
-                    project.net_name(*member),
-                    mm(by),
-                    g.name,
-                    mm(l),
-                    mm(if g.explicit {
-                        g.target
-                    } else {
-                        g.target - g.tolerance / 2.0
-                    }),
-                    mm(if g.explicit {
-                        g.tolerance
-                    } else {
-                        g.tolerance / 2.0
-                    })
-                ),
-                vec![net(*member)],
-            ));
+            findings.push(
+                Finding::new(
+                    FindingCode::LengthMismatch,
+                    format!(
+                        "{} is {} mm too {word} for length group {}; {} mm, needs {} ± {} mm",
+                        project.net_name(*member),
+                        mm(by),
+                        g.name,
+                        mm(l),
+                        mm(if g.explicit {
+                            g.target
+                        } else {
+                            g.target - g.tolerance / 2.0
+                        }),
+                        mm(if g.explicit {
+                            g.tolerance
+                        } else {
+                            g.tolerance / 2.0
+                        })
+                    ),
+                    vec![net(*member)],
+                )
+                .measuring([if l < lo {
+                    Number::at_least(l, lo, Unit::Mm, 1e-6)
+                } else {
+                    Number::at_most(l, hi, Unit::Mm, 1e-6)
+                }]),
+            );
         }
     }
     single_ended_impedance(project, settings, &mut findings);
@@ -711,7 +718,8 @@ fn check_pair(
                 mm(max_skew)
             ),
             objects.clone(),
-        ));
+        )
+        .measuring([Number::at_most((a - b).abs(), max_skew, Unit::Mm, 1e-6)]));
     }
     let coupled = pair_coupling(project, pair);
     let uncoupled = lengths.uncoupled(pair.id, &coupled);
@@ -728,7 +736,8 @@ fn check_pair(
                     mm(max)
                 ),
                 objects.clone(),
-            ));
+            )
+            .measuring([Number::at_most(worst, max, Unit::Mm, 1e-6)]));
         }
     }
     let mut worst: BTreeMap<CopperLayer, (f64, f64, Id, Id)> = BTreeMap::new();
@@ -739,22 +748,25 @@ fn check_pair(
         }
     }
     for (layer, (edge, gap, p, n)) in worst {
-        findings.push(Finding::new(
-            FindingCode::PairGap,
-            format!(
-                "{}: halves {} mm apart on {}; needs a {} mm pair gap",
-                pair.name,
-                super::limits::mm_against(edge, gap),
-                layer.name(),
-                mm(gap)
-            ),
-            vec![
-                net(pair.positive),
-                net(pair.negative),
-                ObjectRef::Track { id: p },
-                ObjectRef::Track { id: n },
-            ],
-        ));
+        findings.push(
+            Finding::new(
+                FindingCode::PairGap,
+                format!(
+                    "{}: halves {} mm apart on {}; needs a {} mm pair gap",
+                    pair.name,
+                    super::limits::mm_against(edge, gap),
+                    layer.name(),
+                    mm(gap)
+                ),
+                vec![
+                    net(pair.positive),
+                    net(pair.negative),
+                    ObjectRef::Track { id: p },
+                    ObjectRef::Track { id: n },
+                ],
+            )
+            .measuring([super::limits::at_least_mm(edge, gap)]),
+        );
     }
     if let Some(target) = signal.diff_impedance {
         // Use the signal-path lengths from the length report. The coupled-line
@@ -772,7 +784,11 @@ fn check_pair(
                     project.net_name(pair.negative),
                 ),
                 objects.clone(),
-            ));
+            )
+            .measuring([
+                Number::at_most(uncoupled[0], 0.0, Unit::Mm, 1e-6).of("positive"),
+                Number::at_most(uncoupled[1], 0.0, Unit::Mm, 1e-6).of("negative"),
+            ]));
         }
         match signal.tolerance_pct(settings) {
             Some(tolerance) => impedance_of_runs(project, pair, target, tolerance, &c, findings),
@@ -829,22 +845,26 @@ fn single_ended_impedance(
             }
         }
     }
-    for ((net, layer), (_, z, track, target)) in worst {
-        findings.push(Finding::new(
-            FindingCode::ImpedanceMismatch,
-            format!(
-                "{} on {} is {:.1} Ω; needs {:.1} Ω ± {} %",
-                project.net_name(net),
-                layer.name(),
-                z,
-                target,
-                mm(rules
-                    .signal(super::net_class(project, net))
-                    .tolerance_pct(settings)
-                    .unwrap_or_default())
-            ),
-            vec![ObjectRef::Net { id: net }, ObjectRef::Track { id: track }],
-        ));
+    for ((net, layer), (off, z, track, target)) in worst {
+        let tolerance = rules
+            .signal(super::net_class(project, net))
+            .tolerance_pct(settings)
+            .unwrap_or_default();
+        findings.push(
+            Finding::new(
+                FindingCode::ImpedanceMismatch,
+                format!(
+                    "{} on {} is {:.1} Ω; needs {:.1} Ω ± {} %",
+                    project.net_name(net),
+                    layer.name(),
+                    z,
+                    target,
+                    mm(tolerance)
+                ),
+                vec![ObjectRef::Net { id: net }, ObjectRef::Track { id: track }],
+            )
+            .measuring([Number::at_most(off, tolerance, Unit::Percent, 1e-9)]),
+        );
     }
     for (net, layer) in unreferenced {
         findings.push(Finding::new(
@@ -900,23 +920,26 @@ fn impedance_of_runs(
             }
         }
     }
-    for (layer, (_, z, track)) in worst {
-        findings.push(Finding::new(
-            FindingCode::ImpedanceMismatch,
-            format!(
-                "{} on {} is {:.1} Ω differential; needs {:.1} Ω ± {} %",
-                pair.name,
-                layer.name(),
-                z,
-                target,
-                mm(tolerance)
-            ),
-            vec![
-                ObjectRef::Net { id: pair.positive },
-                ObjectRef::Net { id: pair.negative },
-                ObjectRef::Track { id: track },
-            ],
-        ));
+    for (layer, (off, z, track)) in worst {
+        findings.push(
+            Finding::new(
+                FindingCode::ImpedanceMismatch,
+                format!(
+                    "{} on {} is {:.1} Ω differential; needs {:.1} Ω ± {} %",
+                    pair.name,
+                    layer.name(),
+                    z,
+                    target,
+                    mm(tolerance)
+                ),
+                vec![
+                    ObjectRef::Net { id: pair.positive },
+                    ObjectRef::Net { id: pair.negative },
+                    ObjectRef::Track { id: track },
+                ],
+            )
+            .measuring([Number::at_most(off, tolerance, Unit::Percent, 1e-9)]),
+        );
     }
     for layer in unreferenced {
         findings.push(Finding::new(

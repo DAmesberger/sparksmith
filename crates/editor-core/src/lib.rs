@@ -2195,16 +2195,37 @@ impl Engine {
                 }
             }
             Operation::Fabrication(command) => {
-                if let fabrication::FabricationCommand::Waive { keys, .. } = &command {
-                    fabrication::preflight::refuse_needed(
-                        &candidate.project,
+                let mut accepted = Default::default();
+                if let fabrication::FabricationCommand::Waive { keys, profile, .. } = &command {
+                    // What the findings measure where they were read.
+                    let profile = profile
+                        .clone()
+                        .map(|p| p.resolve(&candidate.project.rules))
+                        .transpose()?;
+                    let snapshot = profile
+                        .as_ref()
+                        .map(|p| {
+                            fabrication::ProductionSnapshot::resolve(&candidate.project, Some(p))
+                        })
+                        .transpose()?;
+                    let project: &Project = match &snapshot {
+                        Some(s) => s.project(),
+                        None => &candidate.project,
+                    };
+                    accepted = fabrication::preflight::accepted(
+                        project,
                         &self.document.drafts,
                         &self.check_settings,
                         keys,
                     )?;
                 }
                 let mut next = candidate.project.production.clone();
-                fabrication::preflight::apply(&mut next, command, self.waiver_reason_required)?;
+                fabrication::preflight::apply(
+                    &mut next,
+                    command,
+                    self.waiver_reason_required,
+                    &accepted,
+                )?;
                 if next != candidate.project.production {
                     Arc::make_mut(&mut candidate.project).production = next;
                 }

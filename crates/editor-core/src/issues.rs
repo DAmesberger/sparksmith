@@ -27,6 +27,7 @@ use crate::erc;
 use crate::layout;
 use crate::library::Drafts;
 use crate::model::Project;
+use crate::model::production::Acceptance;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -301,6 +302,15 @@ fn report_in(
     ))
 }
 
+/// What the project's waivers say of a finding.
+fn acceptance<'a>(project: &'a Project, finding: &Finding) -> Acceptance<'a> {
+    project.production.acceptance(
+        &crate::model::production::waiver_key(&finding.code, &finding.objects),
+        &finding.measured,
+        || crate::instances::pad_footprints(project, &finding.objects),
+    )
+}
+
 /// The report of `scope` from every raw finding of the project, by area:
 /// production waivers, same-cause merging, wording and order. The one way
 /// findings become rows, whether every check ran or a state's report was
@@ -330,13 +340,7 @@ fn assemble(
             project.production.is_default()
                 || finding.blocks.is_some()
                 || !can_waive(&finding.code)
-                || project
-                    .production
-                    .waiver(&crate::model::production::waiver_key(
-                        &finding.code,
-                        &finding.objects,
-                    ))
-                    .is_none()
+                || !matches!(acceptance(project, finding), Acceptance::Holds(_))
         });
         let groups = match area {
             IssueArea::Component => merge::component(names(), findings),
@@ -580,6 +584,20 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
         .min()
         .unwrap_or(Severity::Info);
     let cause = rules::line_full(&finding.message);
+    // A merged row's first message speaks for one finding only.
+    let cause = (also.is_empty() && cause != title).then_some(cause);
+    // A waiver that no longer accepts it is why the row is here.
+    let lapsed = std::iter::once(&finding)
+        .chain(&also)
+        .filter(|f| can_waive(&f.code) && f.requirement.is_none())
+        .find_map(|f| match acceptance(names.project(), f) {
+            Acceptance::Lapsed(_, text) => Some(text),
+            _ => None,
+        });
+    let cause = match (lapsed, cause) {
+        (Some(lapsed), Some(cause)) => Some(format!("{lapsed}; {cause}")),
+        (lapsed, cause) => lapsed.or(cause),
+    };
     let profile = names.project().rules.profile.as_ref();
     let needs = crate::rules::requirement::tightest(
         std::iter::once(&finding)
@@ -598,8 +616,7 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
             title: rules::group_title(&finding.code),
         },
         detail: IssueDetail {
-            // A merged row's first message speaks for one finding only.
-            cause: (also.is_empty() && cause != title).then_some(cause),
+            cause,
             fix: crate::library::standards::Context::current()
                 .ok()
                 .and_then(|context| {

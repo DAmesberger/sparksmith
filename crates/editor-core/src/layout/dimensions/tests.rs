@@ -123,6 +123,7 @@ fn reference_findings_cannot_be_waived() -> Fallible<()> {
             Operation::Fabrication(FabricationCommand::Waive {
                 keys: vec![format!("{code} []")],
                 reason: "checked".into(),
+                profile: None,
             }),
         );
         assert!(refused.is_err(), "{code}");

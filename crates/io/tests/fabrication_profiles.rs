@@ -113,13 +113,22 @@ fn every_file_of_an_export_follows_the_chosen_profile() -> Fallible<()> {
             .map(|i| i.key)
             .collect();
     if !blocking.is_empty() {
+        let accepted = preflight::accepted(
+            sparksmith_core::fabrication::ProductionSnapshot::resolve(&poured, Some(&other))?
+                .project(),
+            &Default::default(),
+            &checks,
+            &blocking,
+        )?;
         preflight::apply(
             &mut poured.production,
             FabricationCommand::Waive {
                 keys: blocking,
                 reason: "test".into(),
+                profile: None,
             },
             false,
+            &accepted,
         )?;
     }
     let dir = tempfile::tempdir()?;
