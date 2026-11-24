@@ -2103,6 +2103,20 @@ pub(super) fn regions(lines: &[String]) -> Vec<std::ops::RangeInclusive<usize>> 
     out
 }
 
+/// Without the region at lines `gone`. The modes a region sets hold after
+/// it: they stay, so the rest of the file reads as it did.
+pub(super) fn without_region(
+    lines: Vec<String>,
+    gone: std::ops::RangeInclusive<usize>,
+) -> Vec<String> {
+    lines
+        .into_iter()
+        .enumerate()
+        .filter(|(k, l)| !gone.contains(k) || l.starts_with("G0"))
+        .map(|(_, l)| l)
+        .collect()
+}
+
 /// Each kind of output fault, seeded in the files, with the check that must
 /// report it. One the check passes is a hole in the check.
 #[test]
@@ -2116,7 +2130,7 @@ fn every_seeded_fault_is_reported() -> Fallible<()> {
             edit(f, suffix, |l| {
                 let r = regions(&l);
                 match r.get(k).cloned() {
-                    Some(r) => without(l, r),
+                    Some(r) => without_region(l, r),
                     None => l,
                 }
             });
@@ -2520,10 +2534,10 @@ fn every_seeded_fault_is_reported() -> Fallible<()> {
             unmade.push(*what);
             continue;
         }
-        // A damaged file the reader refuses is reported too.
+        // A file the reader refuses tests nothing of the check it names.
         let found = match check_changed(&project, &files, &clean) {
             Ok(found) => found,
-            Err(e) => vec![format!("{by}: {e}")],
+            Err(e) => vec![format!("refused: {e}")],
         };
         if !found.iter().any(|f| f.starts_with(&format!("{by}:"))) {
             missed.push(format!("{what}: not by {by}; found {found:#?}"));

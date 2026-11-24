@@ -736,31 +736,73 @@ fn bridges(project: &Project, layer: CopperLayer) -> Vec<Prim> {
     out
 }
 
-/// One silkscreen shape: its edges in the part's frame, and half its pen.
+/// One piece of silkscreen: its edges in its frame, and half its pen.
 pub(crate) struct Ink {
     pub edges: Vec<Edge>,
     pub half: f64,
     pub filled: bool,
     pub frame: Frame,
+    /// A stroke of a letter, else of a shape.
+    pub letter: bool,
     pub what: String,
 }
 
-/// One silkscreen text: where its anchor is on the board, its cap height
-/// and how many characters its longest line and how many lines it has.
+/// One silkscreen text and where its anchor is on the board.
 pub(crate) struct InkText {
     pub at: Point,
-    pub height: f64,
-    pub characters: usize,
-    pub lines: usize,
     pub text: String,
 }
 
+/// Every stroke of one line of text centred on `at`: the letters of the
+/// font's grid (4 by 6, the font's data), each in a cell 0.6 of the cap
+/// height `h` wide, 0.42 of it wide itself and 0.09 in from the cell's
+/// left. Text on the bottom reads from below: seen from the top it is
+/// reflected, left for right.
+fn letters(text: &str, at: Point, h: f64, half: f64, bottom: bool) -> Vec<Ink> {
+    let cells = text.chars().count() as f64;
+    let mut out = Vec::new();
+    for (k, c) in text.chars().enumerate() {
+        let left = (k as f64 - cells / 2.0) * 0.6 * h + 0.09 * h;
+        for stroke in crate::layout::legend::glyph(c).into_iter().flatten() {
+            let points: Vec<Point> = stroke
+                .iter()
+                .map(|(x, y)| {
+                    let x = left + x / 4.0 * 0.42 * h;
+                    let x = if bottom { -x } else { x };
+                    [at[0] + x, at[1] + (y / 6.0 - 0.5) * h]
+                })
+                .collect();
+            // A stroke of one point is a dot.
+            let ends = points.iter().skip(1).chain(points.last());
+            let mut edges: Vec<Edge> = points
+                .iter()
+                .zip(ends)
+                .map(|(a, b)| Edge::Line { a: *a, b: *b })
+                .collect();
+            if edges.len() > 1 {
+                edges.pop();
+            }
+            out.push(Ink {
+                edges,
+                half,
+                filled: false,
+                frame: Frame::still([0.0; 2]),
+                letter: true,
+                what: format!("a stroke of {c:?} of {text:?}"),
+            });
+        }
+    }
+    out
+}
+
 /// What the legend of `side` must print: every silkscreen shape and every
-/// visible text of the parts (literal text and designators; other text
-/// prints nothing).
+/// stroke of every visible text of the parts (literal text and designators;
+/// other text prints nothing). Text is read here only where it is level:
+/// one centred line, unturned, of a part that is not turned.
 pub(crate) fn legend(project: &Project, side: Layer) -> Fallible<(Vec<Ink>, Vec<InkText>)> {
-    use crate::library::{DrawingLayer, Fill, Item, Side, TextContent};
+    use crate::library::{DrawingLayer, Fill, Item, Justify, Rotation, Side, TextContent};
     let (mut inks, mut texts) = (Vec::new(), Vec::new());
+    let silk = project.rules.effective().silkscreen;
     for (placement, footprint, name) in parts(project) {
         let frame = Frame::of_part(&placement, &footprint);
         for graphic in &footprint.graphics {
@@ -778,6 +820,7 @@ pub(crate) fn legend(project: &Project, side: Layer) -> Fallible<(Vec<Ink>, Vec<
                     half: width_nm.to_mm_f64() / 2.0,
                     filled: *fill != Fill::None,
                     frame,
+                    letter: false,
                     what: format!("silkscreen {} of {name}", graphic.id.0),
                 }),
                 Item::Text(text) => {
@@ -789,17 +832,18 @@ pub(crate) fn legend(project: &Project, side: Layer) -> Fallible<(Vec<Ink>, Vec<
                     if !text.visible || content.trim().is_empty() {
                         continue;
                     }
-                    texts.push(InkText {
-                        at: frame.to_board(text.at.to_mm_f64()),
-                        height: text.height_nm.to_mm_f64(),
-                        characters: content
-                            .lines()
-                            .map(|l| l.chars().count())
-                            .max()
-                            .unwrap_or(0),
-                        lines: content.lines().count(),
-                        text: content,
-                    });
+                    if text.rotation != Rotation::R0
+                        || text.justify != Justify::default()
+                        || placement.rotation_deg != 0.0
+                        || content.contains('\n')
+                    {
+                        return Err(format!("the oracle reads no turned text ({content:?})").into());
+                    }
+                    let at = frame.to_board(text.at.to_mm_f64());
+                    let h = text.height_nm.to_mm_f64();
+                    let pen = (silk.text_stroke_share * h).max(silk.line_width_min);
+                    inks.extend(letters(&content, at, h, pen / 2.0, side == Layer::Bottom));
+                    texts.push(InkText { at, text: content });
                 }
             }
         }
