@@ -790,7 +790,8 @@ fn the_board_footer_states_the_clearance_in_force() -> Fallible<()> {
     let unprofiled = issues(&Engine::default(), board.clone())?;
     assert_eq!(
         unprofiled.coverage,
-        "Connectivity, outline and courtyards; no fab profile, so no clearance is checked"
+        "No fab profile, so no clearance is checked: choose one (Board › Rules); \
+         connectivity, outline and courtyards are checked"
     );
     let engine = Engine::profiled()?;
     let rules = &engine.project().rules;

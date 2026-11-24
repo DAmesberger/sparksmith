@@ -140,12 +140,14 @@ pub fn issue_line(ui: &mut Ui, counts: &IssueCounts, label: &str) -> Response {
 /// The always-visible Issues bar: disclosure, title and every count (the
 /// bar never hides To do), then the `elsewhere` blocker line ("Component:
 /// 2 block publishing") at its right. A click expands or collapses the
-/// card.
+/// card. `unchecked` ("No fab profile") stands in for "No issues" when
+/// nothing was found because checks could not run.
 pub fn issues_bar(
     ui: &mut Ui,
     counts: &IssueCounts,
     expanded: bool,
     elsewhere: Option<&str>,
+    unchecked: Option<&str>,
 ) -> Response {
     let t = Tokens::get();
     let (rect, response) = ui.allocate_exact_size(
@@ -176,12 +178,11 @@ pub fn issues_bar(
             + t.space_16
             + t.space_10
     });
-    // With nothing to count the bar says "No issues" after the glyph.
+    // With nothing to count the bar says "No issues" after the glyph, or
+    // what keeps them from being found.
+    let nothing = unchecked.map_or_else(|| Level::Ok.count_words(0), str::to_owned);
     let none_width = if segs.is_empty() {
-        t.space_4
-            + galley(ui, &Level::Ok.count_words(0), font.clone(), t.text_dim)
-                .size()
-                .x
+        t.space_4 + galley(ui, &nothing, font.clone(), t.text_dim).size().x
     } else {
         0.0
     };
@@ -192,9 +193,17 @@ pub fn issues_bar(
             .galley(pos2(x, cy - title.size().y / 2.0), title, t.text);
         x += title_width + t.space_10;
     }
-    x = paint_counts(ui, x, cy, &segs, &font);
+    x = match unchecked {
+        // Nothing was found because something was not checked: not a pass.
+        Some(_) if segs.is_empty() => {
+            let glyph = font.size;
+            severity_glyph(ui.painter(), pos2(x + glyph / 2.0, cy), glyph, Level::ToDo);
+            x + glyph
+        }
+        _ => paint_counts(ui, x, cy, &segs, &font),
+    };
     if segs.is_empty() {
-        let none = galley(ui, &Level::Ok.count_words(0), font, t.text_dim);
+        let none = galley(ui, &nothing, font, t.text_dim);
         let width = none.size().x;
         ui.painter().galley(
             pos2(x + t.space_4, cy - none.size().y / 2.0),
@@ -204,7 +213,12 @@ pub fn issues_bar(
         // The elsewhere note clips against the end of "No issues".
         x += t.space_4 + width;
     }
-    let mut name = format!("Issues: {}", counts_words(counts, true, true));
+    let words = if segs.is_empty() {
+        nothing
+    } else {
+        counts_words(counts, true, true)
+    };
+    let mut name = format!("Issues: {words}");
     if let Some(elsewhere) = elsewhere.filter(|e| !e.is_empty()) {
         let right = rect.right() - t.space_8;
         let dot = t.space_6;

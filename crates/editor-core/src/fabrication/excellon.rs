@@ -8,7 +8,9 @@
 //! (`XaYaG85XbYb`, the tool's width). Plated and non-plated holes are
 //! separate files. Each file also carries the X2 attributes as `; #@!`
 //! comment lines (`TF.FileFunction,Plated,1,4,PTH`), which readers that do
-//! not know them skip as comments.
+//! not know them skip as comments; a tool's is its function
+//! (`TA.AperFunction,ViaDrill`, XNC specification 2021.11, p. 18), as the
+//! file function already states the plating.
 //!
 //! Hole sizes are finished sizes. The tool sizes written follow the rule
 //! profile's [`crate::rules::DrillFiles`]: finished sizes, or plated holes
@@ -147,13 +149,7 @@ pub fn excellon(
     );
     let tools: Vec<_> = table.tools.iter().filter(|t| t.plated == plated).collect();
     for tool in &tools {
-        let _ = writeln!(
-            s,
-            "; #@! TA.AperFunction,{},{},{}",
-            if plated { "Plated" } else { "NonPlated" },
-            if plated { "PTH" } else { "NPTH" },
-            tool.function.aper_function()
-        );
+        let _ = writeln!(s, "; #@! TA.AperFunction,{}", tool.function.aper_function());
         let _ = writeln!(s, "T{}C{}", tool.number, fixed(file_size(tool.diameter)));
     }
     s.push_str("%\nG90\nG05\n");

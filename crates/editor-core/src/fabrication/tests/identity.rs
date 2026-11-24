@@ -127,6 +127,13 @@ fn the_revision_names_what_the_files_say() -> Fallible<()> {
     Ok(())
 }
 
+/// A save that succeeds: the copy written, then the engine.
+fn first_save(engine: &mut Engine, file: &Path, nonce: &str) -> Fallible<()> {
+    let given = crate::first_save(&mut engine.document().clone(), file, nonce);
+    engine.adopt_first_save(&given);
+    Ok(())
+}
+
 /// A project first saved takes its identity from its file's name, the
 /// host's nonce and what it holds; undo, redo and renames keep it, and a
 /// scripted project saved under the same file name reproduces it.
@@ -136,9 +143,9 @@ fn a_first_save_gives_the_identity_and_undo_keeps_it() -> Fallible<()> {
     assert_eq!(engine.project().production.project_id, None);
     let file = Path::new("boards/one.sparksmith");
     let mut again = Engine::showcase()?;
-    again.identify_by_file(file, "");
+    first_save(&mut again, file, "")?;
     let mut elsewhere = Engine::showcase()?;
-    elsewhere.identify_by_file(Path::new("boards/two.sparksmith"), "");
+    first_save(&mut elsewhere, Path::new("boards/two.sparksmith"), "")?;
 
     let revision = engine.revision();
     engine.apply(
@@ -147,7 +154,7 @@ fn a_first_save_gives_the_identity_and_undo_keeps_it() -> Fallible<()> {
             name: "Before the save".into(),
         }),
     )?;
-    engine.identify_by_file(file, "");
+    first_save(&mut engine, file, "")?;
     let id = engine
         .project()
         .production
@@ -162,14 +169,14 @@ fn a_first_save_gives_the_identity_and_undo_keeps_it() -> Fallible<()> {
         "two files, two projects"
     );
     let mut nonced = Engine::showcase()?;
-    nonced.identify_by_file(file, "0123abcd");
+    first_save(&mut nonced, file, "0123abcd")?;
     assert_ne!(
         nonced.project().production.project_id,
         again.project().production.project_id,
         "a host's nonce makes two new projects of one file name two projects"
     );
     let mut replay = Engine::showcase()?;
-    replay.identify_by_file(Path::new("elsewhere/one.sparksmith"), "");
+    first_save(&mut replay, Path::new("elsewhere/one.sparksmith"), "")?;
     assert_eq!(
         replay.project().production.project_id,
         again.project().production.project_id,
@@ -181,12 +188,11 @@ fn a_first_save_gives_the_identity_and_undo_keeps_it() -> Fallible<()> {
     assert_eq!(engine.project().production.project_id.as_ref(), Some(&id));
     engine.redo()?;
     assert_eq!(engine.project().production.project_id.as_ref(), Some(&id));
-    engine.identify_by_file(Path::new("copy/elsewhere.sparksmith"), "");
+    first_save(&mut engine, Path::new("copy/elsewhere.sparksmith"), "")?;
     assert_eq!(
         engine.project().production.project_id.as_ref(),
         Some(&id),
         "a copy keeps the identity it has"
     );
-    assert!(engine.adopt_project_id("not-an-id".into()).is_err());
     Ok(())
 }

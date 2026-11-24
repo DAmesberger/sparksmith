@@ -15,7 +15,6 @@ use sparksmith_core::{
     ids::{DefinitionRef, LibraryId, Revision, SourceLineageId},
     layout,
     library::{
-        Drafts,
         graphics::{GraphicTarget, SILK_STROKE_MM, SYMBOL_STROKE_MM},
         import::{OtherRevision, PlaceSource},
     },
@@ -823,7 +822,7 @@ impl Request {
             entry!(
                 Save,
                 "Save the project atomically to a .sparksmith file, by default its current path.",
-                "Atomically save to a .sparksmith file (defaults to the current path). Not undoable.",
+                "Atomically save to a .sparksmith file (defaults to the current path). Not undoable. The first save identifies the project and names an Untitled one after the file; a save leaves the revision, undo and redo as they are.",
             ),
             entry!(
                 PreviewUpdate,
@@ -974,7 +973,7 @@ impl Request {
                 CheckPartFile,
                 "Evaluate a SolidCraft part file at given parameter values and report its convention check.",
                 concat!(
-                    "Evaluate a SolidCraft part file (path to a .solidcraft design, or builtin: a listed name) at literal values for some of its user parameters ({\"can_height\": {\"mm\": 2.465}}; units mm, deg, count, number) and report the convention check (docs/part-templates.md §11): parameters and values, bodies with the ",
+                    "Evaluate a SolidCraft part file (path to a .solidcraft design, or builtin: a listed name) at literal values for some of its user parameters ({\"can_height\": {\"mm\": 2.465}}; units mm, deg, count, number) and report the convention check (docs/part-files.md): parameters and values, bodies with the ",
                     sparksmith_core::product_name!(),
                     " material each appearance names, marking surfaces (marking-<name> planes sized by marking_<name>_u/_v), package datums (opening-<name> planes sized by <datum>_u/_v, optional <datum>_r, _depth, _clearance, normal pointing out along the plug's way in; axis-<name> axes, optional <datum>_d), pin1, bounds, timing and part_file.* findings (read, structure, value, feature, seating, material, marking, datum block; origin, no_marking, import, slow advise). Lists the material appearance names. Not a document change."
                 ),
@@ -1605,20 +1604,9 @@ impl Session {
                     }
                     None => sparksmith_io::rule_profiles::for_new_board_from_env(None)?,
                 };
-                let mut project = Project::new(&sparksmith_io::new_project::shipped()?.board);
-                sparksmith_core::rules::apply(
-                    &mut project.rules,
-                    sparksmith_core::rules::RulesCommand::set_profile(profile, false),
-                )?;
-                sparksmith_core::layout::restack::reconcile_rules(
-                    &mut project,
-                    sparksmith_core::layout::restack::Foils::Follow,
-                )?;
-                self.engine.replace_document(EditorFile {
-                    version: sparksmith_core::format::FILE_VERSION,
-                    project,
-                    drafts: Drafts::default(),
-                })?;
+                let board = &sparksmith_io::new_project::shipped()?.board;
+                self.engine
+                    .replace_document(Engine::new_on(board, profile)?.to_file())?;
                 self.path = None;
                 self.disk = None;
                 self.host_changed(FileChange::New {
@@ -1657,15 +1645,6 @@ impl Session {
                         )
                     })?,
                 };
-                // A project first saved takes its identity, which every
-                // manufacturing file then states. No nonce: a script saved
-                // under the same file name reproduces it. The copy written
-                // takes it; the engine takes it once a file holds it, so a
-                // failed write leaves the project as it was (review
-                // finding 16).
-                let mut document = self.engine.document().clone();
-                let identified =
-                    sparksmith_core::identify_by_file(&mut document.project, &path, "");
                 // The session's own file, under any spelling, is replaced
                 // only while it holds what this session opened or saved;
                 // another file the request names is replaced whatever it
@@ -1679,43 +1658,41 @@ impl Session {
                 } else {
                     None
                 };
-                let revision = self.engine.revision();
-                let written = sparksmith_io::save_project(
-                    &path,
-                    &sparksmith_core::format::EditorFile::from_document(&document),
-                    expected,
-                );
-                if matches!(written, Ok(_) | Err(sparksmith_io::Error::Conflict(_)))
-                    && let Some(id) = identified
-                {
-                    self.engine.adopt_project_id(id)?;
-                }
-                let identity = match written {
-                    Ok(identity) => identity,
-                    Err(sparksmith_io::Error::Conflict(conflict)) => {
-                        // Both versions are kept; this session's document
-                        // is in the new file, which is its file from now
-                        // on, so a later save never replaces the other.
-                        self.path = Some(conflict.kept.clone());
-                        self.disk = Some(conflict.identity);
-                        self.host_changed(FileChange::Saved {
-                            path: conflict.kept.clone(),
-                            identity: conflict.identity,
-                            revision,
-                        });
-                        return Err(sparksmith_io::Error::Conflict(conflict).into());
-                    }
-                    Err(error) => return Err(error.into()),
-                };
-                let saved = path.display().to_string();
+                // A first save names and identifies the project
+                // (`sparksmith_core::first_save`). No nonce: a script saved
+                // under the same file name reproduces both.
+                let saved =
+                    match sparksmith_io::save_document(&path, self.engine.document(), expected, "")
+                    {
+                        Ok(saved) => saved,
+                        Err(sparksmith_io::Error::Conflict(conflict)) => {
+                            // Both versions are kept; this session's document
+                            // is in the new file, which is its file from now
+                            // on, so a later save never replaces the other.
+                            self.path = Some(conflict.kept.clone());
+                            self.disk = Some(conflict.identity);
+                            self.host_changed(FileChange::Saved {
+                                path: conflict.kept.clone(),
+                                identity: conflict.identity,
+                                revision: self.engine.revision(),
+                            });
+                            return Err(sparksmith_io::Error::Conflict(conflict).into());
+                        }
+                        Err(error) => return Err(error.into()),
+                    };
+                let saved_path = path.display().to_string();
                 self.path = Some(path.clone());
-                self.disk = Some(identity);
+                self.disk = Some(saved.identity);
+                // The file holds the document the engine has now, name and
+                // identity included.
+                self.engine.adopt_first_save(&saved.first);
+                let revision = self.engine.revision();
                 self.host_changed(FileChange::Saved {
                     path,
-                    identity,
+                    identity: saved.identity,
                     revision,
                 });
-                return Ok(json!({"revision": revision, "saved_path": saved}));
+                return Ok(json!({"revision": revision, "saved_path": saved_path}));
             }
             Request::PreviewUpdate(params) => {
                 return Ok(serde_json::to_value(

@@ -27,7 +27,7 @@ fn the_catalog_has_its_293_entries() {
     // and rules.set_project_source joined, and library.generate_pads went;
     // then schematic.set_net_disagreements joined, then
     // layout.set_refused_import_tracks, then library.package_from_generator;
-    // then the nine template entries went (part-generation D2); then the two
+    // then the nine template entries went; then the two
     // turn entries joined (S4a); then the five assist entries (S6); then
     // the window's view.context, view.select and view.open (S5a); then
     // assist.workflows and assist.step_result (W1); then assist.offer (C2);

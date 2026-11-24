@@ -332,11 +332,9 @@ impl WorkingSet {
     }
 }
 
-/// Tests: start a new component from a sample template in a project
-/// without a working set: five `library.new_draft` reservations, then one
-/// `library.edit`.
-#[cfg(test)]
-pub fn create(engine: &mut Engine, template: Template) -> Result<DefinitionId> {
+/// Reserve the five lineages of a new working set, empty: five
+/// `library.new_draft`.
+fn reserve(engine: &mut Engine) -> Result<Ids> {
     let mut ids = Vec::new();
     for kind in [
         DefinitionKind::Component,
@@ -358,6 +356,95 @@ pub fn create(engine: &mut Engine, template: Template) -> Result<DefinitionId> {
     let [component, symbol, package, footprint, binding] = ids[..] else {
         return Err(Error::Invalid("draft reservation failed".into()));
     };
+    Ok(Ids {
+        component,
+        symbol,
+        package,
+        footprint,
+        binding,
+    })
+}
+
+/// The name a blank component starts with.
+const BLANK: &str = "New component";
+
+/// Start a component without a generator: five empty drafts (component,
+/// symbol, package, footprint, binding) that name each other, as one undo
+/// step. Its first terminal adds the symbol unit, package terminal and pad.
+pub fn create_blank(engine: &mut Engine) -> Result<DefinitionId> {
+    engine.begin_group(BLANK)?;
+    let made = link_blank(engine);
+    let stepped = engine.end_group().is_some();
+    if made.is_err() && stepped {
+        engine.undo()?;
+    }
+    made
+}
+
+fn link_blank(engine: &mut Engine) -> Result<DefinitionId> {
+    let ids = reserve(engine)?;
+    let first = Revision::FIRST;
+    let package = PackageRef::new(ids.package, first);
+    let meta = |what: &str| DefinitionMeta {
+        name: format!("{BLANK}{what}"),
+        ..Default::default()
+    };
+    let set = WorkingSet {
+        ids,
+        metas: Metas {
+            component: meta(""),
+            symbol: meta(" symbol"),
+            package: meta(" package"),
+            footprint: meta(" footprint"),
+            binding: meta(" binding"),
+        },
+        component: ComponentDefinition {
+            next_local: 1,
+            representations: vec![SymbolRef::new(ids.symbol, first)],
+            implementations: vec![BindingRef::new(ids.binding, first)],
+            ..Default::default()
+        },
+        symbol: SymbolDefinition {
+            component: ids.component,
+            next_local: 1,
+            ..Default::default()
+        },
+        package: PackageDefinition {
+            next_local: 1,
+            ..Default::default()
+        },
+        footprint: FootprintDefinition {
+            package,
+            next_local: 1,
+            ..Default::default()
+        },
+        binding: BindingDefinition {
+            component: ids.component,
+            package,
+            footprints: vec![FootprintRef::new(ids.footprint, first)],
+            ..Default::default()
+        },
+    };
+    engine
+        .apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::Edit { edits: set.edits() }),
+        )
+        .map(|_| ids.component)
+}
+
+/// Tests: start a new component from a sample template in a project
+/// without a working set: five `library.new_draft` reservations, then one
+/// `library.edit`.
+#[cfg(test)]
+pub fn create(engine: &mut Engine, template: Template) -> Result<DefinitionId> {
+    let Ids {
+        component,
+        symbol,
+        package,
+        footprint,
+        binding,
+    } = reserve(engine)?;
     let first = Revision::FIRST;
     let edits = template.edits(SampleRefs {
         component,

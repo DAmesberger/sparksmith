@@ -20,7 +20,7 @@ use crate::model::{Document, Project};
 use serde::Serialize;
 use std::sync::Arc;
 
-/// An identity of the shape a first save gives ([`crate::identify_by_file`]):
+/// An identity of the shape a first save gives ([`crate::first_save`]):
 /// every identity is this long, so a document measured with it is measured
 /// as its first save writes it.
 const PLACEHOLDER_ID: &str = "00000000-0000-4000-8000-000000000000";

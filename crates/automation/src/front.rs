@@ -377,7 +377,14 @@ pub fn call_of(request: &Request) -> Result<Call, Box<Error>> {
 
 /// The one error from a diagnostic of the engine, a file or the 3D model.
 pub fn from_diagnostic(diagnostic: Diagnostic) -> Error {
+    // The sentence names the window's way to choose one; a caller without
+    // a window has this one.
+    let instead = (diagnostic.rule.as_deref() == Some("rules.no_fab_profile")).then(|| {
+        "Choose a fab profile with rules.set_fab_profile, by an id rules.fab_profiles lists."
+            .to_owned()
+    });
     Error {
+        instead,
         code: diagnostic.code,
         message: diagnostic.message,
         rule: diagnostic.rule,

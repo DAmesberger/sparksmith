@@ -1,4 +1,4 @@
-//! Authors Sparksmith's shipped part files (docs/part-templates.md §11)
+//! Authors Sparksmith's shipped part files (docs/part-files.md)
 //! through Solidcraft's own commands and public API, and writes them under
 //! `library/parts/`. Original work (MIT OR Apache-2.0).
 //!
@@ -13,7 +13,7 @@
 //! part's parameters, sized by `marking_<name>_u` / `_v`; `pin1` is a
 //! construction point.
 //!
-//! The mechanical starter set (docs/mechanical-parts.md §M7: SMD nut,
+//! The mechanical starter set (docs/mechanical-parts.md: SMD nut,
 //! round spacer, finned heatsink) is drawn directly from primitives and a
 //! parametric pattern over plain parameters, with generic illustrative
 //! dimensions.

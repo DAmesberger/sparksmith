@@ -32,9 +32,21 @@ pub struct DrillFile {
     pub hits: Vec<Hit>,
     pub comments: Vec<String>,
     /// Tool number to the values of the X2-style aperture attribute
-    /// comment `; #@! TA.AperFunction,…` written before its definition.
+    /// comment `; #@! TA.AperFunction,…` written before its definition,
+    /// the function first.
     pub tool_functions: BTreeMap<u32, Vec<String>>,
 }
+
+/// The drill functions of `.AperFunction` (Gerber layer format
+/// specification, 5.6.10).
+const FUNCTIONS: [&str; 6] = [
+    "ViaDrill",
+    "BackDrill",
+    "ComponentDrill",
+    "MechanicalDrill",
+    "CastellatedDrill",
+    "OtherDrill",
+];
 
 impl DrillFile {
     /// The values of an X2-style attribute comment `; #@! TF.<name>,…`.
@@ -48,7 +60,20 @@ impl DrillFile {
     }
 }
 
+/// Read a drill file of ours: a tool's function is stated as the XNC
+/// specification (2021.11, p. 18) has it, `TA.AperFunction,ViaDrill`, the
+/// function first. Anything else is refused.
 pub fn parse(source: &str) -> Fallible<DrillFile> {
+    read(source, false)
+}
+
+/// Read a reference file: one that states the plating before the function
+/// (`TA.AperFunction,Plated,PTH,ViaDrill`) is read as if it did not.
+pub fn parse_reference(source: &str) -> Fallible<DrillFile> {
+    read(source, true)
+}
+
+fn read(source: &str, reference: bool) -> Fallible<DrillFile> {
     let mut file = DrillFile::default();
     let mut unit: Option<f64> = None;
     let mut header = false;
@@ -70,7 +95,21 @@ pub fn parse(source: &str) -> Fallible<DrillFile> {
                 .strip_prefix("#@!")
                 .and_then(|r| r.trim().strip_prefix("TA.AperFunction,"))
             {
-                function = Some(rest.split(',').map(str::to_string).collect());
+                let mut values: Vec<String> = rest.split(',').map(str::to_string).collect();
+                match values.iter().position(|v| FUNCTIONS.contains(&v.as_str())) {
+                    Some(0) => {}
+                    Some(n) if reference => {
+                        values.drain(..n);
+                    }
+                    None if reference => {}
+                    _ => {
+                        return Err(format!(
+                            "excellon: {comment:?} does not start with a drill function"
+                        )
+                        .into());
+                    }
+                }
+                function = Some(values);
             }
             file.comments.push(comment.to_string());
             continue;

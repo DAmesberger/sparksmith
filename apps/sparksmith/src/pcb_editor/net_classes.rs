@@ -136,6 +136,15 @@ pub fn class_row(ui: &mut Ui, project: &Project, net: Id, edit: bool) -> ClassRo
     out
 }
 
+/// What an empty length field takes from the rules, as its hint: without a
+/// fab profile the rules have no value, so it says that and never "0 mm".
+fn inherited_mm(project: &Project, value: f64) -> String {
+    if project.rules.profile.is_none() && value == 0.0 {
+        return "No fab profile".to_owned();
+    }
+    shown(value, "mm")
+}
+
 /// One optional length field: empty means "use the rules". Returns the
 /// committed value (`Some(None)` clears it).
 fn optional_mm(
@@ -143,7 +152,7 @@ fn optional_mm(
     card: &mut NetClassesCard,
     label: &str,
     value: Option<f64>,
-    inherited: f64,
+    inherited: &str,
 ) -> Option<Option<f64>> {
     optional_value(
         ui,
@@ -151,7 +160,7 @@ fn optional_mm(
         label,
         value,
         "mm",
-        &shown(inherited, "mm"),
+        inherited,
         "Enter a length in mm, or leave it empty for the rules",
     )
 }
@@ -472,7 +481,8 @@ fn class_section(
             ),
         ];
         for (label, value, inherited, set) in fields {
-            if let Some(value) = optional_mm(ui, card, label, value, inherited) {
+            let inherited = inherited_mm(project, inherited);
+            if let Some(value) = optional_mm(ui, card, label, value, &inherited) {
                 let mut next = class.clone();
                 set(&mut next, value);
                 edited = Some(next);
@@ -657,7 +667,8 @@ fn clearance_section(
                 let label = format!("To {}", other.name);
                 if let Some(mm) = ui
                     .push_id(("pair", other.id), |ui| {
-                        optional_mm(ui, card, &label, pair, base.value)
+                        let inherited = inherited_mm(project, base.value);
+                        optional_mm(ui, card, &label, pair, &inherited)
                     })
                     .inner
                 {
@@ -1014,6 +1025,21 @@ mod tests {
             assert!(painted.iter().any(|t| t == text), "{text}: {painted:?}");
         }
         assert!(!painted.iter().any(|t| t == "0.5"), "{painted:?}");
+        Ok(())
+    }
+
+    /// Without a fab profile an empty field has no inherited value: its
+    /// hint says so, never "0 mm".
+    #[test]
+    fn an_empty_field_names_the_missing_profile() -> TestResult {
+        let mut file = Engine::profiled()?.to_file();
+        file.project.rules = Default::default();
+        let unprofiled = Engine::from_file(file)?;
+        assert_eq!(inherited_mm(unprofiled.project(), 0.0), "No fab profile");
+        // What a class sets itself still shows.
+        assert_eq!(inherited_mm(unprofiled.project(), 0.5), "0.5 mm");
+        let profiled = Engine::profiled()?;
+        assert_eq!(inherited_mm(profiled.project(), 0.0), "0 mm");
         Ok(())
     }
 

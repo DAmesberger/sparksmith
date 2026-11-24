@@ -3,6 +3,7 @@
 //! no temporary file behind.
 use crate::{Error, Result};
 use sparksmith_core::format::{self, EditorFile, MAX_FILE_BYTES};
+use sparksmith_core::{Document, FirstSave};
 use std::fs::File;
 use std::{
     io::{Read, Write},
@@ -143,6 +144,52 @@ pub fn save_project(
         Err(error) => return Err(error.into()),
     };
     container::save_container(&target, file, expected)
+}
+
+/// A document in its file ([`save_document`]).
+#[derive(Debug)]
+pub struct SavedDocument {
+    /// The identity of the file.
+    pub identity: DiskIdentity,
+    /// The document as the file holds it.
+    pub document: Document,
+    /// What this save gave it, for the host's engine
+    /// ([`sparksmith_core::Engine::adopt_first_save`]).
+    pub first: FirstSave,
+}
+
+/// A host's save of its document: [`sparksmith_core::first_save`] on the
+/// copy written, then [`save_project`]. A failed write gives the project
+/// nothing, and neither does one that found the file changed: the version
+/// kept beside it holds `document` as it was, to be named and identified
+/// by its own file at the next save.
+pub fn save_document(
+    path: &Path,
+    document: &Document,
+    expected: Option<DiskIdentity>,
+    nonce: &str,
+) -> Result<SavedDocument> {
+    let mut written = document.clone();
+    let first = sparksmith_core::first_save(&mut written, path, nonce);
+    match save_project(path, &EditorFile::from_document(&written), expected) {
+        Ok(identity) => Ok(SavedDocument {
+            identity,
+            document: written,
+            first,
+        }),
+        Err(Error::Conflict(mut conflict)) => {
+            if !first.is_empty() {
+                let as_it_was = EditorFile::from_document(document);
+                if let Ok(identity) =
+                    save_project(&conflict.kept, &as_it_was, Some(conflict.identity))
+                {
+                    conflict.identity = identity;
+                }
+            }
+            Err(Error::Conflict(conflict))
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// The SHA-256 of `file`'s bytes, read from its start (bounded by the

@@ -428,7 +428,8 @@ fn board_coverage(project: &Project) -> String {
     use crate::rules::{CopperObject, RuleKey};
     let rules = &project.rules;
     if rules.profile.is_none() {
-        return "Connectivity, outline and courtyards; no fab profile, so no clearance is checked"
+        return "No fab profile, so no clearance is checked: choose one (Board › Rules); \
+                connectivity, outline and courtyards are checked"
             .into();
     }
     let key = RuleKey::Clearance {
@@ -641,7 +642,7 @@ fn schematic_findings(project: &Project) -> Vec<Finding> {
             Ok(report) => {
                 schematic.extend(report.findings);
                 // A part kept off the BOM (a mechanical part, docs/
-                // mechanical-parts.md M6, or one excluded from it) or one
+                // mechanical-parts.md, or one excluded from it) or one
                 // the active variant does not fit is not bought.
                 let decision = completeness::assembly(project, instance);
                 if !decision.purchasing || !decision.populated() {

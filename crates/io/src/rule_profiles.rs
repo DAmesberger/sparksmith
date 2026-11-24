@@ -10,7 +10,7 @@
 //! and the read-only shipped ones ([`shipped_profiles`]): the sourced
 //! files in the shipped library's `profiles/` shelf, read at run time. A
 //! user profile with a shipped profile's id takes its place. Which profile
-//! a new board is offered first is shipped data too
+//! a new board starts on is shipped data too
 //! (`defaults/new-project.json`, [`crate::new_project`]), unless the
 //! user's Settings name another.
 use crate::library_folder::{pretty, read_bounded};
@@ -90,6 +90,16 @@ pub fn shipped_profiles(shipped: &ShippedLibrary) -> Result<Vec<RuleProfile>> {
 /// [`shipped_profiles`] of the located shipped library.
 pub fn shipped_from_env() -> Result<Vec<RuleProfile>> {
     shipped_profiles(&ShippedLibrary::locate()?)
+}
+
+/// The shipped profile a new board starts on when the user's Settings name
+/// none (`defaults/new-project.json`).
+fn shipped_default(shipped: &ShippedLibrary) -> Result<RuleProfile> {
+    let id = crate::new_project::load(shipped)?.fab_profile;
+    shipped_profiles(shipped)?
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| not_found(&id))
 }
 
 /// The user profile library folder.
@@ -261,7 +271,7 @@ impl ProfileLibrary {
         shipped_profiles(&self.shipped)
     }
 
-    /// The id of the profile a new board is offered first when the user's
+    /// The id of the profile a new board starts on when the user's
     /// Settings name none: shipped data (`defaults/new-project.json`).
     pub fn default_id(&self) -> Result<String> {
         Ok(crate::new_project::load(&self.shipped)?.fab_profile)
@@ -517,7 +527,9 @@ impl ProfileLibrary {
 /// The profile a new board starts with: `choice` (a library id), else the
 /// user's default (`UserSettings::default_rule_profile`), else the shipped
 /// default ([`ProfileLibrary::default_id`]): a board is never created
-/// without rules.
+/// without rules. One that does not read is an error naming it, never
+/// another in its place ([`for_new_board_shown`] for a window, which says
+/// so).
 pub fn for_new_board(
     library: &ProfileLibrary,
     choice: Option<&str>,
@@ -527,6 +539,38 @@ pub fn for_new_board(
         Some(id) => library.get(id),
         None => library.get(&library.default_id()?),
     }
+}
+
+/// [`for_new_board`] for a window, which always has a board to show: when
+/// the user's `default` does not read, the shipped default and what to say
+/// of it, naming the one that is missing.
+pub fn for_new_board_shown(
+    library: &ProfileLibrary,
+    default: Result<Option<String>>,
+) -> Result<(RuleProfile, Option<String>)> {
+    let missing = match default {
+        Err(error) => format!("Your settings could not be read ({error})"),
+        Ok(default) => match for_new_board(library, None, default.as_deref()) {
+            Ok(profile) => return Ok((profile, None)),
+            Err(error) => {
+                let id = match default {
+                    Some(id) => id,
+                    None => library.default_id()?,
+                };
+                if error.code() == "not_found" {
+                    format!("Your default fab profile ‘{id}’ is no longer among your fab profiles")
+                } else {
+                    format!("Your default fab profile ‘{id}’ could not be read ({error})")
+                }
+            }
+        },
+    };
+    let profile = shipped_default(&library.shipped)?;
+    let said = format!(
+        "{missing}, so the new board starts on {}. Choose a default in Settings › Rules",
+        profile.name
+    );
+    Ok((profile, Some(said)))
 }
 
 /// The user's default fab profile id (Settings), if one is set.
@@ -552,6 +596,15 @@ pub fn for_new_board_from_env(choice: Option<&str>) -> Result<RuleProfile> {
     )
 }
 
+/// [`for_new_board_shown`] with the user's library and settings; without a
+/// user folder there is no default to miss.
+pub fn for_new_board_shown_from_env() -> Result<(RuleProfile, Option<String>)> {
+    match UserDirs::from_env() {
+        Ok(dirs) => for_new_board_shown(&ProfileLibrary::from_dirs(&dirs)?, default_id_from_env()),
+        Err(_) => Ok((shipped_default(&ShippedLibrary::locate()?)?, None)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -567,7 +620,7 @@ mod tests {
             .map_err(|e| Error::Invalid(e.to_string()))
     }
 
-    /// The shipped default profile (the sourced JLCPCB 2-layer file).
+    /// The shipped JLCPCB 2-layer profile.
     fn jlcpcb() -> Result<RuleProfile> {
         decode(shipped_text("jlcpcb-2-layer.json")?.as_bytes())
     }
@@ -987,7 +1040,42 @@ mod tests {
         let b = library.save_as(&jlcpcb()?, "Fab B")?;
         assert_eq!(for_new_board(&library, Some(&a.id), Some(&b.id))?, a);
         assert_eq!(for_new_board(&library, None, Some(&b.id))?, b);
-        assert_eq!(for_new_board(&library, None, None)?, jlcpcb()?);
+        let standard = decode(shipped_text("standard.json")?.as_bytes())?;
+        assert_eq!(for_new_board(&library, None, None)?, standard);
+        // A default that is gone or damaged is refused by name, and only a
+        // window starts on the shipped one, saying so.
+        let shown =
+            |default: Option<&str>| for_new_board_shown(&library, Ok(default.map(str::to_owned)));
+        assert_eq!(shown(None)?, (standard.clone(), None));
+        assert_eq!(shown(Some(&b.id))?, (b.clone(), None));
+        std::fs::write(dir.path().join("broken.json"), "{")?;
+        for (id, says) in [
+            ("gone", "‘gone’ is no longer among your fab profiles"),
+            ("broken", "‘broken’ could not be read"),
+        ] {
+            let refused = for_new_board(&library, None, Some(id));
+            assert!(refused.is_err(), "{id}");
+            if id == "gone" {
+                assert!(refused.is_err_and(|e| e.to_string().contains("gone")));
+            }
+            let (profile, said) = shown(Some(id))?;
+            assert_eq!(profile, standard, "{id}");
+            let said = said.unwrap_or_default();
+            assert!(
+                said.contains(says) && said.contains("starts on Standard"),
+                "{said}"
+            );
+        }
+        let unreadable = for_new_board_shown(&library, Err(Error::Invalid("bad".into())))?;
+        assert_eq!(unreadable.0, standard);
+        assert!(unreadable.1.is_some_and(|said| said.contains("settings")));
+        // A damaged copy of the shipped default itself is no different.
+        std::fs::write(dir.path().join("standard.json"), "{")?;
+        assert!(for_new_board(&library, None, None).is_err());
+        let (profile, said) = shown(None)?;
+        assert_eq!(profile, standard);
+        assert!(said.is_some_and(|said| said.contains("‘standard’")));
+        std::fs::remove_file(dir.path().join("standard.json"))?;
         assert_eq!(
             for_new_board(&library, Some("jlcpcb-4-layer"), None)?.name,
             "JLCPCB 4-layer"
@@ -999,7 +1087,7 @@ mod tests {
     /// The sourced JLCPCB and PCBWay files ship, are listed after the
     /// user's profiles and read-only; a user profile with a shipped profile's id
     /// takes its place in the listing and in `get`. The shipped default is
-    /// data.
+    /// data, and no fabricator's.
     #[test]
     fn builtins_are_listed_read_only_and_a_user_profile_replaces_one() -> Result<()> {
         let dir = tempfile::tempdir()?;
@@ -1011,16 +1099,17 @@ mod tests {
                 "jlcpcb-2-layer",
                 "jlcpcb-4-layer",
                 "pcbway-2-layer",
-                "pcbway-4-layer"
+                "pcbway-4-layer",
+                "standard"
             ]
         );
         assert!(
             all.iter()
+                .filter(|p| p.id != "standard")
                 .all(|p| ["JLCPCB", "PCBWay"].contains(&p.source.publisher.as_str()))
         );
-        let default = library.default_id()?;
-        assert_eq!(default, "jlcpcb-2-layer");
-        let default = default.as_str();
+        assert_eq!(library.default_id()?, "standard");
+        let default = "jlcpcb-2-layer";
         assert_eq!(library.get(default)?, jlcpcb()?);
         // Read-only: no rename or delete, and no file is written.
         assert!(library.rename(default, "Mine").is_err());
@@ -1028,7 +1117,7 @@ mod tests {
         assert!(!library.dir().exists());
         // A saved copy is the user's own.
         let copy = library.save_as(&jlcpcb()?, "JLCPCB copy")?;
-        assert_eq!(library.list()?.builtins.len(), 4);
+        assert_eq!(library.list()?.builtins.len(), 5);
         assert_eq!(library.list()?.profiles, vec![copy]);
         // An import of the same file keeps its id and replaces the shipped one.
         let mut edited = jlcpcb()?;
@@ -1043,7 +1132,12 @@ mod tests {
                 .iter()
                 .map(|p| p.id.as_str())
                 .collect::<Vec<_>>(),
-            ["jlcpcb-4-layer", "pcbway-2-layer", "pcbway-4-layer"]
+            [
+                "jlcpcb-4-layer",
+                "pcbway-2-layer",
+                "pcbway-4-layer",
+                "standard"
+            ]
         );
         assert_eq!(library.get(default)?.name, "JLCPCB house rules");
         // Deleting the user's copy brings the shipped one back.

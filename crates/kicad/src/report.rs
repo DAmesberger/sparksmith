@@ -249,11 +249,13 @@ pub enum Case {
     /// Track pieces shorter than the engine's least track length, removed
     /// with their neighbours' ends joined.
     TinyTrackCleaned,
-    /// Tracks the engine's checks refused (clearance, outline, width).
+    /// Tracks the board cannot hold (off the board, or a size no track has).
+    /// None is left out for breaking a rule.
     TrackRefused,
     /// Vias on no net with pads.
     ViaWithoutNet,
-    /// Vias the engine's checks refused.
+    /// Vias the board cannot hold (off the board, without a ring, blind or
+    /// buried).
     ViaRefused,
     /// Vias whose unused inner annular rings KiCad removes.
     ViaUnusedLayers,
@@ -679,9 +681,9 @@ impl Case {
                 Approximate,
                 "track pieces shorter than 0.01 mm removed, their neighbours' ends joined",
             ),
-            Self::TrackRefused => ("R1", Refused, "tracks the engine's checks refused"),
+            Self::TrackRefused => ("R1", Refused, "tracks the board cannot hold, not imported"),
             Self::ViaWithoutNet => ("R1", Refused, "vias on no net with pads, not imported"),
-            Self::ViaRefused => ("R1", Refused, "vias the engine's checks refused"),
+            Self::ViaRefused => ("R1", Refused, "vias the board cannot hold, not imported"),
             Self::ViaUnusedLayers => (
                 "R1",
                 Approximate,
@@ -846,17 +848,16 @@ pub struct RefusedPattern {
     pub reason: &'static str,
 }
 
-/// A track piece or via the engine's checks refused
+/// A track piece or via the board cannot hold
 /// ([`Case::TrackRefused`], [`Case::ViaRefused`]): where it ran, in our
-/// board frame, and the check's own sentence (what it came too close to
-/// and the clearance needed, or which other check).
+/// board frame, and why, in the core's own sentence.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct RefusedCopper {
     /// [`Case::TrackRefused`] or [`Case::ViaRefused`].
     pub case: Case,
     /// "Track on VIN (Top) from (4, 16.8) to (10, 16.8) mm".
     pub what: String,
-    /// "Too close to C1 pad 2 (GND): needs 0.1 mm (JLCPCB 2-layer)".
+    /// "track copper must lie inside the board outline".
     pub check: String,
 }
 
@@ -883,7 +884,7 @@ impl RefusedCopper {
         }
     }
 
-    /// "Track on VIN (Top) from (4, 16.8) to (10, 16.8) mm: Too close to …".
+    /// "Track on VIN (Top) from (4, 16.8) to (10, 16.8) mm: track copper …".
     pub fn line(&self) -> String {
         format!("{}: {}", self.what, self.check)
     }

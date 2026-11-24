@@ -424,7 +424,7 @@ fn assert_empty(engine: &Engine, what: &str) -> Fallible {
 #[test]
 fn a_launch_without_a_file_opens_an_empty_project() -> Fallible {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
-    let ax = Ax::with_engine(file_ui::new_project()?, Workspace::Schematic)?;
+    let ax = Ax::with_engine(file_ui::new_project()?.0, Workspace::Schematic)?;
     assert_empty(&ax.app.engine, "launch")
 }
 
@@ -434,7 +434,7 @@ fn a_launch_without_a_file_opens_an_empty_project() -> Fallible {
 #[test]
 fn a_launch_frames_the_whole_empty_page() -> Fallible {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
-    let mut ax = Ax::with_engine(file_ui::new_project()?, Workspace::Schematic)?;
+    let mut ax = Ax::with_engine(file_ui::new_project()?.0, Workspace::Schematic)?;
     ax.frame(vec![]);
     let project = ax.app.engine.project();
     let sheet = project.sheets.list.first().ok_or("a first sheet")?;
@@ -522,33 +522,31 @@ fn file_new_opens_the_same_empty_project() -> Fallible {
         ax.app.engine.project().instances.is_empty()
     })?;
     assert_empty(&ax.app.engine, "File › New")?;
-    assert_eq!(ax.app.engine.to_file(), file_ui::new_project()?.to_file());
+    assert_eq!(ax.app.engine.to_file(), file_ui::new_project()?.0.to_file());
     Ok(())
 }
 
-/// Run 4, finding 1: File › New without a default fab profile (Settings)
-/// asks for the board's profile on the PCB, JLCPCB 2-layer
-/// preselected; one click on Use profile sets it. An opened file is not
-/// asked.
+/// Run 4, finding 1: a launch's project and File › New have a fab profile,
+/// so the PCB asks nothing and shows no missing profile, and there is no
+/// undo that takes it away.
 #[test]
-fn a_new_project_asks_for_its_fab_profile_on_the_pcb() -> Fallible {
-    let mut ax = Ax::new(Workspace::Pcb)?;
-    assert!(!ax.has(Role::Button, "Use profile"), "an opened design");
-    // The document File › New opens for a user without a default.
-    ax.app
-        .replace(Engine::default().to_file(), None, None, false);
-    ax.settle();
-    ax.button("Use profile")?;
-    ax.until("the profile", |ax| {
-        ax.app.engine.project().rules.profile.is_some()
-    })?;
-    let profile = ax.app.engine.project().rules.profile.as_ref();
-    assert_eq!(
-        profile.map(|p| p.id.as_str()),
-        Some(sparksmith_io::new_project::shipped()?.fab_profile.as_str())
-    );
-    ax.settle();
-    assert!(!ax.has(Role::Button, "Use profile"), "asked once");
+fn a_new_project_has_a_fab_profile_on_the_pcb() -> Fallible {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let mut ax = Ax::with_engine(file_ui::new_project()?.0, Workspace::Pcb)?;
+    for what in ["launch", "File › New"] {
+        ax.settle();
+        let profile = ax.app.engine.project().rules.profile.as_ref();
+        assert!(profile.is_some(), "{what}");
+        assert!(!ax.app.engine.can_undo(), "{what}");
+        assert!(
+            !ax.texts
+                .iter()
+                .any(|t| t == "Fab profile" || t == "No fab profile"),
+            "{what}: {:?}",
+            ax.texts
+        );
+        ax.command_key(Key::N);
+    }
     Ok(())
 }
 
@@ -768,65 +766,44 @@ fn the_production_waive_form_shows_beside_a_long_issues_list() -> Fallible {
     Ok(())
 }
 
-/// A launch whose recovery folder `dir` holds an earlier session of a
-/// project without a fab profile, starting a new project without one
-/// either; settled on the recovery question.
-fn launch_with_a_recovery(dir: tempfile::TempDir) -> Fallible<Ax> {
-    let earlier = Engine::default();
-    sparksmith_io::recovery::RecoveryStore::new(dir.path())?
-        .write(&EditorFile::from_document(earlier.document()), None)?;
-    let mut ax = Ax::in_dir(
-        dir,
-        Engine::default(),
-        Workspace::Pcb,
-        LibrarySources::new(None),
-    )?;
-    ax.app.launch_profile = true;
-    ax.until("the recovery question", |ax| ax.app.files.prompting())?;
-    ax.settle();
-    assert!(
-        ax.texts.iter().any(|t| t == "Recover an earlier session?"),
-        "{:?}",
-        ax.texts
-    );
-    Ok(ax)
-}
-
-/// E2E run 6, finding 8: the new project's "Fab profile" question waits
-/// while an earlier session is offered; kept for later, the launch's new
-/// project is asked for its profile then.
+/// A launch whose recovery folder holds an earlier session, settled on the
+/// recovery question. A restored session keeps the profile it had; kept for
+/// later, the launch's new project keeps its own. Neither is asked for one.
 #[test]
-fn the_launch_profile_question_waits_for_the_recovery_question() -> Fallible {
-    let mut ax = launch_with_a_recovery(tempfile::tempdir()?)?;
-    assert!(
-        !ax.texts.iter().any(|t| t == "Fab profile"),
-        "asked behind the recovery question: {:?}",
-        ax.texts
-    );
-    ax.button("Keep for later")?;
-    ax.settle();
-    assert!(
-        ax.texts.iter().any(|t| t == "Fab profile"),
-        "the new project is asked: {}",
-        ax.dump()
-    );
-    Ok(())
-}
-
-/// E2E run 6, finding 8: a restored session replaces the launch's new
-/// project, which is then never asked for a profile.
-#[test]
-fn a_restored_session_is_not_asked_for_the_launch_profile() -> Fallible {
-    let mut ax = launch_with_a_recovery(tempfile::tempdir()?)?;
-    ax.button("Restore")?;
-    ax.until("the restored session", |ax| !ax.app.files.prompting())?;
-    ax.settle();
-    assert!(!ax.app.launch_profile);
-    assert!(
-        !ax.texts.iter().any(|t| t == "Fab profile"),
-        "{:?}",
-        ax.texts
-    );
+fn a_recovered_and_a_new_project_keep_their_own_profiles() -> Fallible {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let earlier = Engine::profiled()?;
+    let own = earlier.project().rules.profile.clone();
+    let started = file_ui::new_project()?.0;
+    let new = started.project().rules.profile.clone();
+    assert!(own.is_some() && new.is_some() && own != new);
+    for (choice, kept) in [("Restore", &own), ("Keep for later", &new)] {
+        let dir = tempfile::tempdir()?;
+        sparksmith_io::recovery::RecoveryStore::new(dir.path())?
+            .write(&EditorFile::from_document(earlier.document()), None)?;
+        let mut ax = Ax::in_dir(
+            dir,
+            file_ui::new_project()?.0,
+            Workspace::Pcb,
+            LibrarySources::new(None),
+        )?;
+        ax.until("the recovery question", |ax| ax.app.files.prompting())?;
+        ax.settle();
+        assert!(
+            ax.texts.iter().any(|t| t == "Recover an earlier session?"),
+            "{:?}",
+            ax.texts
+        );
+        ax.button(choice)?;
+        ax.until("the answer", |ax| !ax.app.files.prompting())?;
+        ax.settle();
+        assert_eq!(&ax.app.engine.project().rules.profile, kept, "{choice}");
+        assert!(
+            !ax.texts.iter().any(|t| t == "Fab profile"),
+            "{choice}: {:?}",
+            ax.texts
+        );
+    }
     Ok(())
 }
 

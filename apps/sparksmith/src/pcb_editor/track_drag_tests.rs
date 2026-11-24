@@ -287,3 +287,27 @@ fn an_option_drag_moves_one_pair_half_alone() -> TestResult {
     assert!(!sent.replace.iter().any(|t| t.id == dp), "{sent:?}");
     Ok(())
 }
+
+/// Without a fab profile there is no clearance to shove at: a track does
+/// not drag, and the Design rules open as for the copper tools.
+#[test]
+fn a_track_does_not_drag_without_a_profile() -> TestResult {
+    let (engine, _, _) = setup()?;
+    let mut file = engine.to_file();
+    file.project.rules = Default::default();
+    let engine = Engine::from_file(file)?;
+    let mut canvas = Canvas::new();
+    let mut editor = PcbEditor::default();
+    canvas.frame(&mut editor, &engine, vec![], egui::Modifiers::NONE);
+    press_and_move(
+        &mut canvas,
+        &mut editor,
+        &engine,
+        &[[30.0, 25.5], [30.0, 27.0]],
+    );
+    assert!(editor.track_drag.is_none(), "nothing is shoved");
+    assert!(editor.rules.is_some(), "the rules are open");
+    let event = button(&editor, &engine, [30.0, 27.0], false);
+    assert!(send(&mut canvas, &mut editor, &engine, event).is_none());
+    Ok(())
+}

@@ -819,6 +819,24 @@ fn the_path_hint_is_not_cut_short() -> TestResult {
     Ok(())
 }
 
+/// GUI run 1, F19: the hint names this platform's command key.
+#[test]
+fn the_selection_hint_names_this_platforms_command_key() -> TestResult {
+    let engine = Engine::demo()?;
+    let editor = SchematicEditor {
+        selected: engine.project().instances.first().map(|i| i.id),
+        ..Default::default()
+    };
+    let hint = canvas_hint(&editor, engine.project()).unwrap_or_default();
+    let key = if cfg!(target_os = "macos") {
+        "Cmd+R"
+    } else {
+        "Ctrl+R"
+    };
+    assert!(hint.contains(key), "{hint}");
+    Ok(())
+}
+
 /// Handles stay apart at normal zoom on the shortest on-grid segments: no two
 /// overlap at the Fit-page and working scales, because a segment too short for
 /// a dot shows none, and a square keeps its grab over the dot beside it.

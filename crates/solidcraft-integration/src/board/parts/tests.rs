@@ -93,6 +93,59 @@ fn move_to(engine: &mut Engine, part: Id, to: Point) -> Fallible<sparksmith_core
     ))
 }
 
+/// A rectangle board whose fab profile is missing takes a part dimension, an
+/// edit of it and a move along it: no rule enters the solve. The outline
+/// sketch, whose curves are fitted to a rule, is still refused.
+#[test]
+fn a_rectangle_board_without_a_profile_takes_part_dimensions() -> Fallible<()> {
+    use sparksmith_core::layout::dimensions::board_sketch;
+    use sparksmith_core::layout::outline::BoardCommand;
+    let mut file = Engine::demo()?.to_file();
+    file.project.rules = Default::default();
+    let mut engine = Engine::from_file(file)?;
+    assert!(engine.project().rules.require().is_err());
+    let (part, _) = parts(&engine)?;
+    let (start, _, _) = pose(&engine, part)?;
+    let [width, _] = engine.project().board_size;
+    let right = board_sketch(engine.project(), &EV)?
+        .edges
+        .iter()
+        .find(|e| e.name.0 == "right")
+        .map(|e| BoardRef::Board(SketchRef::Curve(e.curve.clone())))
+        .ok_or("a right edge")?;
+    let id = add(
+        &mut engine,
+        distance(vec![origin(part), right], DimValue::Fixed(4.0)),
+    )?;
+    let (p, _, _) = pose(&engine, part)?;
+    assert!(close(p, [width - 4.0, start[1]]), "{p:?}");
+    let mut dimension = engine
+        .project()
+        .part_dimensions
+        .iter()
+        .find(|d| d.id == id)
+        .cloned()
+        .ok_or("the dimension")?;
+    dimension.value = Some(DimValue::Fixed(6.0));
+    apply(
+        &mut engine,
+        Operation::Dimension(DimensionCommand::Edit { dimension }),
+    )?;
+    let (p, _, _) = pose(&engine, part)?;
+    assert!(close(p, [width - 6.0, start[1]]), "{p:?}");
+    let y = start[1] + 1.0;
+    move_to(&mut engine, part, [width - 6.0, y])??;
+    let (p, _, _) = pose(&engine, part)?;
+    assert!(close(p, [width - 6.0, y]), "{p:?}");
+    let refused = apply(&mut engine, Operation::Board(BoardCommand::StartSketch));
+    assert!(
+        refused.is_err_and(|e| e.rule() == Some("rules.no_fab_profile")),
+        "the outline sketch"
+    );
+    assert!(engine.project().rules.profile.is_none());
+    Ok(())
+}
+
 /// A part's origin 4 mm from the right edge sits at x = 56 on the 60 mm
 /// board and follows the width to x = 76; its y and rotation, which no
 /// dimension fixes, keep their stored values.

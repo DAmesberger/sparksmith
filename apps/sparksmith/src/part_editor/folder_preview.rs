@@ -44,7 +44,8 @@ pub fn build(pick: FolderPick, bundle: Bundle) -> Result<Preview, String> {
         .map(Arc::new);
     let context =
         sparksmith_core::library::standards::Context::current().map_err(|e| e.to_string())?;
-    let mut engine = sparksmith_io::new_project::engine(&context).map_err(|e| e.to_string())?;
+    let mut engine =
+        sparksmith_io::new_project::empty_engine(&context).map_err(|e| e.to_string())?;
     let component = import(&mut engine, bundle.clone())?;
     working_set::draft_closure(&mut engine, component).map_err(|e| e.to_string())?;
     if WorkingSet::of(engine.drafts(), component.id).is_none() {

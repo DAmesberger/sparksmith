@@ -6,9 +6,12 @@
 //! with the footprint's lands as its land pattern; any other becomes a
 //! project part of its lands (component, symbol, package, footprint and
 //! binding), published. Every footprint is placed on a schematic sheet and
-//! on the board where KiCad has it, its copper exactly the source's. Nothing is written to a document
-//! directly: each step is a typed [`Operation`] applied by [`Engine`], and
-//! any refused step fails the whole import (the engine is dropped).
+//! on the board where KiCad has it, its copper exactly the source's. Each
+//! step is a typed [`Operation`] applied by [`Engine`], and any refused step
+//! fails the whole import (the engine is dropped); only tracks and vias are
+//! added to the document itself, as the file has them (`routing`),
+//! and validated as an opened file is. The imported project is a document
+//! to start from: it has no undo steps.
 use crate::board::{self, Board, Footprint};
 use crate::population::Why;
 use crate::report::{Case, Report};
@@ -78,7 +81,8 @@ pub struct PadRecord {
     pub arcs: Vec<([f64; 2], f64)>,
 }
 
-/// The new project, its report and the import map of pads.
+/// The new project (with no undo steps, as an opened file), its report and
+/// the import map of pads.
 pub struct Imported {
     pub engine: Engine,
     /// Where our board origin lies in KiCad's frame, and KiCad's auxiliary
@@ -894,6 +898,7 @@ pub fn import_with_models(
     report.counts.pads = board.footprints.iter().map(|f| f.pads.len()).sum();
     report.counts.pads_imported = records.len();
     report.add_n(Case::PadsExact, records.len());
+    session.engine.clear_history();
     Ok(Imported {
         engine: session.engine,
         origin_nm: board.origin,

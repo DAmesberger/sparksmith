@@ -118,6 +118,8 @@ const REVEAL_MARGIN: f32 = 24.0;
 
 /// Scroll and pinch zoom limits, relative to the board fitting the canvas.
 const ZOOM_RANGE: std::ops::RangeInclusive<f32> = 0.2..=12.0;
+/// What [`PcbEditor::needs_profile`] says Edit shape could not do.
+const EDIT_SHAPE: &str = "Can't edit the shape";
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum Tool {
@@ -498,9 +500,6 @@ pub struct PcbEditor {
     stackup: Option<stackup_panel::StackupSetup>,
     /// The Design rules panel while it is open.
     rules: Option<rules_panel::RulesPanel>,
-    /// A new project: ask for its fab profile on the next subject slot
-    /// if it has none (`ask_for_profile`).
-    ask_profile: bool,
     /// The Production files dialog while it is open.
     production: Option<production::ProductionDialog>,
     /// The production folder kept for this project (the app's per-user
@@ -668,7 +667,6 @@ impl Default for PcbEditor {
             view_centre: None,
             stackup: None,
             rules: None,
-            ask_profile: false,
             production: None,
             production_folder: None,
             chosen_production_folder: None,
@@ -956,6 +954,13 @@ impl PcbEditor {
                 .is_some_and(|id| !engine.project().board().holes.iter().any(|h| h.id == id))
             {
                 self.hole = None;
+            }
+            // A copper tool still armed when its board lost its profile
+            // (undo took it back) ends: it would draw at no width.
+            if engine.project().rules.profile.is_none()
+                && matches!(self.tool, Tool::Route | Tool::Via | Tool::Fill | Tool::Tune)
+            {
+                self.end_route();
             }
             self.stack = engine.project().stackup.layers();
             if !self.stack.contains(&self.layer) {
@@ -1300,6 +1305,9 @@ impl PcbEditor {
         self.sync(engine);
         self.discard_staged();
         self.anchor_pick = None;
+        if tool == "board-shape" && !self.needs_profile(&engine.project().rules, EDIT_SHAPE) {
+            return None;
+        }
         if let Some(operation) = self.shape_tool(tool, engine) {
             return operation;
         }
@@ -1314,22 +1322,22 @@ impl PcbEditor {
                 self.end_route();
                 self.arm_dimension(true);
             }
-            "route" => {
+            "route" if self.needs_profile(&engine.project().rules, "Can't route") => {
                 if self.tool != Tool::Route {
                     self.reset_route();
                     self.route.ended = false;
                 }
                 self.tool = Tool::Route;
             }
-            "via" => {
+            "via" if self.needs_profile(&engine.project().rules, "Can't place a via") => {
                 self.end_route();
                 self.tool = Tool::Via;
             }
-            "tune" => {
+            "tune" if self.needs_profile(&engine.project().rules, "Can't tune a track") => {
                 self.end_route();
                 self.tool = Tool::Tune;
             }
-            "fill" => {
+            "fill" if self.needs_profile(&engine.project().rules, "Can't draw a fill") => {
                 self.end_route();
                 self.tool = Tool::Fill;
                 if self.fill_draw.net.is_none() {
@@ -1512,9 +1520,6 @@ impl PcbEditor {
     pub fn subject_slot(&mut self, ui: &mut Ui, engine: &Engine) -> CardResponse<Operation> {
         self.sync(engine);
         self.claim_refusals(ui.ctx());
-        if std::mem::take(&mut self.ask_profile) && engine.project().rules.profile.is_none() {
-            self.choose_profile();
-        }
         if let Some(operation) = self.part_chooser_frame(ui.ctx(), engine) {
             return CardResponse::output(Some(operation));
         }
@@ -1714,6 +1719,13 @@ impl PcbEditor {
             Inspected::Board | Inspected::Review => {
                 let renamed = self.board_section(ui, project);
                 let shape = self.board_shape_section(ui, engine);
+                // Edit shape… on a board without a profile is refused.
+                let starts = matches!(
+                    shape,
+                    Some(Operation::Board(layout::outline::BoardCommand::StartSketch))
+                );
+                let shape =
+                    shape.filter(|_| !starts || self.needs_profile(&project.rules, EDIT_SHAPE));
                 let interface = self.interface_section(ui, engine);
                 renamed.or(shape).or(interface)
             }
@@ -2049,7 +2061,9 @@ impl PcbEditor {
                     && let Some(drag) = track_drag::TrackDrag::of(project, id, at)
                 {
                     self.select_hit(hit);
-                    self.track_drag = Some(drag);
+                    if self.needs_profile(&project.rules, "Can't drag the track") {
+                        self.track_drag = Some(drag);
+                    }
                 } else if let Some(id) = self.pick_instance(project, at, tolerance, metric) {
                     self.set_selection(Some(id), None, None);
                     // A locked part, or one its dimensions hold in place,
@@ -2269,7 +2283,11 @@ impl PcbEditor {
                     Tool::Tune => "Tune",
                     Tool::Dimension => "Dimension",
                     Tool::Select if self.dragging_pair_half(project) => {
-                        "Drag the pair (⌥: this half alone)"
+                        if cfg!(target_os = "macos") {
+                            "Drag the pair (Option: this half alone)"
+                        } else {
+                            "Drag the pair (Alt: this half alone)"
+                        }
                     }
                     Tool::Select => "Select / move",
                 },

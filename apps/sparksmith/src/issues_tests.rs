@@ -1291,3 +1291,35 @@ fn a_profile_limited_row_says_what_it_needs_and_offers_the_switch() -> Fallible<
     );
     Ok(())
 }
+
+/// GUI check 1, section 3: a board without a fab profile never shows a
+/// passed "No issues"; the bar and the empty list name the missing profile,
+/// and the list says where to choose one.
+#[test]
+fn a_board_without_a_profile_is_not_shown_as_passed() -> Fallible<()> {
+    let passed = |engine: &Engine, workspace| {
+        let mut surface = Surface::default();
+        surface.open();
+        let mut h = Harness::new();
+        let (_, painted) = h.frame(Vec::new(), |ui| surface.card(ui, engine, workspace, &[]));
+        painted.into_iter().map(|(t, _)| t).collect::<Vec<_>>()
+    };
+    let mut file = Engine::profiled()?.to_file();
+    file.project.rules = Default::default();
+    let engine = Engine::from_file(file)?;
+    let shown = passed(&engine, Workspace::Pcb);
+    assert!(shown.iter().any(|t| t == NO_PROFILE), "{shown:?}");
+    assert!(shown.iter().any(|t| t == CHOOSE_PROFILE), "{shown:?}");
+    assert!(!shown.iter().any(|t| t == "No issues"), "{shown:?}");
+    // With a profile, and where no board rule is checked, nothing changes.
+    let profiled = passed(&Engine::profiled()?, Workspace::Pcb);
+    assert!(
+        !profiled
+            .iter()
+            .any(|t| t == NO_PROFILE || t == CHOOSE_PROFILE),
+        "{profiled:?}"
+    );
+    let schematic = passed(&engine, Workspace::Schematic);
+    assert!(schematic.iter().any(|t| t == "No issues"), "{schematic:?}");
+    Ok(())
+}

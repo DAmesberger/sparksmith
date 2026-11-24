@@ -88,8 +88,9 @@ fn the_showcase_board_imports_through_the_engine() -> Fallible<()> {
             .all(|n| !n.contains(':') && !n.contains("KiCad footprint")),
         "{names:?}"
     );
-    // The import is undoable command history, not a written document.
-    assert!(imported.engine.can_undo());
+    // The import is a document to start from, as an opened file: there is
+    // nothing to undo into half an import.
+    assert!(!imported.engine.can_undo() && !imported.engine.can_redo());
     Ok(())
 }
 

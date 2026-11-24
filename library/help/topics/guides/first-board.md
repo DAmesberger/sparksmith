@@ -24,6 +24,7 @@
   "related": [
     "guide/libraries",
     "guide/routing",
+    "guide/fab-profiles",
     "guide/fab-output",
     "panel/schematic",
     "panel/layout"
@@ -31,7 +32,7 @@
 }
 ---
 
-Start a project with [[command/file.new]]. Choose a fabrication profile for the board you intend to make. Save the project with [[command/file.save]] so you can return to it after each stage.
+Start a project with [[command/file.new]]. Its board starts with the Standard fab profile, or the default from your settings, so you can route at once. [[guide/fab-profiles]] explains how to choose your fabricator's own before you order. Save the project with [[command/file.save]] so you can return to it after each stage.
 
 - In Schematic, choose Place and search for a component. For a simple exercise use two headers, or a header and a resistor. Choose a result with a footprint and place an instance of each on the sheet. For a resistor enter the required value on the instance.
 - Use Wire to connect one pin of each component. Select the wire to inspect the net and its members. Open [[panel/issues]] and check the schematic before placing the parts on the board.

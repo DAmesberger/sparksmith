@@ -658,7 +658,20 @@ pub(super) fn export_blocked(
                     .filter(|i| i.blocks())
                     .all(|i| !i.offers_waiver()) =>
         {
-            return Some("Fix the design or switch to a fab profile that allows it first".into());
+            let blocking = || report.items.iter().filter(|i| i.blocks());
+            // Only a finding with needs is resolved by another profile.
+            return Some(if blocking().any(|i| i.code == "rules.no_fab_profile") {
+                "Choose a fab profile first".into()
+            } else if blocking().any(|i| i.needs.is_some()) {
+                "Fix the design or switch to a fab profile that allows it first".into()
+            } else if report.blocking == 1 {
+                "Fix the error first; it cannot be waived".into()
+            } else {
+                format!(
+                    "Fix the {} errors first; they cannot be waived",
+                    report.blocking
+                )
+            });
         }
         Some(Ok(report)) if report.blocking == 1 => {
             return Some("Fix or waive the error first".into());
@@ -746,10 +759,14 @@ impl PcbEditor {
         let output = stem.as_deref().and_then(|s| dialog.output(s));
         let report = dialog.current(engine).cloned();
         let blocked = export_blocked(&dialog, report.as_ref(), stem.is_some(), output.as_ref());
+        // The footer's status line says why errors keep Export disabled, as
+        // a review's says its gate; the other reasons show in the body.
+        let errors = matches!(&report, Some(Ok(report)) if report.blocking > 0);
         let status = dialog
             .progress
             .as_ref()
-            .map(|p| format!("Step {} of {} · {}", p.step, p.total, p.label));
+            .map(|p| format!("Step {} of {} · {}", p.step, p.total, p.label))
+            .or_else(|| blocked.clone().filter(|_| errors));
         // A missing profile is named for as long as it is picked.
         let refusal_text = dialog.profile().err().or_else(|| dialog.refusal.clone());
         let panel = DialogPanel {
@@ -799,6 +816,22 @@ impl PcbEditor {
     }
 }
 
+/// What the dialog says of a check under the shipped default, which is no
+/// fabricator's own profile: to choose one before ordering. It blocks
+/// nothing.
+fn no_fabricators(dialog: &ProductionDialog, engine: &Engine) -> Option<String> {
+    let shipped = sparksmith_io::new_project::shipped().ok()?.fab_profile;
+    let picked = dialog.profile().ok()?;
+    let profile = picked
+        .as_ref()
+        .or(engine.project().rules.profile.as_ref())
+        .filter(|p| p.id == shipped && p.fabricator.is_none())?;
+    Some(format!(
+        "Checked against {}; choose your fabricator's profile before ordering",
+        profile.name
+    ))
+}
+
 /// The dialog's body; returns a waiver edit.
 fn body(
     dialog: &mut ProductionDialog,
@@ -825,6 +858,14 @@ fn body(
                     .map(|(_, name)| name.clone());
                 dialog.pick = pick;
                 dialog.waiving = Waiving::default();
+            }
+            if let Some(text) = no_fabricators(dialog, engine) {
+                kit::hint(
+                    ui,
+                    &text,
+                    "It holds limits common to several fabricators. Yours can allow more or ask \
+                     for more: choose its profile in Board › Rules.",
+                );
             }
             match report {
                 None => {

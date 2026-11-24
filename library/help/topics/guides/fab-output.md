@@ -26,7 +26,7 @@
 }
 ---
 
-In PCB, open Production files from Output or the command palette. Choose the profile for the manufacturer and board stackup, the output groups, and a new ZIP or a new or empty folder. Check which assembly variant is active before exporting.
+In PCB, open Production files from Output or the command palette. Choose the profile for the manufacturer and board stackup, the output groups, and a new ZIP or a new or empty folder. A check under Standard, the profile a new board starts with, says to choose your fabricator's before ordering: do that in the board's Rules. Check which assembly variant is active before exporting.
 
 - Read the production check grouped by finding. Unplaced parts, open connections and stale fills can block production. Locate a finding, correct the board, refill where needed, and check again.
 - A waiver records a reviewed exception. Waive only a finding you have evaluated. Add a reason so the next reviewer can see why the exception is acceptable. You can restore a waived finding. A finding that breaks the fab profile's own limit cannot be waived: change the design, or switch to a profile that allows it ([[entry/fabrication.profile_suggestions]] lists them).

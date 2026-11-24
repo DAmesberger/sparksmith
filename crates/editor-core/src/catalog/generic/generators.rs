@@ -1,4 +1,4 @@
-//! The catalog over generators (slice D1 of the part-generation plan): the
+//! The catalog over generators: the
 //! words of a component search read as a generator's part, and the
 //! generators' presets a search finds. The host hands in the descriptions
 //! of the generators it ships (`library.generators`); the core never runs a
@@ -523,6 +523,28 @@ pub struct PresetHit {
     pub standing: Standing,
 }
 
+/// The metric preset alias of each size code among `query`'s `words`
+/// (lower case), with the code's place: a bare size code reads as imperial
+/// (the grammar's rule), so it does not name a preset by its metric alias
+/// ("0603 metric", the 0201) unless the text says metric itself.
+pub fn metric_aliases(query: &str, words: &[String]) -> Vec<(usize, String)> {
+    let lowered = query.to_lowercase();
+    standards::get()
+        .map(|s| s.generic.metric_alias.to_lowercase())
+        .map(|pattern| {
+            words
+                .iter()
+                .enumerate()
+                .filter(|(_, w)| {
+                    (3..=5).contains(&w.len()) && w.bytes().all(|b| b.is_ascii_digit())
+                })
+                .map(|(k, w)| (k, pattern.replace("{code}", w)))
+                .filter(|(_, alias)| !lowered.contains(alias.as_str()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// The presets of `descriptions` every word of `query` names (in the
 /// preset's name, aliases or description, or the generator's title or
 /// families), whole-word matches of an alias first; at most `limit`, and
@@ -540,24 +562,7 @@ pub fn find_presets(
     if query.len() > MAX_QUERY || words.is_empty() || words.len() > MAX_WORDS {
         return (Vec::new(), 0);
     }
-    // A bare size code reads as imperial (the grammar's rule): it does not
-    // match a preset's metric alias ("0603 metric", the 0201) unless the
-    // text says metric itself.
-    let lowered = query.to_lowercase();
-    let metric: Vec<(usize, String)> = standards::get()
-        .map(|s| s.generic.metric_alias.to_lowercase())
-        .map(|pattern| {
-            words
-                .iter()
-                .enumerate()
-                .filter(|(_, w)| {
-                    (3..=5).contains(&w.len()) && w.bytes().all(|b| b.is_ascii_digit())
-                })
-                .map(|(k, w)| (k, pattern.replace("{code}", w)))
-                .filter(|(_, alias)| !lowered.contains(alias.as_str()))
-                .collect()
-        })
-        .unwrap_or_default();
+    let metric = metric_aliases(query, &words);
     let mut found: Vec<(bool, &v1::Description, &v1::Preset)> = Vec::new();
     for description in descriptions {
         let families = description

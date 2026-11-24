@@ -156,7 +156,7 @@ pub fn guid_of(digest: &[u8]) -> String {
 
 /// The identity a project takes when it is first saved: a digest of the
 /// host's `salt` (the file's name and an optional nonce,
-/// `crate::identify_by_file`) and the whole document at that moment. A copy
+/// `crate::first_save`) and the whole document at that moment. A copy
 /// saved elsewhere keeps the identity it already has.
 pub fn project_id_for(salt: &str, document: &[u8]) -> String {
     use sha2::{Digest, Sha256};
