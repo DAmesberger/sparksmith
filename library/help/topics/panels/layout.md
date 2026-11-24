@@ -1,13 +1,9 @@
 ---
 {
-  "id": "panel/layout",
-  "kind": "panel",
-  "title": "PCB layout",
-  "summary": "Place footprints and build connected copper on the board’s layers.",
-  "since": "0.1.0",
   "covers": {
-    "entry/layout.route_preview": "6ced55688f581884"
+    "entry/layout.route_preview": "892f04d3b3e05b4d"
   },
+  "id": "panel/layout",
   "keywords": [
     "board editor",
     "airwires",
@@ -16,11 +12,15 @@
     "copper fill",
     "vias"
   ],
+  "kind": "panel",
   "related": [
     "guide/first-board",
     "guide/routing",
     "panel/model-3d"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Place footprints and build connected copper on the board’s layers.",
+  "title": "PCB layout"
 }
 ---
 

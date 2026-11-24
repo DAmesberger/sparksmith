@@ -1,14 +1,10 @@
 ---
 {
-  "id": "guide/routing",
-  "kind": "guide",
-  "title": "Route a connection",
-  "summary": "Use the airwires and the Route preview to join two pads on the same net.",
-  "since": "0.1.0",
   "covers": {
-    "entry/layout.route_preview": "6ced55688f581884",
-    "entry/layout.route_step": "6ced55688f581884"
+    "entry/layout.route_preview": "892f04d3b3e05b4d",
+    "entry/layout.route_step": "892f04d3b3e05b4d"
   },
+  "id": "guide/routing",
   "keywords": [
     "route tracks",
     "via",
@@ -17,11 +13,15 @@
     "copper",
     "airwires"
   ],
+  "kind": "guide",
   "related": [
     "panel/layout",
     "panel/issues",
     "guide/fab-profiles"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Use the airwires and the Route preview to join two pads on the same net.",
+  "title": "Route a connection"
 }
 ---
 

@@ -527,7 +527,7 @@
       "module": "checks",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "24b87f4a5d0237d7",
+      "schema_digest": "95921b1e81b43d94",
       "examples": []
     }
   },
@@ -541,7 +541,7 @@
       "module": "checks",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "67b21fdd1e45f298",
+      "schema_digest": "05a37081dfb85f4e",
       "examples": []
     }
   },
@@ -569,7 +569,7 @@
       "module": "checks",
       "class": "ask",
       "entry_kind": "action",
-      "schema_digest": "5b7d6a06dcc1e386",
+      "schema_digest": "e3f58b214de05103",
       "examples": []
     }
   },
@@ -1210,7 +1210,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "e525b7f0deb5d2eb",
+      "schema_digest": "2e922e92b9ef7774",
       "examples": []
     }
   },
@@ -1490,7 +1490,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "724da2ace9afd477",
+      "schema_digest": "9cb1b6a3b2c2f966",
       "examples": []
     }
   },
@@ -1504,7 +1504,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "5557badc10c3a318",
+      "schema_digest": "24a88de168420aef",
       "examples": []
     }
   },
@@ -1532,7 +1532,7 @@
       "module": "layout",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "6ced55688f581884",
+      "schema_digest": "892f04d3b3e05b4d",
       "examples": []
     }
   },
@@ -1546,7 +1546,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "6ced55688f581884",
+      "schema_digest": "892f04d3b3e05b4d",
       "examples": []
     }
   },
@@ -1785,6 +1785,20 @@
       "class": "edit",
       "entry_kind": "operation",
       "schema_digest": "78bde29ebb4389c8",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.via_set",
+    "title": "Fill vias or leave them open",
+    "summary": "Set what closes the holes of vias: `none` leaves them open, `capped` fills and plates them over.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "520dfd3d8ac92989",
       "examples": []
     }
   },
@@ -2815,7 +2829,7 @@
       "module": "rules",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "3a3901c35e02c0e2",
+      "schema_digest": "b9e66816951f17ca",
       "examples": []
     }
   },
@@ -2857,7 +2871,7 @@
       "module": "rules",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "eb675be7edbdeb33",
+      "schema_digest": "254674db3c47eb09",
       "examples": []
     }
   },
@@ -2927,7 +2941,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "57a806c81edf04ea",
+      "schema_digest": "c695692851fa2bb8",
       "examples": []
     }
   },
@@ -2941,7 +2955,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "7cd52e3ee4dc4c28",
+      "schema_digest": "37e5aed6b30dcab2",
       "examples": []
     }
   },
@@ -3039,7 +3053,7 @@
       "module": "files",
       "class": "ask",
       "entry_kind": "action",
-      "schema_digest": "107a4137e5aca5f6",
+      "schema_digest": "ec36e7cf1af2150b",
       "examples": []
     }
   },
@@ -3123,7 +3137,7 @@
       "module": "project",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "4dc0a05527699b4d",
+      "schema_digest": "e77782d8d8d54af9",
       "examples": []
     }
   },
@@ -3263,7 +3277,7 @@
       "module": "rules",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "3e405f3e26fad2ec",
+      "schema_digest": "a91577665f80bd08",
       "examples": [
         {
           "entry": "entry/rules.clear_override",
@@ -3328,7 +3342,7 @@
       "module": "rules",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "f1a7c7f6aebffc96",
+      "schema_digest": "3429ae39bb806965",
       "examples": []
     }
   },
@@ -3365,7 +3379,7 @@
       "module": "rules",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "f1a7c7f6aebffc96",
+      "schema_digest": "3429ae39bb806965",
       "examples": [
         {
           "entry": "entry/rules.set_fab_profile",
@@ -3389,7 +3403,7 @@
       "module": "rules",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "322bdecdad7aea56",
+      "schema_digest": "a62bac88c8802ef7",
       "examples": [
         {
           "entry": "entry/rules.set_override",

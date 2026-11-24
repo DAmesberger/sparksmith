@@ -375,6 +375,21 @@
     }
   },
   {
+    "id": "finding/board.class_layer",
+    "title": "Net classes naming layers that moved or are gone",
+    "summary": "Net classes naming layers that moved or are gone",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Net classes naming layers that moved or are gone",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
     "id": "finding/board.clearance",
     "title": "Clearance",
     "summary": "Clearance",
@@ -429,6 +444,36 @@
       "severity": "error",
       "blocks": null,
       "group": "Courtyards overlap",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.drill_not_made",
+    "title": "Drills the fabricator does not make",
+    "summary": "Drills the fabricator does not make",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Drills the fabricator does not make",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.drill_not_stated",
+    "title": "Drills the fabricator does not state",
+    "summary": "Drills the fabricator does not state",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Drills the fabricator does not state",
       "fix": "",
       "fixed_by": [],
       "checks": null
@@ -1005,6 +1050,21 @@
     }
   },
   {
+    "id": "finding/board.via_class",
+    "title": "Vias or tracks the net class does not allow",
+    "summary": "Vias or tracks the net class does not allow",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Vias or tracks the net class does not allow",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
     "id": "finding/board.via_dangling",
     "title": "Vias joining nothing",
     "summary": "Vias joining nothing",
@@ -1050,6 +1110,21 @@
     }
   },
   {
+    "id": "finding/board.via_fill_told",
+    "title": "Filled and open vias of one size",
+    "summary": "Filled and open vias of one size",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Filled and open vias of one size",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
     "id": "finding/board.via_hole_spacing",
     "title": "Via drills too close together",
     "summary": "Via drills too close together",
@@ -1059,6 +1134,21 @@
       "severity": "error",
       "blocks": null,
       "group": "Via drills too close together",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/board.via_in_pad_open",
+    "title": "Open vias under solder paste",
+    "summary": "Open vias under solder paste",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Open vias under solder paste",
       "fix": "",
       "fixed_by": [],
       "checks": null

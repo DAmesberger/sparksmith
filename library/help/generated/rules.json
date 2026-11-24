@@ -40,6 +40,46 @@
     }
   },
   {
+    "id": "rule/jlcpcb-2-layer/capped_drill_max",
+    "title": "JLCPCB 2-layer · max filled via hole",
+    "summary": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24); \"Plugged and epoxy-filled vias holes should not be larger than 0.5 mm\" (https://jlcpcb.com/help/article/pcb-via-covering, updated Nov 10, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.5,
+      "unit": "mm",
+      "source": {
+        "publisher": "JLCPCB",
+        "document": "PCB Manufacturing & Assembly Capabilities",
+        "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
+        "date": "2026-11-14",
+        "notes": "Rigid FR-4, 2 layers (JLCPCB's 1-layer boards drill 0.3 mm and up and have their own rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
+      },
+      "row": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24); \"Plugged and epoxy-filled vias holes should not be larger than 0.5 mm\" (https://jlcpcb.com/help/article/pcb-via-covering, updated Nov 10, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/jlcpcb-2-layer/capped_drill_min",
+    "title": "JLCPCB 2-layer · min filled via hole",
+    "summary": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "JLCPCB",
+        "document": "PCB Manufacturing & Assembly Capabilities",
+        "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
+        "date": "2026-11-14",
+        "notes": "Rigid FR-4, 2 layers (JLCPCB's 1-layer boards drill 0.3 mm and up and have their own rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
+      },
+      "row": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+      "author_choice": false
+    }
+  },
+  {
     "id": "rule/jlcpcb-2-layer/chip_gap_min",
     "title": "JLCPCB 2-layer · min chip land gap",
     "summary": "Sparksmith's land estimator margin (an original rule of thumb, not a JLCPCB value); the estimators do not read profiles yet.",
@@ -1597,6 +1637,46 @@
       },
       "row": "Profile author's choice (a default, not a JLCPCB limit).",
       "author_choice": true
+    }
+  },
+  {
+    "id": "rule/jlcpcb-4-layer/capped_drill_max",
+    "title": "JLCPCB 4-layer · max filled via hole",
+    "summary": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24); \"Plugged and epoxy-filled vias holes should not be larger than 0.5 mm\" (https://jlcpcb.com/help/article/pcb-via-covering, updated Nov 10, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.5,
+      "unit": "mm",
+      "source": {
+        "publisher": "JLCPCB",
+        "document": "PCB Manufacturing & Assembly Capabilities",
+        "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
+        "date": "2026-11-14",
+        "notes": "Rigid FR-4, 4 or more layers (the Multilayer rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
+      },
+      "row": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24); \"Plugged and epoxy-filled vias holes should not be larger than 0.5 mm\" (https://jlcpcb.com/help/article/pcb-via-covering, updated Nov 10, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/jlcpcb-4-layer/capped_drill_min",
+    "title": "JLCPCB 4-layer · min filled via hole",
+    "summary": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "JLCPCB",
+        "document": "PCB Manufacturing & Assembly Capabilities",
+        "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
+        "date": "2026-11-14",
+        "notes": "Rigid FR-4, 4 or more layers (the Multilayer rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
+      },
+      "row": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+      "author_choice": false
     }
   },
   {

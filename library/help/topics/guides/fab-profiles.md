@@ -3,7 +3,7 @@
   "covers": {
     "entry/rules.effective": "2c692f52f8c0092b",
     "entry/rules.fab_profiles": "331da7beea28b429",
-    "entry/rules.preview_fab_profile": "f1a7c7f6aebffc96",
+    "entry/rules.preview_fab_profile": "3429ae39bb806965",
     "term/fab-profile": "1c5968c3afa1e6a0a74a6a0a5c0844cfab0006c8b84292181a425a7f43d24e0c"
   },
   "id": "guide/fab-profiles",
