@@ -1238,3 +1238,128 @@ fn a_redundant_dimension_is_refused_and_names_what_sets_it() -> Fallible<()> {
         "5 mm dimension already sets this",
     )
 }
+
+/// A fill's copper depends on the solved outline, its cutouts and holes, not
+/// on the sketch behind them: an edit that moves none of these leaves every
+/// fill fresh, one that moves any makes it stale, and fresh copper is always
+/// what a computation from scratch gives.
+#[test]
+fn only_edits_that_move_the_solved_board_make_fills_stale() -> Fallible<()> {
+    use sparksmith_core::layout::fill::{FillCommand, compute, is_stale};
+    let mut engine = sketched()?;
+    let spec = serde_json::json!({"name": "plane", "net": null, "layer": "Bottom",
+        "region": "board", "settings": {"islands": {"remove": "never"}}});
+    let Outcome::FillAdded { fill } = apply(
+        &mut engine,
+        Operation::Fill(FillCommand::Add {
+            fill: Box::new(serde_json::from_value(spec)?),
+        }),
+    )?
+    else {
+        return Err("no fill".into());
+    };
+    let stale = |engine: &Engine| -> Fallible<bool> {
+        let f = engine.project().fill(fill).ok_or("fill")?;
+        let stale = is_stale(engine.project(), f);
+        if !stale {
+            // Fresh: the same copper a computation from scratch gives.
+            assert_eq!(f.computed.as_ref(), Some(&compute(engine.project(), fill)?));
+        }
+        Ok(stale)
+    };
+    engine.refill_stale()?;
+    assert!(!stale(&engine)?);
+
+    // A free point, a construction line, a parameter nothing reads and an
+    // edge's name move nothing.
+    let point = BoardEdit::Sketch {
+        edit: SketchEdit::AddPoint { at: [5.0, 8.0] },
+    };
+    let line = BoardEdit::Sketch {
+        edit: SketchEdit::AddLine {
+            a: [5.0, 5.0],
+            b: [9.0, 9.0],
+            construction: true,
+        },
+    };
+    let unname = BoardEdit::UnnameEdge {
+        name: EdgeName("top".into()),
+    };
+    for (what, edits) in [
+        ("a free point", vec![point]),
+        ("a construction line", vec![line]),
+        ("an unread parameter", vec![set("spare", "3 mm")]),
+        ("an edge's name", vec![unname]),
+    ] {
+        let board = engine.project().board_shape.clone();
+        edit(&mut engine, edits)?;
+        assert!(
+            engine.project().board_shape != board,
+            "{what} changed nothing"
+        );
+        assert!(!stale(&engine)?, "{what} made the fill stale");
+    }
+
+    // The outline, a cutout, what it cuts, and a hole each move copper.
+    let moved = |engine: &mut Engine, what: &str, edits: Vec<BoardEdit>| -> Fallible<Outcome> {
+        let outcome = edit(engine, edits)?;
+        assert!(stale(&*engine)?, "{what} left the fill fresh");
+        engine.refill_stale()?;
+        assert!(!stale(&*engine)?, "{what}");
+        Ok(outcome)
+    };
+    moved(&mut engine, "the width", vec![set("width", "62 mm")])?;
+    let circle = created_curves_of(moved(
+        &mut engine,
+        "a cutout",
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::AddCircle {
+                center: [50.0, 10.0],
+                radius: 2.0,
+                construction: false,
+            },
+        }],
+    )?);
+    moved(
+        &mut engine,
+        "the cutout's kind",
+        vec![BoardEdit::SetCutoutKind {
+            curves: circle,
+            kind: CutoutKind::Slot { plated: true },
+        }],
+    )?;
+    let center = sketch(&engine)?;
+    let center = crate::footprint::view::sketch_view(&source_of(&center))?
+        .points
+        .iter()
+        .find(|p| close(p.at, [5.0, 8.0]))
+        .map(|p| p.id.clone())
+        .ok_or("the free point")?;
+    moved(
+        &mut engine,
+        "a mounting hole",
+        vec![BoardEdit::AddMountingHole {
+            center,
+            drill: Expr("3.2 mm".into()),
+            plated: false,
+            pad_diameter: None,
+        }],
+    )?;
+    Ok(())
+}
+
+/// A board sketch as the view functions read it.
+fn source_of(board: &BoardSketch) -> sparksmith_core::library::footprint_source::FootprintSource {
+    sparksmith_core::library::footprint_source::FootprintSource {
+        evaluator: evaluator_ref(),
+        sketch: board.sketch.clone(),
+        parameters: board.parameters.clone(),
+        pads: Vec::new(),
+        arrays: Vec::new(),
+        graphics: Vec::new(),
+        keys: Vec::new(),
+        overrides: Vec::new(),
+        solve: Default::default(),
+        datum: None,
+    }
+}
