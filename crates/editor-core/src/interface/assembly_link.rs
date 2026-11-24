@@ -1964,8 +1964,9 @@ fn followers(
 /// (a sketch projecting it, a joint placing the board by it) is a loop
 /// when that datum follows the reference on the board. Only references
 /// built on a datum are probed, and only when the board, its parts, its
-/// datums or the link changed; without the host's sketch evaluator the
-/// last loops are kept.
+/// datums or the link changed; without the host's sketch evaluator, or
+/// while the outline is invalid (no part follows it then), the last loops
+/// are kept.
 pub fn follow_cycles(
     before: &Project,
     project: &mut Project,
@@ -1999,7 +2000,7 @@ pub fn follow_cycles(
     let Some(evaluator) = board else {
         return Ok(());
     };
-    if unchanged {
+    if unchanged || project.board_shape.invalid().is_some() {
         return Ok(());
     }
     let geometry = datum_geometry(project)?;

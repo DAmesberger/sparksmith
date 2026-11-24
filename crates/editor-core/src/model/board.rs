@@ -387,8 +387,8 @@ pub struct BoardSketch {
 
 impl BoardSketch {
     /// Why the outline is not valid now, as a sentence: [`Self::solved`] is
-    /// then not what the sketch and parameters say, and nothing is published
-    /// or exported of the board until it is. `None` for a valid outline.
+    /// then not what the sketch and parameters say, and the interface and the
+    /// native model are not written until it is. `None` for a valid outline.
     pub fn invalid(&self) -> Option<&str> {
         if self.current {
             return None;
