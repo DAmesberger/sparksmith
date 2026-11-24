@@ -27,12 +27,13 @@ use std::f64::consts::TAU;
 
 use crate::geom::Vec2;
 use solidcraft_engine::sketch::{
-    ConstraintKind, CurveKind, ENDPOINT_JOIN_TOL, MAX_SPLINE_POINTS, Sketch, find_drawn_profiles,
-    loose_ends,
+    ConstraintKind, CurveKind, ENDPOINT_JOIN_TOL, MAX_SPLINE_POINTS, Sketch, determined_by,
+    find_drawn_profiles, loose_ends,
 };
 use sparksmith_core::diagnostics::{Error, Finding, ObjectRef, Result};
 use sparksmith_core::geometry::Point;
 use sparksmith_core::layout::dimensions::{PartsRequest, PartsSolution};
+use sparksmith_core::layout::limits;
 use sparksmith_core::layout::outline::{
     BoardEvaluation, BoardShapeEvaluator, DrawnSlot, FATAL_PREFIX, Fillets, FixedEdit,
     FreeFormCurve, refuses,
@@ -61,6 +62,8 @@ use crate::footprint::{ENGINE, Outcome, Problem, evaluator_ref, problem};
 const JOIN_MM: f64 = ENDPOINT_JOIN_TOL;
 /// Crossings or open ends one fault names at most.
 const FAULT_POINTS: usize = 8;
+/// Dimensions a refused redundant one is said to be set by, at most.
+const DETERMINED_NAMED: usize = 3;
 
 const OUTLINE: FindingCode = FindingCode::BoardShapeOutline;
 const CURVE: FindingCode = FindingCode::BoardShapeCurve;
@@ -185,6 +188,9 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
     fn apply_sketch(&self, sketch: &SketchBlob, edit: &SketchEdit) -> Result<SketchOutcome> {
         let stored = check::check_board_sketch(&sketch.0)?;
         let edited = crate::footprint::edit::apply(&stored, edit)?;
+        if matches!(edit, SketchEdit::AddDimension { .. }) {
+            not_set_already(&edited)?;
+        }
         Ok(finish(&stored, &edited)?)
     }
 
@@ -1188,6 +1194,54 @@ fn dim(values: &Values, value: &DimValue) -> Outcome<(f64, Option<String>)> {
         return Err(problem(EDIT, format!("{v} mm is not a positive size")));
     }
     Ok((v, param))
+}
+
+/// Refuses the dimension just added (the last constraint) when other
+/// constraints already determine it: it would remove no freedom, which
+/// Solidcraft's Dimension command calls over-constraining (there it can
+/// become a driven dimension; a board sketch has none).
+fn not_set_already(sk: &Sketch) -> Result<()> {
+    let Some(last) = sk.constraints.len().checked_sub(1) else {
+        return Ok(());
+    };
+    let by = determined_by(sk, last);
+    if by.is_empty() {
+        return Ok(());
+    }
+    let mut names: Vec<String> = Vec::new();
+    for k in by.iter().filter_map(|i| sk.constraints.get(*i)) {
+        let Some(value) = k.kind.value() else {
+            continue;
+        };
+        let name = match &k.param {
+            Some(p) => format!("‘{p}’"),
+            None if k.kind.is_angle() => format!("the {}° angle", limits::mm(value.to_degrees())),
+            None => format!("the {} mm dimension", limits::mm(value)),
+        };
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    let more = match names.len().saturating_sub(DETERMINED_NAMED) {
+        0 => String::new(),
+        n => format!(" and {n} more"),
+    };
+    let what = match names.as_slice() {
+        [] => "this is already set by the sketch's constraints; it needs no dimension".into(),
+        [one] => format!("{one} already sets this; edit that instead of adding a dimension"),
+        _ => format!(
+            "{}{more} already set this; edit those instead of adding a dimension",
+            names
+                .iter()
+                .take(DETERMINED_NAMED)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    };
+    Err(Error::Conflict(format!(
+        "board.dimension_redundant: {what}"
+    )))
 }
 
 fn finish(stored: &Sketch, sk: &Sketch) -> Outcome<SketchOutcome> {
