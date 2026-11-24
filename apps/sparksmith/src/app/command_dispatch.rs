@@ -152,7 +152,7 @@ impl AfterCommit {
 /// it is returned to run now.
 #[cfg(any(target_os = "macos", test))]
 pub(super) fn route(ctx: &egui::Context, held: &mut AfterCommit, id: String) -> Option<String> {
-    if ctx.egui_wants_keyboard_input() {
+    if ctx.text_edit_focused() {
         held.hold(ctx, id);
         None
     } else {
@@ -467,10 +467,15 @@ impl App {
         if self.palette.is_open() {
             return;
         }
-        let typing = ctx.egui_wants_keyboard_input();
+        // A text field keeps its own ⌘ keys; another focused widget (a list
+        // row, after its value committed) keeps plain keys only, so ⌘Z there
+        // undoes the project.
+        let text = ctx.text_edit_focused();
+        let focused = ctx.egui_wants_keyboard_input();
         let popup = ctx.any_popup_open();
         let active = self.active_contexts();
         for chord in presses(ctx) {
+            let typing = if chord.command { text } else { focused };
             let Some(id) = self
                 .registry
                 .resolve(chord, &active)

@@ -942,7 +942,8 @@ fn an_invalid_outline_is_never_waived_into_files_of_the_last_one() -> Fallible {
         b: [110.0, 20.0],
         construction: false,
     };
-    let cases: [(&str, bool, fn() -> SketchEdit); 2] = [
+    type Draw = fn() -> SketchEdit;
+    let cases: [(&str, bool, Draw); 2] = [
         ("board.shape_invalid", false, second_region),
         ("board.shape_open", true, stray),
     ];

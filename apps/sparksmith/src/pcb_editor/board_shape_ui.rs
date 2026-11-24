@@ -52,6 +52,14 @@ struct Drag {
     at: Point,
 }
 
+/// A dimension placed with the Dimension tool and its value being typed.
+pub(super) struct Draft {
+    pub(super) new: shape::NewDimension,
+    pub(super) text: String,
+    /// The field takes the keyboard (with its text selected) until it has it.
+    focus: bool,
+}
+
 /// The Board shape mode's state (editor state, never the document).
 pub(super) struct ShapeMode {
     pub(super) active: bool,
@@ -62,6 +70,8 @@ pub(super) struct ShapeMode {
     /// The selected dimension, whose value field the card shows.
     pub(super) dimension: Option<SketchConstraintId>,
     dim_text: Option<(SketchConstraintId, String)>,
+    /// The dimension placed whose value is being typed.
+    pub(super) draft: Option<Draft>,
     drag: Option<Drag>,
     loaded: Option<Loaded>,
     /// The host sketch engine (`board_shape::host_evaluator`).
@@ -86,6 +96,7 @@ impl Default for ShapeMode {
             selection: Vec::new(),
             dimension: None,
             dim_text: None,
+            draft: None,
             drag: None,
             loaded: None,
             evaluator: shape::host_evaluator(),
@@ -130,13 +141,15 @@ const DIM_FIELD: &str = "board-dimension";
 impl ShapeMode {
     pub(super) fn reset_gesture(&mut self) {
         self.gesture.clear();
+        self.draft = None;
         self.drag = None;
     }
 
-    /// Esc: the gesture, then the selection, then the tool, then the mode.
+    /// Esc: the gesture (or the dimension waiting for its value), then the
+    /// selection, then the tool, then the mode.
     /// Returns whether the mode stays open.
     pub(super) fn escape(&mut self) -> bool {
-        if !self.gesture.is_empty() || self.drag.is_some() {
+        if !self.gesture.is_empty() || self.drag.is_some() || self.draft.is_some() {
             self.reset_gesture();
         } else if !self.selection.is_empty() || self.dimension.is_some() {
             self.selection.clear();
@@ -184,6 +197,20 @@ impl ShapeMode {
             .is_some_and(|d| !view.constraints.iter().any(|k| &k.id == d))
         {
             self.dimension = None;
+        }
+        // A dimension whose value was accepted is in this revision:
+        // selected. One still typed stays while what it measures does.
+        if let Some(draft) = self.draft.take() {
+            let there = |r: &SketchRef| match r {
+                SketchRef::Point(p) => view.point(p).is_some(),
+                SketchRef::Curve(c) => view.curve(c).is_some(),
+                SketchRef::Constraint(_) => false,
+            };
+            if view.constraints.iter().any(|k| k.id == draft.new.id) {
+                self.dimension = Some(draft.new.id);
+            } else if draft.new.refs.iter().all(there) {
+                self.draft = Some(draft);
+            }
         }
         // The Value field shows the new revision's value (an edit applied,
         // an undo), so no earlier text's error stands; a refused edit
@@ -542,8 +569,17 @@ impl PcbEditor {
                         if self.shape.tool == ShapeTool::NameEdge {
                             self.shape.options.edge_name = bump_name(&self.shape.options.edge_name);
                         }
-                        self.shape.dimension = commit.select;
+                        self.shape.dimension = None;
                         operation = Some(shape::operation(commit.edits));
+                    }
+                    Ok(Step::Dimension(new)) => {
+                        self.shape.dimension = None;
+                        self.shape.errors.remove(DIM_FIELD);
+                        self.shape.draft = Some(Draft {
+                            text: kit::number_text(new.value),
+                            new,
+                            focus: true,
+                        });
                     }
                     Ok(Step::More) => {}
                     Err(error) => refused = Some(error),
@@ -568,7 +604,7 @@ impl PcbEditor {
                 &scene,
             ) {
                 Ok(Step::Commit(commit)) => operation = Some(shape::operation(commit.edits)),
-                Ok(Step::More) => {}
+                Ok(Step::More | Step::Dimension(_)) => {}
                 Err(error) => refused = Some(error),
             }
         }
@@ -638,6 +674,8 @@ impl PcbEditor {
             .collect();
         let selected = |r: &SketchRef| self.shape.selection.contains(r);
         let picks = &self.shape.gesture.picks;
+        let placed = self.shape.draft.as_ref().map(|d| d.new.refs.as_slice());
+        let placed = placed.unwrap_or_default();
         let cut: Vec<_> = board
             .solved
             .cutouts
@@ -650,7 +688,7 @@ impl PcbEditor {
                 .into_iter()
                 .map(|p| view.screen(p))
                 .collect();
-            let color = if selected(&r) || picks.contains(&r) {
+            let color = if selected(&r) || picks.contains(&r) || placed.contains(&r) {
                 t.accent
             } else if conflict_curves.contains(&curve.id) {
                 t.sketch_conflict
@@ -671,7 +709,7 @@ impl PcbEditor {
         for point in drawn.points.iter().filter(|p| p.id.0 != "origin") {
             let r = SketchRef::Point(point.id.clone());
             let free = report.is_some_and(|rep| rep.free_points.contains(&point.id));
-            let color = if selected(&r) || picks.contains(&r) {
+            let color = if selected(&r) || picks.contains(&r) || placed.contains(&r) {
                 t.accent
             } else if free {
                 t.sketch_point_free
@@ -875,18 +913,11 @@ impl PcbEditor {
             for p in &pending {
                 painter.circle_stroke(view.screen(*p), 4.0, Stroke::new(1.5, t.accent));
             }
-            if self.shape.tool != ShapeTool::Select
-                && let Some(snapped) =
-                    drawn
-                        .points
-                        .iter()
-                        .filter(|p| p.id.0 != "origin")
-                        .find(|p| {
-                            (p.at[0] - at[0]).hypot(p.at[1] - at[1])
-                                <= f64::from(PICK_PX / view.view.scale)
-                        })
-            {
-                painter.circle_stroke(view.screen(snapped.at), 6.0, Stroke::new(1.5, t.accent));
+            if tool != ShapeTool::Select {
+                let click = shape::snap(&drawn, at, tolerance);
+                if click.snapped.is_some() {
+                    painter.circle_stroke(view.screen(click.at), 6.0, Stroke::new(1.5, t.accent));
+                }
             }
         }
     }
@@ -943,7 +974,7 @@ impl PcbEditor {
             };
             match shape::finish(tool, &self.shape.options, &mut self.shape.gesture, &scene) {
                 Ok(Step::Commit(commit)) => operation = Some(shape::operation(commit.edits)),
-                Ok(Step::More) => {}
+                Ok(Step::More | Step::Dimension(_)) => {}
                 Err(error) => kit::toast::post(
                     ui.ctx(),
                     refusal::level(&error),
@@ -1022,7 +1053,12 @@ impl PcbEditor {
             }
             ShapeTool::Select | ShapeTool::Dimension => {}
         }
-        if let Some(op) = self.dimension_rows(ui, board) {
+        let dimension = if self.shape.draft.is_some() {
+            self.new_dimension_rows(ui, board)
+        } else {
+            self.dimension_rows(ui, board)
+        };
+        if let Some(op) = dimension {
             operation = Some(op);
         }
         if let Some(op) = self.selection_rows(ui, board) {
@@ -1056,6 +1092,73 @@ impl PcbEditor {
         operation
     }
 
+    /// The dimension just placed: its value, which Enter or leaving the
+    /// field commits with the dimension in one edit and Esc drops. A value
+    /// refused on Enter stays in the field with the reason; the sketch has
+    /// no dimension until a value is accepted.
+    fn new_dimension_rows(&mut self, ui: &mut Ui, board: &BoardSketch) -> Option<Operation> {
+        let mut draft = self.shape.draft.take()?;
+        let mut keep = true;
+        let mut operation = None;
+        let errors = &mut self.shape.errors;
+        kit::section(ui, "board-dimension", "Dimension", true, None, |ui| {
+            let field = kit::text_row(ui, "Value", &mut draft.text);
+            if field.changed() {
+                errors.remove(DIM_FIELD);
+            }
+            if draft.focus {
+                draft.focus = !field.has_focus();
+                field.request_focus();
+                let all = egui::text::CCursorRange::two(
+                    egui::text::CCursor::new(0),
+                    egui::text::CCursor::new(draft.text.chars().count()),
+                );
+                let mut state = egui::TextEdit::load_state(ui.ctx(), field.id).unwrap_or_default();
+                state.cursor.set_char_range(Some(all));
+                state.store(ui.ctx(), field.id);
+            } else if field.lost_focus() {
+                let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let escape =
+                    ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                // Leaving a refused value drops it: its reason was shown.
+                let left = !enter && errors.contains_key(DIM_FIELD);
+                keep = enter;
+                if !escape && !left {
+                    match shape::new_dimension_edits(board, &draft.new, &draft.text) {
+                        Ok(edits) => {
+                            if enter {
+                                let origin = Origin::Field(egui::Id::unique(DIM_FIELD));
+                                refusal::mark(ui.ctx(), origin);
+                            }
+                            operation = Some(shape::operation(edits));
+                        }
+                        Err(why) if enter => {
+                            errors.insert(DIM_FIELD, why);
+                            draft.focus = true;
+                        }
+                        Err(why) => {
+                            kit::toast::post(ui.ctx(), kit::severity::Level::Error, why, vec![])
+                        }
+                    }
+                }
+            }
+            if let Some(why) = errors.get(DIM_FIELD) {
+                kit::field_error(ui, &field, why, true);
+            }
+            kit::hint(
+                ui,
+                "A number, a parameter, or name = expression",
+                "Type width, or width = 80 mm, to bind the dimension to a board parameter",
+            );
+        });
+        if keep {
+            self.shape.draft = Some(draft);
+        } else {
+            self.shape.errors.remove(DIM_FIELD);
+        }
+        operation
+    }
+
     /// The selected dimension's value: a number, a parameter, an
     /// expression or `name = expr`; Enter commits it.
     fn dimension_rows(&mut self, ui: &mut Ui, board: &BoardSketch) -> Option<Operation> {
@@ -1073,6 +1176,9 @@ impl PcbEditor {
         kit::section(ui, "board-dimension", "Dimension", true, None, |ui| {
             kit::value_row(ui, "Shows", &label);
             let field = kit::text_row(ui, "Value", text);
+            if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                *text = original.clone();
+            }
             if field.lost_focus() && text.trim() != original {
                 match shape::dimension_value_edits(board, &view, &id, text) {
                     Ok(edits) => {
@@ -1539,6 +1645,9 @@ impl PcbEditor {
     fn claim_shape_refusals(&mut self, ctx: &egui::Context) {
         if let Some(text) = refusal::claim(ctx, Origin::Field(egui::Id::unique(DIM_FIELD))) {
             self.shape.errors.insert(DIM_FIELD, text);
+            if let Some(draft) = &mut self.shape.draft {
+                draft.focus = true;
+            }
         }
         if let Some(row) = self.shape.params.sent.clone()
             && let Some(text) = refusal::claim(ctx, Origin::Field(field_id(row.as_ref())))

@@ -142,6 +142,9 @@ pub struct BodyFace {
     /// Its trace in the part frame, as [`BoardShapeEvaluator::trace_model`]
     /// traces it.
     pub trace: FeatureGeometry,
+    /// Nothing of its body lies before it: an outside face, not the wall of
+    /// a hole or a step further in.
+    pub outer: bool,
     /// How high it reaches over the seating plane (mm): lowest, highest.
     pub z: [f64; 2],
 }
@@ -427,6 +430,18 @@ pub fn feature_term(
     f: &FeatureRef,
     geometry: Option<&FeatureGeometry>,
 ) -> Option<String> {
+    feature_term_on(project, f, geometry, true)
+}
+
+/// [`feature_term`] for a face the host listed ([`BodyFace::outer`]): one
+/// with more of its body before it (the wall of a pin's hole) is no side or
+/// end of the part, and reads by the way it faces.
+pub fn feature_term_on(
+    project: &Project,
+    f: &FeatureRef,
+    geometry: Option<&FeatureGeometry>,
+    outer: bool,
+) -> Option<String> {
     let (placement, pick) = match f {
         FeatureRef::Face { placement, face } => (*placement, face.pick),
         FeatureRef::Edge { placement, edge }
@@ -499,6 +514,18 @@ pub fn feature_term(
     };
     Some(match f {
         FeatureRef::Face { .. } => match geometry {
+            // Its outward normal is on the right of the trace.
+            Some(FeatureGeometry::Line { a, b }) if !outer => {
+                let axis = across(a, b);
+                let normal = [b[1] - a[1], a[0] - b[0]];
+                let facing = match (axis, normal[axis] < 0.0) {
+                    (0, true) => "left",
+                    (0, false) => "right",
+                    (_, true) => "front",
+                    (_, false) => "back",
+                };
+                format!("inner face facing {facing}")
+            }
             Some(FeatureGeometry::Line { a, b }) => {
                 let axis = across(a, b);
                 let end = if size[axis] >= 1.5 * size[1 - axis] {

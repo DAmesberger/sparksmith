@@ -6238,5 +6238,1487 @@
       "row": "Profile author's choice (a default, not a PCBWay limit).",
       "author_choice": true
     }
+  },
+  {
+    "id": "rule/standard/aspect_ratio_max",
+    "title": "Standard · max aspect ratio",
+    "summary": "PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), Advanced PCB, row 6, normal process: \"Thickness to diameter ratio≤8\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, classification table: \"Aspect Ratio is 1:8 (Based on the TOOLSIZE)\". JLCPCB and OSH Park publish none.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 8.0,
+      "unit": "ratio",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), Advanced PCB, row 6, normal process: \"Thickness to diameter ratio≤8\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, classification table: \"Aspect Ratio is 1:8 (Based on the TOOLSIZE)\". JLCPCB and OSH Park publish none.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/board_outline_fit",
+    "title": "Standard · board outline fit",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.01,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/chip_gap_min",
+    "title": "Standard · min chip land gap",
+    "summary": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_board_edge_board_edge",
+    "title": "Standard · board edge to board edge clearance",
+    "summary": "Not a meaningful pair: 0.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Not a meaningful pair: 0.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_board_edge_npth_hole",
+    "title": "Standard · board edge to unplated hole clearance",
+    "summary": "None of the four fabricators publishes this limit: 0, not checked.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "None of the four fabricators publishes this limit: 0, not checked.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_board_edge_pth_hole",
+    "title": "Standard · board edge to plated hole clearance",
+    "summary": "None of the four fabricators publishes this limit: 0, not checked.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "None of the four fabricators publishes this limit: 0, not checked.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_board_edge_via_hole",
+    "title": "Standard · board edge to via hole clearance",
+    "summary": "None of the four fabricators publishes this limit: 0, not checked.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "None of the four fabricators publishes this limit: 0, not checked.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_fill_board_edge",
+    "title": "Standard · fill to board edge clearance",
+    "summary": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.4,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_fill_fill",
+    "title": "Standard · fill to fill clearance",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\". PCBWay gives no copper-area-to-copper-area row; its pad-or-trace-to-copper-area row applies.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\". PCBWay gives no copper-area-to-copper-area row; its pad-or-trace-to-copper-area row applies.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_fill_npth_hole",
+    "title": "Standard · fill to unplated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_fill_pth_hole",
+    "title": "Standard · fill to plated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.35,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm).",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_fill_via_hole",
+    "title": "Standard · fill to via hole clearance",
+    "summary": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.254,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_npth_hole_npth_hole",
+    "title": "Standard · unplated hole to unplated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.45,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pad_board_edge",
+    "title": "Standard · pad to board edge clearance",
+    "summary": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.4,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pad_fill",
+    "title": "Standard · pad to fill clearance",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pad_npth_hole",
+    "title": "Standard · pad to unplated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pad_pad",
+    "title": "Standard · pad to pad clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"SMD pad to pad clearance (different nets)\": \"0.15mm\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OPP and IPP 0.150 mm. Less strict: PCBWay \"Normal Width between pads\" 1OZ \"0.12MM\". OSH Park publishes trace spacing only.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.15,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"SMD pad to pad clearance (different nets)\": \"0.15mm\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OPP and IPP 0.150 mm. Less strict: PCBWay \"Normal Width between pads\" 1OZ \"0.12MM\". OSH Park publishes trace spacing only.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pad_pth_hole",
+    "title": "Standard · pad to plated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.35,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm).",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pad_via",
+    "title": "Standard · pad to via clearance",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pad_via_hole",
+    "title": "Standard · pad to via hole clearance",
+    "summary": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.254,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pth_hole_npth_hole",
+    "title": "Standard · plated hole to unplated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.45,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_pth_hole_pth_hole",
+    "title": "Standard · plated hole to plated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\"",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.45,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\"",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_track_board_edge",
+    "title": "Standard · track to board edge clearance",
+    "summary": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.4,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_track_fill",
+    "title": "Standard · track to fill clearance",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between pad or tarce and copper area\", 1OZ: \"0.2MM\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_track_npth_hole",
+    "title": "Standard · track to unplated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_track_pad",
+    "title": "Standard · track to pad clearance",
+    "summary": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Spacing\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTT-OTP-OPP and ITT-ITP-IPP 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Spacing\" row: \"strongly suggest to design spacing above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\". Pad to track rows: JLCPCB \"Pad to track clearance (1oz)\": \"0.1mm\"; PCBWay \"Normal Width between pad and trace\" 1OZ \"0.12MM\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.1524,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Spacing\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTT-OTP-OPP and ITT-ITP-IPP 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Spacing\" row: \"strongly suggest to design spacing above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\". Pad to track rows: JLCPCB \"Pad to track clearance (1oz)\": \"0.1mm\"; PCBWay \"Normal Width between pad and trace\" 1OZ \"0.12MM\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_track_pth_hole",
+    "title": "Standard · track to plated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.35,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm).",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_track_track",
+    "title": "Standard · track to track clearance",
+    "summary": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Spacing\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTT-OTP-OPP and ITT-ITP-IPP 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Spacing\" row: \"strongly suggest to design spacing above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.1524,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Spacing\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTT-OTP-OPP and ITT-ITP-IPP 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Spacing\" row: \"strongly suggest to design spacing above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_track_via",
+    "title": "Standard · track to via clearance",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_track_via_hole",
+    "title": "Standard · track to via hole clearance",
+    "summary": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.254,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_board_edge",
+    "title": "Standard · via to board edge clearance",
+    "summary": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.4,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"Copper to Board Edge Clearance\", \"For routed boards\": \"0.25mm (10mil) on outer layers\", \"0.40mm (16mil) on inner layers\"; one rule covers every layer, so the inner layers' decides. Less strict: OSH Park 2, 4 and 6 layer \"Board Edge Keepout\": \"15mil (0.381) from nominal board edge\"; PCBWay \"Normal Width between profile and copper\" 1OZ \"0.3mm\"; JLCPCB \"Routed\": \"Copper clearance from routed board edges: ≧0.2 mm\". Scored (V-cut) edges: Eurocircuits 0.45 mm, JLCPCB 0.4 mm.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_fill",
+    "title": "Standard · via to fill clearance",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_hole_npth_hole",
+    "title": "Standard · via hole to unplated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.45,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives an NPTH-specific row; the pad hole row is read as covering unplated pad holes too, as in the JLCPCB profiles (founder decision, 2026-11-12).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_hole_pth_hole",
+    "title": "Standard · via hole to plated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives a via-to-pad-hole row: the larger, the pad hole's.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.45,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Pad Hole-to-Hole Spacing\": \"0.45mm\" decides. Less strict: PCBWay Advanced PCB row 10, component hole \"≥16MIL\" (0.4064 mm); Eurocircuits 0.25 mm between tools (0.35 mm between finished plated holes); OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\" No fabricator gives a via-to-pad-hole row: the larger, the pad hole's.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_hole_via_hole",
+    "title": "Standard · via hole to via hole clearance",
+    "summary": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/drilled-holes/, read 2026-11-24), \"The minimum drill hole to drill hole distance is 0.25mm (10mil), this is measured edge to edge of the drill TOOLSIZE\", and \"Plated Through Holes (PTH) TOOLSIZE = ENDSIZE + 0.100mm\": 0.25 + 2 × 0.05 = 0.35 mm between finished holes decides. Less strict: PCBWay Advanced PCB row 10, via (≤0.45mm) \"≥11MIL\" (0.2794 mm); JLCPCB \"Via Hole-to-Hole Spacing\": \"0.2mm\"; OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\"",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.35,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/drilled-holes/, read 2026-11-24), \"The minimum drill hole to drill hole distance is 0.25mm (10mil), this is measured edge to edge of the drill TOOLSIZE\", and \"Plated Through Holes (PTH) TOOLSIZE = ENDSIZE + 0.100mm\": 0.25 + 2 × 0.05 = 0.35 mm between finished holes decides. Less strict: PCBWay Advanced PCB row 10, via (≤0.45mm) \"≥11MIL\" (0.2794 mm); JLCPCB \"Via Hole-to-Hole Spacing\": \"0.2mm\"; OSH Park \"5 mil (0.127mm) clearance is recommended between holes.\"",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_npth_hole",
+    "title": "Standard · via to unplated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_pth_hole",
+    "title": "Standard · via to plated hole clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.35,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the recommended value decides. Less strict: JLCPCB \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\"; OSH Park 4 and 6 layer \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\"; Eurocircuits class 6 IPI 0.200 mm from the tool (0.25 mm from the finished hole); PCBWay Advanced PCB row 13, 4L \"≥7MIL\", 6L \"≥8MIL\" (0.1778, 0.2032 mm).",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_via",
+    "title": "Standard · via to via clearance",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal width between via and copper\", 1OZ: \"0.2mm\" decides. Less strict: OSH Park 2 layer \"Trace Spacing\" \"6mil (0.1524mm)\"; Eurocircuits class 6 0.150 mm; JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/clearance_via_via_hole",
+    "title": "Standard · via to via hole clearance",
+    "summary": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.254,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "OSH Park 4 layer (https://docs.oshpark.com/services/four-layer/, read 2026-11-24), \"Plated Drill to Internal Layer Copper Clearance\": \"10mil (0.254mm)\" (the same on OSH Park 6 layer (https://docs.oshpark.com/services/six-layer/, read 2026-11-24)) decides. Less strict: Eurocircuits class 6 IPI 0.200 mm from the edge of the tool, which for plated holes is the finished hole plus 0.10 mm, so 0.25 mm from the finished hole; JLCPCB \"Via hole to Track\": \"0.2mm\", \"Inner layer via hole to copper clearance\": \"0.2mm\"; PCBWay Advanced PCB row 13, inner layers, 4L \"≥7MIL\" (0.1778 mm), 6L \"≥8MIL\" (0.2032 mm). The inner-layer rows is used on every layer.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/copper_angle_min",
+    "title": "Standard · min copper angle",
+    "summary": "None of the four fabricators publishes this limit: 0, not checked.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "°",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "None of the four fabricators publishes this limit: 0, not checked.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/courtyard_clearance",
+    "title": "Standard · courtyard clearance",
+    "summary": "None of the four fabricators publishes this limit: 0, not checked.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "None of the four fabricators publishes this limit: 0, not checked.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/drill_min",
+    "title": "Standard · min drill",
+    "summary": "The smallest drill without a surcharge. PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), \"Drill Sizes (CNC)\": \"Any holes greater than 6.3mm or smaller than 0.3mm will be subject to extra charges.\"; JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Min. Via hole size/diameter\": \"③ 0.1mm or 0.15mm hole size with any size via diameter, and 0.2mm or 0.25mm hole size with via diameter less than 0.45mm, will cost more.\", and \"1-layer: 0.3 – 6.3 mm\". Less strict: OSH Park 2 and 4 layer \"Minimum Drill Size\": \"10mil (0.254mm)\", 6 layer \"8mil (0.2032mm)\"; Eurocircuits drill class C, plated 0.25 mm.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.3,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "The smallest drill without a surcharge. PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), \"Drill Sizes (CNC)\": \"Any holes greater than 6.3mm or smaller than 0.3mm will be subject to extra charges.\"; JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Drilling, \"Min. Via hole size/diameter\": \"③ 0.1mm or 0.15mm hole size with any size via diameter, and 0.2mm or 0.25mm hole size with via diameter less than 0.45mm, will cost more.\", and \"1-layer: 0.3 – 6.3 mm\". Less strict: OSH Park 2 and 4 layer \"Minimum Drill Size\": \"10mil (0.254mm)\", 6 layer \"8mil (0.2032mm)\"; Eurocircuits drill class C, plated 0.25 mm.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/exposed_pad_clearance",
+    "title": "Standard · exposed pad clearance",
+    "summary": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/fiducial_count_min",
+    "title": "Standard · min fiducials per assembled side",
+    "summary": "JLCPCB Help Center, \"How to Add Edge Rails and Fiducials for PCB Assembly Orders\" (https://jlcpcb.com/help/article/how-to-add-edge-rails-fiducials-for-pcb-assembly-order, last updated 2026-09-09, read 2026-11-21): \"Edge rails and fiducials are required for standard PCB assembly at JLCPCB.\" and \"Three to four fiducial markers should be placed along the board edges to ensure optimal placement accuracy.\" Per side: \"For a double-sided SMT assembly, you must have a set of global fiducials on both the top and bottom sides of the board.\" (JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21)). PCBWay asks as many (https://pcbway.com/helpcenter/design_instruction/PCB_Panelization__Breakaway_Rails__Fiducial_Marks__Tooling_Holes.html, read 2026-11-21): \"there should be at least three fiducial marks arranged in an L shape\". Checked on each side that carries surface-mount parts; boards no fabricator assembles need none.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 3,
+      "unit": "count",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB Help Center, \"How to Add Edge Rails and Fiducials for PCB Assembly Orders\" (https://jlcpcb.com/help/article/how-to-add-edge-rails-fiducials-for-pcb-assembly-order, last updated 2026-09-09, read 2026-11-21): \"Edge rails and fiducials are required for standard PCB assembly at JLCPCB.\" and \"Three to four fiducial markers should be placed along the board edges to ensure optimal placement accuracy.\" Per side: \"For a double-sided SMT assembly, you must have a set of global fiducials on both the top and bottom sides of the board.\" (JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21)). PCBWay asks as many (https://pcbway.com/helpcenter/design_instruction/PCB_Panelization__Breakaway_Rails__Fiducial_Marks__Tooling_Holes.html, read 2026-11-21): \"there should be at least three fiducial marks arranged in an L shape\". Checked on each side that carries surface-mount parts; boards no fabricator assembles need none.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/fiducials_asymmetric",
+    "title": "Standard · fiducials not symmetric",
+    "summary": "JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21): \"They should be placed in an \"L\" configuration\" and, for round boards, \"in a non-symmetrical, non-linear \"L\" pattern.\" PCBWay (the page fiducial_count_min cites): \"with the diagonal fiducial marks asymmetrical about the center\". Checked as: the side's fiducials may not map onto themselves under a half turn about the board outline's centre.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": true,
+      "unit": "",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21): \"They should be placed in an \"L\" configuration\" and, for round boards, \"in a non-symmetrical, non-linear \"L\" pattern.\" PCBWay (the page fiducial_count_min cites): \"with the diagonal fiducial marks asymmetrical about the center\". Checked as: the side's fiducials may not map onto themselves under a half turn about the board outline's centre.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/fill_clearance",
+    "title": "Standard · fill clearance",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/fill_connection",
+    "title": "Standard · fill pad connection",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": "thermal",
+      "unit": "",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/fill_width_min",
+    "title": "Standard · min fill width",
+    "summary": "The narrowest copper the profile etches (its track width).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.1524,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "The narrowest copper the profile etches (its track width).",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/gull_wing_toe_shift",
+    "title": "Standard · gull-wing land toe shift",
+    "summary": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.1,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/gull_wing_width_extra",
+    "title": "Standard · gull-wing land extra width",
+    "summary": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.2,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/island_area_min",
+    "title": "Standard · min island area",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "mm²",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/mask_expansion",
+    "title": "Standard · mask expansion",
+    "summary": "PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), Advanced PCB, row 23, \"green solder mask opening（mil）\", normal process: \"≥2mil\" (0.0508 mm) decides. Less: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/soldermask/, read 2026-11-24), DI Soldermask, MAR 0.030 mm; JLCPCB \"Soldermask Expansion\": \"1:1\" (\"Pad size:soldermask opening can be 1:1\"). OSH Park gives an alignment only (\"Maximum soldermask alignment\": \"3mil (0.0762mm)\"). Eurocircuits asks 0.100 mm for white and transparent mask.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0508,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), Advanced PCB, row 23, \"green solder mask opening（mil）\", normal process: \"≥2mil\" (0.0508 mm) decides. Less: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/soldermask/, read 2026-11-24), DI Soldermask, MAR 0.030 mm; JLCPCB \"Soldermask Expansion\": \"1:1\" (\"Pad size:soldermask opening can be 1:1\"). OSH Park gives an alignment only (\"Maximum soldermask alignment\": \"3mil (0.0762mm)\"). Eurocircuits asks 0.100 mm for white and transparent mask.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/mask_web_min",
+    "title": "Standard · min mask web",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Soldermask, \"Soldermask bridge\", 1oz: \"Min. pad spacing: 0.10 mm (green, red, yellow, blue, purple)\", \"Min. pad spacing: 0.13 mm (black, white)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/soldermask/, read 2026-11-24), Photo Imageable Soldermask, white, MSM 0.130 mm. One value for every colour, so the black and white one decides. Less strict: PCBWay Advanced PCB row 23 \"4（spacing between ICs is 8 mil, green oil），variegated or black oil≥4.5mil\" (0.1143 mm); OSH Park \"Minimum soldermask web\": \"4 mil (0.1016mm)\"; Eurocircuits DI MSM 0.075 mm.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.13,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Soldermask, \"Soldermask bridge\", 1oz: \"Min. pad spacing: 0.10 mm (green, red, yellow, blue, purple)\", \"Min. pad spacing: 0.13 mm (black, white)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/soldermask/, read 2026-11-24), Photo Imageable Soldermask, white, MSM 0.130 mm. One value for every colour, so the black and white one decides. Less strict: PCBWay Advanced PCB row 23 \"4（spacing between ICs is 8 mil, green oil），variegated or black oil≥4.5mil\" (0.1143 mm); OSH Park \"Minimum soldermask web\": \"4 mil (0.1016mm)\"; Eurocircuits DI MSM 0.075 mm.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/npth_annular_ring_min",
+    "title": "Standard · min NPTH pad annular ring",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH pad annular ring\": \"≧0.45mm\", \"Recommended 0.45 mm or more.\" decides. Less strict: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"If you require copper pads on NPTH holes please use a minimum Outer Annular Ring (OAR) of 0.30mm (12mil)\". PCBWay and OSH Park publish none.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.45,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH pad annular ring\": \"≧0.45mm\", \"Recommended 0.45 mm or more.\" decides. Less strict: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/copper-layers/, read 2026-11-24), \"If you require copper pads on NPTH holes please use a minimum Outer Annular Ring (OAR) of 0.30mm (12mil)\". PCBWay and OSH Park publish none.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/pair_gap_tolerance",
+    "title": "Standard · min pair gap tolerance",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.02,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/pair_gap_tolerance_share",
+    "title": "Standard · pair gap tolerance share",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.1,
+      "unit": "fraction",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/paste_reduction",
+    "title": "Standard · paste reduction",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/pth_annular_ring_min",
+    "title": "Standard · min PTH annular ring",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH annular ring\", under \"2-layer:\", \"1 oz: Recommended 0.25 mm or above; absolute minimum 0.18 mm\" decides (the recommended value). Less strict: JLCPCB \"Multilayer:\" \"1 oz: Recommended 0.20 mm or above\"; PCBWay \"Normal PTH pad single side width\" 1OZ \"0.2mm\"; Eurocircuits class 6 0.125 mm from the tool (0.175 mm from the finished hole); OSH Park \"5mil (0.127mm)\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.25,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"PTH annular ring\", under \"2-layer:\", \"1 oz: Recommended 0.25 mm or above; absolute minimum 0.18 mm\" decides (the recommended value). Less strict: JLCPCB \"Multilayer:\" \"1 oz: Recommended 0.20 mm or above\"; PCBWay \"Normal PTH pad single side width\" 1OZ \"0.2mm\"; Eurocircuits class 6 0.125 mm from the tool (0.175 mm from the finished hole); OSH Park \"5mil (0.127mm)\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/silk_edge_clearance",
+    "title": "Standard · silkscreen to board edge clearance",
+    "summary": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"PCB edge\": \"0.250mm for routing\". JLCPCB, PCBWay and OSH Park publish none.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.25,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"PCB edge\": \"0.250mm for routing\". JLCPCB, PCBWay and OSH Park publish none.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/silk_line_width_min",
+    "title": "Standard · min silkscreen width",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Minimum Line Width\": \"≥0.15mm\"; PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), \"Minimum Character Width(Legend)\": \"0.15mm\". Less strict: OSH Park \"Silkscreen minimum line width\": \"5 mil (0.127mm) (recommended minimum)\"; Eurocircuits \"Minimum Legend Line Width: 0.10mm (4mil)\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.15,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Minimum Line Width\": \"≥0.15mm\"; PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), \"Minimum Character Width(Legend)\": \"0.15mm\". Less strict: OSH Park \"Silkscreen minimum line width\": \"5 mil (0.127mm) (recommended minimum)\"; Eurocircuits \"Minimum Legend Line Width: 0.10mm (4mil)\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/silk_pad_clearance",
+    "title": "Standard · silkscreen to pad clearance",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Pad To Silkscreen\": \"0.15mm\" decides. Less strict: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"Exposed copper (or surface finished copper) : 0.100mm\". PCBWay and OSH Park publish none.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.15,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Pad To Silkscreen\": \"0.15mm\" decides. Less strict: Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"Exposed copper (or surface finished copper) : 0.100mm\". PCBWay and OSH Park publish none.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/silk_text_height_min",
+    "title": "Standard · min silkscreen text height",
+    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Minimum text height\": \"40 mil (1.0mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"Minimum Text Height (for good readability) : 1.00mm (39.5mil)\". Less strict: PCBWay \"Minimum Character Height (Legend)\": \"0.8mm\". OSH Park publishes none.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 1.0,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Legend, \"Minimum text height\": \"40 mil (1.0mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/legend-print/, read 2026-11-24), \"Minimum Text Height (for good readability) : 1.00mm (39.5mil)\". Less strict: PCBWay \"Minimum Character Height (Legend)\": \"0.8mm\". OSH Park publishes none.",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/silk_text_stroke_share",
+    "title": "Standard · silkscreen text stroke share",
+    "summary": "Text at the least height prints at the least line width.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.15,
+      "unit": "fraction",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Text at the least height prints at the least line width.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/sliver_width_min",
+    "title": "Standard · min sliver width",
+    "summary": "None of the four fabricators publishes this limit: 0, not checked.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "None of the four fabricators publishes this limit: 0, not checked.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/tent_vias",
+    "title": "Standard · tent vias",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": true,
+      "unit": "",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/thermal_angle",
+    "title": "Standard · thermal spoke angle",
+    "summary": "Profile author's choice (a default, not a fabricator's limit): spokes along the pad's axes on every pad that is not round, so the spokes of a fine-pitch rectangular pad run into the pour, not a neighbour's clearance.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.0,
+      "unit": "°",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit): spokes along the pad's axes on every pad that is not round, so the spokes of a fine-pitch rectangular pad run into the pour, not a neighbour's clearance.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/thermal_angle_round",
+    "title": "Standard · round pad thermal spoke angle",
+    "summary": "Profile author's choice (a default, not a fabricator's limit): diagonal spokes on round pads and vias.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 45.0,
+      "unit": "°",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit): diagonal spokes on round pads and vias.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/thermal_gap",
+    "title": "Standard · thermal gap",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.25,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/thermal_spoke_count",
+    "title": "Standard · thermal spoke count",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 4,
+      "unit": "count",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/thermal_spoke_width",
+    "title": "Standard · thermal spoke width",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.3,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/tht_drill_clearance",
+    "title": "Standard · THT drill over lead",
+    "summary": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.3,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/tht_land_extra",
+    "title": "Standard · THT land over drill",
+    "summary": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.6,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/tht_land_gap",
+    "title": "Standard · min THT land gap",
+    "summary": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.25,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Sparksmith's land estimator margin (an original rule of thumb, not a fabricator's value), as in the JLCPCB profiles.",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/track_width_default",
+    "title": "Standard · default track width",
+    "summary": "Profile author's choice (a default, not a fabricator's limit).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.25,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default, not a fabricator's limit).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/track_width_min",
+    "title": "Standard · min track width",
+    "summary": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Width\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTW and ITW 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Trace\" row: \"strongly suggest to design trace above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.1524,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "OSH Park 2 layer (https://docs.oshpark.com/services/two-layer/, read 2026-11-24), Copper Specifications, \"Trace Width\": \"6mil (0.1524mm)\" decides. Less strict: OSH Park 4 and 6 layer \"5mil (0.127mm)\"; Eurocircuits (https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/, table of 07/05/2024, read 2026-11-24), pattern class 6, the finest one its table marks \"All Services\", OTW and ITW 0.150 mm; PCBWay \"Normal trace/spacing\" 1OZ \"0.12MM\" (its \"Min Trace\" row: \"strongly suggest to design trace above 6mil(0.15mm) to save cost\"); JLCPCB \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\", \"Multilayer: 0.09 / 0.09 mm\".",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/via_annular_ring_min",
+    "title": "Standard · min via annular ring",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal VIA pad single side width\", 1OZ: \"0.15mm\"; PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), \"Min Width of Annular Ring\": \"0.15mm(6mil)\" decides. Less strict: OSH Park 2 layer \"Minimum Annular Ring\": \"5mil (0.127mm)\", 4 and 6 layer \"4mil (0.1016mm)\"; Eurocircuits class 6 OAR and IAR 0.125 mm from the tool, which for a via it may reduce (\"All Via Holes may be reduced by up to 0.30mm to solve annular rings issues\", drilled-holes page); JLCPCB \"Via diameter should be 0.1mm(0.15mm preferred) larger than Via hole size\" (0.05 mm), 1-layer \"0.3 mm hole size / 0.5 mm via diameter\" (0.1 mm).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.15,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal VIA pad single side width\", 1OZ: \"0.15mm\"; PCBWay (https://www.pcbway.com/capabilities.html, read 2026-11-24), \"Min Width of Annular Ring\": \"0.15mm(6mil)\" decides. Less strict: OSH Park 2 layer \"Minimum Annular Ring\": \"5mil (0.127mm)\", 4 and 6 layer \"4mil (0.1016mm)\"; Eurocircuits class 6 OAR and IAR 0.125 mm from the tool, which for a via it may reduce (\"All Via Holes may be reduced by up to 0.30mm to solve annular rings issues\", drilled-holes page); JLCPCB \"Via diameter should be 0.1mm(0.15mm preferred) larger than Via hole size\" (0.05 mm), 1-layer \"0.3 mm hole size / 0.5 mm via diameter\" (0.1 mm).",
+      "author_choice": false
+    }
+  },
+  {
+    "id": "rule/standard/via_diameter_default",
+    "title": "Standard · default via diameter",
+    "summary": "A via pad with the least via ring on each side (0.6 mm for a 0.3 mm drill).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.6,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "A via pad with the least via ring on each side (0.6 mm for a 0.3 mm drill).",
+      "author_choice": true
+    }
+  },
+  {
+    "id": "rule/standard/via_drill_default",
+    "title": "Standard · default via drill",
+    "summary": "Profile author's choice (a default): the smallest drill the profile allows.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "rule",
+      "value": 0.3,
+      "unit": "mm",
+      "source": {
+        "publisher": "Sparksmith, from fabricators' published limits",
+        "document": "The strictest standard limit of JLCPCB, PCBWay, OSH Park and Eurocircuits",
+        "date": "2026-11-24",
+        "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
+      },
+      "row": "Profile author's choice (a default): the smallest drill the profile allows.",
+      "author_choice": true
+    }
   }
 ]

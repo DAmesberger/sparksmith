@@ -83,16 +83,23 @@ impl Worker {
     }
 }
 
-/// One option of the chooser: a face under the click.
+/// What one option of the chooser picks.
+#[derive(Clone, Debug)]
+enum What {
+    Face(Id, BodyFace),
+    /// The pad at whose centre the click is.
+    Pad(FeatureRef),
+}
+
+/// One option of the chooser: a pad or a face under the click.
 #[derive(Clone, Debug)]
 pub(super) struct Choice {
-    instance: Id,
-    face: BodyFace,
+    what: What,
     /// "J1 · back face (Insulator)".
     words: String,
 }
 
-/// Faces stacked under one click, offered by name.
+/// Faces stacked under one click (and the pad there), offered by name.
 #[derive(Clone, Debug)]
 pub(super) struct Chooser {
     at: Pos2,
@@ -154,7 +161,8 @@ struct FaceHit {
 enum Found {
     /// Body faces, nearest first; more than one when they lie on one line
     /// at this zoom.
-    Faces(Vec<FaceHit>),
+    /// With the pad whose centre is under the pointer too, offered first.
+    Faces(Vec<FaceHit>, Option<(FeatureRef, FeatureGeometry)>),
     /// An origin, pad centre or courtyard side.
     Feature(FeatureRef, FeatureGeometry),
     Board(SketchCurveId, FeatureGeometry),
@@ -212,6 +220,19 @@ impl PcbEditor {
             Some(Ok(faces)) => Some(faces.as_slice()),
             _ => None,
         }
+    }
+
+    /// Whether a reference is no face inside its body (the wall of a pin's
+    /// hole), as its part's listed faces say (`BodyFace::outer`).
+    pub(in crate::pcb_editor) fn outer_face(&self, project: &Project, r: &BoardRef) -> bool {
+        let BoardRef::Part(FeatureRef::Face { placement, face }) = r else {
+            return true;
+        };
+        let listed = self.faces_of(project, *placement).unwrap_or_default();
+        listed
+            .iter()
+            .find(|f| f.face.body == face.body && f.face.face == face.face)
+            .is_none_or(|f| f.outer)
     }
 
     /// Ask the worker for the body faces of `parts` not yet listed.
@@ -330,6 +351,21 @@ impl PcbEditor {
         if let Some(found) = nearest(origins, reach) {
             return Some(found);
         }
+        // The pad the pointer is in, and at its centre: a point, offered
+        // before the faces there.
+        let at = view.world(p);
+        let layers = self.seen();
+        let pad = self.pick_pad(at, |pad| layers.pad(pad)).map(|pad| {
+            let feature = FeatureRef::Pad {
+                placement: pad.instance,
+                pad: pad.pad.id,
+                at: PadPoint::Centre,
+            };
+            (feature, FeatureGeometry::Point { at: pad.center() })
+        });
+        let centred = pad
+            .clone()
+            .filter(|(_, g)| screen_distance(view, g, p) <= reach);
         // Body traces, and those stacked with the nearest.
         let mut hits = Vec::new();
         for pl in &project.placements {
@@ -348,7 +384,10 @@ impl PcbEditor {
         hits.sort_by(|a, b| a.distance.total_cmp(&b.distance));
         if let Some(first) = hits.first().map(|h| h.board) {
             hits.retain(|h| stacked(&first, &h.board));
-            return Some(Found::Faces(hits));
+            return Some(Found::Faces(hits, centred));
+        }
+        if let Some((feature, centre)) = centred {
+            return Some(Found::Feature(feature, centre));
         }
         // Courtyard sides.
         let sides = project.placements.iter().flat_map(|pl| {
@@ -371,15 +410,7 @@ impl PcbEditor {
             return Some(found);
         }
         // A pad, from inside it: its centre.
-        let at = view.world(p);
-        let layers = self.seen();
-        if let Some(pad) = self.pick_pad(at, |pad| layers.pad(pad)) {
-            let feature = FeatureRef::Pad {
-                placement: pad.instance,
-                pad: pad.pad.id,
-                at: PadPoint::Centre,
-            };
-            let centre = FeatureGeometry::Point { at: pad.center() };
+        if let Some((feature, centre)) = pad {
             return Some(Found::Feature(feature, centre));
         }
         // A board edge.
@@ -408,6 +439,7 @@ impl PcbEditor {
                 self.shape.evaluator,
                 &picked.reference,
                 Some(&face.trace),
+                face.outer,
             );
         }
         Ok(picked)
@@ -417,7 +449,7 @@ impl PcbEditor {
     fn found_words(&self, project: &Project, found: &Found) -> String {
         let evaluator = self.shape.evaluator;
         match found {
-            Found::Faces(hits) => {
+            Found::Faces(hits, pad) => {
                 let Some(first) = hits.first() else {
                     return String::new();
                 };
@@ -425,13 +457,21 @@ impl PcbEditor {
                     placement: first.instance,
                     face: first.face.face.clone(),
                 });
-                let one = words(project, evaluator, &r, Some(&first.face.trace));
-                match hits.len() {
+                let local = Some(&first.face.trace);
+                let one = match pad {
+                    Some((f, _)) => {
+                        words(project, evaluator, &BoardRef::Part(f.clone()), None, true)
+                    }
+                    None => words(project, evaluator, &r, local, first.face.outer),
+                };
+                match hits.len() + usize::from(pad.is_some()) {
                     1 => one,
                     n => format!("{one} and {} more: click to choose", n - 1),
                 }
             }
-            Found::Feature(f, _) => words(project, evaluator, &BoardRef::Part(f.clone()), None),
+            Found::Feature(f, _) => {
+                words(project, evaluator, &BoardRef::Part(f.clone()), None, true)
+            }
             Found::Board(curve, _) => words(
                 project,
                 evaluator,
@@ -439,6 +479,7 @@ impl PcbEditor {
                     sparksmith_core::library::footprint_source::SketchRef::Curve(curve.clone()),
                 ),
                 None,
+                true,
             ),
         }
     }
@@ -488,22 +529,24 @@ impl PcbEditor {
         let found = self.found_at(project, view, at);
         let picked = match found {
             None => None,
-            Some(Found::Faces(hits)) if hits.len() > 1 => {
+            Some(Found::Faces(hits, pad)) if hits.len() > 1 || pad.is_some() => {
                 let evaluator = self.shape.evaluator;
-                let choices = hits
-                    .into_iter()
-                    .map(|h| {
-                        let r = BoardRef::Part(FeatureRef::Face {
-                            placement: h.instance,
-                            face: h.face.face.clone(),
-                        });
-                        Choice {
-                            words: words_with_body(project, evaluator, &r, Some(&h.face.trace)),
-                            instance: h.instance,
-                            face: h.face,
-                        }
-                    })
-                    .collect();
+                let pad = pad.map(|(f, _)| Choice {
+                    words: words(project, evaluator, &BoardRef::Part(f.clone()), None, true),
+                    what: What::Pad(f),
+                });
+                let faces = hits.into_iter().map(|h| {
+                    let r = BoardRef::Part(FeatureRef::Face {
+                        placement: h.instance,
+                        face: h.face.face.clone(),
+                    });
+                    let local = Some(&h.face.trace);
+                    Choice {
+                        words: words_with_body(project, evaluator, &r, local, h.face.outer),
+                        what: What::Face(h.instance, h.face),
+                    }
+                });
+                let choices = pad.into_iter().chain(faces).collect();
                 self.dims.error = None;
                 self.dims.layout.choosing = Some(Chooser {
                     at,
@@ -512,7 +555,7 @@ impl PcbEditor {
                 });
                 return true;
             }
-            Some(Found::Faces(hits)) => hits
+            Some(Found::Faces(hits, _)) => hits
                 .first()
                 .map(|h| self.pick_face(project, h.instance, &h.face, false)),
             Some(Found::Feature(f, _)) => Some(self.pick_feature(project, f)),
@@ -570,9 +613,12 @@ impl PcbEditor {
         {
             let hover = Stroke::new(2.0, t.hover_edge);
             match &found {
-                Found::Faces(hits) => {
+                Found::Faces(hits, pad) => {
                     for h in hits {
                         trace_reference(painter, view, &h.board, 0.0, hover);
+                    }
+                    if let Some((_, g)) = pad {
+                        trace_reference(painter, view, g, 0.0, hover);
                     }
                 }
                 Found::Feature(_, g) | Found::Board(_, g) => {
@@ -610,13 +656,16 @@ impl PcbEditor {
             .order(egui::Order::Foreground)
             .show(&ctx, |ui| {
                 menu_frame(ui, |ui| {
-                    kit::note(ui, "Faces here: pick one");
+                    kit::note(ui, "Here: pick one");
                     for (i, choice) in chooser.choices.iter().enumerate() {
-                        let detail = format!(
-                            "{}–{} mm high",
-                            kit::number_text(super::state::round_um(choice.face.z[0])),
-                            kit::number_text(super::state::round_um(choice.face.z[1]))
-                        );
+                        let detail = match &choice.what {
+                            What::Face(_, face) => format!(
+                                "\n{}–{} mm high",
+                                kit::number_text(super::state::round_um(face.z[0])),
+                                kit::number_text(super::state::round_um(face.z[1]))
+                            ),
+                            What::Pad(_) => String::new(),
+                        };
                         // The face on its line and how high it reaches
                         // under it, dim: in the menu's width a row on
                         // one line wraps mid-phrase.
@@ -630,7 +679,7 @@ impl PcbEditor {
                             ),
                         );
                         job.append(
-                            &format!("\n{detail}"),
+                            &detail,
                             0.0,
                             egui::TextFormat::simple(
                                 FontId::proportional(t.font_small),
@@ -654,7 +703,10 @@ impl PcbEditor {
             && let Some(chooser) = self.dims.layout.choosing.take()
             && let Some(choice) = chooser.choices.get(i)
         {
-            let picked = self.pick_face(project, choice.instance, &choice.face, true);
+            let picked = match &choice.what {
+                What::Face(instance, face) => self.pick_face(project, *instance, face, true),
+                What::Pad(f) => self.pick_feature(project, f.clone()),
+            };
             self.take_pick(Some(picked));
         }
     }

@@ -186,11 +186,12 @@ impl PcbEditor {
         }
         let d = project.part_dimensions.iter().find(|d| d.id == edit.id)?;
         match edge_card::typed_value(project, d, &edit.text) {
-            Ok(value) if Some(&value) == d.value.as_ref() => {
+            Ok((value, None)) if Some(&value) == d.value.as_ref() => {
                 self.dims.edit = None;
                 None
             }
-            Ok(value) => {
+            Ok((value, define)) => {
+                self.first = define;
                 let mut next = d.clone();
                 next.value = Some(value);
                 edit.sent = Some(engine.revision());

@@ -79,7 +79,7 @@
     "ProjectId": {
       "GUID": "c6c9c479-95ec-806d-8486-7418a7af1889",
       "Name": "ESP32-S31 dev board",
-      "Revision": "c186488a14bf79cd"
+      "Revision": "45108ebb034ed328"
     },
     "Size": {
       "X": 40.0,

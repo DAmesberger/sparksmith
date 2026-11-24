@@ -301,8 +301,14 @@ impl PcbEditor {
                 // body its face is on; a lost or inexact reference says why.
                 let mut why: Vec<String> = vec![format!(
                     "{} to {}",
-                    state::capital(&words_with_body(project, evaluator, a, None)),
-                    words_with_body(project, evaluator, b, None)
+                    state::capital(&words_with_body(
+                        project,
+                        evaluator,
+                        a,
+                        None,
+                        self.outer_face(project, a)
+                    )),
+                    words_with_body(project, evaluator, b, None, self.outer_face(project, b))
                 )];
                 if status != ReferenceStatus::Resolved
                     && let Some(part) = part
@@ -360,6 +366,7 @@ impl PcbEditor {
                     .dims
                     .value
                     .as_deref()
+                    .map(|v| v.split_once('=').map_or(v, |(_, expr)| expr))
                     .and_then(|v| crate::pcb_editor::edge_card::length_value(project, v).ok())
                     .and_then(|v| crate::pcb_editor::edge_card::length(project, &v));
                 let text = label(typed.unwrap_or(shown.value), None);

@@ -24,12 +24,12 @@
   {
     "id": "setting/default_rule_profile",
     "title": "Default rule profile",
-    "summary": "The fab profile library id a new board starts with when none is chosen (Settings); `None`: every new board asks.",
+    "summary": "The fab profile library id a new board starts with when none is chosen (Settings); `None`: the shipped default (`defaults/new-project.json`).",
     "since": "0.1.0",
     "facts": {
       "kind": "setting",
       "schema": {
-        "description": "The fab profile library id a new board starts with when none is\nchosen (Settings); `None`: every new board asks.",
+        "description": "The fab profile library id a new board starts with when none is\nchosen (Settings); `None`: the shipped default\n(`defaults/new-project.json`).",
         "type": [
           "string",
           "null"

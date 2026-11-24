@@ -555,11 +555,11 @@ pub(crate) struct Click {
     pub snapped: Option<SketchPointId>,
 }
 
-/// Snap `at` to the nearest sketch point within `tolerance` mm.
+/// Snap `at` to the nearest sketch point within `tolerance` mm. The origin
+/// counts: a board's outline starts there.
 pub(crate) fn snap(view: &SketchView, at: Point, tolerance: f64) -> Click {
     view.points
         .iter()
-        .filter(|p| p.id.0 != "origin")
         .map(|p| (dist(p.at, at), p))
         .filter(|(d, _)| *d <= tolerance)
         .min_by(|a, b| a.0.total_cmp(&b.0))
@@ -873,12 +873,22 @@ pub(crate) fn fillet(
     Ok(())
 }
 
-/// What one finished gesture commits, and what to select after it.
+/// A dimension whose picks are placed: it is in the document only once its
+/// value is accepted, in one edit, so a refused value leaves nothing.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct NewDimension {
+    /// The id it gets when it is added to the sketch it was placed in.
+    pub id: SketchConstraintId,
+    pub kind: DimKind,
+    pub refs: Vec<SketchRef>,
+    /// What it measures now (mm, or degrees).
+    pub value: f64,
+}
+
+/// What one finished gesture commits.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Commit {
     pub edits: Vec<BoardEdit>,
-    /// The new dimension, selected so its value field shows.
-    pub select: Option<SketchConstraintId>,
 }
 
 /// Where a gesture stands after a click.
@@ -887,6 +897,8 @@ pub(crate) enum Step {
     /// More clicks needed (or nothing to do).
     More,
     Commit(Commit),
+    /// A dimension placed, waiting for its value.
+    Dimension(NewDimension),
 }
 
 /// The context a gesture builds in.
@@ -979,7 +991,6 @@ pub(crate) fn press(
                 .ok_or_else(|| invalid("board.edge_name: click an edge of the board"))?;
             Ok(Step::Commit(Commit {
                 edits: vec![BoardEdit::NameEdge { name, curve }],
-                select: None,
             }))
         }
         _ => {
@@ -1015,10 +1026,7 @@ pub(crate) fn press(
 }
 
 fn commit(stage: Stage<'_>) -> Step {
-    Step::Commit(Commit {
-        edits: stage.edits,
-        select: None,
-    })
+    Step::Commit(Commit { edits: stage.edits })
 }
 
 /// Edge names are identifiers, as parameter names are.
@@ -1032,6 +1040,26 @@ pub(crate) fn next_edge_name(board: &BoardSketch) -> String {
         .map(|i| format!("edge{i}"))
         .find(|n| !board.edges.iter().any(|e| &e.name.0 == n))
         .unwrap_or_else(|| "edge".into())
+}
+
+/// An arc's centre, start and end from its clicks. A free end goes onto
+/// the circle the others give. An end on an existing point stays there:
+/// the free start goes onto the circle through it, or, with both ends on
+/// points, the free centre to where both are as far (the nearest such
+/// place). With all three on points the sketch solve decides.
+fn arc_points(c: &Click, s: &Click, e: &Click) -> Option<(Point, Point, Point)> {
+    let (mut centre, mut start) = (c.at, s.at);
+    let on = |centre: Point, p: Point, r: f64| Some(add(centre, scale(unit(sub(p, centre))?, r)));
+    if e.snapped.is_some() && s.snapped.is_none() {
+        start = on(centre, s.at, dist(centre, e.at))?;
+    } else if e.snapped.is_some() && c.snapped.is_none() {
+        let chord = unit(sub(e.at, s.at))?;
+        let mid = scale(add(s.at, e.at), 0.5);
+        let off = sub(mid, centre);
+        centre = add(centre, scale(chord, off[0] * chord[0] + off[1] * chord[1]));
+    }
+    let end = on(centre, e.at, dist(centre, start))?;
+    Some((centre, start, end))
 }
 
 /// The commit of a drawing tool's complete clicks.
@@ -1053,16 +1081,12 @@ fn draw(
             stage.tie(&e, b.snapped.as_ref())?;
         }
         (ShapeTool::Arc, [c, s, e]) => {
-            let r = dist(c.at, s.at);
-            let end = unit(sub(e.at, c.at))
-                .map(|u| add(c.at, scale(u, r)))
+            let (centre, start, end) = arc_points(c, s, e)
                 .ok_or_else(|| invalid("board.edit: the arc end is at its centre"))?;
-            let (_, [pc, ps, pe]) = stage.arc(c.at, s.at, end, construction)?;
+            let (_, [pc, ps, pe]) = stage.arc(centre, start, end, construction)?;
             stage.tie(&pc, c.snapped.as_ref())?;
             stage.tie(&ps, s.snapped.as_ref())?;
-            if dist(end, e.at) <= 1e-9 {
-                stage.tie(&pe, e.snapped.as_ref())?;
-            }
+            stage.tie(&pe, e.snapped.as_ref())?;
         }
         (ShapeTool::Circle, [c, p]) => {
             let radius = dist(c.at, p.at);
@@ -1348,8 +1372,8 @@ fn dimension_press(gesture: &mut Gesture, at: Point, scene: &Scene<'_>) -> Resul
     }
 }
 
-/// A driving dimension at what it measures now; the new dimension is
-/// selected, so its value field takes a number or a parameter next.
+/// The dimension placed, at what it measures now. Refused here when the
+/// sketch does not take it (it is already determined).
 fn new_dimension(
     scene: &Scene<'_>,
     refs: Vec<SketchRef>,
@@ -1362,17 +1386,51 @@ fn new_dimension(
     let mut stage = Stage::new(scene.evaluator, &scene.board.sketch);
     let created = stage.sketch(SketchEdit::AddDimension {
         kind,
-        refs,
+        refs: refs.clone(),
         value: DimValue::Fixed(value),
     })?;
-    let select = created.into_iter().find_map(|r| match r {
-        SketchRef::Constraint(k) => Some(k),
-        _ => None,
-    });
-    Ok(Step::Commit(Commit {
-        edits: stage.edits,
-        select,
+    let id = created
+        .into_iter()
+        .find_map(|r| match r {
+            SketchRef::Constraint(k) => Some(k),
+            _ => None,
+        })
+        .ok_or_else(|| invalid("board.edit: the sketch created no dimension"))?;
+    Ok(Step::Dimension(NewDimension {
+        id,
+        kind,
+        refs,
+        value,
     }))
+}
+
+/// What a dimension's value field holds; a bare name must be a parameter.
+fn value_input(board: &BoardSketch, text: &str) -> std::result::Result<DimInput, String> {
+    let input = dims::parse_input(text)?;
+    if let DimInput::Param(name) = &input
+        && !board.parameters.iter().any(|p| &p.name == name)
+    {
+        return Err(format!("No parameter {}", name.0));
+    }
+    Ok(input)
+}
+
+/// The edits a new dimension's value field commits: the dimension at its
+/// value, after the parameter that value defines. The text the field
+/// opened with is the measured value, unrounded.
+pub(crate) fn new_dimension_edits(
+    board: &BoardSketch,
+    new: &NewDimension,
+    text: &str,
+) -> std::result::Result<Vec<BoardEdit>, String> {
+    let input = if text.trim() == crate::kit::number_text(new.value) {
+        DimInput::Value(new.value)
+    } else {
+        value_input(board, text)?
+    };
+    let fallback = dims::fallback_name(&source_of(board), None);
+    let edits = dims::new_dimension_edits(new.kind, new.refs.clone(), input, fallback);
+    board_edits(edits).map_err(|e| e.to_string())
 }
 
 /// The edits a dimension's value field commits: a number, a parameter, an
@@ -1383,7 +1441,7 @@ pub(crate) fn dimension_value_edits(
     constraint: &SketchConstraintId,
     text: &str,
 ) -> std::result::Result<Vec<BoardEdit>, String> {
-    let input = dims::parse_input(text)?;
+    let input = value_input(board, text)?;
     let shown = view
         .constraints
         .iter()
@@ -1392,11 +1450,6 @@ pub(crate) fn dimension_value_edits(
     let kind = dims::stored_kind(shown);
     let source = source_of(board);
     let fallback = dims::fallback_name(&source, shown.param.as_deref());
-    if let DimInput::Param(name) = &input
-        && !board.parameters.iter().any(|p| &p.name == name)
-    {
-        return Err(format!("No parameter {}", name.0));
-    }
     board_edits(dims::input_edits(constraint, kind, input, fallback)).map_err(|e| e.to_string())
 }
 
