@@ -424,7 +424,7 @@ fn assert_empty(engine: &Engine, what: &str) -> Fallible {
 #[test]
 fn a_launch_without_a_file_opens_an_empty_project() -> Fallible {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
-    let ax = Ax::with_engine(file_ui::new_project()?, Workspace::Schematic)?;
+    let ax = Ax::with_engine(file_ui::new_project()?.0, Workspace::Schematic)?;
     assert_empty(&ax.app.engine, "launch")
 }
 
@@ -434,7 +434,7 @@ fn a_launch_without_a_file_opens_an_empty_project() -> Fallible {
 #[test]
 fn a_launch_frames_the_whole_empty_page() -> Fallible {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
-    let mut ax = Ax::with_engine(file_ui::new_project()?, Workspace::Schematic)?;
+    let mut ax = Ax::with_engine(file_ui::new_project()?.0, Workspace::Schematic)?;
     ax.frame(vec![]);
     let project = ax.app.engine.project();
     let sheet = project.sheets.list.first().ok_or("a first sheet")?;
@@ -522,7 +522,7 @@ fn file_new_opens_the_same_empty_project() -> Fallible {
         ax.app.engine.project().instances.is_empty()
     })?;
     assert_empty(&ax.app.engine, "File › New")?;
-    assert_eq!(ax.app.engine.to_file(), file_ui::new_project()?.to_file());
+    assert_eq!(ax.app.engine.to_file(), file_ui::new_project()?.0.to_file());
     Ok(())
 }
 
@@ -532,7 +532,7 @@ fn file_new_opens_the_same_empty_project() -> Fallible {
 #[test]
 fn a_new_project_has_a_fab_profile_on_the_pcb() -> Fallible {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
-    let mut ax = Ax::with_engine(file_ui::new_project()?, Workspace::Pcb)?;
+    let mut ax = Ax::with_engine(file_ui::new_project()?.0, Workspace::Pcb)?;
     for what in ["launch", "File › New"] {
         ax.settle();
         let profile = ax.app.engine.project().rules.profile.as_ref();
@@ -774,7 +774,7 @@ fn a_recovered_and_a_new_project_keep_their_own_profiles() -> Fallible {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     let earlier = Engine::profiled()?;
     let own = earlier.project().rules.profile.clone();
-    let started = file_ui::new_project()?;
+    let started = file_ui::new_project()?.0;
     let new = started.project().rules.profile.clone();
     assert!(own.is_some() && new.is_some() && own != new);
     for (choice, kept) in [("Restore", &own), ("Keep for later", &new)] {
@@ -783,7 +783,7 @@ fn a_recovered_and_a_new_project_keep_their_own_profiles() -> Fallible {
             .write(&EditorFile::from_document(earlier.document()), None)?;
         let mut ax = Ax::in_dir(
             dir,
-            file_ui::new_project()?,
+            file_ui::new_project()?.0,
             Workspace::Pcb,
             LibrarySources::new(None),
         )?;

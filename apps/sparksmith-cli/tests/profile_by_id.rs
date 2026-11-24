@@ -172,26 +172,66 @@ fn a_new_project_takes_the_shipped_standard_profile_unless_one_is_named() -> Fal
     Ok(())
 }
 
+/// The person's default fab profile, kept in the settings in `config`.
+fn set_default(config: &Path, default: Option<&str>) -> Fallible {
+    sparksmith_io::settings::write_settings(
+        &config.join(sparksmith_io::settings::SETTINGS_FILE),
+        &sparksmith_io::settings::UserSettings {
+            default_rule_profile: default.map(str::to_owned),
+            ..Default::default()
+        },
+    )?;
+    Ok(())
+}
+
+/// A default that is gone is never silently another profile: automation
+/// refuses a new project and names it, one named in the request is taken,
+/// and a file that has its own rules opens.
+#[test]
+fn a_default_that_is_gone_is_refused_by_name() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let (config, cache) = (dir.path().join("config"), dir.path().join("cache"));
+    let file = dir.path().join("board.sparksmith").display().to_string();
+    run(&config, &cache, &["parts", &file])?;
+    set_default(&config, Some("gone"))?;
+    let other = dir.path().join("other.sparksmith").display().to_string();
+    for command in ["parts", "showcase"] {
+        let refused = cli(&config, &cache).args([command, &other]).output()?;
+        let said = String::from_utf8_lossy(&refused.stderr).into_owned();
+        assert!(!refused.status.success() && said.contains("gone"), "{said}");
+    }
+    let replies = session(
+        &config,
+        &cache,
+        &[
+            json!({"command": "project.new", "params": {"expected_revision": 0}}),
+            json!({"command": "project.new", "params": {
+                "expected_revision": 0, "profile": "jlcpcb-2-layer"}}),
+            json!({"command": "project.open", "params": {"expected_revision": 1, "path": file}}),
+        ],
+    )?;
+    let [refused, named, opened] = replies.as_slice() else {
+        return Err(format!("three replies expected: {replies:?}").into());
+    };
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert!(refused.to_string().contains("gone"), "{refused}");
+    assert_eq!(named["ok"], true, "{named}");
+    assert_eq!(opened["ok"], true, "{opened}");
+    Ok(())
+}
+
 /// A session starts on the person's default profile, else on the shipped
-/// one, also when the default is gone; so does every project file the CLI
-/// makes on its own.
+/// one; so does every project file the CLI makes on its own.
 #[test]
 fn every_project_the_cli_starts_or_writes_has_a_profile() -> Fallible {
     let at = json!({"command": "project.inspect", "params": {"at": "/project/rules/profile/id"}});
     for (default, starts_on) in [
         (None, "standard"),
         (Some("jlcpcb-4-layer"), "jlcpcb-4-layer"),
-        (Some("gone"), "standard"),
     ] {
         let dir = tempfile::tempdir()?;
         let (config, cache) = (dir.path().join("config"), dir.path().join("cache"));
-        sparksmith_io::settings::write_settings(
-            &config.join(sparksmith_io::settings::SETTINGS_FILE),
-            &sparksmith_io::settings::UserSettings {
-                default_rule_profile: default.map(str::to_owned),
-                ..Default::default()
-            },
-        )?;
+        set_default(&config, default)?;
         let replies = session(&config, &cache, std::slice::from_ref(&at))?;
         assert_eq!(replies[0]["result"]["value"], starts_on, "{replies:?}");
         for command in ["parts", "showcase"] {

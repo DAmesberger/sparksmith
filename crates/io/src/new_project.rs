@@ -7,7 +7,8 @@
 //! A missing or broken file is an error naming it, never a value written
 //! in code. The user's Settings default fab profile still overrides the
 //! shipped one (`rule_profiles::for_new_board`). Every host's new project
-//! is made here ([`engine`]), so none starts without a fab profile.
+//! is made here ([`engine`], [`engine_shown`]), so none starts without a fab
+//! profile.
 use crate::shipped::{Shelf, ShippedLibrary};
 use crate::{Error, Result};
 use serde::Deserialize;
@@ -151,7 +152,7 @@ pub fn shipped() -> Result<NewProjectDefaults> {
 /// An engine on a new, empty project on the shipped new board and the fab
 /// profile a new board takes: the user's Settings default, else the shipped
 /// default (`rule_profiles::for_new_board`), drawing on the host's
-/// `context`.
+/// `context`. A default that does not read is an error naming it.
 pub fn engine(context: &Arc<Context>) -> Result<Engine> {
     engine_on(crate::rule_profiles::for_new_board_from_env(None)?, context)
 }
@@ -159,6 +160,22 @@ pub fn engine(context: &Arc<Context>) -> Result<Engine> {
 /// [`engine`] on `profile`.
 pub fn engine_on(profile: RuleProfile, context: &Arc<Context>) -> Result<Engine> {
     let mut engine = Engine::new_on(&shipped()?.board, profile)?;
+    engine.set_context(Arc::clone(context));
+    Ok(engine)
+}
+
+/// [`engine`] for a window, which always has a board to show: on the shipped
+/// default, with what to say, when the user's default does not read.
+pub fn engine_shown(context: &Arc<Context>) -> Result<(Engine, Option<String>)> {
+    let (profile, said) = crate::rule_profiles::for_new_board_shown_from_env()?;
+    Ok((engine_on(profile, context)?, said))
+}
+
+/// The document a session holds before a project is opened or started in
+/// it, and a preview's: the shipped new board, with no fab profile. Never a
+/// person's new project.
+pub fn empty_engine(context: &Arc<Context>) -> Result<Engine> {
+    let mut engine = Engine::new(&shipped()?.board);
     engine.set_context(Arc::clone(context));
     Ok(engine)
 }

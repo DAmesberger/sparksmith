@@ -277,13 +277,6 @@ impl ProfileLibrary {
         Ok(crate::new_project::load(&self.shipped)?.fab_profile)
     }
 
-    /// The profile of [`Self::default_id`]: the user's copy of it when it
-    /// reads, else the shipped file.
-    pub fn default_profile(&self) -> Result<RuleProfile> {
-        self.get(&self.default_id()?)
-            .or_else(|_| shipped_default(&self.shipped))
-    }
-
     fn path(&self, id: &str) -> Result<PathBuf> {
         if !valid_id(id) {
             return Err(not_found(id));
@@ -531,21 +524,53 @@ impl ProfileLibrary {
     }
 }
 
-/// The profile a new board starts with: `choice` (a library id, an error
-/// when it does not read), else the user's default
-/// (`UserSettings::default_rule_profile`), else, when none is set or it no
-/// longer reads, the shipped default ([`ProfileLibrary::default_profile`]):
-/// a board is never created without rules.
+/// The profile a new board starts with: `choice` (a library id), else the
+/// user's default (`UserSettings::default_rule_profile`), else the shipped
+/// default ([`ProfileLibrary::default_id`]): a board is never created
+/// without rules. One that does not read is an error naming it, never
+/// another in its place ([`for_new_board_shown`] for a window, which says
+/// so).
 pub fn for_new_board(
     library: &ProfileLibrary,
     choice: Option<&str>,
     default: Option<&str>,
 ) -> Result<RuleProfile> {
-    match (choice, default) {
-        (Some(id), _) => library.get(id),
-        (None, Some(id)) => library.get(id).or_else(|_| library.default_profile()),
-        (None, None) => library.default_profile(),
+    match choice.or(default) {
+        Some(id) => library.get(id),
+        None => library.get(&library.default_id()?),
     }
+}
+
+/// [`for_new_board`] for a window, which always has a board to show: when
+/// the user's `default` does not read, the shipped default and what to say
+/// of it, naming the one that is missing.
+pub fn for_new_board_shown(
+    library: &ProfileLibrary,
+    default: Result<Option<String>>,
+) -> Result<(RuleProfile, Option<String>)> {
+    let missing = match default {
+        Err(error) => format!("Your settings could not be read ({error})"),
+        Ok(default) => match for_new_board(library, None, default.as_deref()) {
+            Ok(profile) => return Ok((profile, None)),
+            Err(error) => {
+                let id = match default {
+                    Some(id) => id,
+                    None => library.default_id()?,
+                };
+                if error.code() == "not_found" {
+                    format!("Your default fab profile ‘{id}’ is no longer among your fab profiles")
+                } else {
+                    format!("Your default fab profile ‘{id}’ could not be read ({error})")
+                }
+            }
+        },
+    };
+    let profile = shipped_default(&library.shipped)?;
+    let said = format!(
+        "{missing}, so the new board starts on {}. Choose a default in Settings › Rules",
+        profile.name
+    );
+    Ok((profile, Some(said)))
 }
 
 /// The user's default fab profile id (Settings), if one is set.
@@ -558,20 +583,26 @@ pub fn default_id_from_env() -> Result<Option<String>> {
     })
 }
 
-/// [`for_new_board`] with the user's library and settings. Without a user
-/// folder, or with settings that do not read (each host says so when it
-/// reads them for itself), the shipped default.
+/// [`for_new_board`] with the user's library and settings.
 pub fn for_new_board_from_env(choice: Option<&str>) -> Result<RuleProfile> {
-    let library = match UserDirs::from_env() {
-        Ok(dirs) => ProfileLibrary::from_dirs(&dirs)?,
-        Err(error) if choice.is_some() => return Err(error),
-        Err(_) => return shipped_default(&ShippedLibrary::locate()?),
-    };
     let default = match choice {
         Some(_) => None,
-        None => default_id_from_env().unwrap_or_default(),
+        None => default_id_from_env()?,
     };
-    for_new_board(&library, choice, default.as_deref())
+    for_new_board(
+        &ProfileLibrary::from_dirs(&UserDirs::from_env()?)?,
+        choice,
+        default.as_deref(),
+    )
+}
+
+/// [`for_new_board_shown`] with the user's library and settings; without a
+/// user folder there is no default to miss.
+pub fn for_new_board_shown_from_env() -> Result<(RuleProfile, Option<String>)> {
+    match UserDirs::from_env() {
+        Ok(dirs) => for_new_board_shown(&ProfileLibrary::from_dirs(&dirs)?, default_id_from_env()),
+        Err(_) => Ok((shipped_default(&ShippedLibrary::locate()?)?, None)),
+    }
 }
 
 #[cfg(test)]
@@ -1011,12 +1042,40 @@ mod tests {
         assert_eq!(for_new_board(&library, None, Some(&b.id))?, b);
         let standard = decode(shipped_text("standard.json")?.as_bytes())?;
         assert_eq!(for_new_board(&library, None, None)?, standard);
-        // A default that is gone or damaged is no reason for no rules.
-        assert_eq!(for_new_board(&library, None, Some("no-such"))?, standard);
+        // A default that is gone or damaged is refused by name, and only a
+        // window starts on the shipped one, saying so.
+        let shown =
+            |default: Option<&str>| for_new_board_shown(&library, Ok(default.map(str::to_owned)));
+        assert_eq!(shown(None)?, (standard.clone(), None));
+        assert_eq!(shown(Some(&b.id))?, (b.clone(), None));
         std::fs::write(dir.path().join("broken.json"), "{")?;
-        assert_eq!(for_new_board(&library, None, Some("broken"))?, standard);
+        for (id, says) in [
+            ("gone", "‘gone’ is no longer among your fab profiles"),
+            ("broken", "‘broken’ could not be read"),
+        ] {
+            let refused = for_new_board(&library, None, Some(id));
+            assert!(refused.is_err(), "{id}");
+            if id == "gone" {
+                assert!(refused.is_err_and(|e| e.to_string().contains("gone")));
+            }
+            let (profile, said) = shown(Some(id))?;
+            assert_eq!(profile, standard, "{id}");
+            let said = said.unwrap_or_default();
+            assert!(
+                said.contains(says) && said.contains("starts on Standard"),
+                "{said}"
+            );
+        }
+        let unreadable = for_new_board_shown(&library, Err(Error::Invalid("bad".into())))?;
+        assert_eq!(unreadable.0, standard);
+        assert!(unreadable.1.is_some_and(|said| said.contains("settings")));
+        // A damaged copy of the shipped default itself is no different.
         std::fs::write(dir.path().join("standard.json"), "{")?;
-        assert_eq!(for_new_board(&library, None, None)?, standard);
+        assert!(for_new_board(&library, None, None).is_err());
+        let (profile, said) = shown(None)?;
+        assert_eq!(profile, standard);
+        assert!(said.is_some_and(|said| said.contains("‘standard’")));
+        std::fs::remove_file(dir.path().join("standard.json"))?;
         assert_eq!(
             for_new_board(&library, Some("jlcpcb-4-layer"), None)?.name,
             "JLCPCB 4-layer"

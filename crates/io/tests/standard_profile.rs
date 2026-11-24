@@ -171,8 +171,9 @@ fn a_new_project_cannot_lose_its_profile() -> Fallible {
     Ok(())
 }
 
-/// Every host's lookup ends in a profile: with a default, with one that is
-/// gone and with none.
+/// Every host's lookup ends in a profile or names the one that is missing:
+/// with a default, with one that is gone (refused; a window starts on
+/// Standard and says so) and with none.
 #[test]
 fn no_lookup_for_a_new_board_is_empty() -> Fallible {
     let dir = tempfile::tempdir()?;
@@ -181,7 +182,11 @@ fn no_lookup_for_a_new_board_is_empty() -> Fallible {
         Ok(rule_profiles::for_new_board(&library, None, default)?.id)
     };
     assert_eq!(id(None)?, "standard");
-    assert_eq!(id(Some("gone"))?, "standard");
+    assert!(id(Some("gone")).is_err_and(|e| e.to_string().contains("gone")));
+    let (profile, said) =
+        rule_profiles::for_new_board_shown(&library, Ok(Some("gone".to_owned())))?;
+    assert_eq!(profile.id, "standard");
+    assert!(said.is_some_and(|said| said.contains("‘gone’") && said.contains("Standard")));
     assert_eq!(id(Some("pcbway-2-layer"))?, "pcbway-2-layer");
     Ok(())
 }

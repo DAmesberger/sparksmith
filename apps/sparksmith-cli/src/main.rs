@@ -147,9 +147,25 @@ fn user_session(mut engine: Engine) -> Session {
     Session::with_sources(engine, sources)
 }
 
+/// The new project a session starts with. When the user's default fab
+/// profile does not read, it says so and holds no project: what needs rules
+/// is refused, `project.new` names the profile, and files open.
+fn starting_engine(
+    context: &std::sync::Arc<sparksmith_core::library::standards::Context>,
+) -> sparksmith_io::Result<Engine> {
+    sparksmith_io::new_project::engine(context).or_else(|error| {
+        eprintln!("no new project: the default fab profile could not be read: {error}");
+        sparksmith_io::new_project::empty_engine(context)
+    })
+}
+
 /// A session, optionally starting from a project file.
 fn open(path: Option<&String>) -> Result<Session> {
-    let mut session = user_session(sparksmith_io::new_project::engine(&context()?)?);
+    let context = context()?;
+    let mut session = user_session(match path {
+        Some(_) => sparksmith_io::new_project::empty_engine(&context)?,
+        None => starting_engine(&context)?,
+    });
     if let Some(path) = path {
         let revision = session.engine().revision();
         execute(
@@ -300,7 +316,7 @@ fn run() -> Result<()> {
             // Projects the client opens or creates later start like this
             // one: the run's standards, the user's sources and settings.
             let context = context()?;
-            let new_session = move || match sparksmith_io::new_project::engine(&context) {
+            let new_session = move || match starting_engine(&context) {
                 Ok(engine) => user_session(engine),
                 Err(error) => {
                     eprintln!("new projects start without the shipped defaults: {error}");

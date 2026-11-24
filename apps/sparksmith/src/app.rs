@@ -212,7 +212,7 @@ impl App {
         fonts::setup_bundled_fonts(&cc.egui_ctx);
         fonts::load_system_fonts_in_background(&cc.egui_ctx);
         let render_state = cc.wgpu_render_state.as_ref().ok_or("wgpu is required")?;
-        let mut engine = file_ui::new_project()?;
+        let (mut engine, said) = file_ui::new_project()?;
         let mut files = FileUi::new(cc, &engine);
         // `sparksmith FILE.sparksmith` opens that project through the file
         // workflow; a KiCad project or board file is imported.
@@ -233,6 +233,11 @@ impl App {
         // A keymap conflict is a defect (the registry tests forbid one);
         // report it instead of failing silently.
         let mut messages = Messages::default();
+        // The person's default fab profile is gone or damaged: the board
+        // started on the shipped one.
+        if let Some(said) = said {
+            messages.push(Level::Warning, &said, 0.0);
+        }
         for problem in &keymap_problems {
             messages.push(
                 Level::Warning,

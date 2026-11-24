@@ -315,7 +315,13 @@ enum Event {
     Imported(
         Ticket,
         PathBuf,
-        Outcome<Box<(EditorFile, sparksmith_automation::kicad_import::Report)>>,
+        Outcome<
+            Box<(
+                EditorFile,
+                sparksmith_automation::kicad_import::Report,
+                Option<String>,
+            )>,
+        >,
     ),
     Written(Ticket, PathBuf, Outcome<Wrote>),
     PdfExported(Ticket, PathBuf, Outcome<usize>),
@@ -371,9 +377,12 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                 Job::Import(ticket, path) => {
                     // The CLI's import, off the UI thread; the window
                     // shows that it runs (`FileUi::importing`).
-                    let value = import_catalog
-                        .import(&path, None)
-                        .map(|imported| Box::new((imported.engine.to_file(), imported.report)));
+                    let value = sparksmith_io::rule_profiles::for_new_board_shown_from_env()
+                        .map_err(|e| e.to_string())
+                        .and_then(|(profile, said)| {
+                            let imported = import_catalog.import_on(&path, &profile)?;
+                            Ok(Box::new((imported.engine.to_file(), imported.report, said)))
+                        });
                     Event::Imported(ticket, path, value)
                 }
                 Job::Write(ticket, path, document, expected) => {
@@ -867,12 +876,17 @@ impl FileUi {
     fn proceed(&mut self, transition: Transition) {
         match transition {
             Transition::New => match new_project() {
-                Ok(engine) => self.effects.push(Effect::Replace {
-                    document: Box::new(engine.to_file()),
-                    path: None,
-                    identity: None,
-                    recovered: false,
-                }),
+                Ok((engine, said)) => {
+                    if let Some(said) = said {
+                        self.status = Some((Level::Warning, said));
+                    }
+                    self.effects.push(Effect::Replace {
+                        document: Box::new(engine.to_file()),
+                        path: None,
+                        identity: None,
+                        recovered: false,
+                    });
+                }
                 Err(error) => self.status = Some((Level::Error, error)),
             },
             Transition::Open(path) => {
@@ -1257,11 +1271,16 @@ impl FileUi {
                     return;
                 }
                 match result.map(|imported| *imported) {
-                    Ok((document, report)) => self.effects.push(Effect::Imported {
-                        document: Box::new(document),
-                        source: path,
-                        report: Box::new(report),
-                    }),
+                    Ok((document, report, said)) => {
+                        if let Some(said) = said {
+                            self.status = Some((Level::Warning, said));
+                        }
+                        self.effects.push(Effect::Imported {
+                            document: Box::new(document),
+                            source: path,
+                            report: Box::new(report),
+                        });
+                    }
                     Err(error) => {
                         self.status = Some((Level::Error, format!("Import failed: {error}")))
                     }
@@ -1673,14 +1692,15 @@ fn absolute_path(path: PathBuf) -> Outcome<PathBuf> {
 /// The project a launch without a file and File › New open: empty, with
 /// no parts, library or drafts, on the shipped new board and the fab profile
 /// a new board takes (`sparksmith_io::new_project`): the user's default
-/// (Settings), else the shipped one. A missing or broken shipped library is
-/// an error naming the file.
-pub(crate) fn new_project() -> Result<Engine, String> {
+/// (Settings), else the shipped one; with what to say when that default does
+/// not read and the board starts on the shipped one. A missing or broken
+/// shipped library is an error naming the file.
+pub(crate) fn new_project() -> Result<(Engine, Option<String>), String> {
     // The app's context, current on the window's thread for the program's
     // life, is every engine's.
     let context =
         sparksmith_core::library::standards::Context::current().map_err(|e| e.to_string())?;
-    sparksmith_io::new_project::engine(&context).map_err(|e| e.to_string())
+    sparksmith_io::new_project::engine_shown(&context).map_err(|e| e.to_string())
 }
 
 fn home_directory() -> PathBuf {
