@@ -659,18 +659,19 @@ fn silk_over_pads(project: &Project, items: &mut Vec<PreflightItem>) {
         let Some(by) = pad.mask_expansion(rules.mask.expansion) else {
             continue;
         };
-        let Some(shape) = pad.pad.shape.grown(by, tol) else {
-            continue;
-        };
-        let ring = shape.transformed(&pad.pad_transform()).flatten(tol);
-        let Some(bounds) = Bounds::of(ring.iter().copied()) else {
-            continue;
-        };
-        if pad.pad.kind.through_hole() {
-            openings.push((Layer::Top, ring.clone(), bounds));
-            openings.push((Layer::Bottom, ring, bounds));
-        } else {
-            openings.push((pad.layer, ring, bounds));
+        // A hole in an opening (mask the growth left) is not looked for:
+        // ink there is reported too.
+        for piece in pad.pad.shape.offset_pieces(by, tol) {
+            let ring = piece.outer.transformed(&pad.pad_transform()).flatten(tol);
+            let Some(bounds) = Bounds::of(ring.iter().copied()) else {
+                continue;
+            };
+            if pad.pad.kind.through_hole() {
+                openings.push((Layer::Top, ring.clone(), bounds));
+                openings.push((Layer::Bottom, ring, bounds));
+            } else {
+                openings.push((pad.layer, ring, bounds));
+            }
         }
     }
     let graphics = layout::placed_graphics(project);

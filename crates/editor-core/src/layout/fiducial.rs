@@ -93,12 +93,14 @@ pub fn placed_fiducials(project: &Project) -> Vec<PlacedFiducial> {
             .filter(|ring| ring.len() >= 3 && polygon_contains(ring, at))
             .collect();
         let kept_out = !clear.is_empty();
-        if !kept_out
-            && let Some(opening) = pad
-                .mask_expansion(board_mask)
-                .and_then(|by| pad.pad.shape.grown(by, CHORD_MM))
-        {
-            clear.push(opening.transformed(&frame).flatten(CHORD_MM));
+        if !kept_out && let Some(by) = pad.mask_expansion(board_mask) {
+            clear.extend(
+                pad.pad
+                    .shape
+                    .offset_pieces(by, CHORD_MM)
+                    .into_iter()
+                    .map(|p| p.outer.transformed(&frame).flatten(CHORD_MM)),
+            );
         }
         out.push(PlacedFiducial {
             instance: pad.instance,

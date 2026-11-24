@@ -20,7 +20,9 @@ use std::collections::BTreeSet;
 mod checks;
 mod geometry;
 pub use checks::{MIN_MASK_WEB_MM, MIN_SILK_TEXT_HEIGHT_MM, MIN_SILK_WIDTH_MM};
-pub use geometry::{CHECK_CHORD_MM, PAD_ARC_TOLERANCE_MM, TerminalRule, bulge_arc, offset_polygon};
+pub use geometry::{
+    CHECK_CHORD_MM, OffsetPiece, PAD_ARC_TOLERANCE_MM, TerminalRule, bulge_arc, offset_polygon,
+};
 
 /// Default solder-mask expansion around a pad, 0.05 mm (an estimated
 /// prototype default, not a manufacturer qualification).
