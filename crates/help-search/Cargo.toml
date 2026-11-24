@@ -18,6 +18,8 @@ tantivy = { version = "0.27", default-features = false, features = ["stemmer", "
 model2vec-rs = { version = "=0.4.0", default-features = false, features = ["wasm"] }
 
 [dev-dependencies]
+# The example that makes the shipped model.
+safetensors = "0.5"
 serde.workspace = true
 serde_json.workspace = true
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
