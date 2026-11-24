@@ -1141,6 +1141,8 @@ pub(crate) struct DesignHole {
     pub plated: bool,
     /// A board via.
     pub via: bool,
+    /// A filled and capped one.
+    pub capped: bool,
     /// A component's lead goes through it, or it is a via of its pad.
     pub lead: bool,
     pub what: String,
@@ -1151,9 +1153,11 @@ impl DesignHole {
         self.from != self.to
     }
 
-    /// The X2 drill function: what the hole is for.
+    /// The X2 drill function: what the hole is for, and the IPC-4761 type
+    /// of a filled via (VII, filled and capped).
     pub(crate) fn function(&self) -> &'static str {
         match (self.via, self.lead) {
+            (true, _) if self.capped => "ViaDrill,VII",
             (true, _) => "ViaDrill",
             (_, true) => "ComponentDrill",
             _ => "MechanicalDrill",
@@ -1203,6 +1207,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
             width: v.drill,
             plated: true,
             via: true,
+            capped: v.fill == crate::model::ViaFill::Capped,
             lead: false,
             what: "a via".into(),
         });
@@ -1228,6 +1233,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
                 width,
                 plated: hole.plated,
                 via: false,
+                capped: false,
                 lead: hole.plated,
                 what: format!("the hole of {}", pad.name),
             });
@@ -1240,6 +1246,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
                 width: via.drill_nm.to_mm_f64(),
                 plated: true,
                 via: false,
+                capped: false,
                 lead: true,
                 what: format!("a via of {}", pad.name),
             });
@@ -1253,6 +1260,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
             width: h.drill,
             plated: h.plated,
             via: false,
+            capped: false,
             lead: false,
             what: "a mounting hole".into(),
         });
@@ -1266,6 +1274,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
                 width,
                 plated: true,
                 via: false,
+                capped: false,
                 lead: false,
                 what: "a plated board slot".into(),
             });

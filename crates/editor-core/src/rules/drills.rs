@@ -232,8 +232,7 @@ const MAX_ENTRIES: usize = 16;
 /// a sentence and a source.
 pub fn check(rules: &[DrillRule], charges: &[Charge]) -> Result<()> {
     let bad = |what: &str| Err(Error::Invalid(format!("rules.drill_rules: {what}")));
-    let text =
-        |t: &str, max: usize| t.len() <= max && !t.chars().any(|c| c.is_control() && c != '\n');
+    let text = |t: &str, max: usize| t.len() <= max && !t.chars().any(char::is_control);
     let name = |t: &str| !t.trim().is_empty() && text(t, MAX_PROFILE_TEXT);
     if rules.len() > MAX_ENTRIES || charges.len() > MAX_ENTRIES {
         return bad("a profile lists at most 16 drill rules and 16 charges");

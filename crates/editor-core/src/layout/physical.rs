@@ -309,6 +309,8 @@ pub struct Hole {
     pub feature: HoleFeature,
     pub plated: bool,
     pub function: HoleFunction,
+    /// What closes it (a board via's).
+    pub fill: crate::model::ViaFill,
     /// The net of a plated hole, when it has one.
     pub net: Option<Id>,
     pub owner: HoleOwner,
@@ -410,6 +412,7 @@ pub(crate) fn via_hole(project: &Project, via: &crate::model::Via) -> Hole {
         },
         plated: true,
         function: HoleFunction::Via,
+        fill: via.fill,
         net: Some(via.net),
         owner: HoleOwner::Via(via.id),
         name: format!("a via on {}", project.net_name(via.net)),
@@ -451,6 +454,7 @@ pub(crate) fn holes_but_vias(project: &Project, placed: &[PlacedPad]) -> Vec<Hol
                 } else {
                     HoleFunction::Mechanical
                 },
+                fill: Default::default(),
                 net: pad.net.filter(|_| plated),
                 owner: HoleOwner::Pad {
                     instance: pad.instance,
@@ -478,6 +482,7 @@ pub fn board_holes(project: &Project) -> Vec<Hole> {
             },
             plated: hole.plated,
             function: HoleFunction::Mechanical,
+            fill: Default::default(),
             net: None,
             owner: HoleOwner::MountingHole(hole.id),
             name: mounting_hole_name(hole.plated, hole.at),
@@ -491,6 +496,7 @@ pub fn board_holes(project: &Project) -> Vec<Hole> {
                 feature,
                 plated: true,
                 function: HoleFunction::Mechanical,
+                fill: Default::default(),
                 net: None,
                 owner: HoleOwner::BoardSlot(cutout.id),
                 name: format!(

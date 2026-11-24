@@ -11,12 +11,12 @@ use std::collections::{BTreeMap, HashMap};
 /// drill files hold micrometres.
 const HIT_MM: f64 = 0.0008;
 
-/// A hole's tool: plated, size in µm, slot, use.
-type Tool = (bool, i64, bool, &'static str);
+/// A hole's tool: plated, size in µm, slot, use, capped.
+type Tool = (bool, i64, bool, &'static str, bool);
 
 fn tool(h: &DesignHole) -> Tool {
     let size = (h.width / 0.001).round() as i64;
-    (h.plated, size, h.slot(), h.word())
+    (h.plated, size, h.slot(), h.word(), h.capped)
 }
 
 fn feature(h: &DesignHole) -> Feature {
@@ -68,8 +68,13 @@ pub(super) fn check(r: &mut Reading<'_, '_>) -> Fallible<()> {
         r.head(&name, stated, &function, "Positive");
         // Every hole once, by what it is for.
         let mut read = 0;
-        for use_ in ["ViaDrill", "ComponentDrill", "MechanicalDrill"] {
-            let written = drills::hits(&file, |f| f.first().is_some_and(|f| f == use_))?;
+        for use_ in [
+            "ViaDrill",
+            "ViaDrill,VII",
+            "ComponentDrill",
+            "MechanicalDrill",
+        ] {
+            let written = drills::hits(&file, |f| f.join(",") == use_)?;
             read += written.len();
             let wanted: Vec<DrillHit> = design
                 .iter()
@@ -95,7 +100,131 @@ pub(super) fn check(r: &mut Reading<'_, '_>) -> Fallible<()> {
         }
     }
     let table = table(r, &holes);
-    map(r, &holes, &table)
+    map(r, &holes, &table)?;
+    order(r, &holes);
+    Ok(())
+}
+
+/// The order notes: which tools to fill and to leave open, by the drill
+/// file's own numbers, and the charges the profile states whose every
+/// condition one via meets.
+fn order(r: &mut Reading<'_, '_>, holes: &[DesignHole]) {
+    let project = r.project;
+    let layers = project.stackup.copper.len();
+    let profile = project.rules.profile.as_ref();
+    let mut charges: Vec<&str> = Vec::new();
+    for charge in profile.iter().flat_map(|p| &p.charges) {
+        let when = &charge.when;
+        let on_board = when.copper_layers.is_empty()
+            || when.copper_layers.iter().any(|n| *n as usize == layers);
+        let on_via = project.vias.iter().any(|v| {
+            !when.fill.is_some_and(|f| f != v.fill)
+                && !when.drill_below_mm.is_some_and(|mm| v.drill >= mm - 1e-9)
+                && !when
+                    .diameter_below_mm
+                    .is_some_and(|mm| v.diameter >= mm - 1e-9)
+                && !when
+                    .diameter_at_most_mm
+                    .is_some_and(|mm| v.diameter > mm + 1e-9)
+        });
+        if on_board && on_via && !charges.contains(&charge.text.as_str()) {
+            charges.push(&charge.text);
+        }
+    }
+    let filled = holes.iter().any(|h| h.capped);
+    let name = r.name("order-notes.txt");
+    if !filled && charges.is_empty() {
+        // One that is there is told as a file the design has not.
+        return;
+    }
+    let Some(text) = r.text(&name, true) else {
+        return;
+    };
+    let release = format!("Release {}", r.identity.revision);
+    if !text.lines().any(|l| l == release) {
+        r.say(&name, None, "another release", &release);
+    }
+    // The tools of the vias, as the plated drill file numbers them.
+    let drill = r
+        .files
+        .get(r.name("plated.drl").as_str())
+        .and_then(|b| std::str::from_utf8(b).ok())
+        .and_then(|t| excellon::parse(t).ok());
+    let mut tools: BTreeMap<(bool, i64), usize> = BTreeMap::new();
+    if filled {
+        for h in holes.iter().filter(|h| h.via) {
+            let (_, um, _, _, capped) = tool(h);
+            *tools.entry((capped, um)).or_default() += 1;
+        }
+    }
+    let mut design: Vec<(bool, String)> = Vec::new();
+    for ((capped, um), n) in tools {
+        let mm = um as f64 / 1e3;
+        let size = profile.map_or(mm, |p| p.drill_files.file_size(mm, true));
+        let use_ = if capped { "ViaDrill,VII" } else { "ViaDrill" };
+        let number = drill.as_ref().and_then(|f| tool_number(f, use_, size));
+        let number = number.map_or_else(|| "T?".into(), |n| format!("T{n}"));
+        let holes = if n == 1 { "hole" } else { "holes" };
+        design.push((capped, format!("{number} {mm:.3} mm {n} {holes}")));
+    }
+    let (mut section, mut stated, mut quoted) = ("", Vec::new(), Vec::new());
+    for line in text.lines() {
+        if !line.starts_with(' ') {
+            section = line;
+            continue;
+        }
+        let words = line.split_whitespace().collect::<Vec<_>>().join(" ");
+        match section {
+            "Fill and cap" => stated.push((true, words)),
+            "Leave open" if words != "no via" => stated.push((false, words)),
+            "Charges" if line.starts_with("  \"") => {
+                let quote = line.strip_prefix("  \"").and_then(|q| q.strip_suffix('"'));
+                quoted.push(quote.unwrap_or(line).to_owned());
+            }
+            _ => {}
+        }
+    }
+    let part = |capped: &bool| if *capped { "filled" } else { "left open" };
+    for (capped, words) in stated.iter().filter(|s| !design.contains(s)).take(MOST) {
+        let said = format!("{words}, {}", part(capped));
+        r.say(&name, None, &said, "no such tool");
+    }
+    for (capped, words) in design.iter().filter(|s| !stated.contains(s)).take(MOST) {
+        let said = format!("{words}, {}", part(capped));
+        r.say(&name, None, "no such tool", &said);
+    }
+    for text in quoted.iter().filter(|q| !charges.contains(&q.as_str())) {
+        r.say(
+            &name,
+            None,
+            &format!("the charge “{text}”"),
+            "no such charge",
+        );
+    }
+    for text in charges {
+        if !quoted.iter().any(|q| q == text) {
+            r.say(
+                &name,
+                None,
+                "no such charge",
+                &format!("the charge “{text}”"),
+            );
+        }
+    }
+}
+
+/// The number of the tool of `size` mm a drill file uses for `use_`.
+fn tool_number(file: &excellon::DrillFile, use_: &str, size: f64) -> Option<u32> {
+    file.tools
+        .iter()
+        .find(|(n, d)| {
+            (*d - size).abs() < HIT_MM
+                && file
+                    .tool_functions
+                    .get(n)
+                    .is_some_and(|f| f.join(",") == use_)
+        })
+        .map(|(n, _)| *n)
 }
 
 fn words(hit: &DrillHit, use_: &str, plated: bool) -> (Point, String) {
@@ -129,8 +258,15 @@ fn table(r: &mut Reading<'_, '_>, holes: &[DesignHole]) -> BTreeMap<Tool, String
     let mut numbers = Vec::new();
     for line in text.lines() {
         let words: Vec<&str> = line.split_whitespace().collect();
-        let [number, size, plating, kind, use_, count, symbol] = words.as_slice() else {
-            continue;
+        // With a Fill column where a via is filled.
+        let (number, size, plating, kind, use_, fill, count, symbol) = match words.as_slice() {
+            [number, size, plating, kind, use_, count, symbol] => {
+                (number, size, plating, kind, use_, "none", count, symbol)
+            }
+            [number, size, plating, kind, use_, fill, count, symbol] => {
+                (number, size, plating, kind, use_, *fill, count, symbol)
+            }
+            _ => continue,
         };
         let Some(number) = number.strip_prefix('T').and_then(|n| n.parse::<u32>().ok()) else {
             continue;
@@ -140,7 +276,12 @@ fn table(r: &mut Reading<'_, '_>, holes: &[DesignHole]) -> BTreeMap<Tool, String
                 .into_iter()
                 .find(|u| u == use_)?;
             let size = (mm * 1e3).round() as i64;
-            Some((*plating == "plated", size, *kind == "slot", use_))
+            let capped = match fill {
+                "none" => false,
+                "capped" => true,
+                _ => return None,
+            };
+            Some((*plating == "plated", size, *kind == "slot", use_, capped))
         });
         let wanted = key.and_then(|k| left.remove(&k));
         if wanted.is_none() || wanted.map(|n| n.to_string()).as_deref() != Some(*count) {
@@ -153,11 +294,12 @@ fn table(r: &mut Reading<'_, '_>, holes: &[DesignHole]) -> BTreeMap<Tool, String
             numbers.push((number, key));
         }
     }
-    for ((plated, size, slot, use_), n) in left {
+    for ((plated, size, slot, use_, capped), n) in left {
         let plating = if plated { "plated" } else { "non-plated" };
         let kind = if slot { "slots" } else { "holes" };
+        let filled = if capped { "filled " } else { "" };
         let words = format!(
-            "{n} {plating} {kind} of {:.3} mm ({use_})",
+            "{n} {filled}{plating} {kind} of {:.3} mm ({use_})",
             size as f64 / 1e3
         );
         r.say(&name, None, "no such tool", &words);
@@ -187,14 +329,14 @@ fn tools(r: &mut Reading<'_, '_>, name: &str, numbers: &[(u32, Tool)]) {
         };
         for (number, size) in &file.tools {
             let stated = numbers.iter().find(|(n, _)| n == number).map(|(_, t)| *t);
-            let fits = stated.is_some_and(|(p, um, _, _)| {
+            let fits = stated.is_some_and(|(p, um, _, _, _)| {
                 let mm = um as f64 / 1e3;
                 let mm = allowance.as_ref().map_or(mm, |a| a.file_size(mm, p));
                 p == plated && (mm - size).abs() < HIT_MM
             });
             if !fits {
                 let words = match stated {
-                    Some((_, um, _, _)) => format!("T{number} as {:.3} mm", um as f64 / 1e3),
+                    Some((_, um, _, _, _)) => format!("T{number} as {:.3} mm", um as f64 / 1e3),
                     None => format!("no T{number}"),
                 };
                 r.say(

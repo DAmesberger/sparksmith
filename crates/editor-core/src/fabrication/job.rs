@@ -145,7 +145,7 @@ pub fn file(
     if stackup.silkscreen_bottom {
         materials.push(json!({"Type": "Legend", "Name": "Bottom legend", "Color": legend_colour(fab.silkscreen_colour)}));
     }
-    let job = json!({
+    let mut job = json!({
         "Header": header,
         "GeneralSpecs": {
             "ProjectId": {
@@ -170,6 +170,16 @@ pub fn file(
         "FilesAttributes": files_attributes,
         "MaterialStackup": materials,
     });
+    // "This via protection types present": the IPC-4761 types the drill
+    // tools carry; left out when none does.
+    let protection: std::collections::BTreeSet<&str> = project
+        .vias
+        .iter()
+        .filter_map(|v| v.fill.ipc_4761())
+        .collect();
+    if !protection.is_empty() {
+        job["GeneralSpecs"]["ViaProtection"] = json!(protection);
+    }
     let mut bytes = serde_json::to_vec_pretty(&job)?;
     bytes.push(b'\n');
     Ok(FabFile {

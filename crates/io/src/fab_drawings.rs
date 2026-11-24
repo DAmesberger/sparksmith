@@ -712,7 +712,7 @@ fn fabrication_sheets(data: &DrawingData) -> Result<Vec<Page>> {
                 mm3(t.diameter),
                 if t.plated { "yes" } else { "no" }.into(),
                 if t.slot { "slot" } else { "hole" }.into(),
-                t.function.label().into(),
+                t.use_words(),
                 t.count.to_string(),
             ]
         })

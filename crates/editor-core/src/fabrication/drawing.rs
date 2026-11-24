@@ -414,6 +414,17 @@ fn notes(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Stri
             )
         ),
     ];
+    let table = super::drill::table(&super::drill::holes(project));
+    let capped: Vec<String> = table
+        .capped()
+        .map(|t| format!("T{} ({:.3} mm, {} holes)", t.number, t.diameter, t.count))
+        .collect();
+    if !capped.is_empty() {
+        out.push(format!(
+            "Vias filled and capped, IPC-4761 type VII: {}. No other via is filled.",
+            capped.join(", ")
+        ));
+    }
     out.extend(waived(project, settings));
     out.push(
         concat!(
