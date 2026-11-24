@@ -351,3 +351,88 @@ fn a_push_adds_skew_only_within_the_class_limit() -> Fallible {
     assert_eq!(moved, 0, "no class limit: no push adds skew ({worst})");
     Ok(())
 }
+
+/// The board with R2 moved so that its right pad, on net C, is at `at`.
+fn pad_at(at: Point) -> Fallible<Project> {
+    let mut p = board()?;
+    let (_, r2) = crate::layout::tests::ids()?;
+    let pad = layout::pads(&p)
+        .into_iter()
+        .find(|q| q.instance == r2 && q.net == C)
+        .ok_or("pad")?;
+    let part = p.placement_of(r2).ok_or("r2")?.position;
+    apply(
+        &mut p,
+        LayoutCommand::Move {
+            instance: r2,
+            position: [
+                part[0] + at[0] - pad.position[0],
+                part[1] + at[1] - pad.position[1],
+            ],
+            rotation_deg: 0.0,
+            layer: crate::model::Layer::Top,
+        },
+    )?;
+    Ok(p)
+}
+
+fn layer_change(p: &Project, via: Point) -> crate::layout::pair::PairStepRequest {
+    use crate::layout::pair::{self, PairHead, PairStepRequest, PairVias};
+    let style = pair::style(p, A, Top);
+    PairStepRequest {
+        nets: [A, B],
+        layer: Top,
+        style,
+        posture: Posture::Diagonal,
+        flipped: false,
+        head: PairHead::at([20.0, 20.5], [20.0, 19.5]),
+        last: None,
+        via: Some(PairVias {
+            at: via,
+            drill: 0.3,
+            diameter: 0.6,
+            tented: true,
+            fill: Default::default(),
+            pitch: pair::via_pitch(p, [A, B], 0.3, 0.6, style),
+            layer: CopperLayer::Bottom,
+            style,
+        }),
+        to: [40.0, 20.0],
+        finish: None,
+    }
+}
+
+/// A layer change off the grid's axis beside another net's pad: two vias
+/// and tracks on Bottom that the engine takes. With the pad across its
+/// way no copper is laid, the head stays and the plan says why.
+#[test]
+fn a_pair_layer_change_passes_a_pad_or_lays_nothing() -> Fallible {
+    let mut p = pad_at([30.0, 22.0])?;
+    let request = layer_change(&p, [30.0, 20.1]);
+    for mode in [RouteMode::Shove, RouteMode::Walkaround] {
+        let plan = pair_plan(&p, &RouteIndex::of(&p), &request, mode, true);
+        assert!(plan.reached, "{mode:?}: {:?}", plan.blocked);
+        assert_eq!(plan.step.edits.vias.len(), 2);
+        assert_eq!(plan.step.layer, CopperLayer::Bottom);
+    }
+    let before = violations(&p).len();
+    let plan = pair_plan(&p, &RouteIndex::of(&p), &request, RouteMode::Shove, true);
+    apply(
+        &mut p,
+        LayoutCommand::ApplyRoute {
+            edits: plan.step.edits,
+        },
+    )?;
+    assert_eq!(violations(&p).len(), before);
+
+    let p = pad_at([25.0, 20.0])?;
+    let request = layer_change(&p, [30.0, 20.0]);
+    for mode in [RouteMode::Shove, RouteMode::Walkaround] {
+        let plan = pair_plan(&p, &RouteIndex::of(&p), &request, mode, true);
+        assert!(!plan.reached && plan.blocked.is_some(), "{mode:?}");
+        assert_eq!(plan.step.edits, Default::default(), "{mode:?}");
+        assert_eq!(plan.step.head, request.head);
+        assert_eq!(plan.step.layer, Top);
+    }
+    Ok(())
+}

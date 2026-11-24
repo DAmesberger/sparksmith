@@ -966,3 +966,33 @@ fn a_refused_pair_layer_change_stays_on_its_layer() -> TestResult {
     );
     Ok(())
 }
+
+/// A route dropped with a via still pending (the 3D view, another tool, an
+/// edit from elsewhere) leaves the card on the layer its tracks are on.
+#[test]
+fn a_route_dropped_with_a_via_pending_shows_its_tracks_layer() -> TestResult {
+    let Usb {
+        mut engine, start, ..
+    } = usb()?;
+    let mut canvas = Canvas::new();
+    let mut editor = PcbEditor::default();
+    editor.on_tool("route", &engine);
+    canvas.frame(&mut editor, &engine, vec![], egui::Modifiers::NONE);
+    assert!(canvas.click(&mut editor, &engine, start[0]).is_none());
+    let on = [20.0, 0.5 * (start[0][1] + start[1][1])];
+    let step = canvas.click(&mut editor, &engine, on);
+    canvas.apply(&mut editor, &mut engine, step)?;
+    key(
+        &mut canvas,
+        &mut editor,
+        &engine,
+        [24.0, on[1]],
+        egui::Key::Num4,
+    );
+    assert!(editor.pending_via.is_some());
+    assert_eq!(editor.layer, CopperLayer::Bottom);
+    editor.set_3d(true);
+    assert_eq!(editor.pending_via, None);
+    assert_eq!(editor.layer, CopperLayer::Top);
+    Ok(())
+}
