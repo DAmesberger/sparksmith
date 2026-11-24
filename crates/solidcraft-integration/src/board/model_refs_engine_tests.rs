@@ -176,6 +176,7 @@ fn layout_lists_the_trace_after_4096_other_faces() -> Fallible<()> {
                             face: FaceName(format!("Face {i}")),
                             pick: [x, 0.0, 0.0],
                         },
+                        outer: true,
                         trace: FeatureGeometry::Line {
                             a: [x, 0.0],
                             b: [x, 1.0],

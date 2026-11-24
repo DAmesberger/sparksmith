@@ -47,6 +47,9 @@ use std::sync::Arc;
 /// How far from square to the board (the sine of the angle) a direction
 /// may be and still count as square.
 const SQUARE: f64 = 1e-6;
+/// How far past a face more of its body must lie (mm) for it to be no outside
+/// face: above the mesh of a curved face.
+const BEFORE_MM: f64 = 1e-3;
 /// How far from flat an edge's points may lie (mm) and still count as
 /// parallel to the board, or as a straight edge.
 const FLAT_MM: f64 = 1e-6;
@@ -188,6 +191,13 @@ pub fn faces(request: &FacesRequest<'_>) -> Result<Vec<BodyFace>> {
                 list.push(tri);
             }
         }
+        let corners: Vec<[f64; 3]> = mesh
+            .triangles
+            .iter()
+            .filter_map(|tri| mesh.tri(tri))
+            .flatten()
+            .map(|corner| frame.apply(arr(corner)))
+            .collect();
         for (i, (name, spot)) in names.iter().zip(&spots).enumerate() {
             let Some(spot) = spot.as_ref() else {
                 continue;
@@ -202,13 +212,18 @@ pub fn faces(request: &FacesRequest<'_>) -> Result<Vec<BodyFace>> {
                     .flatten()
                     .map(|corner| frame.apply(arr(corner)))
             };
+            let mut outer = true;
             let trace = match face_surface(&b.body, i) {
                 Some(FaceSurface::Plane { normal, point }) => {
                     let n = frame.apply_vector(arr(normal.vec()));
                     if n[2].abs() > SQUARE {
                         continue;
                     }
-                    plane_line(n, frame.apply(arr(point)), points())
+                    let on = frame.apply(arr(point));
+                    outer = corners
+                        .iter()
+                        .all(|c| n[0] * (c[0] - on[0]) + n[1] * (c[1] - on[1]) <= BEFORE_MM);
+                    plane_line(n, on, points())
                 }
                 Some(FaceSurface::Cylinder { origin, axis, .. }) => {
                     axis_point(frame, arr(origin), arr(axis.vec()))
@@ -237,6 +252,7 @@ pub fn faces(request: &FacesRequest<'_>) -> Result<Vec<BodyFace>> {
                 },
                 at: frame.apply(pick),
                 trace,
+                outer,
                 z,
             });
         }

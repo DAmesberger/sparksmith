@@ -410,18 +410,20 @@ pub fn checks(project: &Project) -> Vec<Finding> {
 /// "J1 · front face", "R5 · left end face" for a 3D model reference
 /// ([`model::feature_term`]); its persistent name stays in the reference.
 pub fn model_feature_words(project: &Project, f: &FeatureRef) -> String {
-    model_feature_words_with(project, f, None)
+    model_feature_words_with(project, f, None, true)
 }
 
 /// [`model_feature_words`] for a reference picked but not yet stored, with
-/// its trace in the part frame.
+/// its trace in the part frame, and whether a face is an outside one
+/// ([`model::feature_term_on`]).
 pub fn model_feature_words_with(
     project: &Project,
     f: &FeatureRef,
     geometry: Option<&FeatureGeometry>,
+    outer: bool,
 ) -> String {
     let name = target_words(project, f.target());
-    let term = model::feature_term(project, f, geometry).unwrap_or_else(|| {
+    let term = model::feature_term_on(project, f, geometry, outer).unwrap_or_else(|| {
         match f {
             FeatureRef::Edge { .. } | FeatureRef::Vertex { .. } => "model edge",
             _ => "model face",

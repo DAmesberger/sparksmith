@@ -126,6 +126,9 @@ pub fn apply(project: &mut Project, command: FillCommand) -> Result<Option<Id>> 
     let missing = |what: &str, id: Id| Error::NotFound(format!("{what}.missing: no {what} {id}"));
     match command {
         FillCommand::Add { fill } => {
+            // A fill is poured as soon as it is drawn: none without the
+            // profile its clearances come from.
+            project.rules.require()?;
             let id = project.allocate()?;
             project.fills.push(Fill::from_spec(id, *fill));
             Ok(Some(id))

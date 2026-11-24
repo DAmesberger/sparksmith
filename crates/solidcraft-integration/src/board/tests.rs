@@ -1184,3 +1184,57 @@ fn a_cutout_keeps_its_id_as_its_curves_change() -> Fallible<()> {
     assert_eq!(cutout(&reopened, [13.0, 13.0])?.0, c);
     Ok(())
 }
+
+/// GUI check 1, K12: a dimension that other constraints already determine
+/// is refused, whatever its value, and the refusal names what sets it; one
+/// that removes freedom is taken.
+#[test]
+fn a_redundant_dimension_is_refused_and_names_what_sets_it() -> Fallible<()> {
+    let mut engine = sketched()?;
+    let s = sketch(&engine)?;
+    let curve = |name: &str| {
+        s.edges
+            .iter()
+            .find(|e| e.name.0 == name)
+            .map(|e| SketchRef::Curve(e.curve.clone()))
+            .ok_or("edge")
+    };
+    let dimension = |refs: Vec<SketchRef>, value: f64| {
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::AddDimension {
+                kind: DimKind::Distance,
+                refs,
+                value: DimValue::Fixed(value),
+            },
+        }]
+    };
+    let refused = |engine: &mut Engine, edits, why: &str| -> Fallible<()> {
+        let (rev, before) = (engine.revision(), engine.to_file());
+        let error = edit(engine, edits).err().ok_or("it was accepted")?;
+        assert!(error.to_string().contains(why), "{error}");
+        assert_eq!(engine.revision(), rev);
+        assert_eq!(engine.to_file(), before);
+        Ok(())
+    };
+    let already = "‘height’ already sets this";
+    refused(&mut engine, dimension(vec![curve("right")?], 40.0), already)?;
+    refused(&mut engine, dimension(vec![curve("left")?], 40.0), already)?;
+    refused(&mut engine, dimension(vec![curve("right")?], 45.0), already)?;
+    let Outcome::BoardEdited { created } = edit(
+        &mut engine,
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::AddPoint { at: [5.0, 8.0] },
+        }],
+    )?
+    else {
+        return Err("outcome".into());
+    };
+    let point = created.into_iter().next().ok_or("the point")?;
+    let refs = vec![point, curve("left")?];
+    edit(&mut engine, dimension(refs.clone(), 5.0))?;
+    refused(
+        &mut engine,
+        dimension(refs, 5.0),
+        "5 mm dimension already sets this",
+    )
+}

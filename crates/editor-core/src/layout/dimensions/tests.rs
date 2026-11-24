@@ -357,7 +357,7 @@ fn model_references_read_as_sides_of_the_part() -> Fallible<()> {
         a: [x1, c[1] - w / 2.0],
         b: [x1, c[1] + w / 2.0],
     };
-    let words = model_feature_words_with(project, &face(back([x1, c[1], c[2]])), Some(&end));
+    let words = model_feature_words_with(project, &face(back([x1, c[1], c[2]])), Some(&end), true);
     assert_eq!(words, format!("{designator} · right end face"));
     // The front side's top edge: a line along x at −y, up high.
     let front = FeatureGeometry::Line {
@@ -369,14 +369,14 @@ fn model_references_read_as_sides_of_the_part() -> Fallible<()> {
         placement: part,
         edge: edge(top),
     };
-    let words = model_feature_words_with(project, &edge_ref, Some(&front));
+    let words = model_feature_words_with(project, &edge_ref, Some(&front), true);
     assert_eq!(words, format!("{designator} · top-front edge"));
     let vertex = FeatureRef::Vertex {
         placement: part,
         edge: edge(top),
         end: End::Start,
     };
-    let words = model_feature_words_with(project, &vertex, Some(&front));
+    let words = model_feature_words_with(project, &vertex, Some(&front), true);
     assert_eq!(words, format!("{designator} · start of the top-front edge"));
     // A vertical edge at the front-left corner traces a point.
     let corner = FeatureGeometry::Point {
@@ -386,7 +386,7 @@ fn model_references_read_as_sides_of_the_part() -> Fallible<()> {
         placement: part,
         edge: edge(back([c[0] - l / 2.0, y0, c[2]])),
     };
-    let words = model_feature_words_with(project, &upright, Some(&corner));
+    let words = model_feature_words_with(project, &upright, Some(&corner), true);
     assert_eq!(words, format!("{designator} · front-left edge"));
     Ok(())
 }

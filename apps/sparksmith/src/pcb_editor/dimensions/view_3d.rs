@@ -216,7 +216,13 @@ impl PcbEditor {
         let reference = BoardRef::Part(feature);
         Ok(Picked {
             z: seat(project, placement.layer),
-            words: words(project, Some(evaluator), &reference, Some(&local)),
+            words: words(
+                project,
+                Some(evaluator),
+                &reference,
+                Some(&local),
+                self.outer_face(project, &reference),
+            ),
             reference,
             geometry,
         })
@@ -239,7 +245,7 @@ impl PcbEditor {
         Ok(Picked {
             geometry: view::transformed(local, &view::part_transform(placement)),
             z: seat(project, placement.layer),
-            words: words(project, self.shape.evaluator, &reference, None),
+            words: words(project, self.shape.evaluator, &reference, None, true),
             reference,
         })
     }
@@ -253,7 +259,7 @@ impl PcbEditor {
     ) -> Picked {
         let reference = BoardRef::Board(SketchRef::Curve(curve.clone()));
         Picked {
-            words: words(project, self.shape.evaluator, &reference, None),
+            words: words(project, self.shape.evaluator, &reference, None, true),
             reference,
             geometry,
             z: seat(project, Layer::Top),

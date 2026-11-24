@@ -195,12 +195,14 @@ pub(super) fn height(project: &Project, r: &BoardRef) -> f64 {
 }
 
 /// "J1 · pad A6", "J1 · front face", "Board · bottom edge": a reference in
-/// the card's words; `local` is a new model pick's trace in the part frame.
+/// the card's words; `local` is a new model pick's trace in the part frame,
+/// `outer` whether a face is an outside one (`PcbEditor::outer_face`).
 pub(super) fn words(
     project: &Project,
     evaluator: Option<&dyn BoardShapeEvaluator>,
     r: &BoardRef,
     local: Option<&FeatureGeometry>,
+    outer: bool,
 ) -> String {
     match r {
         BoardRef::Board(SketchRef::Curve(c)) => evaluator
@@ -215,7 +217,7 @@ pub(super) fn words(
         BoardRef::Board(_) => "Board · point".into(),
         BoardRef::FollowedFace(_) => "the linked design".into(),
         BoardRef::Part(f) if f.is_model() => {
-            dimensions::model_feature_words_with(project, f, local)
+            dimensions::model_feature_words_with(project, f, local, outer)
         }
         BoardRef::Part(FeatureRef::Pad { placement, pad, .. }) => {
             let part = project
@@ -255,8 +257,9 @@ pub(super) fn words_with_body(
     evaluator: Option<&dyn BoardShapeEvaluator>,
     r: &BoardRef,
     local: Option<&FeatureGeometry>,
+    outer: bool,
 ) -> String {
-    let plain = words(project, evaluator, r, local);
+    let plain = words(project, evaluator, r, local, outer);
     let body = match r {
         BoardRef::Part(FeatureRef::Face { face, .. }) => Some(&face.body.0),
         BoardRef::Part(FeatureRef::Edge { edge, .. } | FeatureRef::Vertex { edge, .. }) => {

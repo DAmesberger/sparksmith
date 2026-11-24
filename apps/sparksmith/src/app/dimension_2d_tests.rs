@@ -432,9 +432,11 @@ fn a_layout_pick_on_r5s_body_trace_is_the_reference_a_3d_pick_makes() -> Fallibl
     let on_trace = h.screen(mid)?;
     h.click(on_trace);
     if let Some(rows) = h.app.pcb.dimension_chooser() {
-        // Faces in one plane (a termination's end on the body's): the
-        // chooser offers each; the first is taken.
-        let (_, row) = rows.first().ok_or("an empty chooser")?;
+        // Faces in one plane (a termination's end on the body's), and the pad
+        // they end over: the
+        // chooser offers each; the first face is taken.
+        let mut faces = rows.iter().filter(|r| r.0.contains("face"));
+        let (_, row) = faces.next().ok_or("no face in the chooser")?;
         h.click(row.center());
     }
     let picks = h.app.pcb.dimension_picks();
@@ -537,6 +539,7 @@ fn a_pointer_hit_past_4096_faces_keeps_the_nearest_and_its_parallel_neighbor() -
         },
         at: [a[0], a[1], 0.0],
         trace: FeatureGeometry::Line { a, b },
+        outer: true,
         z: [0.0, 1.0],
     };
     let mut faces: Vec<_> = (0..4094)
@@ -735,7 +738,8 @@ fn a_dimension_made_in_either_view_shows_in_the_other() -> Fallible {
     h.until_bodies()?;
     h.click(h.screen(r5_mid)?);
     if let Some(rows) = h.app.pcb.dimension_chooser() {
-        let (_, row) = rows.first().ok_or("an empty chooser")?;
+        let mut faces = rows.iter().filter(|r| r.0.contains("face"));
+        let (_, row) = faces.next().ok_or("no face in the chooser")?;
         h.click(row.center());
     }
     h.click(h.screen(h.on_bottom_edge()?)?);
@@ -774,5 +778,148 @@ fn a_dimension_made_in_either_view_shows_in_the_other() -> Fallible {
         .find(|d| d.0 == made_2d)
         .ok_or("drawn in 3D")?;
     assert_eq!((&in_3d.1, in_3d.3), (&in_2d.1, in_2d.3));
+    Ok(())
+}
+
+/// GUI check 1, K7: at the centre of a header's pad the chooser offers the
+/// pad first, and the walls of its pin's hole are no ends or sides of the
+/// part: only a face nothing of its body lies before is.
+#[test]
+fn a_headers_pad_is_offered_first_and_its_hole_walls_are_no_end_faces() -> Fallible {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let _serial = serial();
+    let engine = esp32()?;
+    let project = engine.project();
+    let j2 = part(project, "J2")?;
+    let placement = project.placement_of(j2).ok_or("the header placed")?.clone();
+    let listed = model::body_faces(project, &SketchBoardEvaluator, j2)?;
+    // Each body's own extent along each axis, from its traces: an outside
+    // face lies on it, facing out.
+    let mut inner = 0;
+    for f in &listed.faces {
+        let FeatureGeometry::Line { a, b } = f.trace else {
+            continue;
+        };
+        let axis = usize::from((b[0] - a[0]).abs() >= (b[1] - a[1]).abs());
+        let reach = |pick: fn(f64, f64) -> f64, from: f64| {
+            listed
+                .faces
+                .iter()
+                .filter(|o| o.face.body == f.face.body)
+                .filter_map(|o| match o.trace {
+                    FeatureGeometry::Line { a, b } => Some([a[axis], b[axis]]),
+                    _ => None,
+                })
+                .flatten()
+                .fold(from, pick)
+        };
+        let normal = [b[1] - a[1], a[0] - b[0]][axis];
+        let end = if normal < 0.0 {
+            reach(f64::min, f64::INFINITY)
+        } else {
+            reach(f64::max, f64::NEG_INFINITY)
+        };
+        assert_eq!(f.outer, (a[axis] - end).abs() < 1e-3, "{f:?} of {end}");
+        inner += usize::from(!f.outer);
+    }
+    assert!(inner > 0, "the body has no hole walls: {:?}", listed.faces);
+    // A pad away from the origin.
+    let pad = sparksmith_core::layout::placed_pad_centres(project, j2)
+        .into_iter()
+        .max_by(|p, q| {
+            let d =
+                |c: [f64; 2]| (c[0] - placement.position[0]).hypot(c[1] - placement.position[1]);
+            d(p.position).total_cmp(&d(q.position))
+        })
+        .ok_or("a pad")?
+        .position;
+    let mut h = Harness::new(engine)?;
+    h.arm()?;
+    let at = h.screen(pad)?;
+    h.click(at);
+    let rows = h.app.pcb.dimension_chooser().ok_or("no chooser")?;
+    let names: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
+    assert!(names[0].starts_with("J2 · pad "), "{names:?}");
+    assert!(names.len() > 1, "{names:?}");
+    for wall in names.iter().filter(|n| n.contains("inner face")) {
+        assert!(!wall.contains("end face"), "{names:?}");
+    }
+    assert!(
+        names.iter().any(|n| n.contains("inner face facing")),
+        "{names:?}"
+    );
+    let (_, row) = &rows[0];
+    h.click(row.center());
+    let picks = h.app.pcb.dimension_picks();
+    let [(BoardRef::Part(FeatureRef::Pad { placement, .. }), _)] = picks.as_slice() else {
+        return Err(format!("{picks:?}").into());
+    };
+    assert_eq!(*placement, j2);
+    Ok(())
+}
+
+/// GUI check 1, K8: `name = value` in the Dimension tool's field makes the
+/// board parameter with the dimension, in one undo step; a value the engine
+/// refuses makes neither.
+#[test]
+fn a_definition_in_the_dimension_field_makes_the_parameter() -> Fallible {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let _serial = serial();
+    let engine = esp32()?;
+    let r5 = part(engine.project(), "R5")?;
+    let origin = engine.project().placement_of(r5).ok_or("R5")?.position;
+    let mut h = Harness::new(engine)?;
+    h.arm()?;
+    h.click(h.screen(origin)?);
+    if let Some(rows) = h.app.pcb.dimension_chooser() {
+        return Err(format!("{rows:?}").into());
+    }
+    h.click(h.screen(h.on_bottom_edge()?)?);
+    assert_eq!(h.app.pcb.dimension_draft().0, 2);
+    h.frame(vec![]);
+    let before = h.app.engine.revision();
+    let count = h.app.engine.project().part_dimensions.len();
+    let named = |h: &Harness| match &h.app.engine.project().board_shape {
+        sparksmith_core::BoardShape::Sketch(b) => {
+            let p = b.parameters.iter().find(|p| p.name.0 == "r5_y");
+            p.map(|p| p.expr.0.clone())
+        }
+        sparksmith_core::BoardShape::Rectangle => None,
+    };
+    let measured = h.app.pcb.dimension_draft().1.ok_or("the value opened")?;
+    let typed = |h: &mut Harness, text: &str| {
+        assert!(h.ctx.text_edit_focused(), "the value takes the keyboard");
+        h.key(egui::Key::A, egui::Modifiers::COMMAND);
+        h.frame(vec![egui::Event::Text(text.into())]);
+        h.key(egui::Key::Enter, egui::Modifiers::NONE);
+        h.frame(vec![]);
+        h.frame(vec![]);
+    };
+    typed(&mut h, "r5_y = nowhere + 1");
+    assert_eq!(h.app.engine.revision(), before);
+    let why = h.app.pcb.dimension_draft().2.ok_or("no reason")?;
+    assert!(why.contains("nowhere"), "{why}");
+    typed(&mut h, &format!("r5_y = {measured}"));
+    let project = h.app.engine.project();
+    assert_eq!(project.part_dimensions.len(), count + 1, "{:?}", h.lines);
+    assert_eq!(named(&h).as_deref(), Some(measured.as_str()));
+    assert_eq!(h.app.engine.revision(), before + 1, "one step");
+    let added = h
+        .app
+        .engine
+        .project()
+        .part_dimensions
+        .last()
+        .and_then(|d| d.value.clone());
+    assert_eq!(
+        added,
+        Some(DimValue::Expr(
+            sparksmith_core::library::footprint_source::Expr("r5_y".into())
+        ))
+    );
+    h.key(egui::Key::Z, egui::Modifiers::COMMAND);
+    h.frame(vec![]);
+    assert_eq!(h.app.engine.project().part_dimensions.len(), count);
+    assert_eq!(named(&h), None, "one ⌘Z undoes both");
     Ok(())
 }

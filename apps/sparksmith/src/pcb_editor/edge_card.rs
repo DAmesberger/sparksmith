@@ -20,12 +20,14 @@
 //! row lights its dimension on the canvas and in 3D; clicking it selects
 //! the dimension there, and a dimension selected there selects its row.
 use super::PcbEditor;
+use super::board_shape as shape;
 use super::board_shape_ui::sketch_of;
 use crate::kit;
 use crate::kit::list::{
     self, Action, Columns, Effect, Layout, Line, ListState, ListTokens, ListView, Row, RowKey,
     Value,
 };
+use crate::part_editor::footprint_dims::{DimInput, parse_input};
 use crate::refusal::{self, Origin};
 use egui::Ui;
 use sparksmith_core::layout::dimensions::{self, DimensionCommand, PartFreedom, view};
@@ -261,19 +263,43 @@ fn driven(project: &Project, d: &PartDimension) -> Option<String> {
     }
 }
 
-/// The value typed into a dimension's field, or why it is not one.
+/// The value typed into a dimension's field and the board parameter it
+/// defines (`conn_x = 25`), or why it is not one.
 pub(super) fn typed_value(
     project: &Project,
     d: &PartDimension,
     text: &str,
-) -> std::result::Result<DimValue, String> {
+) -> std::result::Result<(DimValue, Option<Operation>), String> {
     let text = text.trim();
     if is_angle(d) {
         return kit::parse_number(text, "°")
-            .map(DimValue::Fixed)
+            .map(|v| (DimValue::Fixed(v), None))
             .ok_or_else(|| "Type an angle, like 90°".to_owned());
     }
-    length_value(project, text)
+    typed_length(project, text)
+}
+
+/// A distance typed as a value, as [`length_value`], or as `name =
+/// expression`: the value names the board parameter, which the operation
+/// sets (applied with the dimension's, in one step).
+pub(super) fn typed_length(
+    project: &Project,
+    text: &str,
+) -> std::result::Result<(DimValue, Option<Operation>), String> {
+    if !text.contains('=') {
+        return length_value(project, text).map(|v| (v, None));
+    }
+    let DimInput::Define { name, expr } = parse_input(text)? else {
+        return Err("Type a distance, like 5 mm or width / 2".into());
+    };
+    let Some(board) = sketch_of(project) else {
+        return Err("A plain rectangle keeps no parameters: use Edit shape first".into());
+    };
+    let edit = shape::parameter_edit(board, &name, &expr.0, ParamUnit::Mm)?;
+    Ok((
+        DimValue::Expr(Expr(name.0)),
+        Some(shape::operation(vec![edit])),
+    ))
 }
 
 /// A distance typed as a value: a length (at least 0 mm) or an expression
@@ -302,6 +328,7 @@ pub(super) fn name_parts(
     board: Option<&BoardSketch>,
     instance: Id,
     d: &PartDimension,
+    outer: &dyn Fn(&BoardRef) -> bool,
 ) -> Vec<String> {
     let words = |r: &BoardRef| -> String {
         match r {
@@ -336,7 +363,7 @@ pub(super) fn name_parts(
                 FeatureRef::Courtyard { .. } => "courtyard".into(),
                 FeatureRef::Anchor { name, .. } => format!("‘{}’", name.0),
                 // "front face", "top-front edge": where on the model.
-                _ => dimensions::model::feature_term(project, f, None)
+                _ => dimensions::model::feature_term_on(project, f, None, outer(r))
                     .unwrap_or_else(|| "3D model".into()),
             },
         }
@@ -451,7 +478,10 @@ impl PcbEditor {
             .and_then(|ev: &dyn BoardShapeEvaluator| dimensions::board_sketch(project, ev).ok());
         let names: Vec<Vec<String>> = dims
             .iter()
-            .map(|d| name_parts(project, board.as_deref(), placement.instance, d))
+            .map(|d| {
+                let outer = |r: &BoardRef| self.outer_face(project, r);
+                name_parts(project, board.as_deref(), placement.instance, d, &outer)
+            })
             .collect();
         let joined: Vec<String> = names.iter().map(|n| n.join(list::row::ARROW)).collect();
         let texts: Vec<String> = dims.iter().map(value_text).collect();
@@ -642,7 +672,7 @@ impl PcbEditor {
                                 self.edge.error = None;
                             } else {
                                 match typed_value(project, d, &text) {
-                                    Ok(value) => {
+                                    Ok((value, define)) => {
                                         let mut next = d.clone();
                                         next.value = Some(value);
                                         operation =
@@ -653,6 +683,7 @@ impl PcbEditor {
                                         self.edge.error = None;
                                         self.edge.editing = None;
                                         sent = Some(d.id);
+                                        self.first = define;
                                     }
                                     Err(why) => {
                                         self.edge.error = Some((d.id, why));
