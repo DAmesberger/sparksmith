@@ -918,7 +918,7 @@ fn a_board_without_a_profile_lists_no_rule_values() -> TestResult {
         let (output, _) = frame(&mut editor, engine, &ctx, vec![]);
         Ok(texts(&output))
     };
-    let header = |shown: &[String]| shown.iter().any(|t| t == "Rule · profile");
+    let header = |shown: &[String]| shown.iter().any(|t| t == "RULE · PROFILE");
     let unprofiled = shown(&Engine::default())?;
     assert!(!header(&unprofiled), "{unprofiled:?}");
     let profiled = shown(&Engine::profiled()?)?;
