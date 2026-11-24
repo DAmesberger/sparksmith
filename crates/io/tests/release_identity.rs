@@ -46,7 +46,7 @@ fn release(
             },
         },
         &Default::default(),
-        &mut |_| {},
+        &mut |_| std::ops::ControlFlow::Continue(()),
     )?;
     assert!(report.preflight.ready(), "{:#?}", report.preflight.items);
     let drawing =

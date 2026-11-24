@@ -14,7 +14,7 @@ sparksmith-core.workspace = true
 sparksmith-io.workspace = true
 # `kicad-compare`: the KiCad import and the Gerber/Excellon comparison.
 sparksmith-kicad.workspace = true
-sparksmith-fabcheck.workspace = true
+sparksmith-fabcheck = { workspace = true, features = ["reference"] }
 serde_json.workspace = true
 serde.workspace = true
 tempfile.workspace = true

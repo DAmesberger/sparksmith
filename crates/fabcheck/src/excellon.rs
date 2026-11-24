@@ -243,7 +243,7 @@ fn point(text: &str, previous: Point, s: f64) -> Fallible<Point> {
     let mut p = previous;
     let mut rest = text.trim();
     while let Some(letter) = rest.chars().next() {
-        let body = &rest[1..];
+        let body = &rest[letter.len_utf8()..];
         let end = body
             .find(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == '+'))
             .unwrap_or(body.len());

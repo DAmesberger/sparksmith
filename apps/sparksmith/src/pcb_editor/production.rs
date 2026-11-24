@@ -41,7 +41,10 @@ use sparksmith_io::fabrication::{ExportReport, ExportRequest, Progress};
 use sparksmith_io::rule_profiles::ProfileLibrary;
 use sparksmith_ui::theme::Tokens;
 use std::collections::BTreeSet;
+use std::ops::ControlFlow;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 /// Why Export waits for a new project's name.
@@ -129,6 +132,8 @@ pub(super) struct ProductionDialog {
     pub(super) waiving: Waiving,
     picking: Option<Receiver<Option<PathBuf>>>,
     exporting: Option<Receiver<ExportMessage>>,
+    /// Asks the running export to stop; nothing is written then.
+    stop: Arc<AtomicBool>,
     progress: Option<Progress>,
     pub(super) written: Option<ExportReport>,
     refusal: Option<String>,
@@ -159,6 +164,7 @@ impl ProductionDialog {
             waiving: Waiving::default(),
             picking: None,
             exporting: None,
+            stop: Arc::default(),
             progress: None,
             written: None,
             refusal: None,
@@ -512,12 +518,23 @@ impl ProductionDialog {
         };
         let (sender, receiver) = std::sync::mpsc::channel();
         let repaint = ctx.clone();
+        let stop = Arc::new(AtomicBool::new(false));
+        self.stop = Arc::clone(&stop);
         let spawned = std::thread::Builder::new()
             .name("sparksmith-production".into())
             .spawn(sparksmith_core::library::standards::carried(move || {
+                let mut shown = 0;
                 let mut progress = |p: Progress| {
-                    let _ = sender.send(ExportMessage::Progress(p));
-                    repaint.request_repaint();
+                    if stop.load(Ordering::Relaxed) {
+                        return ControlFlow::Break(());
+                    }
+                    // Within a step it only asks whether to go on.
+                    if p.step != shown {
+                        shown = p.step;
+                        let _ = sender.send(ExportMessage::Progress(p));
+                        repaint.request_repaint();
+                    }
+                    ControlFlow::Continue(())
                 };
                 let result = sparksmith_io::fabrication::export(
                     &document.project,
@@ -538,6 +555,12 @@ impl ProductionDialog {
             }
             Err(error) => self.refusal = Some(format!("The export could not start: {error}")),
         }
+    }
+
+    /// Stop the running export: it ends at its next step, or within the
+    /// read-back, and writes nothing.
+    pub(super) fn stop(&self) {
+        self.stop.store(true, Ordering::Relaxed);
     }
 
     /// Whether an export is running.
@@ -578,9 +601,13 @@ fn preflight(
         .map_err(|e| refusal::shown_error(&e))
 }
 
-/// One line for an export failure: the rule code is dropped.
+/// One line for an export failure: the rule code is dropped. Files that do
+/// not match the design are named with the place and both values.
 fn export_error(error: &sparksmith_io::Error) -> String {
     match error {
+        sparksmith_io::Error::Document(e) if e.rule() == Some(fabrication::readback::MISMATCH) => {
+            refusal::clip(&e.to_string(), 600)
+        }
         sparksmith_io::Error::Document(e) => refusal::shown_error(e),
         other => {
             let text = other.to_string();
@@ -801,7 +828,10 @@ impl PcbEditor {
         });
         let mut close = false;
         match action {
-            Some(DialogAction::Cancel) => close = true,
+            Some(DialogAction::Cancel) => {
+                dialog.stop();
+                close = true;
+            }
             Some(DialogAction::Primary) => {
                 if let (Some(output), Some(stem)) = (output, stem) {
                     dialog.start_export(
@@ -851,6 +881,11 @@ fn body(
     stem: Option<&str>,
 ) -> Option<Operation> {
     let mut op = None;
+    if let Some(p) = &dialog.progress
+        && kit::summary_row(ui, p.label, Some("Stop"))
+    {
+        dialog.stop();
+    }
     kit::section(
         ui,
         "pcb-production-check",

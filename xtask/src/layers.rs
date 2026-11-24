@@ -15,8 +15,9 @@
 //!   fonts) as of `a34756830`, vendored for the desktop app only.
 //! - 5 apps: `sparksmith` (desktop UI) and `sparksmith-cli`.
 //!
-//! `sparksmith-fabcheck` (Gerber and Excellon files read back and compared) is
-//! a leaf crates may use as a dev-dependency only; `xtask` uses it directly.
+//! `sparksmith-fabcheck` (production files read back and compared) is a leaf
+//! the core ships, so that every export reads its own files back; other crates
+//! may use it as a dev-dependency only; `xtask` uses it directly.
 //!
 //! Generator plugins sit beside the layers:
 //! - `sparksmith-generator-abi` is a leaf: wire types any crate may use; it
@@ -70,10 +71,11 @@ const UI_USERS: &[&str] = &["sparksmith", "sparksmith-ui"];
 const CORE_FORBIDDEN: &[&str] = &["tempfile"];
 
 /// Leaf crates: below every layer, depending on no workspace crate.
-const LEAVES: &[&str] = &["sparksmith-generator-abi", DEV_ONLY];
-/// The verification readers (Gerber, Excellon, comparison): a leaf that
-/// workspace crates may use only as a dev-dependency, so nothing ships it.
-const DEV_ONLY: &str = "sparksmith-fabcheck";
+const LEAVES: &[&str] = &["sparksmith-generator-abi", READERS];
+/// The verification readers (Gerber, Excellon, comparison): a leaf the core
+/// ships (`fabrication::readback`), so the check before an export is one;
+/// other workspace crates may use it only as a dev-dependency.
+const READERS: &str = "sparksmith-fabcheck";
 /// The toolkit generator modules are written with.
 const SDK: &str = "sparksmith-generator-sdk";
 /// Test modules nothing may depend on.
@@ -162,9 +164,9 @@ pub fn check() -> Result<()> {
             if let Some(problem) = generator_rule(name, dep) {
                 violations.push(problem);
             }
-            if dep == DEV_ONLY && !dev {
+            if dep == READERS && !dev && name != "sparksmith-core" {
                 violations.push(format!(
-                    "{name} depends on {DEV_ONLY}; use it as a dev-dependency only"
+                    "{name} depends on {READERS}; only the core ships it, others use it as a dev-dependency"
                 ));
             }
             if let (Some(own), Some(other)) = (own, layer(dep))

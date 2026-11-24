@@ -12,10 +12,40 @@ The Gerber writer follows Ucamco's public Gerber Layer Format Specification. The
 - **Desktop:** PCB workspace → ribbon Output → Production, or "Production files…" in the command palette.
   - The dialog shows a profile picker (under it, for a check under the shipped default profile, one information line: "Checked against Standard; choose your fabricator's profile before ordering"), Folder or ZIP output, an output toggle for each group and the placement convention.
   - It lists the pre-flight report, computed on a worker, grouped by kind of finding. Tick findings (Shift-click ticks a run, a group's box ticks the whole group), or use a row's or a group's Waive…. The reason form opens under that row or group, and Waive applies one optional reason to every ticked finding as one undo step. A waived finding offers Restore.
-  - Export runs on a worker and shows progress; the result lists the written files.
+  - Export runs on a worker and shows progress with Stop, which ends it at its next step or within the [read-back](#read-back-before-release) and writes nothing; closing the dialog stops it too. There is no time limit. The result lists the written files.
 - **Shared path:** all of these call `sparksmith_io::fabrication::export`. The pure generation is `sparksmith_core::fabrication::generate`, the PDF drawings are `sparksmith_io::fab_drawings`, and `sparksmith_io::pdf` is a small generic PDF canvas that schematic printing can reuse.
 - **One production snapshot:** an export resolves the project and the chosen profile once (`fabrication::ProductionSnapshot::resolve`), or not at all: the project with that profile in place of its own, the overrides and net classes kept, its choices carried and reconciled as a rules edit does it (`layout::restack::reconcile_rules`), and the active variant, the waivers, the stackup and the computed fills as the project holds them. The board is never changed to fit the profile: its colour option follows the board's solder mask colour, and its copper weight is the choice that orders the board's outer foils. A profile the design cannot take gives no snapshot (`fabrication.profile_refused`): a kept override conflicts with it, or none of its copper weights orders the board's foils (3 oz copper sent to a fabricator that offers 1 and 2 oz). The production check and every writer (Gerber, Excellon, the drill map and table, the job file, pick-and-place, both BOMs and both drawings) read that one project, so the job file's foils and design rules, the drill files' plated-hole sizes and the mask openings are the ones the check passed.
-- **Writing:** a folder is written to a sibling staging folder and then renamed into place. A ZIP is written atomically, entries in set order with a fixed timestamp.
+- **Writing:** a folder is staged in a hidden folder beside the output and renamed into place once its files are read back. A ZIP is made in memory, read back, and written atomically, entries in set order with a fixed timestamp.
+
+## Read back before release
+
+After the files are made and before any is released, `fabrication::readback::check` reads every one of them back (from the staging folder, or out of the ZIP) and compares it with the design. It runs inside `sparksmith_io::fabrication::export`, the one path of the desktop, the CLI, automation and MCP. Any difference refuses the whole set with `fabrication.readback_mismatch`, naming the file, the place on the board and both values in plain words ("board-plated.drl at (12.000, 4.500) mm: the file has no such hole, the design has a plated hole of 0.300 mm (ViaDrill)"), and nothing is written: no output, no staging folder. It is a refusal, not a finding, so there is nothing to waive. A file that cannot be read, and a board the check cannot tell, are refused too.
+
+The readers are `sparksmith-fabcheck`'s, written apart from the writers. What the files must hold comes from the document. Two kinds of fault are therefore not alike:
+
+| | Told | Not told |
+| --- | --- | --- |
+| **Independent of the writer** (the point oracle, `readback/oracle.rs`) | a fault in writing any file; in the placement of pads, holes, openings and silkscreen; in growing and shrinking lands; in reading slots; in part positions and angles | |
+| **Shared with the writer** | a fault in writing what it gives | a fault in it: the solved outline and stored fill regions (the fill audit checks those), which footprint and package a part resolves to, which parts are fitted and bought and what is said of them, net names and each pad's net, pad labels, effective rule values, the drill-size allowance, finish names, where letters' strokes lie, corner radii that do not fit, what the drawings print |
+
+The copper and legend comparison uses `i_overlay` for its boolean operations; so do the fill computation and the writer's union of pours.
+
+| File | Compared | Not compared |
+| --- | --- | --- |
+| The set | every file the outputs call for, once, and no other | |
+| Copper | the whole image, as polygons, differences over 5 µm wide; every track, via, washer and pad once with its place, size and net; that fill copper is on a fill's net; file function, polarity, release, unit and format | the nets of a net tie's bridge; aperture functions as such |
+| Mask, paste | points 3 to 60 µm either side of every edge of the design and of the file, at most 0.25 mm apart | edges that differ by less than 3 µm |
+| Legend | the whole image, as polygons; shapes from the document | where letters lie (shared) |
+| Profile | every contour both ways, 0.5 µm | |
+| Drill files | every hole and slot once, to 0.8 µm, with its size (allowance included), plating and use; layer span | the order of hits |
+| Drill table, drill map | every tool with size, plating, kind, use, count and number; every symbol and every board edge on the map (arcs by their ends), and no other line | the table's prose |
+| Job file | release, size, layer count, thickness, finish, outer design rules, each material's kind, name and thickness, each file's function and polarity | colours, glass styles, the header's software |
+| Pick-and-place | every placed part once with its place and angle under the chosen convention, value, package and side | |
+| Both BOMs | every part and every line, quantities, manufacturer and MPN, that both say the same of a part | the Status column |
+| Fabrication drawing | that the PDF is whole; each cell of the drill and stackup tables, the title blocks, the overall dimensions, the words of the notes; every hole at its place and size (0.02 mm on paper), relative to the first | line work of the outline, symbols, dimension lines, the order of the notes |
+| Assembly drawing | that the PDF is whole; a page a side, each part's designator on its side, the release | bodies, pads, polarity dots, where a designator stands |
+
+Cost: not measured yet. `timings` of the export reports it as the steps "stage" and "read back".
 
 ## Production check (`fabrication.preflight`)
 
@@ -146,7 +176,7 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
 
 `fabrication::tests` holds an original Gerber/Excellon reader and a bit rasteriser that samples pixel centres. They are tested against hand-derived areas: circle and stadium flashes and draws, rotated macros, cut-in and clear regions, arcs, and Excellon slots.
 
-`oracle` decides point by point what must be made, from the document's primitives alone: exact distances to lines and arcs, with no polygon library and none of the production geometry (pad growth, slot reading, placement, fill computation). `expected` paints it, and `compare` reads every written layer back, takes the XOR against it at 10 µm and allows no difference two pixels thick. Both boards below are compared.
+`oracle` (`fabrication::readback::oracle`, the same the [read-back](#read-back-before-release) uses) decides point by point what must be made, from the document's primitives alone: exact distances to lines and arcs, with no polygon library and none of the production geometry (pad growth, slot reading, placement, fill computation). `expected` paints it, and `compare` reads every written layer back, takes the XOR against it at 10 µm and allows no difference two pixels thick. Both boards below are compared.
 
 `second` is a second opinion by another method, without the point oracle: every object of every file measured on its own and paired one to one with an object of the document whose area is a formula (a land, its grown or shrunk opening, a via, a track), the stored fill areas, the profile's contours and length, and the holes by size and plating. `layers` holds a four-layer board with two pours a layer drawn past its edge, the legend of both sides, the drill map and table against the drill files, and the job file against the files. Both have seeded faults.
 
@@ -173,4 +203,4 @@ Format tests check attributes, polarities, D-code reuse, macro text, escapes, de
 - **Assembly variants:** the assembly files and drawing follow the active variant ([assembly variants](assembly-variants.md)); one export writes one variant.
 - **Profile check:** the desktop dialog keys its check on the document, the check settings (Settings → impedance tolerance) and the picked profile's content. It reads the user's profiles when it opens and again at Export: a profile file edited since the check refuses that Export ("The fab profile's file changed since the check"), and the dialog checks the new rules first.
 - **Drawings:** text widths use Helvetica's metrics; bold text is measured with the regular widths.
-- **Desktop dialog:** the pre-flight time on large boards was not measured; the check runs on a worker. Cancelling during an export closes the dialog while the worker finishes writing.
+- **Desktop dialog:** the pre-flight time on large boards was not measured; the check runs on a worker.

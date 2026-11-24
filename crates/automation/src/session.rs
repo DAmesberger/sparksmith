@@ -1746,7 +1746,7 @@ impl Session {
                         options: params.options,
                     },
                     self.engine.check_settings(),
-                    &mut |_| {},
+                    &mut |_| std::ops::ControlFlow::Continue(()),
                 )?;
                 let mut value = serde_json::to_value(report)?;
                 value["revision"] = json!(self.engine.revision());

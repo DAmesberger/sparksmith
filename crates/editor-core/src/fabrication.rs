@@ -5,7 +5,8 @@
 //! pre-flight report that gates export. Written from Ucamco's public Gerber
 //! Layer Format and Gerber Job File specifications and the public Excellon
 //! format description; no other tool's reader or writer was consulted.
-//! `sparksmith-io` writes the files (a folder or one ZIP) and the PDF drawings.
+//! `sparksmith-io` writes the files (a folder or one ZIP) and the PDF drawings,
+//! and releases them only when [`readback`] finds no difference from the design.
 //!
 //! Coordinates are board millimetres (the board origin, y up), written at
 //! 6 decimals (1 nm), the precision the Gerber specification recommends.
@@ -22,6 +23,7 @@ pub mod excellon;
 pub mod gerber;
 pub mod job;
 pub mod preflight;
+pub mod readback;
 pub mod snapshot;
 pub mod suggest;
 #[cfg(test)]

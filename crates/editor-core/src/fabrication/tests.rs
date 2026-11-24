@@ -16,14 +16,15 @@ mod expected;
 mod identity;
 mod inventory;
 mod layers;
-mod oracle;
 mod preflight;
 mod proof;
+mod readback;
 mod second;
 mod suggest;
 mod ties;
 mod units;
 
+use super::readback::oracle;
 use sparksmith_fabcheck::excellon as excellon_reader;
 use sparksmith_fabcheck::gerber as reader;
 use sparksmith_fabcheck::raster;

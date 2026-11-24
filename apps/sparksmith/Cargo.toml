@@ -58,6 +58,7 @@ block2 = "0.6"
 
 [dev-dependencies]
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
+sparksmith-io = { workspace = true, features = ["seeded-faults"] }
 sparksmith-automation = { workspace = true, features = ["test-fixtures"] }
 sparksmith-solidcraft = { workspace = true, features = ["test-fixtures"] }
 sparksmith-assist = { workspace = true, features = ["test-fixtures"] }

@@ -4,12 +4,16 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-# A development tool: read Gerber and Excellon files back and compare them.
-# Workspace crates use it as a dev-dependency only (`cargo xtask layers`).
+# Fabrication files read back: by every export before it releases anything,
+# and by tests. Only the core ships it (`cargo xtask layers`).
 publish = false
 
 [lints]
 workspace = true
+
+[features]
+# Reference files from an installed `kicad-cli`: tests and `xtask` only.
+reference = []
 
 [dependencies]
 i_overlay.workspace = true
