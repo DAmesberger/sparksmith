@@ -156,7 +156,7 @@ pub struct ModelFaceRef { pub body: BodyName, pub face: FaceName, pub pick: [f64
 
 `Project::part_dimensions` replaces `Project::edge_constraints`. Only parts named by a dimension are solved.
 
-**The parts solve.** It runs after the board solve:
+**The parts solve.** It runs after the board solve. While that gave no valid outline, it does not run: held parts and their copper stay with the last valid shape, a command that needs them solved is refused (`layout.dimension_outline`), and the edit that makes the outline valid solves them all.
 
 1. Group the dimensioned parts into connected components; two parts are connected when a dimension names both.
 2. For each component the operation touched, build a scratch Solidcraft sketch:

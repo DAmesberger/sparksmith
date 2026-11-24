@@ -736,6 +736,11 @@ fn solve_component(
 /// [`held_message`]'s words, and dimensions that do not solve together
 /// refuse the operation. Returns the parts the solve placed, for [`carry`]
 /// to bring their copper along.
+///
+/// While the board's solve is not current (`BoardSketch::current`) nothing is
+/// solved: the parts stay with the stored shape and values, a command that
+/// would need them solved is refused, and the edit that makes the outline
+/// valid solves them all.
 pub fn follow(
     before: &Project,
     project: &mut Project,
@@ -750,8 +755,9 @@ pub fn follow(
     if project.part_dimensions.is_empty() {
         return Ok(Vec::new());
     }
-    let board_changed =
-        before.board_size != project.board_size || before.board_shape != project.board_shape;
+    let invalid = project.board_shape.invalid();
+    let board_changed = invalid.is_none()
+        && (before.board_size != project.board_size || before.board_shape != project.board_shape);
     let mut touched = Vec::new();
     for c in components(project) {
         if !board_changed {
@@ -770,6 +776,12 @@ pub fn follow(
     }
     if touched.is_empty() {
         return Ok(Vec::new());
+    }
+    if let Some(why) = invalid {
+        return Err(Error::Conflict(format!(
+            "layout.dimension_outline: the board outline is not valid: {why} Parts held by \
+             dimensions, and their dimensions, wait until it is"
+        )));
     }
     let evaluator = evaluator.ok_or_else(needs_evaluator)?;
     let mut placed = Vec::new();
