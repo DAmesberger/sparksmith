@@ -478,10 +478,23 @@ impl Documents for PageStore {
     }
 
     fn text(&mut self, document: &str, pages: &[u32]) -> std::result::Result<String, String> {
-        let Some((_, text)) = self.texts.iter().find(|(t, _)| t == document) else {
-            return Err(format!(
-                "{document} reached the model as its PDF or as page images: there is no text of it to read here"
-            ));
+        // A document read as page views only has pages and no text: each
+        // reads as empty, so an outline lists them as drawings to view.
+        let viewed_only: Vec<String>;
+        let text = match (
+            self.texts.iter().find(|(t, _)| t == document),
+            self.documents.iter().find(|d| d.title == document),
+        ) {
+            (Some((_, text)), _) => text,
+            (None, Some(rendered)) => {
+                viewed_only = vec![String::new(); usize::try_from(rendered.pages).unwrap_or(0)];
+                &viewed_only
+            }
+            (None, None) => {
+                return Err(format!(
+                    "{document} reached the model as its PDF: there is no text of it to read here"
+                ));
+            }
         };
         let mut body = String::new();
         for (k, page) in text.iter().enumerate() {
@@ -667,6 +680,14 @@ pub(crate) mod tests {
         assert_eq!(prepared.facts[0].delivery, Delivery::PageViewsOnly);
         assert!(prepared.parts.is_empty());
         assert!(prepared.pages.available());
+        // Its pages read as empty, so the workflow's outline lists each as a
+        // drawing to view; a page it does not have is still refused.
+        let mut pages = prepared.pages;
+        assert_eq!(
+            pages.text("scan.pdf", &[]).map_err(Error::Protocol)?,
+            "=== page 1 ===\n\n=== page 2 ===\n\n"
+        );
+        assert!(pages.text("scan.pdf", &[3]).is_err());
         Ok(())
     }
 
