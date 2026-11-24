@@ -232,8 +232,14 @@ fn every_preset_loads_cites_its_source_and_names_a_profile_that_covers_it() -> F
             }
         }
         assert_eq!(coppers, count, "{label}: copper layers listed");
-        let first = layers.first().and_then(|l| l.get("role")).and_then(Value::as_str);
-        let last = layers.last().and_then(|l| l.get("role")).and_then(Value::as_str);
+        let first = layers
+            .first()
+            .and_then(|l| l.get("role"))
+            .and_then(Value::as_str);
+        let last = layers
+            .last()
+            .and_then(|l| l.get("role"))
+            .and_then(Value::as_str);
         assert_eq!(first, Some("copper"), "{label}: starts with copper");
         assert_eq!(last, Some("copper"), "{label}: ends with copper");
         // Between two copper layers there is a dielectric, never two coppers
@@ -278,7 +284,11 @@ fn a_presets_thickness_is_its_layers_sum_and_its_differences_follow() -> Fallibl
             .get("board_mm")
             .and_then(Value::as_f64)
             .ok_or_else(|| err(format!("{label}: nominal.board_mm")))?;
-        if let Some(diff) = p.body.get("layers_sum_minus_nominal_mm").and_then(Value::as_f64) {
+        if let Some(diff) = p
+            .body
+            .get("layers_sum_minus_nominal_mm")
+            .and_then(Value::as_f64)
+        {
             assert!(
                 (sum - nominal - diff).abs() <= TOLERANCE_MM,
                 "{label}: difference from nominal {diff}, computed {}",

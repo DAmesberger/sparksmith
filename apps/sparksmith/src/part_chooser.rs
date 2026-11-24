@@ -59,10 +59,7 @@ pub enum PartSource {
 /// from exactly what was checked, and the evaluation is cached).
 #[derive(Clone, Debug)]
 pub struct ChooserPick {
-    #[allow(
-        dead_code,
-        reason = "Place 3D part (PCB Layout) reuses the chooser"
-    )]
+    #[allow(dead_code, reason = "Place 3D part (PCB Layout) reuses the chooser")]
     pub source: PartSource,
     pub values: PartValues,
     pub file: Arc<PartFileBytes>,

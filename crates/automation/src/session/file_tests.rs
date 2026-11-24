@@ -2,6 +2,7 @@
 //! opened file (review finding 9), and a host that lends its engine and
 //! owns its file (finding 8).
 use super::*;
+use crate::front::Surface;
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
