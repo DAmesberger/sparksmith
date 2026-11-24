@@ -1,8 +1,8 @@
 //! The evaluation pipeline (design §2.5): revision check → `check_sketch`
 //! → parameters with typed `pkg_*` values → point expressions and bound
-//! dimensions → solve → copper-only profile pass → classification, holes,
-//! mask/paste and vias → arrays and overrides → derived graphics → datum
-//! → quantization to 1e-6 mm and the result hash.
+//! dimensions → solve, on the solved grid → copper-only profile pass →
+//! classification, holes, mask/paste and vias → arrays and overrides →
+//! derived graphics → datum → quantization to 1e-6 mm and the result hash.
 
 use crate::geom::prelude::*;
 use sparksmith_core::diagnostics::FindingCode;
@@ -86,7 +86,40 @@ pub(crate) fn apply_values(sketch: &mut Sketch, values: &Values) -> Outcome<()> 
     Ok(())
 }
 
-/// The solved sketch, its degrees of freedom and the stored sketch.
+/// Grid positions per mm of a solved sketch: 1e-11 mm apart.
+///
+/// Not a limit: it is far below what can be made, and below the nanometre
+/// the results are rounded to ([`q`]). It is a hundredth of the residual
+/// Solidcraft's solver stops at (1e-9 mm), so a sketch on the grid is still
+/// solved, and far above a difference in a number's last digit, which comes
+/// from the system's math library and not from the design.
+const SOLVED_PER_MM: f64 = 1e11;
+
+/// Put what the solver placed or measured on the solved grid, so a design
+/// is stored the same on every system: free points, radii and driven
+/// dimensions. What a person or an expression set (fixed points, driving
+/// dimensions) stays exactly as given. A coordinate with up to 11 decimals
+/// is on the grid already, bit for bit.
+fn on_solved_grid(sketch: &mut Sketch) {
+    // `+ 0.0` turns −0 into 0.
+    let on = |v: f64| (v * SOLVED_PER_MM).round() / SOLVED_PER_MM + 0.0;
+    for p in sketch.points.iter_mut().filter(|p| !p.fixed) {
+        p.pos = Vec2::new(on(p.pos.x), on(p.pos.y));
+    }
+    for c in &mut sketch.curves {
+        if let CurveKind::Circle { r, .. } | CurveKind::Ellipse { r, .. } = &mut c.kind {
+            *r = on(*r);
+        }
+    }
+    for k in sketch.constraints.iter_mut().filter(|k| k.driven) {
+        if let Some(v) = k.kind.value() {
+            k.kind.set_value(on(v));
+        }
+    }
+}
+
+/// The solved sketch, on the solved grid ([`on_solved_grid`]), and its
+/// degrees of freedom; what is stored and derived comes from it.
 pub(crate) fn solve(stored: &Sketch, values: &Values) -> Outcome<(Sketch, usize)> {
     let mut sketch = stored.clone();
     let old = stored.driving_values();
@@ -115,6 +148,7 @@ pub(crate) fn solve(stored: &Sketch, values: &Values) -> Outcome<(Sketch, usize)
             flipped(stored, &flips),
         ));
     }
+    on_solved_grid(&mut sketch);
     Ok((sketch, report.dof))
 }
 
@@ -1110,5 +1144,87 @@ mod flip_words_tests {
         let words = flipped(&sk, std::slice::from_ref(&plain));
         assert!(words.starts_with("the new values would turn"), "{words}");
         assert!(!words.contains(&plain), "{words}");
+    }
+}
+
+#[cfg(test)]
+mod solved_grid_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use solidcraft_engine::sketch::ConstraintKind;
+
+    /// A free point, a circle and a driven distance to the origin at what a
+    /// solver left (`y`, also the radius), and a point fixed at `held`.
+    fn left_at(y: f64, held: f64) -> Sketch {
+        let mut sk = Sketch::new();
+        let p = sk.add_point(Vec2::new(26.0, y), None).unwrap();
+        let c = sk.add_point(Vec2::new(y, -y), None).unwrap();
+        sk.add_curve(CurveKind::Circle { c, r: y }, None).unwrap();
+        let fixed = sk.add_point(Vec2::new(held, held), None).unwrap();
+        sk.points.get_mut(fixed).unwrap().fixed = true;
+        sk.add_constraint(
+            ConstraintKind::Distance {
+                p: 0,
+                q: p,
+                value: 26.0,
+            },
+            None,
+        )
+        .unwrap();
+        sk.constraints.last_mut().unwrap().driven = true;
+        sk
+    }
+
+    fn solved(sk: &Sketch) -> Sketch {
+        solve(sk, &params::evaluate(&[], &[]).unwrap()).unwrap().0
+    }
+
+    /// The dev board's point was 0.5000000000000001 on Windows and 0.5 on
+    /// Linux, and another 0.4999999999999999 on both: one stored sketch, the
+    /// same when it is solved again.
+    #[test]
+    fn a_last_digit_is_not_stored() {
+        let held = 25.4 / 3.0;
+        let text = |y: f64| check::canonical(&solved(&left_at(y, held))).unwrap();
+        let exact = text(0.5);
+        for y in [0.5000000000000001, 0.4999999999999999] {
+            assert_ne!(y, 0.5, "another number");
+            assert_eq!(text(y), exact, "{y}");
+        }
+        let once = solved(&left_at(0.5, held));
+        assert_eq!(solved(&once), once);
+    }
+
+    /// A fixed point, a driving dimension and a coordinate with the decimals
+    /// a person types keep every bit; a difference that is the design's is
+    /// kept too.
+    #[test]
+    fn what_was_set_stays_exact() {
+        let held = 25.4 / 3.0;
+        let third = solved(&left_at(0.5, held));
+        let fixed = third.points.iter().find(|p| p.fixed && p.id != "origin");
+        assert_eq!(fixed.unwrap().pos, Vec2::new(held, held));
+        let mut sk = Sketch::new();
+        let p = sk.add_point(Vec2::new(held, 0.0), None).unwrap();
+        sk.add_constraint(
+            ConstraintKind::Distance {
+                p: 0,
+                q: p,
+                value: held,
+            },
+            None,
+        )
+        .unwrap();
+        let value = solved(&sk).constraints.last().unwrap().kind.value();
+        assert_eq!(value, Some(held));
+        for v in [0.1, 12.7, 1.27, 0.635, 33.333333, 999.999999, 1e-11] {
+            let mut sk = Sketch::new();
+            let p = sk.add_point(Vec2::new(v, -v), None).unwrap();
+            assert_eq!(
+                solved(&sk).points.get(p).unwrap().pos,
+                Vec2::new(v, -v),
+                "{v}"
+            );
+        }
     }
 }
