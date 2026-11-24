@@ -138,7 +138,7 @@ fn every_file_of_an_export_follows_the_chosen_profile() -> Fallible<()> {
                 },
             },
             &checks,
-            &mut |_| {},
+            &mut |_| std::ops::ControlFlow::Continue(()),
         )?;
         assert_eq!(report.preflight.blocking, 0);
         Ok(output)

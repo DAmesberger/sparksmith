@@ -11,6 +11,9 @@ workspace = true
 [features]
 # Resolve test resources against the source checkout, including from a shared Cargo target.
 test-fixtures = []
+# Faults seeded into an export, to test that it is refused: dev-dependencies
+# only, never in a shipped build.
+seeded-faults = []
 
 [dependencies]
 sparksmith-core.workspace = true

@@ -80,7 +80,7 @@ fn run(
         engine.drafts(),
         &request(output.to_owned(), profile),
         engine.check_settings(),
-        &mut |_| {},
+        &mut |_| std::ops::ControlFlow::Continue(()),
     )
 }
 
