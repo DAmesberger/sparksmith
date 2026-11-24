@@ -23,6 +23,8 @@ sparksmith-generators.workspace = true
 http = "1"
 serde.workspace = true
 serde_json.workspace = true
+# Names the field a data file has wrong (MIT OR Apache-2.0).
+serde_path_to_error = "0.1"
 schemars.workspace = true
 pdf-writer.workspace = true
 thiserror.workspace = true
