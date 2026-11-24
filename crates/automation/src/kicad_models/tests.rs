@@ -638,15 +638,15 @@ fn footprints_that_are_no_part_get_no_body_as_in_the_source() -> Fallible {
 }
 
 /// A KiCad library model reference is never resolved, even beside a
-/// same-named project file; an expired import changes nothing.
+/// same-named project file; a cancelled import changes nothing.
 #[test]
-fn library_references_stay_unresolved_and_an_expired_import_refuses() -> Fallible {
+fn library_references_stay_unresolved_and_a_cancelled_import_refuses() -> Fallible {
     let dir = tempfile::tempdir()?;
     std::fs::write(dir.path().join("own.step"), VENDOR)?;
     let mut presets = presets::Presets::default();
     let mut models = Models::new(
         dir.path(),
-        crate::session::generators::fixture_batch_runtime,
+        crate::session::generators::fixture_runtime,
         &mut presets,
     )?;
     let mut engine = Engine::demo()?;
@@ -665,24 +665,31 @@ fn library_references_stay_unresolved_and_an_expired_import_refuses() -> Fallibl
     )?;
     assert!(matches!(outcome.made, Made::Source { .. }));
     assert!(models.sources.is_empty(), "never looked up");
-    models.deadline = std::time::Instant::now();
     let before = engine.revision();
-    let error = models
-        .part(
-            &mut engine,
-            &PartRequest {
-                pads: &[],
-                prefix: "U",
-                models: &[reference("own.step")],
-                facts: &facts,
-                nets: &[],
-                mpn: None,
-            },
-        )
+    let cancel = sparksmith_generators::cancel::Cancel::default();
+    cancel.set();
+    let own = [reference("own.step")];
+    let request = PartRequest {
+        models: &own,
+        ..PartRequest {
+            pads: &[],
+            prefix: "U",
+            models: &refs,
+            facts: &facts,
+            nets: &[],
+            mpn: None,
+        }
+    };
+    let error = cancel
+        .scope(|| models.part(&mut engine, &request))
         .err()
-        .ok_or("expired import succeeded")?;
-    assert!(error.contains("time limit"), "{error}");
+        .ok_or("a cancelled import went on")?;
+    assert!(error.contains("cancelled"), "{error}");
     assert_eq!(engine.revision(), before);
+    assert!(
+        models.part(&mut engine, &request).is_ok(),
+        "the next one runs"
+    );
     Ok(())
 }
 

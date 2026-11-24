@@ -19,6 +19,9 @@
 //! the same way (see `crates/generators-probe`, which proves that build
 //! gives the same result hashes).
 
+pub mod cancel;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod deferred;
 pub mod params;
 pub mod validate;
 #[cfg(not(target_arch = "wasm32"))]

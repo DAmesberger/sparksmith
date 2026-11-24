@@ -96,15 +96,19 @@ fn descriptions_from(
     results: impl Iterator<Item = crate::Result<Description>>,
 ) -> crate::Result<Vec<Description>> {
     let mut descriptions = Vec::new();
+    // Every module is asked before a transient refusal is returned, so a
+    // window's calls all run at once.
+    let mut transient = None;
     for result in results {
-        match result {
+        match result.map_err(super::generators::module_refusal) {
             Ok(description) => descriptions.push(description),
-            Err(error) => {
-                super::generators::module_refusal(error)?;
+            Err(Ok(_)) => {}
+            Err(Err(error)) => {
+                transient.get_or_insert(error);
             }
         }
     }
-    Ok(descriptions)
+    transient.map_or(Ok(descriptions), Err)
 }
 
 fn cached_descriptions(
@@ -145,7 +149,7 @@ mod tests {
     #[test]
     fn a_transient_refusal_then_success_never_caches_a_partial_description_list() {
         let cache = std::sync::OnceLock::new();
-        for transient in ["generator.busy", "generator.timed_out"] {
+        for transient in ["generator.cancelled", "generator.pending"] {
             let first = cached_descriptions(&cache, || {
                 descriptions_from(
                     [
@@ -173,7 +177,7 @@ mod tests {
             second.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(),
             ["first", "last"]
         );
-        let third = cached_descriptions(&cache, || Err(refused("generator.busy")));
+        let third = cached_descriptions(&cache, || Err(refused("generator.pending")));
         assert_eq!(third, second);
     }
 }

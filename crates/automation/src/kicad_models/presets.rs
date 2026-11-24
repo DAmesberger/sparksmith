@@ -68,7 +68,7 @@ pub(super) struct Candidate {
 }
 #[derive(Default)]
 pub(crate) struct Presets {
-    /// The runtime the importer chose (batch admission); else the
+    /// The runtime the importer chose; else the
     /// engine's, else the process's.
     runtime: Option<Arc<dyn GeneratorRuntime + Send + Sync>>,
     candidates: Option<Vec<Candidate>>,
@@ -157,25 +157,20 @@ impl Presets {
         Ok(())
     }
 
-    fn load(
-        &mut self,
-        runtime: &dyn GeneratorRuntime,
-        deadline: std::time::Instant,
-    ) -> Result<(), String> {
+    fn load(&mut self, runtime: &dyn GeneratorRuntime) -> Result<(), String> {
         if !self.refresh && self.candidates.is_some() {
             return Ok(());
         }
         let library = ShippedLibrary::locate().map_err(|e| e.to_string())?;
-        self.load_from(&library, runtime, deadline)
+        self.load_from(&library, runtime)
     }
 
     fn load_from(
         &mut self,
         library: &ShippedLibrary,
         runtime: &dyn GeneratorRuntime,
-        deadline: std::time::Instant,
     ) -> Result<(), String> {
-        super::check_time(deadline).map_err(|reason| {
+        super::check_cancelled().map_err(|reason| {
             format!(
                 "Preset catalog incomplete: indexed {} presets. {reason}",
                 self.partial.len()
@@ -184,7 +179,7 @@ impl Presets {
         self.check_revision(library)?;
         self.refresh = false;
         let total = self.revision.as_ref().map_or(0, Vec::len);
-        self.resume(library, runtime, deadline).map_err(|reason| format!(
+        self.resume(library, runtime).map_err(|reason| format!(
             "Preset catalog incomplete: indexed {} presets, finished {} of {total} generators. {reason}",
             self.partial.len(), self.next_generator
         ))
@@ -194,7 +189,6 @@ impl Presets {
         &mut self,
         library: &ShippedLibrary,
         runtime: &dyn GeneratorRuntime,
-        deadline: std::time::Instant,
     ) -> Result<(), String> {
         if self.candidates.is_some() {
             return Ok(());
@@ -207,7 +201,7 @@ impl Presets {
             .as_ref()
             .ok_or("Missing generator revisions")?;
         while let Some((name, hash)) = revision.get(self.next_generator) {
-            super::check_time(deadline)?;
+            super::check_cancelled()?;
             if self.active.is_none() {
                 let bundle = library.generator(name).map_err(|e| e.to_string())?;
                 if bundle.hash != *hash {
@@ -215,7 +209,7 @@ impl Presets {
                         "Generator {name} changed during indexing. Retry to use its new revision."
                     ));
                 }
-                super::check_time(deadline)?;
+                super::check_cancelled()?;
                 let desc = runtime
                     .describe(&bundle.module)
                     .map_err(|e| format!("Generator {name}: {e}"))?;
@@ -231,7 +225,7 @@ impl Presets {
                     v1::Scope::Package
                 };
                 while let Some(preset) = desc.presets().get(*next) {
-                    super::check_time(deadline)?;
+                    super::check_cancelled()?;
                     let permanent =
                         |why: String| format!("Invalid preset {name}/{}: {why}", preset.key);
                     let request =
@@ -240,7 +234,7 @@ impl Presets {
                             self.permanent_failure = Some(reason.clone());
                             reason
                         })?;
-                    // Admission, cancellation and deadlines belong to this
+                    // A cancellation belongs to this
                     // attempt. Retain the cursor and retry the failed call.
                     let generation = runtime
                         .generate(&bundle.module, &request)
@@ -260,7 +254,7 @@ impl Presets {
             self.active = None;
             self.next_generator += 1;
         }
-        super::check_time(deadline)?;
+        super::check_cancelled()?;
         self.candidates = Some(std::mem::take(&mut self.partial));
         Ok(())
     }
@@ -328,9 +322,8 @@ impl Presets {
         prefix: &str,
         facts: &Facts,
         mpn: Option<&str>,
-        deadline: std::time::Instant,
     ) -> Result<Result<Found, Miss>, String> {
-        super::check_time(deadline)?;
+        super::check_cancelled()?;
         if pads.iter().all(|p| p.number.trim().is_empty()) {
             return Ok(Err(Miss::NoLands));
         }
@@ -338,8 +331,8 @@ impl Presets {
             .runtime
             .clone()
             .or_else(|| engine.generator_runtime().cloned())
-            .unwrap_or_else(crate::session::generators::runtime);
-        self.load(runtime.as_ref(), deadline)?;
+            .unwrap_or_else(crate::session::generators::session_runtime);
+        self.load(runtime.as_ref())?;
         let Some(candidates) = &self.candidates else {
             return Ok(Err(Miss::NoPreset));
         };
@@ -379,7 +372,7 @@ impl Presets {
             let mut nearest: Option<(usize, Fit)> = None;
             let mut off_lands: Option<(usize, String, f64)> = None;
             for (index, candidate) in candidates.iter().enumerate() {
-                super::check_time(deadline)?;
+                super::check_cancelled()?;
                 let Some(fit) = lands::fit(&imported, &candidate.lands, candidate.tolerance_nm)
                 else {
                     continue;
@@ -436,7 +429,7 @@ impl Presets {
         self.runtime
             .clone()
             .or_else(|| engine.generator_runtime().cloned())
-            .unwrap_or_else(crate::session::generators::runtime)
+            .unwrap_or_else(crate::session::generators::session_runtime)
     }
 
     /// When the part number `mpn` names a package other than `found`'s
@@ -1085,10 +1078,7 @@ mod tests {
     fn loaded() -> Result<Presets, String> {
         let mut presets = Presets::default();
         let runtime = crate::session::generators::fixture_runtime();
-        presets.load(
-            runtime.as_ref(),
-            std::time::Instant::now() + std::time::Duration::from_secs(120),
-        )?;
+        presets.load(runtime.as_ref())?;
         Ok(presets)
     }
 
@@ -1156,7 +1146,6 @@ mod tests {
 
     #[test]
     fn shipped_packages_create_real_models_by_prefix_and_refuse_ties_and_far_lands() -> Fallible {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
         let mut presets = loaded()?;
         let runtime = crate::session::generators::fixture_runtime();
         let mut engine = Engine::demo()?;
@@ -1170,7 +1159,7 @@ mod tests {
             (chip(1.65, [0.8, 0.95])?, "FB", "chip/ferrite-0603"),
         ] {
             let choice = presets
-                .identify(&engine, &pads, prefix, &Facts::default(), None, deadline)?
+                .identify(&engine, &pads, prefix, &Facts::default(), None)?
                 .map_err(|miss| format!("{preset}: {miss}"))?;
             assert!(choice.name.contains(preset), "{}", choice.name);
         }
@@ -1178,7 +1167,7 @@ mod tests {
         // crystal's (Y) lands of a 1210 chip's size get no resistor body.
         let r0603 = lands_of(&presets, "chip/resistor-0603")?;
         assert!(matches!(
-            presets.identify(&engine, &r0603, "?", &Facts::default(), None, deadline)?,
+            presets.identify(&engine, &r0603, "?", &Facts::default(), None)?,
             Err(Miss::PrefixMismatch { .. })
         ));
         let mut crystal = chip(2.4, [1.0, 3.0])?;
@@ -1191,7 +1180,7 @@ mod tests {
             accepted(&crystal, &lands_of(&presets, "chip/resistor-1210")?),
             "the lands fit a 1210 chip"
         );
-        match presets.identify(&engine, &crystal, "Y", &Facts::default(), None, deadline)? {
+        match presets.identify(&engine, &crystal, "Y", &Facts::default(), None)? {
             // Nearest by centres is the XEL4030 (2.39 mm span), which declares L.
             Err(Miss::PrefixMismatch { nearest }) => {
                 assert_eq!(nearest, "power-inductor/power-inductor-xel4030");
@@ -1202,7 +1191,7 @@ mod tests {
         // gets its body, not the placeholder.
         let xel4030 = lands_of(&presets, "power-inductor/power-inductor-xel4030")?;
         let choice = presets
-            .identify(&engine, &xel4030, "L", &Facts::default(), None, deadline)?
+            .identify(&engine, &xel4030, "L", &Facts::default(), None)?
             .map_err(|miss| format!("XEL4030 under L: {miss}"))?;
         assert!(
             choice
@@ -1214,7 +1203,7 @@ mod tests {
         // A multi-pad package keeps its body under an unusual designator.
         let sot = lands_of(&presets, "tabbed/tabbed-sot-23-6")?;
         let choice = presets
-            .identify(&engine, &sot, "XQ", &Facts::default(), None, deadline)?
+            .identify(&engine, &sot, "XQ", &Facts::default(), None)?
             .map_err(|miss| format!("SOT-23-6 under XQ: {miss}"))?;
         assert!(choice.name.contains("tabbed/tabbed-sot-23-6"));
         for name in [
@@ -1224,11 +1213,11 @@ mod tests {
         ] {
             let pads = lands_of(&presets, name)?;
             let choice = presets
-                .identify(&engine, &pads, "U", &Facts::default(), None, deadline)?
+                .identify(&engine, &pads, "U", &Facts::default(), None)?
                 .map_err(|miss| format!("{name}: {miss}"))?;
             assert!(choice.name.contains(name));
             let repeated = presets
-                .identify(&engine, &pads, "U", &Facts::default(), None, deadline)?
+                .identify(&engine, &pads, "U", &Facts::default(), None)?
                 .map_err(|miss| miss.to_string())?;
             assert_eq!(choice.index, repeated.index);
             // Identifying makes nothing.
@@ -1239,7 +1228,7 @@ mod tests {
             far[0].position = PointNm::from_mm_f64_rounded([x - 1.0, y])?;
             assert!(
                 presets
-                    .identify(&engine, &far, "U", &Facts::default(), None, deadline)?
+                    .identify(&engine, &far, "U", &Facts::default(), None)?
                     .is_err(),
                 "far lands accepted for {name}"
             );
@@ -1288,7 +1277,6 @@ mod tests {
     /// name is a tie that chooses none.
     #[test]
     fn footprint_names_choose_among_identical_lands_and_otherwise_a_tie_chooses_none() -> Fallible {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
         let (mut presets, engine) = setup()?;
         let lands = lands_of(&presets, "electrolytic/electrolytic-panasonic-d")?;
         for (name, preset) in [
@@ -1296,7 +1284,7 @@ mod tests {
             ("CP_Elec_6.3x7.7", "electrolytic/electrolytic-panasonic-d8"),
         ] {
             let choice = presets
-                .identify(&engine, &lands, "C", &named(name), None, deadline)?
+                .identify(&engine, &lands, "C", &named(name), None)?
                 .map_err(|miss| format!("{name}: {miss}"))?;
             assert!(choice.name.contains(preset), "{}", choice.name);
             assert!(
@@ -1307,7 +1295,7 @@ mod tests {
             );
         }
         for name in ["CP_Elec_16.3x7.7", "CP_Own", ""] {
-            match presets.identify(&engine, &lands, "C", &named(name), None, deadline)? {
+            match presets.identify(&engine, &lands, "C", &named(name), None)? {
                 Err(Miss::Tie { presets: tied }) => {
                     for preset in [
                         "electrolytic/electrolytic-6.3x5.4",
@@ -1405,7 +1393,6 @@ mod tests {
     /// lands, so it keeps the placeholder.
     #[test]
     fn a_plated_standoff_land_needs_the_footprint_name() -> Fallible {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
         let (mut presets, engine) = setup()?;
         let preset = lands_of(&presets, "standoff/standoff-wurth-9774100360r")?;
         let land = preset.iter().find(|p| p.number == "1").ok_or("No land")?;
@@ -1420,14 +1407,7 @@ mod tests {
             Ok(vec![pad])
         };
         let choice = presets
-            .identify(
-                &engine,
-                &plated(4.4)?,
-                "U",
-                &named("Own9774100360R"),
-                None,
-                deadline,
-            )?
+            .identify(&engine, &plated(4.4)?, "U", &named("Own9774100360R"), None)?
             .map_err(|miss| miss.to_string())?;
         assert!(choice.name.contains("standoff/standoff-wurth-9774100360r"));
         for (drill, name, prefix) in [
@@ -1435,25 +1415,11 @@ mod tests {
             (4.4, "Own_M3_Spacer", "U"),
             (3.2, "Own9774100360R", "U"),
         ] {
-            let got = presets.identify(
-                &engine,
-                &plated(drill)?,
-                prefix,
-                &named(name),
-                None,
-                deadline,
-            )?;
+            let got = presets.identify(&engine, &plated(drill)?, prefix, &named(name), None)?;
             assert!(got.is_err(), "{drill} {name:?}: {:?}", got.map(|c| c.name));
         }
         assert!(matches!(
-            presets.identify(
-                &engine,
-                &plated(4.4)?,
-                "H",
-                &Facts::default(),
-                None,
-                deadline
-            )?,
+            presets.identify(&engine, &plated(4.4)?, "H", &Facts::default(), None)?,
             Err(Miss::Unnamed { .. })
         ));
         Ok(())
@@ -1463,19 +1429,11 @@ mod tests {
     /// entry header turned a quarter with its tabs named S1 and S2.
     #[test]
     fn polar_names_and_mechanical_tabs_identify_shipped_presets() -> Fallible {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
         let (mut presets, engine) = setup()?;
         let buzzer = lands_of(&presets, "buzzer/buzzer-cmi-9653s-smt")?;
         let polar = renamed(&buzzer, &[("1", "N"), ("2", "P")]);
         let choice = presets
-            .identify(
-                &engine,
-                &polar,
-                "LS",
-                &named("Own_CMI-9653S-SMT"),
-                None,
-                deadline,
-            )?
+            .identify(&engine, &polar, "LS", &named("Own_CMI-9653S-SMT"), None)?
             .map_err(|miss| miss.to_string())?;
         assert!(
             choice.notes.join(" ").contains("P→1 (+)"),
@@ -1484,7 +1442,7 @@ mod tests {
         );
         assert_eq!(choice.placement.rotation_deg()[2], 180.0);
         assert!(matches!(
-            presets.identify(&engine, &polar, "LS", &Facts::default(), None, deadline)?,
+            presets.identify(&engine, &polar, "LS", &Facts::default(), None)?,
             Err(Miss::PrefixMismatch { .. })
         ));
         let header = lands_of(&presets, "wire-to-board/wtb-sh-side-4")?;
@@ -1493,7 +1451,7 @@ mod tests {
             &[("MP1", "S1"), ("MP2", "S2"), ("1", "01")],
         ))?;
         let choice = presets
-            .identify(&engine, &tabs, "J", &Facts::default(), None, deadline)?
+            .identify(&engine, &tabs, "J", &Facts::default(), None)?
             .map_err(|miss| miss.to_string())?;
         assert!(
             choice.name.contains("wire-to-board/wtb-sh-side-4"),
@@ -1504,7 +1462,7 @@ mod tests {
         let one_tab: Vec<Pad> = tabs.iter().filter(|p| p.number != "S2").cloned().collect();
         assert!(
             presets
-                .identify(&engine, &one_tab, "J", &Facts::default(), None, deadline)?
+                .identify(&engine, &one_tab, "J", &Facts::default(), None)?
                 .is_err()
         );
         Ok(())
@@ -1562,7 +1520,6 @@ mod tests {
         use sparksmith_generators::abi::{Failure, Generated};
         use sparksmith_io::generator_bundle::{FORMAT, MANIFEST, Manifest, ManifestFile};
         use std::sync::atomic::{AtomicUsize, Ordering};
-        use std::time::{Duration, Instant};
 
         struct CatalogRuntime {
             desc: v1::Description,
@@ -1581,7 +1538,7 @@ mod tests {
             }
             fn generate(&self, _: &[u8], _: &v1::Request) -> Result<Generated, Failure> {
                 if self.calls.fetch_add(1, Ordering::Relaxed) == 18 {
-                    return Err(Failure::one("generator.busy", "Worker busy.".into()));
+                    return Err(Failure::one("generator.cancelled", "Cancelled.".into()));
                 }
                 Ok(self.result.clone())
             }
@@ -1635,12 +1592,11 @@ mod tests {
         for n in 0..65 {
             bundle(n, n)?;
         }
-        let deadline = || Instant::now() + Duration::from_secs(120);
         let mut presets = Presets::default();
         let error = presets
-            .load_from(&library, &runtime, deadline())
+            .load_from(&library, &runtime)
             .err()
-            .ok_or("busy after 18 presets")?;
+            .ok_or("cancelled after 18 presets")?;
         assert!(
             error.contains("18 presets") && error.contains("incomplete"),
             "{error}"
@@ -1649,13 +1605,15 @@ mod tests {
             presets.candidate(0).is_none(),
             "partial search cannot identify a unique match"
         );
-        let expired = presets
-            .load_from(&library, &runtime, Instant::now())
+        let cancel = sparksmith_generators::cancel::Cancel::default();
+        cancel.set();
+        let stopped = cancel
+            .scope(|| presets.load_from(&library, &runtime))
             .err()
-            .ok_or("deadline")?;
-        assert!(expired.contains("time limit"), "{expired}");
+            .ok_or("cancelled")?;
+        assert!(stopped.contains("cancelled"), "{stopped}");
         assert_eq!(runtime.calls.load(Ordering::Relaxed), 19);
-        presets.load_from(&library, &runtime, deadline())?;
+        presets.load_from(&library, &runtime)?;
         assert_eq!(
             runtime.calls.load(Ordering::Relaxed),
             514,
@@ -1670,7 +1628,7 @@ mod tests {
         // Same folder names, different manifest revision. The last generator
         // now exposes eight presets and the previous complete index is stale.
         bundle(64, 65)?;
-        presets.load_from(&library, &runtime, deadline())?;
+        presets.load_from(&library, &runtime)?;
         assert_eq!(
             presets.candidate(519).map(|c| c.name.as_str()),
             Some("family-64/p7")
@@ -1679,14 +1637,14 @@ mod tests {
     }
 
     #[test]
-    fn injected_busy_runtime_refuses_without_caching_partial_candidates_or_publishing() -> Fallible
+    fn an_interrupted_runtime_refuses_without_caching_partial_candidates_or_publishing() -> Fallible
     {
         use std::sync::atomic::{AtomicUsize, Ordering};
-        struct Busy {
+        struct Interrupted {
             runtime: Arc<dyn GeneratorRuntime + Send + Sync>,
             generations: AtomicUsize,
         }
-        impl GeneratorRuntime for Busy {
+        impl GeneratorRuntime for Interrupted {
             fn describe(
                 &self,
                 module: &[u8],
@@ -1703,15 +1661,15 @@ mod tests {
                     self.runtime.generate(module, request)
                 } else {
                     Err(sparksmith_generators::abi::Failure::one(
-                        "generator.busy",
-                        "Synthetic generator busy after one successful preset; retry later".into(),
+                        "generator.cancelled",
+                        "Synthetic generator cancelled after one successful preset".into(),
                     ))
                 }
             }
         }
         let mut presets = Presets::default();
         let mut engine = Engine::demo()?;
-        let runtime = Arc::new(Busy {
+        let runtime = Arc::new(Interrupted {
             runtime: crate::session::generators::fixture_runtime(),
             generations: AtomicUsize::new(0),
         });
@@ -1724,11 +1682,10 @@ mod tests {
                 "R",
                 &Facts::default(),
                 None,
-                std::time::Instant::now() + std::time::Duration::from_secs(120),
             )
             .err()
-            .ok_or("busy runtime was converted into a placeholder")?;
-        assert!(error.contains("busy"), "{error}");
+            .ok_or("an interrupted runtime was converted into a placeholder")?;
+        assert!(error.contains("cancelled"), "{error}");
         assert_eq!(runtime.generations.load(Ordering::Relaxed), 2);
         assert!(presets.candidates.is_none());
         assert!(presets.matches.is_empty());
@@ -1742,7 +1699,6 @@ mod tests {
     /// the description says so. Original synthetic footprints.
     #[test]
     fn a_socket_needs_evidence_and_otherwise_the_male_header_is_chosen() -> Fallible {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
         let (mut presets, engine) = setup()?;
         let oval = lands_of(&presets, "header/socket-1x4-2.54")?;
         let round = lands_of(&presets, "header/header-1x4-2.54")?;
@@ -1759,7 +1715,7 @@ mod tests {
         );
         for (lands, what) in [(&oval, "oval"), (&round, "round")] {
             let choice = presets
-                .identify(&engine, lands, "J", &none, None, deadline)?
+                .identify(&engine, lands, "J", &none, None)?
                 .map_err(|miss| format!("{what}: {miss}"))?;
             assert_eq!(
                 choice.name, "header/header-1x4-2.54",
@@ -1777,7 +1733,7 @@ mod tests {
             (facts("Own_4", "", ""), Some("61300411821")),
         ] {
             let choice = presets
-                .identify(&engine, &oval, "J", &evidence, mpn, deadline)?
+                .identify(&engine, &oval, "J", &evidence, mpn)?
                 .map_err(|miss| format!("{evidence:?}: {miss}"))?;
             assert_eq!(
                 choice.name, "header/socket-1x4-2.54",

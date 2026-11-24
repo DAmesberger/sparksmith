@@ -32,7 +32,7 @@ pub use solidcraft_control::auth::{App, ClientToken, Listen};
 use solidcraft_control::server::{Hub, Protocol, Summary, Waits};
 use sparksmith_core::Class;
 use std::ffi::OsString;
-use std::io::{BufReader, Write};
+use std::io::{BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -57,10 +57,13 @@ const MAX_CONNECTIONS: usize = 8;
 const MAX_LINE: usize = crate::mcp::MAX_LINE;
 /// The longest reply a bridge reads (a `verbose` snapshot of a large board).
 const MAX_REPLY: usize = 256 * 1024 * 1024;
-/// How long an ordinary request may wait for the window; one that needs a
-/// person's Allow may wait [`ASK_WAIT`].
-const WAIT: Duration = Duration::from_secs(120);
-const ASK_WAIT: Duration = Duration::from_secs(600);
+/// How long a request waits for the window and for the person's answer: as
+/// long as its client does. Its closed connection ends it
+/// ([`Protocol::stop_on_disconnect`]).
+const WAIT: Duration = Duration::MAX;
+/// How long a new connection has to show the token: an unauthenticated
+/// program must not keep one of the [`MAX_CONNECTIONS`].
+const TOKEN_WAIT: Duration = Duration::from_secs(5);
 const ACCEPT_POLL: Duration = Duration::from_millis(25);
 /// Where a refused client reads how to connect.
 const DOCS: &str = concat!(
@@ -129,11 +132,13 @@ impl Protocol for LiveProtocol {
             effect,
             command: entry,
             steps: None,
-            // Anything but a read may wait for a person: Ask always, an edit
-            // under ask-every-time. Timing it out first would leave it held,
-            // still to run on Allow, after the agent was told it failed.
-            long: method != REVISION && class.is_some_and(|class| class > Class::Show),
+            long: false,
         }
+    }
+    /// A request is its client's: one that closed the connection (its call
+    /// was cancelled, or it ended) is never run or held any more.
+    fn stop_on_disconnect(&self, _method: &str) -> bool {
+        true
     }
     fn document(&self) -> &'static str {
         "project"
@@ -219,8 +224,8 @@ impl Endpoint {
         let hub = Arc::new(
             Hub::new(LiveProtocol, move || hub_wake(), MAX_LINE).with_waits(Waits {
                 short: WAIT,
-                long: ASK_WAIT,
-                token: Duration::from_secs(5),
+                long: WAIT,
+                token: TOKEN_WAIT,
             }),
         );
         let stop = Arc::new(AtomicBool::new(false));
@@ -308,7 +313,7 @@ impl Endpoint {
     }
 
     /// Connections open now (one that has not shown the token yet closes
-    /// within five seconds).
+    /// within [`TOKEN_WAIT`]).
     pub fn connections(&self) -> usize {
         lock(&self.open).streams.len()
     }
@@ -579,7 +584,32 @@ pub struct Client {
     port: u16,
     token: ClientToken,
     next_id: u64,
-    connection: Option<(BufReader<TcpStream>, TcpStream)>,
+    connection: Option<(BufReader<Reply>, TcpStream)>,
+}
+
+/// Reads a reply for as long as the window takes, unless the call it is for
+/// is cancelled.
+struct Reply(TcpStream);
+
+impl Read for Reply {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        /// How often a waiting read looks for a cancellation.
+        const POLL: Duration = Duration::from_millis(50);
+        self.0.set_read_timeout(Some(POLL))?;
+        loop {
+            if sparksmith_generators::cancel::requested() {
+                return Err(std::io::ErrorKind::ConnectionAborted.into());
+            }
+            match self.0.read(buf) {
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) => {}
+                result => return result,
+            }
+        }
+    }
 }
 
 impl Client {
@@ -615,7 +645,10 @@ impl Client {
         self.port
     }
 
-    /// Send one request and wait for its reply line (`{ok, result | error}`).
+    /// Send one request and wait for its reply line (`{ok, result | error}`),
+    /// as long as the window takes: it may wait for the person. Cancelling
+    /// the call this runs for ([`sparksmith_generators::cancel`]) closes the
+    /// connection, so the window drops a request it has not run yet.
     pub fn call(&mut self, method: &str, params: Value) -> Result<Value, String> {
         let unreachable = |error: std::io::Error| {
             format!(
@@ -630,7 +663,8 @@ impl Client {
             Some(connection) => connection,
             None => {
                 let stream = TcpStream::connect(("127.0.0.1", self.port)).map_err(unreachable)?;
-                let reader = BufReader::new(stream.try_clone().map_err(unreachable)?);
+                let reply = Reply(stream.try_clone().map_err(unreachable)?);
+                let reader = BufReader::new(reply);
                 line["token"] = Value::String(self.token.token.clone());
                 (reader, stream)
             }
@@ -647,6 +681,9 @@ impl Client {
         let reply = match crate::lines::next(&mut reader, MAX_REPLY) {
             Ok(Some(crate::lines::Line::Text(text))) => text,
             Ok(Some(_)) => return Err(lost("the reply was not readable")),
+            Ok(None) | Err(_) if sparksmith_generators::cancel::requested() => {
+                return Err("cancelled: the connection to the window was closed".into());
+            }
             Ok(None) => return Err(lost("the connection closed")),
             Err(error) => return Err(lost(&error.to_string())),
         };

@@ -547,33 +547,56 @@ fn a_read_naming_a_path_runs_on_allow() -> Fallible {
     Ok(())
 }
 
-/// I-A3: the wait comes from the effective class: an operation that asks,
-/// a read that names a path and, under ask-every-time, an edit may all wait
-/// for the person, so none times out while it is held; a plain read keeps
-/// the short wait.
+/// What a request does is its effective class, for the control server's
+/// messages.
 #[test]
-fn a_request_that_may_wait_for_the_person_gets_the_long_wait() -> Fallible {
-    let session = Session::new(Engine::demo()?);
+fn a_request_is_described_by_its_effective_class() -> Fallible {
     let publish = envelope("library.publish", json!({"drafts": [1]}), Some(0));
-    let path_read = envelope(
-        "library.check_part_file",
-        json!({"path": "/tmp/x.solidcraft"}),
-        None,
-    );
-    let edit = add_via(&session, 0);
     let read = envelope("project.inspect", json!({}), None);
     let summary = |params: &Value| LiveProtocol.summary(CALL, params);
-    for (name, params) in [
-        ("publish", &publish),
-        ("path read", &path_read),
-        ("edit", &edit),
-    ] {
-        assert!(summary(params).long, "{name}: {params}");
-    }
     assert!(matches!(summary(&publish).effect, Effect::Changes));
     assert_eq!(summary(&publish).command, Some("library.publish"));
-    assert!(!summary(&read).long);
     assert!(matches!(summary(&read).effect, Effect::ReadsOnly));
-    assert!(!LiveProtocol.summary(REVISION, &json!({})).long);
+    Ok(())
+}
+
+/// A request waits for the person without end; its client's cancel ends
+/// it, the window sees that it is nobody's any more, and the next one is
+/// answered.
+#[test]
+fn a_cancelled_request_is_dropped_and_the_next_one_is_answered() -> Fallible {
+    let endpoint = Endpoint::start(TEST_APP, Listen::Exact(0), || {})?;
+    let token = ClientToken {
+        token: endpoint.token().to_owned(),
+        file: None,
+        app: TEST_APP,
+    };
+    let next = || loop {
+        if let Some(request) = endpoint.next() {
+            break request;
+        }
+        std::thread::yield_now();
+    };
+    let cancel = sparksmith_generators::cancel::Cancel::default();
+    let call = cancel.clone();
+    let mut client = Client::with_token(endpoint.port(), token);
+    let asked = std::thread::spawn(move || {
+        let ended = call.scope(|| client.call(REVISION, json!({})));
+        (client, ended)
+    });
+    let held = next();
+    assert!(!held.ticket.is_cancelled());
+    cancel.set();
+    let (mut client, ended) = asked.join().map_err(|_| "client thread")?;
+    assert!(ended.is_err_and(|e| e.starts_with("cancelled")));
+    while !held.ticket.is_cancelled() {
+        std::thread::yield_now();
+    }
+
+    let asked = std::thread::spawn(move || client.call(REVISION, json!({})));
+    let answer = json!({"ok": true, "result": {"revision": 7}});
+    next().reply.send(answer)?;
+    let answered = asked.join().map_err(|_| "client thread")??;
+    assert_eq!(answered["result"]["revision"], 7);
     Ok(())
 }
