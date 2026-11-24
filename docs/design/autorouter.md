@@ -1,6 +1,6 @@
 # Autorouter: a staged, visible plan and a neurosymbolic router
 
-**Status:** design for founder review, 23 November 2026. Nothing here is built. Estimates are agent hours. Related: [agent harness](agent-harness.md), [push-and-shove](../push-and-shove.md), [high-speed routing](../high-speed-routing.md), [copper graph](../copper-graph.md), [rules](../board-rules-and-shape.md), [board geometry for an LLM](../llm-geometry.md), [ties](net-ties.md), [extension surface](../extension-surface.md).
+**Status:** design for founder review, 24 November 2026. Nothing here is built. Estimates are agent hours. Related: [agent harness](agent-harness.md), [push-and-shove](../push-and-shove.md), [high-speed routing](../high-speed-routing.md), [copper graph](../copper-graph.md), [rules](../board-rules-and-shape.md), [board geometry for an LLM](../llm-geometry.md), [ties](net-ties.md), [extension surface](../extension-surface.md).
 
 Founder (verbatim): "I think we need 'normal' AI combined with symbolic AI and advanced algorithms. any cool breakthroughs on solvers we could use, super efficient, state of the art in 2026?"
 
@@ -10,7 +10,7 @@ Founder (verbatim): "I think we need 'normal' AI combined with symbolic AI and a
 
 **The answer in short.** There is no single solver breakthrough that routes PCBs. The 2026 results agree on a division of labour: a language model that plans in topology and repairs from typed feedback, on top of a deterministic router, beats both a model drawing copper and a router alone. The solver work that pays for us is a **topological space model** (a triangulation of the free space) shared by the model and the solvers, **negotiated routing** on it, **min-cost flow** for escapes, and a **proof-producing constraint solver** for small exact repairs. GPU routers, differentiable routing, diffusion and end-to-end RL do not fit PCB scale or our verifiability rule today.
 
-**What makes it the best, if anything does:** not a faster maze search but the process before it (section 3). The board is planned in stages a person can see and steer: what flows through each net, where connectors, power and fast lanes go, whether the traces fit, and what to move when they do not. Every stage is typed, stored, checked and replayable, and the same triangulation that plans the areas estimates their capacity and later routes them.
+**What makes it the best, if anything does:** not a faster maze search but the process before it (section 3). The board is planned in stages a person can see and steer: what flows through each net, where connectors, power, domains, returns and lanes go on every layer, and what to move. The plan is rough and quick, typed, stored, replayable, and everything in it can be dragged; the router takes it as a suggestion.
 
 ## 1. What makes PCB routing its own problem
 
@@ -67,15 +67,22 @@ Honest reading: the commercial tools reach "most of the board, a person finishes
 
 ## 3. The core: a staged, visible plan before any copper
 
-Founder direction (23 November 2026, as relayed): the autorouter must be the best on the market, and it makes or breaks the all-AI approach. The process he set:
+The autorouter must be the best on the market, and it makes or breaks the all-AI approach (founder, 23 November 2026, as relayed). The process:
 
-1. **Plan first:** connector placement, power planning and area planning, drawn as areas on the board with the reasoning shown: corridors, power distribution, "fast lanes" for high speed.
-2. **Rough placement, then check** that the traces really fit the planned areas (capacity and congestion).
-3. **Revisions the AI suggests** ("move connector X, component Y elsewhere"); the person accepts in the chat or proposes an alternative.
+1. **Floorplan:** where connectors, power, domains, returns and lanes go, drawn as areas and corridors on every layer, with a rough part placement inside and the reason for each.
+2. **Revisions the AI suggests** ("move connector X, component Y elsewhere"). The person accepts in the chat, proposes an alternative, or drags.
+3. **Place the parts.**
 4. **Autoroute.**
-5. **Loop** until finished or optimized.
+5. **Loop** until finished or optimised.
 
-This is how a good layout engineer works, and it is what the 2026 results miss: PCBRouteAgent plans corridors only after placement is fixed and fails on net order and pairs; Quilter searches candidates for hours. Most routing failures are decided before routing, by where the connectors and the power sit. So the plan is the product, and the router of section 4 is its last stage. None of the sources read in section 2 shows a typed, checked, visible plan of this kind; that is a statement about what was read, not a market survey.
+This is how a good layout engineer works, and it is what the 2026 results miss: PCBRouteAgent plans corridors only after placement is fixed and fails on net order and pairs; Quilter searches candidates for hours. Most routing failures are decided before routing, by where the connectors and the power sit. None of the sources read in section 2 shows a typed, visible plan of this kind; that is a statement about what was read, not a market survey.
+
+**The floorplan is rough and fast.** It will never be perfect. Four rules follow:
+
+- It is made without routing anything. Its notes (3.4) are simple sums that follow a drag.
+- Nothing waits for it. Placement and routing start whenever the person or the agent asks, with any floorplan or none.
+- It is a suggestion. A part may sit outside its area and a trace may leave its area or corridor. That is reported, never an error. What must hold is a rule or a keepout, which the board checks enforce.
+- It is detailed enough that the board need not be ripped up because too little was planned. Planned corridors count: all but the simplest boards have more than 5 to 20 areas. When routing finds a corridor too narrow, only that corridor is changed and only its nets are routed again.
 
 ### 3.1 The floorplan: one typed, persisted plan
 
@@ -83,18 +90,22 @@ The plan is called the **floorplan** here. "Board plan" already means the descri
 
 It is stored in the project file (format version 1, edited in place before release; fields defaulted and skipped when empty), changed only by typed operations, and so follows undo, revisions, dry runs and turns like everything else.
 
+Each copper layer has its own map: corners, edges between them, and areas bounded by edges. The outer layers' maps also plan the parts of their side.
+
 | Element | Holds | Notes |
 |---|---|---|
-| **Stage record** | Stage, status (`open`, `proposed`, `accepted`, `stale`), the revision and input digest it was checked at, who proposed and who accepted | A stage goes `stale` when something it rests on changes: a moved connector stales the corridors that end on it. Stale is shown, never silently recomputed |
-| **Region** | Id, kind, outline, layers, members (parts, nets, groups), purpose, rationale | Kinds are a closed set, because each has its own checks: `placement` (parts of one function), `corridor`, `fast_lane`, `power`, `quiet` (analog, sense), `isolation` (a voltage domain), `reserve` (tuning room, future parts), `keep_clear` |
-| **Corridor / fast lane** | The net groups it carries, layer, a spine (polyline) and width, reserved capacity, whether others may cross and on which layer | Stored as geometry, so it survives part moves. Its portals in the space model are derived per revision. A **fast lane** is a corridor with three extra facts: its reference layer, no layer change, and first claim on its capacity |
-| **Power plan** | Per rail: source, loads with current, the tree between them, the carrier of each branch (pour on a layer, track of a width, plane), layer changes and their via count, ties and star points, the return | Currents and voltage come from the net profiles (3.2). A branch whose current is unknown is listed as unknown, not sized |
-| **Placement intent** | Constraints, not coordinates: `edge(J1, left)`, `in(U3, region R2)`, `near(C7, U3.VDD, ≤ d)`, `group`, `side`, `orientation` | The same vocabulary as the harness's constraint placer (H10), which this stage needs |
-| **Rationale** | A sentence, plus references to the facts it rests on: net profiles, rules, feasibility rows, other plan elements | Every region, corridor, branch and proposal has one. A rationale with no fact reference is refused: the reason must point at something checkable |
-| **Proposal** | Stage, kind (`move_part`, `rotate_part`, `move_region`, `reshape_corridor`, `change_layer`, `change_carrier`, `change_stackup`, `ask_rule`), the typed operations it would apply, the feasibility rows it answers, the estimate before and after, status | Written by the model or produced by a solver. The before-and-after estimate is computed by the engine on a fork, never stated by the model |
-| **Decision** | Proposal, `accepted`, `declined` or `replaced_by` another proposal, by whom, at which revision, a note | The log that makes a run replayable and explains the board later |
+| **Corner** | Id, layer, position | On the board edge it is stored as a place on the outline, so it follows the outline. Three or more areas can meet in one corner |
+| **Edge** | Id, layer, two corners, bends or arcs between them, `locked` | **Stored once.** The areas on both sides refer to it, so one drag reshapes both and no gap or overlap can appear. An area's edge along the board is the outline itself, not a copy. A locked edge and its corners are moved by no drag, solver or proposal until it is unlocked |
+| **Area** | Id, layer, the edges around it (and around its holes), uses, function, members (parts, nets, groups), the net of a pour, purpose, rationale | Any shape. Its outline is derived from its edges. **Uses** are a closed set because solvers treat each differently: `parts`, `routing`, `pour`, `return`, `quiet`, `isolation`, `reserve` (tuning room, future parts), `keep_clear`; an area may have several. **Function** (power, digital, analog, radio, connectors, …) is library data: name, letter and colour (decision 24). Areas of one layer do not overlap and need not cover it |
+| **Corridor** | Id, the net groups it carries, layer, a spine (polyline with arcs), planned width, the order of the nets at each end, reference layer, whether others may cross and where | Lies over areas. A **fast lane** is a corridor with three extra wishes: its reference layer, no layer change, and being routed first |
+| **Power plan** | Per rail: source, loads with current, the tree between them, the carrier of each branch (pour area, track of a width, plane), layer changes and their via count, ties and star points, the return | Currents and voltage come from the net profiles (3.2). A branch whose current is unknown is listed as unknown, not sized |
+| **Placement intent** | Constraints, not coordinates: `edge(J1, left)`, `in(U3, area A2)`, `near(C7, U3.VDD, ≤ d)`, `group`, `side`, `orientation` | A connector can be fixed, partly fixed (its edge, not its place) or free. The same vocabulary as the harness's constraint placer (H10) |
+| **Rough position** | Part, side, position, rotation | Only for a part that is not on the board yet. Placing the part removes it, so a part never has two positions. A placed part is shown where it is (decision 33) |
+| **Rationale** | A sentence, plus references to the facts it rests on: net profiles, rules, plan notes, other plan elements | On every area, corridor and branch. One without a fact says so where it is shown. When a fact it rests on has changed since, the element is marked; the mark is derived, not stored |
+| **Proposal** | Kind (`move_part`, `rotate_part`, `reshape_edge`, `reshape_corridor`, `change_layer`, `change_carrier`, `change_stackup`, `ask_rule`), the typed operations it would apply, the notes it answers, the numbers before and after, status | Written by the model or produced by a solver. The numbers are computed by the engine on a fork, never stated by the model |
+| **Decision** | Proposal, `accepted`, `declined` or `replaced_by` another proposal or a hand edit, by whom, at which revision, a note | The log that makes a run replayable and explains the board later |
 
-**Checkable:** every stage has checks (3.4) and its acceptance records the digest of what was checked. **Replayable:** the floorplan's history is a sequence of typed operations and decisions in the trace; replaying them on the same starting file gives the same floorplan, and the solvers of section 4 then give the same board.
+**Replayable:** the floorplan's history is a sequence of typed operations and decisions in the trace. Replaying them on the same starting file gives the same floorplan, and the solvers of section 4 then give the same board.
 
 ### 3.2 Net characterization: what flows through each net
 
@@ -139,72 +150,102 @@ Confirmed values live in one place, the rules (net class or net), so the board c
 
 | Profile says | Plan decision |
 |---|---|
-| An interface with an impedance target, or a declared edge rate | A fast lane: an outer or stripline layer next to a marked plane, reserved first, shortest spine, no layer change unless the class allows vias. Width and gap from `impedance::derive` on that layer |
+| An interface with an impedance target, or a declared edge rate | A fast lane: an outer or stripline layer next to a marked plane, planned first, shortest spine, no layer change unless the class allows vias. Width and gap from `impedance::derive` on that layer |
 | A current | The carrier and its width from the class current and the sourced formula (decision 6); the number of vias at a layer change only when a per-via current is sourced. Otherwise sized from the class width and marked "current not checked" |
-| A voltage above another domain's | An isolation region; the class-pair isolation clearance that already exists is the limit |
-| Analog, sense or Kelvin role | A quiet region away from the power plan's switching branches; targets are the tie's anchor lands |
+| A voltage above another domain's | An area with the use `isolation`; the class-pair isolation clearance that already exists is the limit |
+| Analog, sense or Kelvin role | An area with the use `quiet`, away from the power plan's switching branches; targets are the tie's anchor lands |
 | Open-drain or slow digital bus | Lowest priority, any signal layer, may cross other corridors by via |
 | Source and sinks known | The corridor's direction and the order pins must arrive in, which feeds the escape check |
 
 ### 3.3 Stages and who does what
 
-| Stage | The model proposes | Solvers compute | Checks verify | Surface (section 5) |
-|---|---|---|---|---|
-| **0. Characterize** | Inferred roles, as suggestions; the questions to ask | Net profiles from pins, classes, pairs, ties, catalog | Every field has a basis; unknowns that block a later stage are listed | `rules.net_profiles`, `net_class.edit`, `assist.ask` |
-| **1. Floorplan** | Connector edges and order, regions with purpose, corridors and fast lanes, the power tree, each with a rationale | Region-level capacity: regions as nodes, shared boundaries as cuts, bundles as flows; fast-lane width per layer; power branch widths; crossings between corridors | Regions inside the outline; exclusive kinds do not overlap; every characterised group has a corridor or is local to one region; every load is on its rail's tree; isolation distances; corridor crossings against via limits | `plan.region_*`, `plan.corridor_*`, `plan.power_set`, `plan.check` |
-| **2. Rough placement** | Placement intents per part; which side | The constraint placer: a legal placement inside the regions, or the constraint it cannot meet and by how much | Courtyards, keepouts, board edge, region membership | `plan.intent_set`, `plan.place` |
-| **3. Feasibility** | Nothing | The estimates of 3.4 on the real placement, including a trial run of the global router | Each row is `fits`, `fails` or `not estimated` with the reason | `plan.estimate` |
-| **4. Revise** | Proposals answering failed rows: move or rotate a part, reshape a corridor, change a layer or carrier; or a question about a rule | Each proposal applied on a fork and re-estimated; the solver may add its own (the part move that widens a failed cut most) | A proposal must improve the row it answers and may not break an accepted stage without saying so | `plan.propose`, `plan.decide`, the chat |
-| **5. Route** | Per-run preferences only | Section 4, with the floorplan as the brief | Section 4, layer 7, plus plan adherence | `layout.autoroute`, `layout.route_report` |
-| **6. Loop** | Whether to stop, optimise or revise the plan, from the report | Rip-up and repair; re-estimate after each change | The pass bar; no accepted stage left stale | all of the above |
-
-The loop ends when the route is clean and nothing is stale, when the person stops it, or when a round improves nothing (the report says which nets are open and why). No turn or token cap ends it by default, as the harness rules.
-
-### 3.4 Feasibility estimates between stages
-
-Each estimate is a named, pure function on the space model and the rules snapshot. Each states whether it is a proof or an estimate.
-
-| Estimate | Definition | Strength | Source of the numbers |
+| Stage | The model proposes | Solvers compute | Surface (section 5) |
 |---|---|---|---|
-| **Corridor capacity** | For every cut across a corridor (the portals of the space model on its layer), the tracks that fit: widths plus class and class-pair clearances, against the nets assigned | `fails` is a proof (they cannot fit). `fits` is necessary, not sufficient | Rules snapshot; pair width and gap from `impedance::derive` |
-| **Congestion** | A trial run of the global router (section 4, layer 2) without detailed routing: per portal, demand over capacity after negotiation | An estimate, and the same code that later routes, so it cannot disagree with it by construction | Same |
-| **Layer budget** | Corridors that must cross on one layer, from spine crossings and from pin order at each end (a twisted bus). Each crossing needs a layer change for one bundle | A lower bound on layer changes | Stackup, plane marks, class allowed layers |
-| **Via budget** | Layer changes needed, against each class's via limit and against the via sites free near the change | `fails` when a class allows fewer vias than its crossings need | Class via limit; drill and ring rules |
-| **Impedance width against room** | The pair or track envelope on its layer against the narrowest cut of its fast lane and against the pad pitch at each end | Proof for the cut; the pad neck-down uses the as-built fan rule | `impedance::derive`, footprint pads |
-| **Current width** | The branch's width for its current against its corridor; vias at layer changes | Only with decision 6's formula and a sourced per-via value; otherwise `not estimated` | Class current, the formula, stackup foil |
-| **Length and skew room** | The shortest path through the corridor against an interface's length limit; tuning room against expected skew | Lower bound on length | Interface catalog, class limits; `not estimated` when unset |
-| **Voltage drop** | Resistance of track branches from width, length and foil (copper resistivity from the material library) | Tracks only; a pour is `not estimated` until the resistance solver exists | Material library, stackup |
+| **0. Characterize** | Inferred roles, as suggestions; the questions to ask | Net profiles from pins, classes, pairs, ties, catalog | `rules.net_profiles`, `net_class.edit`, `assist.ask` |
+| **1. Floorplan** | Connector edges and order, areas per layer with use, function and purpose, corridors, the power tree, returns and pours, placement intents, each with a rationale | The edges and corners that realise the proposed areas; corridor widths; rough positions; the notes of 3.4 | `plan.area_*`, `plan.edge_*`, `plan.corridor_*`, `plan.power_set`, `plan.intent_set`, `plan.rough_place`, `plan.notes` |
+| **2. Revise** | Proposals: move or rotate a part, reshape an edge or a corridor, change a layer or carrier; or a question about a rule | Each proposal on a fork, with its numbers before and after; a solver may add its own | `plan.propose`, `plan.decide`, the chat |
+| **3. Place** | Changed intents | The constraint placer: a legal placement near the rough positions; what it could not meet is listed with the amount | `plan.place` |
+| **4. Route** | Per-run preferences only | Section 4, with the floorplan as a preference | `layout.autoroute`, `layout.route_report` |
+| **5. Loop** | Whether to stop, optimise or revise the plan, from the report | Rip-up and repair of the nets concerned | all of the above |
 
-**No invented thresholds.** A row reports need, have and margin. Only `fails` (a proof) is an error. A "congested above some percentage" warning exists only as a setting the user makes; unset, the colour scale on screen is the plain ratio.
+The stages are an order of work, not gates. A person or an agent can start, skip or return to any of them. The loop ends when the route is clean, when the person stops it, or when a round improves nothing (the report says which nets are open and why). No turn or token cap ends it by default, as the harness rules.
 
-Before any part is placed, the same functions run on a coarser space model: the board outline, the fixed connectors and the region boundaries. That is why the triangulation of section 4 is the basis of planning as well as routing: a region boundary is a set of portals, a corridor is a chain of them, and capacity means the same thing at every stage.
+**The planner thinks like an engineer from the first area.** Its method (data in `library/assist/workflows/plan-and-route/`) goes through these questions in order, and each answer is drawn:
+
+| Question | Facts it uses | What it draws |
+|---|---|---|
+| What is fixed? | Outline, mounting holes, locked parts, the linked design's datums, what the person said | Locked edges, connector areas, fixed and partly fixed connectors |
+| Where does power come in and go? | Rails, sources, loads and currents | The converter's area with its parts close together, the power tree, pours |
+| Which domains must stay apart? | Net profiles (analog, digital, radio, voltage domains), isolation rules | Quiet and isolation areas, the place where grounds meet |
+| What is fast? | Impedance targets, rates and edges, interfaces | Fast lanes first and shortest, each with its reference layer |
+| Where does each return run? | Reference layers, ties, pours | Return areas on the inner layers, unbroken under the fast lanes; no split across a lane |
+| What does each inner layer do? | Stackup, plane marks, class layers | Routing, pour and return areas per inner layer |
+| What goes on the other side? | Side rules of the parts, heights, assembly choice | Areas and rough positions on the bottom |
+| In which order do nets arrive? | Pin order at both ends | Net order at corridor ends, and which corridors must cross |
+
+### 3.4 Plan notes
+
+A note is a quick sum over the floorplan, the net profiles and the rules snapshot. It is a pure function, uses no router and no search, and is computed as the person drags. A row reads need, have and margin, and is `fits`, `short` or `not estimated` with the reason.
+
+| Note | Definition | Source of the numbers |
+|---|---|---|
+| **Corridor width** | The nets' widths plus class and class-pair clearances, against the planned width | Rules snapshot; pair width and gap from `impedance::derive` |
+| **Corridor room** | The planned width, against the narrowest gap between fixed obstacles (locked parts, holes, cutouts, keepouts) along the spine | Physical inventory, keepouts |
+| **Crossings** | Corridors that cross on one layer, from their spines and from the net order at each end. Each needs a layer change for one bundle, compared with the class's via limit | Stackup, class allowed layers and via limit |
+| **Area fill** | The members' courtyards, against the area | Packages |
+| **Reference under a fast lane** | The length of its spine that lies outside a `return` or plane area on its reference layer | Floorplan, plane marks |
+| **Current width** | The branch's width for its current, against its corridor or pour area | Only with decision 6's formula and a sourced per-via value; otherwise `not estimated` |
+| **Length** | The spine's length, against an interface's limit | Interface catalog, class limits; `not estimated` when unset |
+| **Voltage drop** | Resistance of track branches from width, length and foil (copper resistivity from the material library) | Tracks only; a pour is `not estimated` until the resistance solver exists |
+| **Height** | A rough part's body height, against the room the linked design leaves there (3.6) | Package, linked design; `not estimated` without a link |
+
+Notes inform. They stop nothing, they are not findings, and they never enter Issues or the fabrication preflight. There is no invented threshold: no "congested above some percentage". `fits` is not a promise that the route exists; how often it was wrong is measured (section 8).
 
 ### 3.5 In the editor
 
-Everything follows the design system in `crates/ui`: shared tokens, the one subject card above Issues, no new chrome. Overlays are canvas drawing only; showing, hiding, hovering or selecting them rebuilds no geometry.
+Everything follows the design system in `crates/ui`: shared tokens, the one subject card above Issues, no new chrome. Overlays are canvas drawing only; showing, hiding, hovering or selecting them rebuilds no geometry. The [mock-up](floorplan-mockup.html) shows the items below on a made-up board. It is a mock-up: none of it is built.
 
-- **Plan mode** is a mode of the PCB view, with a pill ("Plan · Feasibility · 2 fail"). Entering it arms the **Plan card** as the subject card: the stages with their status, and under the current stage its regions, corridors, rails, open proposals and estimate rows. Rows highlight their object on the canvas, as High speed rows do.
-- **Overlays.** Regions are tinted outlines filled by kind from the tokens. Corridors are ribbons drawn at their reserved width with the direction of flow; a fast lane has its own stroke and shows its layer and target ("top · 85 Ω"). The power plan is drawn as a tree: branch width follows the planned width, each branch labelled with current and carrier. A cut that fails is drawn across its corridor in the error token with "needs 1.30 mm, has 0.90". Unknown values are drawn as unknown, never as zero.
+- **Plan mode** is a mode of the PCB view. Entering it arms the **Plan card** as the subject card: the areas, corridors and rails of the layer in view, the open proposals and the notes. Rows highlight their object on the canvas, as High speed rows do.
+- **Overlays per layer.** Every layer's overlay has its own switch, beside the layer's copper switch, and the two are independent. Areas are transparent. Corridors are ribbons at their planned width with the direction of flow; a fast lane has its own stroke and names its layer and target ("top · 85 Ω"). The power plan is a tree: branch width follows the planned width, each branch labelled with current and carrier. Rough parts are dashed outlines. Unknown values are drawn as unknown, never as zero.
+- **Dragging.** Drag an edge, a corner, a bend, a corridor or a rough part. A shared edge is one object: both areas follow. A drag stops where the edge would cross another edge, leave the board or meet a locked one (decision 34). One drag is one operation and one undo step. Arrow keys do the same.
+- **Locking** an edge is a click in its Properties; it shows a lock and a dotted stroke, so the lock does not rest on colour.
+- **A trace outside its corridor** is drawn and reported like any other trace. The route report says which nets left theirs.
+- **Colour.** Copper already uses one colour per layer, so an overlay must look like no copper and still say its layer. In Plan mode copper is grey, and the areas of a layer are pastels of that layer's own colour, in lightness steps chosen so that two neighbours never share one. The function is said by a letter and the name. In the peeling view each layer also has its own hatch direction. A key switches the layer in view to function colours (decision 32).
+- **Peeling view.** The 3D view's layer peel shows each layer's floorplan on its own layer, with the same switches. It draws the same stored map; there is no second model.
 - **Rationale on hover.** One tooltip per object (`kit::text`): the purpose, the sentence, and the facts it rests on. Selecting the object puts the same in Properties, with the facts as rows that jump to their source ("Show rule", the net, the pin).
-- **Per-stage diff.** A proposed stage or proposal is drawn as a preview over the accepted one: unchanged elements normal, added in the preview-add style, removed as ghosts, moved parts with a line from old to new place. The card lists the same changes as rows. This is the existing review (`impact` control), not a new widget.
-- **Chat and cards.** A proposal arrives in the chat as one card: what, why in one line, the estimate before and after, and three actions: **Accept**, **Alternative…**, **Why?**.
+- **Preview of a proposal.** It is drawn over the floorplan: unchanged elements normal, added in the preview-add style, removed as ghosts, moved parts with a line from old to new place. The card lists the same changes as rows. This is the existing review (`impact` control), not a new widget.
+- **Chat and cards.** A proposal arrives in the chat as one card: what, why in one line, the numbers before and after, and three actions: **Accept**, **Alternative…**, **Why?**.
   - *Accept* applies the proposal's operations in the turn (one undo step) and records the decision.
-  - *Alternative…* lets the person answer in words ("put it on the right edge instead") or by doing it: drag the part or the region on the canvas. A hand edit is an ordinary operation; the model is told what changed by hand, re-estimates, and the old proposal is recorded as replaced.
+  - *Alternative…* lets the person answer in words ("put it on the right edge instead") or by doing it: drag the part, the edge or the corridor on the canvas. A hand edit is an ordinary operation; the model is told what changed by hand, and the old proposal is recorded as replaced.
   - *Why?* opens the stored rationale and its rows. It costs no model call. A follow-up question is ordinary chat.
   - Hovering a card highlights its objects; **Show** frames them (`view.select`).
-- **Problems have one home.** Stage check failures and `fails` rows are findings in Issues (codes `plan.*`), each locating its region, corridor or cut. The Plan card shows only its reserved issue line.
-- **Stale stages** are marked in the card and their overlays drawn in the stale style, with one action: re-check.
-- **3D:** regions and corridors as flat tints on the board surface is a later option (decision 21); the first version shows them in 2D.
 
-A short UI design goes to the founder before this is built (slice P3), as the assistant panel's did.
+How the colour modes compare, measured on the mock-up's board (OKLab distance × 100, larger is easier to tell apart; light theme / dark theme; protan, deutan and tritan simulated after Machado, Oliveira and Fernandes 2009 at full severity, **[memory]**):
 
-### 3.6 External agents
+| Mode | Closest neighbours that differ in colour, normal vision | The same, worst vision | Neighbours with one colour | Says the layer |
+|---|---|---|---|---|
+| **Layer pastel** (recommended) | 7.6 / 7.9 | 6.7 / 7.3 | 0 | By hue, hatch and name |
+| **Function** | 8.6 / 4.8 | 3.1 / 3.5 | 1 pair | No |
+| **Function, layer border** | 8.6 / 4.8 | 3.1 / 3.5 | 1 pair | By the border |
+| **Layer, function pattern** | By pattern only | By pattern only | By pattern only | By hue and name |
 
-Every stage is catalog entries behind the six verbs, so Claude Code, Codex or OpenCode drive the same process. The process itself is a workflow as data (`library/assist/workflows/plan-and-route/`): model steps with typed outputs checked by `assist.step_result`, tool steps for the solvers, and gates at stage acceptance and proposal decisions. In the chat a gate is the proposal card; for an MCP client it is `input_required`; headless and unattended it is `gate.needs_person` unless the grant allows the agent to accept its own proposals (decision 18), which is what the bench and an autonomous build use.
+One finding is independent of the mode: the pastels of Top and Inner 1 differ by only 0.4 (light) and 0.2 (dark) in the worst colour vision, because the product's copper colours for these two are close there and do not change with the colour vision setting (`apps/sparksmith/src/palette.rs`). Hence the hatch. Changing the copper colours is a separate question and not part of this design.
+
+### 3.6 Hulls from the enclosure
+
+Optional. With a linked design (an enclosure), each area of an outer layer can be shown as a **hull** in 3D: the area's outline raised to the room the linked design leaves above the board there. It shows where a tall part even fits. A rough part that is higher than the room under its footprint is marked, with the two heights.
+
+- The room is derived from the linked design, through the [assembly link](../architecture/board-interface.md#the-assembly-link-slice-b4), and is never stored in the floorplan. Without a link there is no hull and no limit.
+- Heights of parts come from their packages. A part without one is `not estimated`.
+- Evaluating the room above a board in a linked design is not built; it needs its own short design with the link's owners (decision 36).
+
+### 3.7 External agents
+
+Every stage is catalog entries behind the six verbs, so Claude Code, Codex or OpenCode drive the same process. The process itself is a workflow as data (`library/assist/workflows/plan-and-route/`): model steps with typed outputs checked by `assist.step_result`, tool steps for the solvers, and a person's answer only for proposals and questions. In the chat that is the proposal card; for an MCP client it is `input_required`; unattended, a grant can let the agent decide its own proposals (decision 18), which is what the bench and an autonomous build use. An open proposal does not stop the other work.
 
 ## 4. The solver layers
 
-These layers are stage 5 of the process in section 3, and layer 2 also runs earlier as the trial route behind the congestion estimate. One loop, the harness's: the model proposes intent, the engine validates, solves, rehearses on a fork, verifies, and answers in typed lines. Seven layers, all reading the same four sources: the **physical inventory** (`layout/physical.rs`: every land and hole), the **copper graph** (what is joined, what is still open), the **rules snapshot** (profile, overrides, net classes, class pairs) and the **incremental checks**.
+These layers are stage 4 of the process in section 3. One loop, the harness's: the model proposes intent, the engine validates, solves, rehearses on a fork, verifies, and answers in typed lines. Seven layers, all reading the same four sources: the **physical inventory** (`layout/physical.rs`: every land and hole), the **copper graph** (what is joined, what is still open), the **rules snapshot** (profile, overrides, net classes, class pairs) and the **incremental checks**.
 
 ```
 intent (LLM) ─► validate ─► space model ─► global (topology) ─► escape ─► detail (existing router)
@@ -224,7 +265,7 @@ Why this model: it is any-angle and has no pitch, a board has a few thousand tri
 
 | Layer | Algorithm | Why | Cost | Deterministic | Sources of truth | Feedback to the model |
 |---|---|---|---|---|---|---|
-| **1. Intent and planning** | The accepted floorplan (section 3) is the plan; the model adds a typed **routing brief** of per-run preferences; the engine validates it | Roles, priorities, star points and "keep this short" are judgement. Everything exact stays out of the model's hands | One model call per plan or repair round | No (recorded and replayed, section 6) | Reads `view.context`, the net list with classes, the airwires, `layout.route_space` | Refusals per field: unknown net or portal, a layer the class forbids, a corridor whose capacity is too small, with `instead` |
+| **1. Intent and planning** | The floorplan (section 3), as far as there is one, is the plan; the model adds a typed **routing brief** of per-run preferences; the engine validates it | Roles, priorities, star points and "keep this short" are judgement. Everything exact stays out of the model's hands | One model call per plan or repair round | No (recorded and replayed, section 6) | Reads `view.context`, the net list with classes, the airwires, `layout.route_space` | Refusals per field: unknown net or portal, a layer the class forbids, with `instead` |
 | **2. Global routing** | Topological routing on the space model. Each connection is an A* over (triangle, portal position) states, across layers through via sites. All connections negotiate: overuse is allowed, overused portals get a rising history price, repeat until no portal is over capacity. A search over net priorities (priority-based search) runs when negotiation stalls | Removes the order dependence that PCBRouteAgent and the practitioner study both hit. Works on few, exact resources | Triangulation O(n log n) in obstacle vertices; one net O(m log m) in portal states; a small number of rounds. Budgets are counted, not timed | Yes: ties broken by object id | Connections are the copper graph's open islands; capacities from the rules snapshot; obstacles from the inventory | Per net: layer, corridor as portals, estimated length, vias. Per failure: the **cut**: "VBUS, USB_DP, USB_DN all need J1.A4–J1.A5 on top; it fits 1" |
 | **3. Escape** | Min-cost flow from a part's pads to exit slots on its boundary and to via sites, with exact capacities between pads; one flow per part and layer set | Fine-pitch parts are where order and capacity decide everything, and flow answers both exactly | Polynomial; a part has tens to hundreds of pads | Yes: fixed augmenting order | Pads and holes from the inventory; pad-to-pad and neck rules from the snapshot; duplicate connector contacts are one net and so one sink | Per part: pads escaped, the pads that cannot escape on the allowed layers and the capacity that is missing |
 | **4. Detailed routing** | The existing router. The corridor is pulled tight by the funnel algorithm into waypoints; `router::plan` (Shove, then walkaround) routes waypoint to waypoint in the 45° posture; commits go through `layout.route_apply` | One geometry engine. Every leg is already checked against exact copper, and shove gives rip-up-free local repair | Measured today: 0.29 ms median and 11.6 ms worst per shove step on the 10,000-via board ([push-and-shove](../push-and-shove.md#performance)) | Yes (already tested: "the same edits twice give the same board") | `RouteIndex`, `Ctx::clearance`, `check_committed` with `RouteIndex::near` | Per connection: `ok` with length, vias, detour factor; or `blocked` with the object and the missing clearance, as `route_preview` gives today |
@@ -236,10 +277,10 @@ Why this model: it is any-angle and has no pitch, a board has a few thousand tri
 
 ### The routing brief
 
-There are three homes, and each fact has one. Durable electrical constraints are **rules**. Where things go and why is the **floorplan** (section 3): its corridors, fast lanes and power branches reach the router as corridors, reserved capacity and layer choices. The **brief** holds only what is specific to one run. So a pair that must stay on the top layer is checked by the board checks whether or not the autorouter drew it, and a route outside its corridor is reported against the floorplan.
+There are three homes, and each fact has one. Durable electrical constraints are **rules**. Where things go and why is the **floorplan** (section 3): its areas, corridors, fast lanes and power branches reach the router as lower cost inside and an earlier turn, never as walls (decision 37). The **brief** holds only what is specific to one run. So a pair that must stay on the top layer is checked by the board checks whether or not the autorouter drew it, and a route outside its corridor is listed in the route report as information.
 
 - **New net-class fields (rules module), each unchecked when unset:** allowed routing layers, a via limit, "needs unbroken reference copper", and the current a class carries. A minimum width from current needs a named, sourced formula and a temperature rise the user states; without both it is not checked ([no invented limits](../high-speed-routing.md#copper-off-the-signal-path) applies).
-- **The brief (a request parameter):** nets or groups to route, whether to follow the floorplan (the default when one is accepted), soft preferences beyond it (prefer a layer, prefer a side of a part, extra corridors as portal lists), a via and detour budget per net, priorities, and which locked copper to keep. Without a floorplan the brief alone drives the router, which is how the no-plan arm of the bench runs. Example, in the wire's JSON but shown compactly:
+- **The brief (a request parameter):** nets or groups to route, whether to prefer the floorplan (the default when there is one), soft preferences beyond it (prefer a layer, prefer a side of a part, extra corridors as portal lists), a via and detour budget per net, priorities, and which locked copper to keep. Without a floorplan the brief alone drives the router, which is how the no-plan arm of the bench runs. Example, in the wire's JSON but shown compactly:
 
 ```
 route: [USB4_TX1, USB4_RX1, USB2]        prefer: {USB2: {layer: bottom}}
@@ -259,20 +300,20 @@ A new module, `plan`, so a grant can let an agent plan without letting it move p
 |---|---|---|
 | `rules.net_profiles` | read | The net profiles of 3.2: per net, pair or bus, each field with its value, basis and source; the unknowns a stage needs |
 | `net_class.edit`, and a per-net form | edit | Stores a confirmed value (voltage, current, edge rate, interface) with its source. New optional fields |
-| `plan.get` | read, `link` | The floorplan: stages and status, regions, corridors, power plan, intents, open proposals, decisions; takes `encoding` |
-| `plan.region_add` / `_edit` / `_delete` | edit | Regions, with kind, outline, members, purpose and rationale |
-| `plan.corridor_add` / `_edit` / `_delete` | edit | Corridors and fast lanes |
+| `plan.get` | read, `link` | The floorplan: per layer its corners, edges with locks, areas and corridors; the power plan, intents, rough positions, open proposals, decisions; takes `encoding` |
+| `plan.area_add` / `_edit` / `_delete` | edit | Areas, with layer, uses, function, members, purpose and rationale. Adding one splits an area or free space along given points; deleting one joins it to a neighbour or frees it |
+| `plan.edge_reshape`, `plan.corner_move`, `plan.edge_lock` | edit | Moves the bends of one edge or one corner, or locks an edge. Every area on it follows. A shape that would cross another edge is refused, as any invalid geometry is |
+| `plan.corridor_add` / `_reshape` / `_edit` / `_delete` | edit | Corridors and fast lanes |
 | `plan.power_set` | edit | A rail's tree, carriers and ties |
 | `plan.intent_set` | edit | Placement intents |
-| `plan.place` | edit, `short` | Rough placement from the intents by the constraint placer; `dry_run` previews; refuses naming the unmet constraint |
-| `plan.check` | read | A stage's checks as findings |
-| `plan.estimate` | read, `short` | The feasibility rows of 3.4 at this revision; with `proposal`, before and after on a fork |
-| `plan.propose` | edit | Records proposals: kind, operations, the rows they answer, the rationale. The engine fills in the estimate |
+| `plan.rough_place` | edit, `short` | Rough positions: given ones, or computed from the intents and areas for named parts |
+| `plan.place` | edit, `short` | Places parts on the board near their rough positions with the constraint placer; `dry_run` previews; places what it can and lists what it could not meet |
+| `plan.notes` | read | The notes of 3.4 at this revision; with `proposal`, before and after on a fork |
+| `plan.propose` | edit | Records proposals: kind, operations, the notes they answer, the rationale. The engine fills in the numbers |
 | `plan.decide` | edit, `review` | Accepts (applying the operations in the turn), declines or replaces a proposal |
-| `plan.accept_stage` | edit, `review` | Accepts a stage at the checked digest; refused while its checks fail |
 | `plan.diff` | read | What changed between two revisions of the floorplan, as rows |
 
-A person's drag of a region or part in Plan mode sends the same operations.
+A person's drag in Plan mode sends the same operations.
 
 ### Routing entries
 
@@ -308,14 +349,14 @@ The harness's slots gain a `solve` family. Each is JSON to JSON with no hidden s
 | Slot | Decides | May be WASM later |
 |---|---|---|
 | `plan.order` | How profiles become planning priority and layer preference (the table in 3.2) | Data profile first; WASM later (effect `none`) |
-| `plan.estimate_view` | The text form of the floorplan and the feasibility rows | Yes (effect `none`) |
-| `plan.house_rules` | Extra stage checks ("connectors only on the short edges") | Yes (effect `read`) |
+| `plan.notes_view` | The text form of the floorplan and the notes | Yes (effect `none`) |
+| `plan.house_rules` | Extra notes ("connectors only on the short edges") | Yes (effect `read`) |
 | `route.order` | Initial priorities and rip-up order | Yes (effect `none`) |
 | `route.cost` | Weights and schedules: via, layer change, detour, plane crossing, history growth | Data profile first; a learned policy as WASM later |
 | `route.brief_check` | House rules on a brief ("no signal on the plane layer") | Yes (effect `read`) |
 | `route.encode` | The text form of `route_space` and the report | Yes (effect `none`) |
 | `route.repair_options` | Which options a conflict set offers | Yes (effect `read`) |
-| Space model, feasibility estimates, constraint placer, global and detailed routers, escape flow, commit checks, copper graph | | **No.** One implementation in the engine. A third-party router may run later as an effect-`edit` plugin on a fork, and its copper still passes `route_apply` |
+| Floorplan map, plan notes, space model, constraint placer, global and detailed routers, escape flow, commit checks, copper graph | | **No.** One implementation in the engine. A third-party router may run later as an effect-`edit` plugin on a fork, and its copper still passes `route_apply` |
 
 **No hard-coded data.** Cost weights and counted budgets live in `library/routing/NAME.json` (a routing profile, chosen in the brief and recorded in the trace). The existing router's constants (depth 8, 96 pushes, 1,500 queries, 24 obstacles) should move there in the same slice. Limits come from the rules snapshot only.
 
@@ -329,8 +370,8 @@ No document describing the autonomous-build protocol was found in the repository
   1. *Solver replay:* the same document, brief and profile give a byte-identical edit set. A CI test, on every bench board.
   2. *Run replay:* a recorded run replayed against the same engine version gives the same saved file (same SHA-256).
   3. *Fresh run:* another model run need not match byte for byte, but must pass the same independent verifier.
-- **The floorplan is part of the record.** Its operations, proposals and decisions are in the document's history and the trace, so a run can be replayed stage by stage, and a later reader sees why a connector sits where it does.
-- **The trace** (one format with the harness's run trace) holds per round: the stage, its input digest and the feasibility rows; the brief and its digest, the profile digest, the revision before and after, each solver call's request digest and result digest, the report, the findings difference, tokens and time. An exact repair adds its proof file's digest.
+- **The floorplan is part of the record.** Its operations, proposals and decisions are in the document's history and the trace, so a run can be replayed step by step, and a later reader sees why a connector sits where it does.
+- **The trace** (one format with the harness's run trace) holds per round: the stage, its input digest and the plan notes; the brief and its digest, the profile digest, the revision before and after, each solver call's request digest and result digest, the report, the findings difference, tokens and time. An exact repair adds its proof file's digest.
 - **Open point:** bit-identical results across native and wasm builds need the same floating-point results. Basic arithmetic is IEEE-exact on both; library functions (trigonometry) may not be. The router and geometry code call such functions in about 20 places (a grep count, not an audit). Either the decisions avoid them or both builds share one implementation. To be audited in slice A1.
 
 ## 7. Performance targets
@@ -341,8 +382,7 @@ All of these are **proposed targets, not measurements**, for the founder to conf
 |---|---|---|
 | Space model build, 10,000-via board | Under 100 ms, in the background, never on the UI thread | An ignored release test beside `route_plan_timings` |
 | Space model update after one committed route | Under 5 ms (local re-triangulation) | Same test, per commit |
-| `plan.estimate` without the trial route, small board | Under 50 ms, so overlays follow a dragged part | Bench and an ignored release test |
-| `plan.estimate` with the trial route, the multi-tool board | Under 1 s, in the background | Same |
+| `plan.notes`, small board | Under 50 ms, so overlays follow a dragged edge or part | Bench and an ignored release test |
 | `layout.route_connect`, one connection on a small board | Under 50 ms solver time | Bench: server time per call |
 | `layout.autoroute`, the multi-tool board, solver time excluding the model | Under 10 s | Bench: server time; board size unknown until its spec exists |
 | Model rounds for the multi-tool board | Report, no cap (the harness sets no default limits) | Bench: calls, tokens, replans |
@@ -367,13 +407,14 @@ On `cargo xtask agent-bench` (harness slice H3), with its independent verifier o
 
 | Question | Metric |
 |---|---|
-| Did the estimates tell the truth? | Per `fits` row: was it routed inside its corridor (false-fit rate). Per `fails` row: the proof is checked by the exact checker. Estimated against final utilisation per cut |
-| Was the plan followed? | Share of routed length inside its corridor; nets that left it and why; fast-lane nets with a layer change |
-| Did planning help? | The same board routed with and without the floorplan stages: clean pass, wirelength, vias, repair rounds, solver time, tokens |
+| Did the notes tell the truth? | Per `fits` note: was it routed inside its corridor (false-fit rate). Per `short` note: was it routed inside all the same (false alarm). Planned against used width |
+| Was the plan followed? | Share of routed length inside its corridor; nets that left it and why; fast-lane nets with a layer change. Information, not a score to raise: a better route may leave the plan |
+| Was enough planned? | Nets ripped up per board, and the share of them in corridors that were changed |
+| Did planning help? | The same board routed with and without the floorplan: clean pass, wirelength, vias, repair rounds, solver time, tokens |
 | Is the intent met? | Per kind, from the final copper: fast lanes (vias, length over the lower bound, reference breaks once that rule exists), power (narrowest neck against the planned width; track-only drop), ties (star and Kelvin checks), isolation distances |
 | Was characterization right? | On boards whose interfaces and currents are declared, hidden from the model: inferred roles right and wrong; questions asked that were derivable; values needed and never asked |
-| Were revisions good? | Seeded-fault boards with a known bottleneck (a connector on the wrong edge, a twisted bus): was the failing cut found and the known fix proposed. Proposal rounds, parts moved more than once, tokens per stage |
-| Is the plan stable? | Move one part slightly and re-plan: how many regions and corridors change |
+| Were revisions good? | Seeded-fault boards with a known bottleneck (a connector on the wrong edge, a twisted bus): was the known fix proposed. Proposal rounds, parts moved more than once, tokens per stage |
+| Is the plan stable? | Move one part slightly and re-plan: how many edges and corridors change |
 | Does it look right? | Pictures of each run's floorplan and route for the founder; the multi-tool's floorplan against one drawn by a person |
 
 **Arms and baselines**
@@ -386,20 +427,22 @@ On `cargo xtask agent-bench` (harness slice H3), with its independent verifier o
 - **Models:** one hosted and one local in every comparison, paired fresh contexts, N repeats, median and spread, as the harness prescribes.
 - **Human reference:** the hand-routed ESP32 board.
 
-Pass bar for calling the first target done: starting from the schematic and the board outline, the full process reaches clean pass on the multi-tool board in every one of N fresh runs (N for the founder to set), no accepted stage is stale, every `fails` row is resolved or answered by the person, and solver replay is byte-identical.
+Pass bar for calling the first target done: starting from the schematic and the board outline, the full process reaches clean pass on the multi-tool board in every one of N fresh runs (N for the founder to set), and solver replay is byte-identical.
 
 ## 9. Learning track: can we train models on PCBs?
 
 Yes, and it is worth doing, in one role only: **learned models guide the exact search; they never draw final copper.** This is the AlphaZero split (Silver et al., 2017, **[memory]**): a network proposes moves and judges positions, a search with exact rules decides. A wrong network then costs time or quality, never a wrong board, because every output still passes the validator, the router and the checks.
 
+**The technique follows the problem.** For each sub-problem the simplest technique that measures best on our bench is used. The classical default is the baseline, a newer method has to beat it, and no method is used because it is new. Where several methods below could fill a slot, the bench decides.
+
 ### What the evidence says, by model family
 
 | Family | Evidence | Verdict for us |
 |---|---|---|
-| **Diffusion, for placement** | ChipDiffusion ([arXiv 2407.12282](https://arxiv.org/abs/2407.12282), ICML 2025, **[read]**): denoises object coordinates conditioned on the netlist graph; trained **only on synthetic circuits** (40,000 in its v1 set; 100,000 generated in a day on 32 CPUs) on a single A5000 GPU, and transfers zero-shot to real benchmarks. Legality is 0.8835 unguided and 0.9970 guided, so not every sample is legal. EGGPlacer ([arXiv 2610.33099](https://arxiv.org/abs/2610.33099), **[read]**) adds energy guidance and still runs a greedy legaliser afterwards; in its mixed-size table the classical analytic placer keeps the lowest wirelength (5.64 against 6.08). MacroDiff+ ([IJCAI 2026](https://www.ijcai.org/proceedings/2026/735), search summary) combines a GNN and a Transformer in the denoiser and reports 6.1–6.2 % less wirelength | **Use as a proposal source** for whole-board placement, followed by our constraint placer as legaliser and the feasibility estimates as judge. All of this evidence is chip placement; none is PCB |
+| **Diffusion, for placement** | ChipDiffusion ([arXiv 2407.12282](https://arxiv.org/abs/2407.12282), ICML 2025, **[read]**): denoises object coordinates conditioned on the netlist graph; trained **only on synthetic circuits** (40,000 in its v1 set; 100,000 generated in a day on 32 CPUs) on a single A5000 GPU, and transfers zero-shot to real benchmarks. Legality is 0.8835 unguided and 0.9970 guided, so not every sample is legal. EGGPlacer ([arXiv 2610.33099](https://arxiv.org/abs/2610.33099), **[read]**) adds energy guidance and still runs a greedy legaliser afterwards; in its mixed-size table the classical analytic placer keeps the lowest wirelength (5.64 against 6.08). MacroDiff+ ([IJCAI 2026](https://www.ijcai.org/proceedings/2026/735), search summary) combines a GNN and a Transformer in the denoiser and reports 6.1–6.2 % less wirelength | **Use as a proposal source** for whole-board placement, followed by our constraint placer as legaliser and the plan notes as judge. All of this evidence is chip placement; none is PCB |
 | **Flow matching, for placement** | FlowPlace ([arXiv 2604.23658](https://arxiv.org/abs/2604.23658), DAC 2026, search summary): flow-based training, mask-guided synthetic data, hard-constraint sampling for overlap-free layouts; 10–50× faster sampling is reported by secondary summaries, unverified | **Prefer over diffusion** if the first experiment confirms the speed; same role |
-| **Diffusion, for routing** | RouteDiff (section 2): images turned into traces, no numbers on its page. CLDRoute ([arXiv 2607.16674](https://arxiv.org/abs/2607.16674), **[read]**): despite the name it predicts congestion and DRC maps for chips, not routes; DRC map SSIM 0.9678, and its congestion maps are not the best on the standard metrics | **No** as a router. A map predictor with a per-pixel uncertainty is a useful idea for feasibility |
-| **GNN / CNN routability prediction** | RouteNet (2018) was the first CNN to predict DRC hotspots from placement, and later work moves to graph models; one 2026 benchmark finds the graph representation matters more than the architecture ([arXiv 2604.08810](https://arxiv.org/abs/2604.08810), search summary; accuracy figures not verified) | **Use before placement**, where no trial route exists yet. After placement our trial route is the estimate, and a predictor would have to beat it |
+| **Diffusion, for routing** | RouteDiff (section 2): images turned into traces, no numbers on its page. CLDRoute ([arXiv 2607.16674](https://arxiv.org/abs/2607.16674), **[read]**): despite the name it predicts congestion and DRC maps for chips, not routes; DRC map SSIM 0.9678, and its congestion maps are not the best on the standard metrics | **No** as a router. A map predictor with a per-pixel uncertainty is a useful idea beside the plan notes |
+| **GNN / CNN routability prediction** | RouteNet (2018) was the first CNN to predict DRC hotspots from placement, and later work moves to graph models; one 2026 benchmark finds the graph representation matters more than the architecture ([arXiv 2604.08810](https://arxiv.org/abs/2604.08810), search summary; accuracy figures not verified) | **Use beside the plan notes**, and only if it predicts better than they do |
 | **Transformers, autoregressive** | The LLMs of section 2 are general autoregressive transformers, good as planners. A domain policy that emits routing actions one by one is CADET's: 67.2 % against 65.6 % for a classical autorouter, with more vias | **No** for copper. A small GNN or transformer as policy and value inside the search is the use |
 | **GANs, VAEs** | No recent result was found, in the sources read, where a GAN leads on placement or routing; this family was not searched in depth. VAEs appear as the latent compressor inside diffusion models (CLDRoute) | **Skip** GANs. A VAE only as a part of another model |
 | **RL** | End to end it matches a classical router at best (PCBWorld's PPO: 0.45 clean pass on medium boards; CADET). Commercial RL (Quilter, DeepPCB) searches candidates for hours and still needs a person (section 2). Tuning a symbolic router's cost weights by offline RL is the result that holds up: 1.56× faster on average, and 92 % fewer violations on dense layouts (section 2) | **Use** for cost schedules and for self-play training of the policy and value |
@@ -410,10 +453,10 @@ Each learned part fills a harness strategy slot that already has a classical def
 
 | Learned part | Model | Slot | What it may do | What it may not do |
 |---|---|---|---|---|
-| **Placement proposals** | Flow matching or diffusion over part positions, rotations and sides, conditioned on the netlist graph, the net profiles and the accepted floorplan regions | `plan.propose_placement` | Hand N candidate placements to the constraint placer, which legalises each; the feasibility estimates rank them | Place a part. Skip the legaliser or the estimates |
+| **Placement proposals** | Flow matching or diffusion over part positions, rotations and sides, conditioned on the netlist graph, the net profiles and the floorplan's areas | `plan.propose_placement` | Hand N candidate placements to the constraint placer, which legalises each; the plan notes rank them | Place a part. Skip the legaliser |
 | **Policy** | GNN or small transformer over the space model's graph (portals as nodes, nets as queries) | `route.order`, `route.portal_prior` | Order the nets, order the portals the A* tries first, pick which net to rip up | Remove an option from the search. It reorders only, so the search stays as complete as the classical one |
 | **Value** | The same network's second head | `route.value` | Estimate whether a partial topology will complete and at what cost, to order the priority search | Prune, in the first version (decision 27) |
-| **Routability predictor** | GNN on the floorplan's region graph, with an uncertainty | `plan.predict` | Give a pre-placement estimate row, marked "learned" with its uncertainty | Produce a `fails` row. Only a proof does that |
+| **Routability predictor** | GNN on the floorplan's areas and corridors, with an uncertainty | `plan.predict` | Add a note, marked "learned" with its uncertainty | Stop or change anything |
 | **Cost schedule** | Offline RL over the routing profile's weights | `route.cost` | Choose weights per round | Change a rule or a limit |
 
 **Determinism.** A network's output is treated like the language model's: it is a recorded proposal. The trace stores the weights' hash, the sampling seed and the output, and solver replay stays byte-identical given the recorded output. Fresh inference need not be bit-identical across machines.
@@ -460,8 +503,8 @@ All five: it may become the default. The first, third, fourth and fifth, with a 
 | **L1** | Trace to dataset, and self-play | An exporter from run traces to training records; a runner that varies orders, costs and placements on generated boards | A dataset with machine-checked labels; boards per hour measured on the build server | 8–12 |
 | **L2** | Training spike on the build server | A small model trained on its GPU, or the reason it cannot | A yes or no, with timings | 2–3 |
 | **L3** | Policy and value for net order, portal choice and rip-up | A GNN, trained by self-play; inference in Rust; the slots | The gate, on the bench | 20–30, plus compute under the cap |
-| **L4** | Pre-placement routability predictor | A GNN on the region graph with uncertainty | Its false-fit rate against the trial route's on held-out boards | 15–25 |
-| **L5** | Placement proposals | Flow matching conditioned on netlist, profiles and regions; legalised by the placer | The gate: better feasibility or fewer revision rounds than the placer alone | 30–50, research risk |
+| **L4** | Routability predictor for floorplans | A GNN on the areas and corridors with uncertainty | A lower false-fit rate than the plan notes on held-out boards | 15–25 |
+| **L5** | Placement proposals | Flow matching conditioned on netlist, profiles and areas; legalised by the placer | The gate: fewer short notes after routing or fewer revision rounds than the placer alone | 30–50, research risk |
 | **L6** | Learned cost schedule | Offline RL over routing profiles from accumulated traces | The gate | 15–25 |
 
 L0 and L1 are cheap and should start as soon as the global router exists (after A4a), so data accumulates while the rest is built. L3 to L6 need the router of waves 3 and 4 as their environment.
@@ -474,9 +517,10 @@ L0 and L1 are cheap and should start as soon as the global router exists (after 
 - **Pours and return paths.** Fills are not obstacles and refill round new copper. A track across a plane layer can cut the return path of another net. Pricing plane crossings is easy; checking "unbroken reference" needs a definition the founder accepts (decision 5).
 - **Power.** A 5 A path is often a pour, not a track. The first version routes wide tracks from the class width; planning pours and proving their current capacity needs the resistance solver that llm-geometry parked as a future idea.
 - **The first board's limits are unknown.** USB4 skew, length and via limits must come from its spec, with sources. None is assumed here.
-- **Plans that look reasoned and are wrong.** A model writes fluent rationales. Mitigation: a rationale must reference checkable facts, estimates are computed by the engine, and inferred values cannot drive a hard check.
-- **Too many questions.** A planner that asks for every unknown is unusable; one that asks nothing guesses. Mitigation: ask only for a value a failing or unestimated row depends on, in one grouped card, and measure both errors on the bench.
-- **Estimates before placement are coarse.** Region-level cuts can pass a floorplan that placement then breaks. That is what stage 3 is for; the false-fit rate is a bench metric.
+- **Plans that look reasoned and are wrong.** A model writes fluent rationales. Mitigation: a rationale names its facts and one without says so, numbers are computed by the engine, and inferred values cannot drive a hard check.
+- **Too many questions.** A planner that asks for every unknown is unusable; one that asks nothing guesses. Mitigation: ask only for a value a short or unestimated note depends on, in one grouped card, and measure both errors on the bench.
+- **The floorplan is rough, and some of it will be wrong.** A corridor that fits on paper can fail in routing. The answer is a cheap repair (change that corridor, route its nets again), not more checking beforehand. The false-fit rate and the nets ripped up are bench metrics.
+- **Too many areas to read.** Corridors and areas on every layer can hide the board. The per-layer switches, the colour mode and one layer in view at a time are the mitigation; pictures of real boards decide.
 - **Sparse pin data.** Parts made before the three extensions of 3.2, and parts whose datasheets do not state a value, have no electrical characteristics or interface reference. Characterization then asks. The process still works, with more questions.
 - **Small models.** The brief and the report are short, but choosing among repair options needs judgement. The no-model arm bounds the damage: the pipeline still routes what a default brief can.
 - **Dependencies:** the three pin-data extensions of 3.2 (for declared profiles), the pair catalog reaching `main` from `integ-1`, the constraint placer (harness H10, for rough placement), ties (for star and Kelvin targets), harness H3 (bench) and H6 (findings difference), S4b (jobs) for progress and cancel.
@@ -505,13 +549,13 @@ Raised by the staged plan (section 3):
 15. **The floorplan is stored in the project file and changed only by typed operations in a new `plan` module.** *Recommendation: yes.* It follows undo and revisions, and a grant can allow planning without copper.
 16. **Net profile fields carry a basis, and an inferred value never drives a hard check or a width**; it is confirmed by the person or sourced from a datasheet first. *Recommendation: yes.*
 17. **Net profiles build on the existing pin model, with three optional extensions and no new pin structure** (3.2): an `electrical` field on `Function` (voltage, current, rate or edge, each sourced), a typed `interface` on `Resource` with `interface_role` on `Role`, and the pair catalog extended in place into the interface catalog. `Resource.kind`, `Role.signal`, labels, mux codes and speed grades stay free text. *Recommendation: yes.* One choice inside it: keep the file name `differential-pairs.json` or rename it `interfaces.json` now, before release. *Recommendation: rename*, since it will hold more than pairs.
-18. **Who accepts in an unattended run.** A grant setting lets an agent accept its own proposals and stages (used by the bench and autonomous builds); by default a person does. *Recommendation: yes, off by default.*
-19. **No invented congestion thresholds.** Estimates report need, have and margin; only a proven misfit is an error; a warning level is a user setting, unset by default. *Recommendation: yes.*
-20. **Rough placement uses the harness's constraint placer (H10), pulled forward,** with its own short design. *Recommendation: yes.* Without it stage 2 has no solver and the model would place by coordinates, which the evidence says fails.
-21. **Overlays in 2D first; 3D tints later.** *Recommendation: yes.*
+18. **Who accepts in an unattended run.** A grant setting lets an agent decide its own proposals (used by the bench and autonomous builds); by default a person does. *Recommendation: yes, off by default.*
+19. **No invented thresholds in the plan notes.** A note reports need, have and margin. It is never an error and stops nothing.
+20. **Placing uses the harness's constraint placer (H10), pulled forward,** with its own short design. *Recommendation: yes.* Without it the placing stage has no solver and the model would place by coordinates, which the evidence says fails.
+21. **Overlays in 2D and in the peeling view,** with a switch per layer. Hulls are optional (decision 36).
 22. **The process is a workflow as data** (`plan-and-route`), the same for the chat and external agents. *Recommendation: yes.*
 23. **Voltage drop is estimated for track branches only** until the resistance solver exists; pours are marked not estimated. *Recommendation: yes.* Say if the solver should move up for the 48 V / 5 A path.
-24. **Region kinds are a closed set in code** (each has its own checks); their colours, labels and the profile-to-plan defaults are data. *Recommendation: yes.*
+24. **Area uses are a closed set in code** (solvers treat each differently); functions with their letters and colours, and the profile-to-plan defaults, are data. *Recommendation: yes.*
 
 Raised by the learning track (section 9):
 
@@ -523,31 +567,41 @@ Raised by the learning track (section 9):
 30. **Weights are optional library data pinned by hash**; the product routes without them. *Recommendation: yes.*
 31. **Timing:** L0 and L1 start once the global router exists, so data accumulates; L3 to L6 after wave 4. *Recommendation: yes*, with L3 (net order and rip-up) first, since net order is the failure the public agents report.
 
+Raised by the floorplan (section 3), with the [mock-up](floorplan-mockup.html):
+
+32. **Colour of the overlays.** *Recommendation: the layer pastel, with lightness steps between neighbours, letters and names for the function, a hatch per layer in the peeling view, and a key for function colours on the layer in view.* It is the only mode that both says the layer and keeps every pair of neighbours apart in all colour visions measured.
+33. **Where a rough position lives.** *Recommendation: in the floorplan, and only while the part is not on the board.* The alternative, a rough flag on a placed part, would make rough parts copper obstacles.
+34. **A drag that reaches another edge.** *Recommendation: it stops there.* Pushing the neighbour along would move edges the person did not touch.
+35. **Areas of one layer do not overlap;** corridors lie over them, and an area may have several uses. *Recommendation: yes.* Shared edges need it. The price: "quiet inside the processor's area" is a separate small area, not a second one on top.
+36. **Hulls.** *Recommendation: yes, as their own later slice (P7)*, after the 2D plan, with the linked design's real shape above the board rather than one height per area. It starts with a short design, because reading that room from a linked design does not exist.
+37. **How strongly routing prefers the plan.** *Recommendation: a cost weight in the routing profile (data), chosen by the bench*, with fast lanes routed first. No hard wall at any setting.
+
 ## 12. Slice plan
 
-At most 5 agents at once. Each slice is useful alone. Planning slices (P) come first where they decide routing quality: after wave 2 a person or an agent can already draw a floorplan and see, with proofs, whether the board fits it, before any autorouting exists. Everything through wave 4 is what the multi-tool board needs; it also needs the ties slices and the board's spec.
+At most 5 agents at once. Each slice is useful alone. Planning slices (P) come first where they decide routing quality: after wave 2 a person or an agent can already draw, drag and discuss a floorplan on every layer, before any autorouting exists. Everything through wave 4 is what the multi-tool board needs; it also needs the ties slices and the board's spec.
 
 | Wave | # | Slice | Delivers | Acceptance | Hours |
 |---|---|---|---|---|---|
-| 1 | **A1** | Space model and `layout.route_space` | Triangulation per layer from the inventory, also in the coarse form (outline, fixed parts, region boundaries); portals with width and class capacity; via sites; compact encoding; the float audit of section 6 | Capacity agrees with the exact checker on generated channels (never claims room the checker refuses); 10,000-via board build timed; an xtask gate that the module makes no connectivity or commit decision | 12–18 |
+| 1 | **A1** | Space model and `layout.route_space` | Triangulation per layer from the inventory; portals with width and class capacity; via sites; compact encoding; the float audit of section 6 | Capacity agrees with the exact checker on generated channels (never claims room the checker refuses); 10,000-via board build timed; an xtask gate that the module makes no connectivity or commit decision | 12–18 |
 | 1 | **P1** | Net profiles | The three extensions of 3.2 (`Function.electrical`, `Resource.interface` with `Role.interface_role`, the catalog's ids, roles and extra targets), with the pinout import's columns; `rules.net_profiles` from active functions, resources, classes, pairs and stackup, each field with its basis; confirmed values stored in the rules with a source; the grouped question card | Existing parts and files load unchanged; a part declaring an interface profiles its nets as declared with no name matching; on the ESP32 board the USB pair, the rails and their sources and sinks are profiled with no inferred field used by a check; an unknown that a stage needs is listed once | 12–18 |
-| 1 | **P2** | Floorplan model and the `plan` module | The stored types of 3.1, the region, corridor, power and intent operations, `plan.get`, `plan.diff`, `plan.check` with the stage-1 checks, stale tracking, file round trip, glossary | A floorplan survives save, undo and a part move (which stales exactly the stages that rest on it); a rationale without a fact reference is refused; `surface.lock` updated | 14–20 |
-| 1 | **P3a** | Plan mode: UI design | Overlays, Plan card, proposal card and diff, for founder review | Approved | 3–4 |
-| 2 | **P4** | Feasibility estimates | `plan.estimate`: corridor cuts, layer and via budget, impedance width against room, current width and track drop where sourced; rows with need, have, margin and strength; `plan.*` findings in Issues | A seeded bottleneck is reported as the right cut with the right numbers; every `fails` row is confirmed by the exact checker; nothing is estimated from an unset limit | 12–18 |
-| 2 | **P3b** | Plan mode: build | The overlays, the Plan card, rationale on hover, the stage diff, drag to edit | Headless canvas tests: showing or hovering overlays rebuilds no geometry; a region drag sends one operation; the diff lists what the preview draws | 16–24 |
+| 1 | **P2** | Floorplan model and the `plan` module | The stored types of 3.1 with the map per layer, the area, edge, corridor, power and intent operations, locks, `plan.get`, `plan.diff`, file round trip, glossary | One edge operation reshapes both its areas and leaves no gap; a locked edge is moved by nothing; a corner on the board edge follows an outline edit; save and undo keep it; replaying the operations gives the same floorplan; `surface.lock` updated | 16–24 |
+| 1 | **P3a** | Plan mode: UI design | Overlays, colour modes, Plan card, proposal card and preview, from the mock-up's reviewed state | Approved | 2–3 |
+| 2 | **P4** | Plan notes | `plan.notes`: the rows of 3.4 with need, have and margin, except height | Follow a drag within the target of section 7; a seeded narrow corridor reads `short` with the right numbers; nothing is computed from an unset limit; no note reaches Issues or preflight | 6–9 |
+| 2 | **P3b** | Plan mode: build | Overlays with per-layer switches in 2D and the peeling view, the colour modes, the Plan card, rationale on hover, the proposal preview, drag and lock | Headless canvas tests: showing or hovering overlays rebuilds no geometry; an edge drag sends one operation; the preview draws what the diff lists; the colour vision tests cover every mode | 20–30 |
 | 2 | **A3** | Routing constraints as rules | Net-class layers and via limit, their checks and Issues wording | A pair held to the top layer is flagged when drawn through a via by hand | 6–10 |
-| 2 | **P5** | Rough placement | The constraint placer (harness H10; its design first) behind `plan.place` | Parts land legally inside their regions; an impossible intent is refused naming the constraint and the amount | 2–3 + 15–25 |
-| 3 | **A4a** | Global router as the trial route | Negotiated topological routing over all open connections, priority search on stall, no copper; the congestion rows of `plan.estimate`; routing profile as data | Deterministic; on the ESP32 board's placement it finds a topology for every net; an unroutable fixture returns the right cut | 10–15 |
-| 3 | **P6** | Revisions and the chat | `plan.propose`, `plan.decide`, `plan.accept_stage`; solver-made proposals (the move that widens a failed cut); the proposal card with Accept, Alternative and Why; the `plan-and-route` workflow as data | On a seeded-fault board the known fix is proposed, accepting it clears the row, and a hand alternative replaces it in the log; an MCP client drives the same stages | 12–18 |
+| 2 | **P5** | Rough and legal placement | `plan.rough_place`, and the constraint placer (harness H10; its design first) behind `plan.place` | Rough positions follow the intents at once; placed parts are legal and near them; an intent that cannot be met is listed with the amount and the other parts are placed | 2–3 + 17–28 |
+| 3 | **A4a** | Global router | Negotiated topological routing over all open connections, floorplan as a cost, priority search on stall, no copper; routing profile as data | Deterministic; on the ESP32 board's placement it finds a topology for every net; an unroutable fixture returns the right cut; a net leaves its corridor when that is cheaper | 10–15 |
+| 3 | **P6** | Revisions and the chat | `plan.propose`, `plan.decide`; solver-made proposals; the proposal card with Accept, Alternative and Why; the `plan-and-route` workflow as data with the planner's questions of 3.3 | On a seeded-fault board the known fix is proposed, accepting it changes the note, and a hand alternative replaces it in the log; an MCP client drives the same stages | 12–18 |
 | 3 | **A2** | `layout.route_connect` | Topological A* for one connection or pair, funnel waypoints, realisation by `router::plan` and `pair_plan`, one undo step, cut feedback; `layout.unroute` | The ESP32 board's nets route by goal with no coordinates; a blocked request names the cut; the same request twice gives the same board | 15–25 |
-| 4 | **A4b** | `layout.autoroute` and `layout.route_report` | Detailed routing of the global result following the floorplan, rip-up, the report with plan adherence, findings difference | The no-model arm routes the ESP32 board clean; routes stay in their corridors or the report says why; solver replay byte-identical | 12–18 |
+| 4 | **A4b** | `layout.autoroute` and `layout.route_report` | Detailed routing of the global result preferring the floorplan, rip-up of the nets concerned only, the report with the nets that left their corridors, findings difference | The no-model arm routes the ESP32 board clean; the report names every net outside its corridor and why; a widened corridor reroutes only its nets; solver replay byte-identical | 12–18 |
 | 4 | **A5** | Bench: tasks, arms, plan quality | The tasks and metrics of section 8, including the no-plan arm and the seeded-fault boards. Needs H3 | The first full report per arm, hosted and local: clean pass, plan-quality table, tokens and time per stage | 12–18 |
-| later | **A6** | Pairs to their limits | `layout.tune_pairs`; tuning room reserved by the floorplan's `reserve` regions | Pairs end inside their class limits, or the report names the room missing | 6–10 |
+| later | **A6** | Pairs to their limits | `layout.tune_pairs`; tuning room reserved by the floorplan's `reserve` areas | Pairs end inside their class limits, or the report names the room missing | 6–10 |
 | later | **A7** | Escape by flow | `layout.fanout`; the pin-order check of the layer budget made exact | The USB-C receptacle and a 0.4 mm QFN escape clean | 10–16 |
 | later | **A9** | Exact window repair | The CP or CBS step with proofs (decision 8) | Fixes a bench board negotiation could not; an infeasible window returns a checked proof | 15–25 |
 | later | **A10** | Reference and power | The unbroken-reference rule (decision 5); current-driven width (decision 6); a design note for pours and the resistance solver | Design first | 3–4 + later |
-| later | **A11** | Strategies as WASM, 3D overlays | After S9a | A WASM `plan.order` gives byte-identical results to the data profile | 8–12 + research |
+| later | **P7** | Hulls | The room above the board from the linked design (its design first), hulls in 3D, the height note | A part too high for a test enclosure is marked with both heights; without a link nothing is shown | 2–3 + 12–20, research risk |
+| later | **A11** | Strategies as WASM | After S9a | A WASM `plan.order` gives byte-identical results to the data profile | 8–12 + research |
 
-Waves 1 to 4 take about 153–234 agent hours. Wave 1's four slices run in parallel. P4 needs A1, P1 and P2; P3b needs P2 and the approved design; A4a needs A1; P6 needs P4; A4b needs A2 and A4a; A5 needs A4b and H3. The shortest useful cut is waves 1 and 2 (about 92–140 hours): a visible, checked floorplan with feasibility proofs, driven by hand, by the chat or by an external agent.
+Waves 1 to 4 take about 154–237 agent hours. Wave 1's four slices run in parallel. P4 needs P1 and P2; P3b needs P2 and the approved design; A4a needs A1; P6 needs P4; A4b needs A2 and A4a; A5 needs A4b and H3. The shortest useful cut is waves 1 and 2 (about 93–143 hours): a visible, draggable floorplan on every layer with its notes, driven by hand, by the chat or by an external agent.
 
 The learning track (L0 to L6, section 9) runs beside the later slices: L0 and L1 after A4a, the rest after wave 4.
