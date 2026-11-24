@@ -88,10 +88,9 @@ impl PcbEditor {
             key: "",
             hint: "Click a track end, pad or point to place a via; Esc ends",
             tip: "Places a through via (its net class's drill and pad, else the design \
-                  rules' 0.3 mm drill, 0.6 mm pad by default) on the net of the pad or \
-                  track under the pointer, else on the chosen net. It snaps to a track end \
-                  within reach, else to the 0.5 mm grid. A via the clearance rules refuse \
-                  is not added.",
+                  rules') on the net of the pad or track under the pointer, else on the \
+                  chosen net. It snaps to a track end within reach, else to the 0.5 mm grid. \
+                  A via the clearance rules refuse is not added.",
             finish: None,
         };
         let t = sparksmith_ui::theme::Tokens::get();

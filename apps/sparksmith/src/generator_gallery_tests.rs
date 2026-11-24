@@ -176,6 +176,105 @@ fn every_generator_lists_its_values_and_its_presets() -> TestResult {
     Ok(())
 }
 
+/// GUI check 1, F8: a size code reads as imperial. The parts of that size
+/// come first and the first is selected; a part that has the code only as
+/// its metric name is still listed, after them.
+#[test]
+fn a_size_code_ranks_the_imperial_size_first() -> TestResult {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    let offers = test_shelf().offers().ok_or("the shipped generators")?;
+    for (code, metric_name_of) in [("0603", "0201"), ("0402", "01005")] {
+        for text in [
+            code.to_owned(),
+            format!("{code} resistor"),
+            format!("chip {code}"),
+        ] {
+            let found = rows(&offers, None, &text);
+            let at = |key: &str| {
+                found
+                    .iter()
+                    .position(|r| r.preset.as_deref() == Some(key))
+                    .ok_or(format!("{text}: no {key} in {found:?}"))
+            };
+            let imperial = at(&format!("resistor-{code}"))?;
+            let metric = at(&format!("resistor-{metric_name_of}"))?;
+            assert!(imperial < metric, "{text}: {found:?}");
+            assert!(!found[0].metric_only, "{text}: {found:?}");
+            let first_metric = found.iter().position(|r| r.metric_only);
+            let last_imperial = found.iter().rposition(|r| !r.metric_only);
+            assert!(first_metric > last_imperial, "{text}: {found:?}");
+        }
+    }
+    // Codes that are no part's metric name, and a text that says metric.
+    for (text, key) in [
+        ("0805", "resistor-0805"),
+        ("1206", "resistor-1206"),
+        ("01005", "resistor-01005"),
+    ] {
+        let found = rows(&offers, None, text);
+        assert!(
+            found.iter().any(|r| r.preset.as_deref() == Some(key)),
+            "{text}: {found:?}"
+        );
+        assert!(!found.iter().any(|r| r.metric_only), "{text}: {found:?}");
+    }
+    let metric = rows(&offers, None, "0603 metric");
+    assert!(
+        metric
+            .iter()
+            .any(|r| r.preset.as_deref() == Some("resistor-0201") && !r.metric_only),
+        "{metric:?}"
+    );
+    Ok(())
+}
+
+/// Typed a digit at a time, the code ends on the imperial size, though
+/// "06" put the 0201 first; a row a person chose stays.
+#[test]
+fn typing_a_size_code_selects_the_imperial_size() -> TestResult {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    let offers = test_shelf().offers().ok_or("the shipped generators")?;
+    let mut gallery = GeneratorGallery::default();
+    gallery.set_shelf(&test_shelf());
+    gallery.open_new();
+    let type_code = |gallery: &mut GeneratorGallery, code: &str| {
+        for n in 1..=code.len() {
+            if let Some(open) = &mut gallery.open {
+                open.query = code[..n].to_owned();
+            }
+            gallery.refresh(&offers);
+        }
+        let row = gallery.open.as_ref().and_then(|o| o.row().cloned());
+        row.map(|r| (r.name, r.metric_only))
+    };
+    for code in ["0603", "0402", "0805"] {
+        let (name, metric) = type_code(&mut gallery, code).ok_or("a row")?;
+        assert!(!metric && name.contains(code), "{code}: {name}");
+        assert!(
+            !name.contains(&format!("({code} metric)")),
+            "{code}: {name}"
+        );
+    }
+    // The 0201, chosen by hand, stays through the same search.
+    if let Some(open) = &mut gallery.open {
+        open.query = "0603".to_owned();
+    }
+    gallery.refresh(&offers);
+    let open = gallery.open.as_mut().ok_or("open")?;
+    open.highlighted = open
+        .rows
+        .iter()
+        .position(|r| r.metric_only)
+        .ok_or("a metric row")?;
+    open.chosen = true;
+    open.moved(&offers);
+    let held = open.kept.clone();
+    open.query = "0603 ".to_owned();
+    gallery.refresh(&offers);
+    assert_eq!(gallery.open.as_ref().and_then(|o| o.kept.clone()), held);
+    Ok(())
+}
+
 /// The form is the description's: every parameter of every generator
 /// has a row, by its label, and a preset fills its values.
 #[test]

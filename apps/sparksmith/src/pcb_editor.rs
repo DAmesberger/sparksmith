@@ -957,6 +957,13 @@ impl PcbEditor {
             {
                 self.hole = None;
             }
+            // A copper tool still armed when its board lost its profile
+            // (undo took it back) ends: it would draw at no width.
+            if engine.project().rules.profile.is_none()
+                && matches!(self.tool, Tool::Route | Tool::Via | Tool::Fill | Tool::Tune)
+            {
+                self.end_route();
+            }
             self.stack = engine.project().stackup.layers();
             if !self.stack.contains(&self.layer) {
                 self.layer = CopperLayer::Top;
@@ -1312,24 +1319,27 @@ impl PcbEditor {
             "select" => self.end_route(),
             "dimension" => {
                 self.end_route();
-                self.arm_dimension(true);
+                let rules = &engine.project().rules;
+                if self.needs_profile(rules, "Can't dimension a part") {
+                    self.arm_dimension(true);
+                }
             }
-            "route" => {
+            "route" if self.needs_profile(&engine.project().rules, "Can't route") => {
                 if self.tool != Tool::Route {
                     self.reset_route();
                     self.route.ended = false;
                 }
                 self.tool = Tool::Route;
             }
-            "via" => {
+            "via" if self.needs_profile(&engine.project().rules, "Can't place a via") => {
                 self.end_route();
                 self.tool = Tool::Via;
             }
-            "tune" => {
+            "tune" if self.needs_profile(&engine.project().rules, "Can't tune a track") => {
                 self.end_route();
                 self.tool = Tool::Tune;
             }
-            "fill" => {
+            "fill" if self.needs_profile(&engine.project().rules, "Can't draw a fill") => {
                 self.end_route();
                 self.tool = Tool::Fill;
                 if self.fill_draw.net.is_none() {
@@ -2269,7 +2279,11 @@ impl PcbEditor {
                     Tool::Tune => "Tune",
                     Tool::Dimension => "Dimension",
                     Tool::Select if self.dragging_pair_half(project) => {
-                        "Drag the pair (⌥: this half alone)"
+                        if cfg!(target_os = "macos") {
+                            "Drag the pair (Option: this half alone)"
+                        } else {
+                            "Drag the pair (Alt: this half alone)"
+                        }
                     }
                     Tool::Select => "Select / move",
                 },

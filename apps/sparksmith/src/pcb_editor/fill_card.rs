@@ -75,6 +75,16 @@ impl PcbEditor {
         let mut d = draft.fill.clone();
         let locked = fill.locked;
         let rules = project.rules.effective().fill;
+        // What a setting that follows the rules takes; without a profile
+        // the rules have no value to show.
+        let profiled = project.rules.profile.is_some();
+        let rule = |text: String| {
+            if profiled {
+                text
+            } else {
+                "no fab profile".to_owned()
+            }
+        };
         kit::section(ui, "pcb-fill", "Fill", true, None, |ui| {
             ui.add_enabled_ui(!locked, |ui| {
                 kit::text_row(ui, "Name", &mut d.name);
@@ -93,20 +103,20 @@ impl PcbEditor {
             })
             .response
             .on_disabled_hover_text(LOCKED);
-            kit::value_row(ui, "Copper", &self.fill_state(fill));
+            kit::value_row(ui, "Copper", &self.fill_state(profiled, fill));
             kit::check_row(ui, "Locked", &mut d.locked);
         });
         ui.add_enabled_ui(!locked, |ui| {
             kit::section(ui, "pcb-fill-rules", "Clearance", true, None, |ui| {
                 let s = &mut d.settings;
                 let mut own = s.clearance.is_some();
-                rule_or_own(ui, "Clearance", &mut own, &mm(rules.clearance));
+                rule_or_own(ui, "Clearance", &mut own, &rule(mm(rules.clearance)));
                 s.clearance = own.then(|| s.clearance.unwrap_or(rules.clearance));
                 if let Some(v) = &mut s.clearance {
                     kit::number_row(ui, "Gap", v, "mm", MM_RANGE);
                 }
                 let mut own = s.width_min.is_some();
-                rule_or_own(ui, "Min width", &mut own, &mm(rules.width_min));
+                rule_or_own(ui, "Min width", &mut own, &rule(mm(rules.width_min)));
                 s.width_min = own.then(|| s.width_min.unwrap_or(rules.width_min));
                 if let Some(v) = &mut s.width_min {
                     kit::number_row(ui, "Width", v, "mm", MM_RANGE);
@@ -115,7 +125,10 @@ impl PcbEditor {
             kit::section(ui, "pcb-fill-connect", "Connections", true, None, |ui| {
                 let options: Vec<(Option<PadConnection>, String)> = std::iter::once((
                     None,
-                    format!("Rules · {}", connection_name(rules.connection)),
+                    format!(
+                        "Rules · {}",
+                        rule(connection_name(rules.connection).to_owned())
+                    ),
                 ))
                 .chain(
                     [
@@ -132,12 +145,12 @@ impl PcbEditor {
                 kit::choice_row(ui, "Vias", &mut c.via, &options);
                 let s = &mut d.settings;
                 let mut own = s.thermal.is_some();
-                let rule = format!(
+                let thermal = rule(format!(
                     "{} × {}",
                     rules.thermal.spoke_count,
                     mm(rules.thermal.spoke_width)
-                );
-                rule_or_own(ui, "Thermals", &mut own, &rule);
+                ));
+                rule_or_own(ui, "Thermals", &mut own, &thermal);
                 s.thermal = own.then(|| s.thermal.unwrap_or(rules.thermal));
                 if let Some(t) = &mut s.thermal {
                     thermal_rows(ui, t);
@@ -180,8 +193,12 @@ impl PcbEditor {
 
     /// "3 regions", "3 regions · 1 island removed", "Out of date" or "Not
     /// filled": what the fill's copper is.
-    pub(super) fn fill_state(&self, fill: &Fill) -> String {
+    pub(super) fn fill_state(&self, profiled: bool, fill: &Fill) -> String {
         match &fill.computed {
+            None if !profiled => "Not filled · choose a fab profile (Board › Rules)".to_owned(),
+            Some(_) if !profiled && self.stale_fills.contains(&fill.id) => {
+                "Out of date · choose a fab profile (Board › Rules)".to_owned()
+            }
             None => "Not filled · Refill computes it".to_owned(),
             Some(_) if self.stale_fills.contains(&fill.id) => {
                 "Out of date · Refill updates it".to_owned()

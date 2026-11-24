@@ -67,6 +67,30 @@ fn drawn_showcase() -> Result<(Engine, Id), Box<dyn std::error::Error>> {
     Ok((Engine::from_file(file)?, id))
 }
 
+/// What the Fill card's Copper row says without a fab profile: what to do,
+/// since Refill is refused then.
+#[test]
+fn a_fill_without_a_profile_says_to_choose_one() -> Result<(), Box<dyn std::error::Error>> {
+    let (engine, id) = filled_showcase()?;
+    let mut pour = engine.project().fill(id).ok_or("pour")?.clone();
+    let mut editor = PcbEditor::default();
+    editor.stale_fills.insert(id);
+    assert_eq!(
+        editor.fill_state(false, &pour),
+        "Out of date · choose a fab profile (Board › Rules)"
+    );
+    pour.computed = None;
+    assert_eq!(
+        editor.fill_state(false, &pour),
+        "Not filled · choose a fab profile (Board › Rules)"
+    );
+    assert_eq!(
+        editor.fill_state(true, &pour),
+        "Not filled · Refill computes it"
+    );
+    Ok(())
+}
+
 fn canvas(
     editor: &mut PcbEditor,
     engine: &Engine,

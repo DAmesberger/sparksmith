@@ -182,6 +182,7 @@ pub fn apply(project: &mut Project, command: FillCommand) -> Result<Option<Id>> 
             Ok(None)
         }
         FillCommand::Store { fill, copper } => {
+            project.rules.require()?;
             let key = inputs_key(project, fill)?;
             if copper.key != key {
                 return Err(Error::Conflict(
@@ -195,6 +196,7 @@ pub fn apply(project: &mut Project, command: FillCommand) -> Result<Option<Id>> 
             Ok(None)
         }
         FillCommand::StoreAll { fills } => {
+            project.rules.require()?;
             // Each names a distinct fill of the board, so the board bounds
             // how many one request stores.
             if fills.is_empty() || fills.len() > project.fills.len() {
@@ -435,8 +437,13 @@ impl FillCache {
 /// The copper of every stale fill, for a host to compute off the UI
 /// thread and commit with [`crate::Engine::store_fills`] (or `fill.store`).
 /// Only fills whose inputs changed are computed; results already in
-/// `cache` are reused, and new ones are added to it.
+/// `cache` are reused, and new ones are added to it. Without a fab profile
+/// there are no clearances to keep ([`crate::rules::ProjectRules::require`]),
+/// so nothing is computed and the fills stay unfilled.
 pub fn compute_stale(project: &Project, cache: &mut FillCache) -> Result<Vec<(Id, FilledCopper)>> {
+    if project.rules.profile.is_none() {
+        return Ok(Vec::new());
+    }
     let ids = ranked(project, RefillTarget::All)?;
     let mut ctx = compute::Ctx::new(project);
     let mut out = Vec::new();

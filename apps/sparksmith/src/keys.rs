@@ -160,6 +160,14 @@ pub fn labelled(ctx: &egui::Context, text: &str, id: &str) -> String {
     }
 }
 
+/// How a hint that spells its keys names the command modifier here: "Ctrl"
+/// off macOS (the label font has no ⌘ glyph).
+pub const COMMAND_KEY: &str = if cfg!(target_os = "macos") {
+    "Cmd"
+} else {
+    "Ctrl"
+};
+
 /// The one row the ten layer keys collapse to while they keep their
 /// default digits: (key, what it does).
 pub const LAYER_ROW: (&str, &str) = ("1–0", "Stackup layer 1–10 (through a via while routing)");

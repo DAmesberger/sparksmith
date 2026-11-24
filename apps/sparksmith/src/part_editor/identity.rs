@@ -429,13 +429,15 @@ impl PartEditor {
                 ui.spacing_mut().item_spacing.x = t.space_4;
                 back = ui
                     .add_enabled_ui(self.identity.can_back(), |ui| {
-                        ui_kit::button(ui, "‹", Button::Ghost).on_hover_text("Back (⌘[)")
+                        let tip = crate::keys::labelled(ui.ctx(), "Back", "component.back");
+                        ui_kit::button(ui, "‹", Button::Ghost).on_hover_text(tip)
                     })
                     .inner
                     .clicked();
                 forward = ui
                     .add_enabled_ui(self.identity.can_forward(), |ui| {
-                        ui_kit::button(ui, "›", Button::Ghost).on_hover_text("Forward (⌘])")
+                        let tip = crate::keys::labelled(ui.ctx(), "Forward", "component.forward");
+                        ui_kit::button(ui, "›", Button::Ghost).on_hover_text(tip)
                     })
                     .inner
                     .clicked();

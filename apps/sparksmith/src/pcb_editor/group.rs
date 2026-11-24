@@ -578,7 +578,11 @@ impl PcbEditor {
                 kit::check(ui, "Tracks", &mut f.tracks);
                 kit::check(ui, "Vias", &mut f.vias);
                 kit::check(ui, "Fills", &mut f.fills);
-                kit::hint(ui, "Clicks, the rectangle and ⌘A take these", "");
+                let all = format!(
+                    "Clicks, the rectangle and {}+A take these",
+                    crate::keys::COMMAND_KEY
+                );
+                kit::hint(ui, &all, "");
             });
         });
     }

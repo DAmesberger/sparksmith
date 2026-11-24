@@ -31,7 +31,9 @@ use crate::kit::{self, Tone};
 use crate::refusal::{self, Origin};
 use egui::{Align, Layout, Ui, pos2, vec2};
 use sparksmith_core::catalog::MAX_QUERY;
-use sparksmith_core::catalog::generic::generators::{GeneratorCandidate, PresetHit};
+use sparksmith_core::catalog::generic::generators::{
+    GeneratorCandidate, PresetHit, metric_aliases,
+};
 use sparksmith_core::library::generated::{GeneratorScope, ParamProblem, Standing};
 use sparksmith_core::library::{Definition, MAX_LABEL};
 use sparksmith_core::{ComponentRef, DefinitionId, Engine, Operation};
@@ -42,6 +44,8 @@ use sparksmith_ui::ui_kit::{self, Button};
 pub const GALLERY: &str = "generator-gallery";
 /// Rows one search lists.
 pub const ROWS: usize = 200;
+/// A search that found nothing.
+const NO_MATCH: &str = "No generator makes this; try a package or size: qfn 16, sot-23, 0603";
 /// Frames a submit waits for the engine's answer before the sheet is
 /// usable again (the app may drop an operation while a file is busy).
 const ANSWER_FRAMES: u64 = 3;
@@ -98,13 +102,17 @@ pub struct Row {
     pub preset: Option<String>,
     pub name: String,
     pub detail: String,
+    /// The text's size code names the row only as its metric alias ("0603",
+    /// the metric name of the 0201): ranked after the imperial code's rows.
+    pub metric_only: bool,
 }
 
 /// The rows `query` finds among `offers`, restricted to `chip` (a
 /// generator id) when one is chosen: each generator's custom row (when the
-/// text names the generator or is empty), then the presets it names. At
-/// most [`ROWS`]; the cap shortens preset lists, never drops a generator's
-/// custom row.
+/// text names the generator or is empty), then the presets it names. A size
+/// code reads as imperial ([`metric_aliases`]): the rows it names only as a
+/// metric alias come last. At most [`ROWS`]; the cap shortens preset lists,
+/// never drops a generator's custom row.
 pub fn rows(offers: &[Offer], chip: Option<&str>, query: &str) -> Vec<Row> {
     let words: Vec<String> = query
         .split_whitespace()
@@ -126,15 +134,23 @@ pub fn rows(offers: &[Offer], chip: Option<&str>, query: &str) -> Vec<Row> {
         .collect();
     let named = |title: &str| words.iter().all(|w| title.contains(w.as_str()));
     let customs = offers.iter().filter(|(_, title)| named(title)).count();
-    let mut presets_left = ROWS.saturating_sub(customs);
+    let metric = metric_aliases(query, &words);
+    let metric_only = |text: &str| {
+        metric.iter().any(|(k, alias)| {
+            words
+                .get(*k)
+                .is_some_and(|w| !text.replace(alias.as_str(), "").contains(w.as_str()))
+        })
+    };
     let mut out = Vec::new();
     for (offer, title) in offers {
-        if named(&title) && out.len() < ROWS {
+        if named(&title) {
             out.push(Row {
                 generator: offer.description.id.clone(),
                 preset: None,
                 name: format!("{}: custom values", offer.summary.name),
                 detail: format!("Generator {} version {}", offer.name, offer.summary.version),
+                metric_only: false,
             });
         }
         for preset in &offer.summary.presets {
@@ -147,17 +163,29 @@ pub fn rows(offers: &[Offer], chip: Option<&str>, query: &str) -> Vec<Row> {
             )
             .to_lowercase()
             .replace('×', "x");
-            if presets_left > 0 && words.iter().all(|w| text.contains(w.as_str())) {
-                presets_left -= 1;
+            if words.iter().all(|w| text.contains(w.as_str())) {
                 out.push(Row {
                     generator: offer.description.id.clone(),
                     preset: Some(preset.key.clone()),
                     name: preset.name.clone(),
                     detail: generator_form::basis_line(preset),
+                    metric_only: metric_only(&text),
                 });
             }
         }
     }
+    out.sort_by_key(|row| row.metric_only);
+    let mut customs_left = ROWS;
+    let mut presets_left = ROWS.saturating_sub(customs);
+    out.retain(|row| {
+        let left = match row.preset {
+            None => &mut customs_left,
+            Some(_) => &mut presets_left,
+        };
+        let keep = *left > 0;
+        *left = left.saturating_sub(1);
+        keep
+    });
     out
 }
 
@@ -195,6 +223,9 @@ struct Open {
     highlighted: usize,
     /// The highlighted row's identity, so a new search keeps it.
     kept: Option<(String, Option<String>)>,
+    /// A person chose the highlighted row (a click, an arrow key or a
+    /// search that opened the sheet on it); otherwise it was the first.
+    chosen: bool,
     values: Option<Values>,
     name: String,
     named: bool,
@@ -221,6 +252,7 @@ impl Open {
             listed: None,
             highlighted: 0,
             kept: None,
+            chosen: false,
             values: None,
             name: String::new(),
             named: false,
@@ -337,6 +369,7 @@ impl GeneratorGallery {
         open.to_place = to_place;
         open.chip = Some(request.generator.clone());
         open.kept = Some((request.generator.clone(), request.preset.clone()));
+        open.chosen = true;
         open.values = self
             .shelf
             .offer(&request.generator)
@@ -391,6 +424,11 @@ impl GeneratorGallery {
                 .iter()
                 .position(|r| r.generator == *generator && r.preset == *preset)
         });
+        // A row only the list put first does not stay chosen once the code
+        // typed on reads as another size ("06" lists the 0201 first, "0603"
+        // the 0603).
+        let chosen = open.chosen;
+        let index = index.filter(|i| chosen || !open.rows.get(*i).is_some_and(|r| r.metric_only));
         match index {
             Some(i) => {
                 open.highlighted = i;
@@ -402,6 +440,7 @@ impl GeneratorGallery {
             }
             None => {
                 open.highlighted = 0;
+                open.chosen = false;
                 open.moved(offers);
             }
         }
@@ -510,10 +549,12 @@ impl GeneratorGallery {
         let count = open.rows.len();
         if keys.down && count > 0 {
             open.highlighted = (open.highlighted + 1).min(count - 1);
+            open.chosen = true;
             open.moved(&offers);
         }
         if keys.up && open.highlighted > 0 {
             open.highlighted -= 1;
+            open.chosen = true;
             open.moved(&offers);
         }
         let mut primary = keys.enter;
@@ -524,10 +565,12 @@ impl GeneratorGallery {
         }
         if let Some(i) = chosen
             && let Some(open) = self.open.as_mut()
-            && i != open.highlighted
         {
-            open.highlighted = i;
-            open.moved(&offers);
+            open.chosen = true;
+            if i != open.highlighted {
+                open.highlighted = i;
+                open.moved(&offers);
+            }
         }
         if primary && !changed {
             self.submit(ctx, engine);
@@ -732,7 +775,7 @@ impl GeneratorGallery {
                             if let Some(status) = &status {
                                 kit::search_message(ui, status, false);
                             } else if open.rows.is_empty() {
-                                kit::search_message(ui, "No generator makes this", false);
+                                kit::search_message(ui, NO_MATCH, false);
                             } else {
                                 kit::search_heading(ui, "Generators", open.rows.len());
                                 egui::ScrollArea::vertical()

@@ -2005,3 +2005,51 @@ fn without_a_round_pad_angle_every_pad_keeps_the_one_spoke_angle() -> Fallible<(
     assert!(reliefs.iter().all(|(_, gaps)| *gaps), "{reliefs:?}");
     Ok(())
 }
+
+/// A board without a fab profile has no clearances, so a host computes no
+/// copper for its fills and stored copper is refused by name; a profile
+/// lets both through (GUI check 1, K9).
+#[test]
+fn without_a_profile_no_fill_copper_is_computed_or_stored() -> Fallible<()> {
+    let mut engine = Engine::default();
+    let id = add(
+        &mut engine,
+        spec(None, CopperLayer::Top, rect(5.0, 5.0, 20.0, 20.0)),
+    )?;
+    let mut cache = FillCache::default();
+    assert!(compute_stale(engine.project(), &mut cache)?.is_empty());
+    assert_eq!(engine.refill_stale()?, 0);
+    let copper = super::compute(engine.project(), id)?;
+    let stores = [
+        FillCommand::Store {
+            fill: id,
+            copper: Box::new(copper.clone()),
+        },
+        FillCommand::StoreAll {
+            fills: vec![super::StoredFill { fill: id, copper }],
+        },
+        FillCommand::Refill {
+            target: RefillTarget::All,
+        },
+    ];
+    for store in stores {
+        let refused = engine
+            .apply(engine.revision(), Operation::Fill(store))
+            .err()
+            .ok_or("stored without a profile")?;
+        assert!(
+            refused.to_string().contains("rules.no_fab_profile"),
+            "{refused}"
+        );
+    }
+    assert!(fill(engine.project(), id)?.computed.is_none());
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::set_profile(
+            crate::rules::fixtures::jlcpcb_example()?,
+            false,
+        )),
+    )?;
+    assert_eq!(compute_stale(engine.project(), &mut cache)?.len(), 1);
+    Ok(())
+}

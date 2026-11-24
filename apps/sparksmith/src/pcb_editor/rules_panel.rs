@@ -791,6 +791,27 @@ impl PcbEditor {
         };
     }
 
+    /// Whether a tool that makes copper may start: the board has a fab
+    /// profile. Without one no width, via size or clearance has a value, so
+    /// the tool is refused before anything is drawn: the Fab profile dialog
+    /// opens and says what it was asked for ("Can't route: …") in the words
+    /// of [`ProjectRules::require`], as an outline sketch is refused.
+    pub(super) fn needs_profile(&mut self, rules: &ProjectRules, what: &str) -> bool {
+        let Err(error) = rules.require() else {
+            return true;
+        };
+        self.end_route();
+        self.choose_profile();
+        if let Some(RulesPanel {
+            mode: Mode::Choose { refusal, .. },
+            ..
+        }) = &mut self.rules
+        {
+            *refusal = Some(format!("{what}: {}", refusal::shown_error(&error)));
+        }
+        false
+    }
+
     /// An Issues row's "Show rule": the panel, at that rule.
     pub fn show_rule(&mut self, topic: RuleTopic) {
         self.open_rules(Some(topic));
@@ -1091,7 +1112,14 @@ fn body(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> (Option<Operati
     }
     let report = rules::report(rules);
     let mut focused = false;
-    for (group, title) in GROUPS {
+    // Without a profile no rule has a value (every limit is unset), so no
+    // table of zeros shows: the hint above says to choose one.
+    let groups: &[(RuleGroup, &str)] = if rules.profile.is_some() {
+        &GROUPS
+    } else {
+        &[]
+    };
+    for &(group, title) in groups {
         let rows: Vec<&RuleRow> = report.rows.iter().filter(|r| r.group == group).collect();
         if rows.is_empty() {
             continue;
