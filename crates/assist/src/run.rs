@@ -767,6 +767,14 @@ pub(crate) fn converse(
             tools: Vec::new(),
         });
         if let Some(stop) = received.terminal {
+            if matches!(reply.stop, StopReason::Silent { .. }) {
+                // What had arrived stays shown.
+                for part in &reply.content {
+                    if let Part::Text { text, .. } = part {
+                        events(Event::Text(text.clone()));
+                    }
+                }
+            }
             break stop.into();
         }
         if reply.stop == StopReason::Stopped {

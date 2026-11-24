@@ -36,6 +36,9 @@ pub enum Streamed {
     Done,
     /// The reader was told to stop between two events.
     Stopped,
+    /// Nothing more arrived for as long as the person allows, and why that
+    /// ended it: what came before was delivered.
+    Silent(String),
     /// The server answered with one JSON reply instead of a stream, as some
     /// local servers do: the backend reads it as a whole reply.
     Whole(serde_json::Value),

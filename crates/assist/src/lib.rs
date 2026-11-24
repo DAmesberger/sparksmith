@@ -35,6 +35,7 @@ pub mod documents;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod fixtures;
 pub mod harness;
+pub mod http;
 pub mod legacy;
 pub mod model;
 pub mod pins;
@@ -67,6 +68,10 @@ pub enum Error {
     Unsupported(String),
     #[error("HTTP: {0}")]
     Http(String),
+    /// Nothing arrived for as long as the person allows: which limit, its
+    /// value and where to change it.
+    #[error("{0}")]
+    Silent(String),
     #[error("API error {status}: {message}")]
     Api { status: u16, message: String },
     /// The server answered, but not in the shape its protocol has.
@@ -200,6 +205,8 @@ pub enum Stop {
     Ended,
     /// The model kept sending a call that was refused, unchanged.
     Repeated(String),
+    /// The model sent nothing for as long as its connection allows.
+    Silent(String),
     /// The API or transport failed.
     Failed(String),
 }
@@ -210,6 +217,7 @@ impl std::fmt::Display for Stop {
             Self::Submitted => write!(f, "review report submitted"),
             Self::Answered => write!(f, "step answered"),
             Self::Budget(why) => write!(f, "cap reached: {why}"),
+            Self::Silent(why) => write!(f, "{why}"),
             Self::CutOff(why) => write!(f, "cut off: {why}"),
             Self::Cancelled => write!(f, "cancelled"),
             Self::Refused(why) => write!(f, "the model declined: {why}"),

@@ -3,6 +3,7 @@
 //! no behaviour above the backends depends on a vendor's name.
 use super::wire::AuthStyle;
 use super::{Endpoint, KeySource};
+use crate::http::Silence;
 use crate::{Error, Result};
 use std::time::Duration;
 
@@ -100,6 +101,10 @@ pub struct ModelProfile {
     pub output: OutputLimits,
     /// The effort or reasoning level, when one is set.
     pub effort: Option<String>,
+    /// How long the model may send nothing before a request is given up.
+    pub silence: Silence,
+    /// The same for counting a prompt's tokens.
+    pub count_silence: Silence,
 }
 
 /// The context of a model on the Messages API.
@@ -130,6 +135,8 @@ impl ModelProfile {
                 after_cut: 64_000,
             },
             effort: Some("high".into()),
+            silence: Silence::default(),
+            count_silence: Silence::default(),
         }
     }
 
@@ -153,6 +160,8 @@ impl ModelProfile {
             },
             output: OutputLimits::for_context(context_tokens),
             effort: None,
+            silence: Silence::default(),
+            count_silence: Silence::default(),
         }
     }
 

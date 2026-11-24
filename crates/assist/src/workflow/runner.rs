@@ -371,6 +371,8 @@ struct Runner<'a, 's> {
 enum Next {
     /// Go on to the next step.
     On,
+    /// Run the step once more.
+    Again,
     /// Go back to the step at this index, with this text for it.
     Back(usize, String),
     /// The run ends.
@@ -449,6 +451,11 @@ impl Runner<'_, '_> {
                         return RunEnd::Done;
                     }
                     k += 1;
+                }
+                Next::Again => {
+                    if let Some(note) = note {
+                        notes.insert(k, note);
+                    }
                 }
                 Next::Back(to, why) => {
                     let Some(target) = steps.get(to) else {
@@ -991,10 +998,41 @@ impl Runner<'_, '_> {
             }
             (Stop::Cancelled, _) => Next::End(RunEnd::Stopped),
             (Stop::Budget(why), _) => Next::End(RunEnd::Limit { why }),
+            (Stop::Silent(why), _) => self.try_again(step, why, person),
             (stop, _) => Next::End(RunEnd::Failed {
                 step: step.id.clone(),
                 why: stop.to_string(),
             }),
+        }
+    }
+
+    /// The model went silent in `step`: the person has it run again, or
+    /// the run ends, as it does with no one to ask.
+    fn try_again(&mut self, step: &Step, why: String, person: &mut dyn Person) -> Next {
+        const AGAIN: &str = "again";
+        let card = ControlCard::Choice {
+            field: Field {
+                input: step.id.clone(),
+                title: step.title.clone(),
+                help: why.clone(),
+                optional: false,
+            },
+            multiple: false,
+            options: vec![Choice {
+                value: AGAIN.into(),
+                title: "Try this step again".into(),
+            }],
+            value: vec![AGAIN.into()],
+        };
+        person.event(&WorkflowEvent::Card {
+            run: self.run_id.clone(),
+            step: step.id.clone(),
+            card: card.clone(),
+        });
+        match person.answer(&step.id, &[card]) {
+            Some(ControlAnswer::Change { .. }) => Next::Again,
+            Some(ControlAnswer::Stop) => Next::End(RunEnd::Stopped),
+            _ => Next::End(RunEnd::Limit { why }),
         }
     }
 

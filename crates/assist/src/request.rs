@@ -21,6 +21,8 @@ pub(crate) enum Stopped {
     Cancelled,
     /// Which limit, and the numbers in words.
     Limit(Hit, String),
+    /// The model went silent: which limit, its value and where it is set.
+    Silent(String),
     Failed(String),
 }
 
@@ -29,6 +31,7 @@ impl From<Stopped> for crate::Stop {
         match stop {
             Stopped::Cancelled => Self::Cancelled,
             Stopped::Limit(_, why) => Self::Budget(why),
+            Stopped::Silent(why) => Self::Silent(why),
             Stopped::Failed(why) => Self::Failed(why),
         }
     }
@@ -208,8 +211,10 @@ impl Driver<'_> {
                 return Err(if self.cancel.load(Ordering::Relaxed) {
                     Stopped::Cancelled
                 } else {
-                    self.out_of_time(n)
-                        .unwrap_or_else(|| Stopped::Failed(error.to_string()))
+                    self.out_of_time(n).unwrap_or_else(|| match error {
+                        crate::Error::Silent(why) => Stopped::Silent(why),
+                        error => Stopped::Failed(error.to_string()),
+                    })
                 });
             }
         };
@@ -225,6 +230,8 @@ impl Driver<'_> {
         let terminal = if self.cancel.load(Ordering::Relaxed) {
             reply.stop = StopReason::Stopped;
             None
+        } else if let StopReason::Silent { why } = &reply.stop {
+            Some(Stopped::Silent(why.clone()))
         } else {
             self.out_of_time(n)
         };

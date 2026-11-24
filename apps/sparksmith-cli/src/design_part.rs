@@ -19,6 +19,7 @@
 //! computer. `llm-key` stores one in the keychain for one endpoint.
 use super::{Result, interrupt};
 use serde_json::Value;
+use sparksmith_assist::http::Silence;
 use sparksmith_assist::model::profile::ANTHROPIC_BASE_URL;
 use sparksmith_assist::model::record::{Recording, Replay};
 use sparksmith_assist::model::{
@@ -26,6 +27,7 @@ use sparksmith_assist::model::{
     Provider, Secret, keys,
 };
 use sparksmith_assist::profile as run_profile;
+use sparksmith_assist::settings as ai;
 use sparksmith_assist::workflow::control::{ControlAnswer, ControlCard};
 use sparksmith_assist::workflow::event::WorkflowEvent;
 use sparksmith_assist::workflow::runner::{self, Person, WorkflowRun};
@@ -42,7 +44,7 @@ use std::time::{Duration, Instant};
 pub const USAGE: &str = "design-part --datasheet PDF|URL [--datasheet …] --name NAME --out NEW.sparksmith
               [--provider anthropic|openai] [--base-url URL] [--model ID] [--key none|keychain|env:NAME]
               [--context-tokens N] [--max-output-tokens N] [--vision yes|no] [--native-pdf yes|no]
-              [--tools yes|no] [--effort LEVEL]
+              [--tools yes|no] [--effort LEVEL] [--request-timeout SECONDS|none]
               [--max-requests N] [--max-tokens N] [--max-seconds N]
               [--profile NAME] [--notes TEXT] [--record FILE.jsonl | --replay FILE.jsonl]
                                    draft a part from datasheets with a configured model (the
@@ -80,6 +82,8 @@ struct Flags {
     native_pdf: Option<bool>,
     tools: Option<bool>,
     effort: Option<String>,
+    /// How long the model may send nothing.
+    request_timeout: Option<Option<Duration>>,
     profile: Option<String>,
 }
 
@@ -165,6 +169,21 @@ fn configure(flags: Flags, shipped: &AssistLibrary) -> Result<(RunConfig, Connec
         }
         profile.effort = Some(effort);
     }
+    let endpoint = Endpoint::parse(&base)?;
+    let settings = ai::Shipped::locate()?;
+    let wire = match provider {
+        Provider::Anthropic => ai::Wire::Anthropic,
+        Provider::OpenAiCompatible => ai::Wire::Openai,
+    };
+    profile.silence = Silence {
+        after: flags
+            .request_timeout
+            .unwrap_or_else(|| settings.reply_silence(wire, endpoint.is_loopback()).after),
+        set_in: "--request-timeout",
+    };
+    let dirs = sparksmith_io::settings::UserDirs::from_env().ok();
+    let network = ai::network(dirs.as_ref().map(|d| d.config.as_path()))?;
+    profile.count_silence = ai::Network::silence(network.count);
     let config = RunConfig::new(
         shipped,
         profile,
@@ -175,10 +194,7 @@ fn configure(flags: Flags, shipped: &AssistLibrary) -> Result<(RunConfig, Connec
         Some(text) => key_source(&text)?,
         None => key,
     };
-    let connection = Connection {
-        endpoint: Endpoint::parse(&base)?,
-        key,
-    };
+    let connection = Connection { endpoint, key };
     Ok((config, connection))
 }
 
@@ -208,6 +224,13 @@ impl ModelFlags {
             "--native-pdf" => flags.native_pdf = Some(yes_no(f, &value)?),
             "--tools" => flags.tools = Some(yes_no(f, &value)?),
             "--effort" => flags.effort = Some(value),
+            "--request-timeout" => {
+                flags.request_timeout = Some(match value.as_str() {
+                    "none" => None,
+                    "0" => return Err(format!("{f} is seconds, or none").into()),
+                    _ => Some(Duration::from_secs(count(f, &value)?)),
+                });
+            }
             "--profile" => flags.profile = Some(value),
             "--max-requests" => budget.max_requests = Some(count(f, &value)?),
             "--max-tokens" => budget.max_total_tokens = Some(count(f, &value)?),
@@ -736,7 +759,18 @@ mod tests {
     fn the_defaults_are_todays_anthropic_run() -> Result<()> {
         let parsed = parse(&args("--datasheet a.pdf --name X --out x.sparksmith"))?;
         let defaults = RunConfig::shipped_default(&AssistLibrary::locate()?)?;
-        assert_eq!(parsed.config.profile, defaults.profile);
+        // The waits are the shipped settings': 30 minutes for a hosted model.
+        let profile = ModelProfile {
+            silence: parsed.config.profile.silence,
+            count_silence: parsed.config.profile.count_silence,
+            ..defaults.profile.clone()
+        };
+        assert_eq!(parsed.config.profile, profile);
+        assert_eq!(profile.silence.after, Some(Duration::from_secs(30 * 60)));
+        let none = parse(&args(
+            "--datasheet a.pdf --name X --out x.sparksmith --request-timeout none",
+        ))?;
+        assert_eq!(none.config.profile.silence.after, None);
         assert_eq!(parsed.config.run_profile, defaults.run_profile);
         assert_eq!(parsed.config.base_prompt, defaults.base_prompt);
         assert_eq!(parsed.config.budget, Budget::default());

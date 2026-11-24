@@ -17,7 +17,8 @@ use crate::harness::{
     CondenseHistory, HistoryStrategy, ReplyStrategy, ShapeReply, SurfaceStrategy,
 };
 use crate::model::{
-    Budget, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason, ToolSpec,
+    Budget, Message, ModelBackend, ModelProfile, ModelReply, ModelRequest, Part, Role, StopReason,
+    ToolSpec,
 };
 use crate::usage::Tally;
 use crate::{Error, Result};
@@ -216,6 +217,8 @@ pub enum Hit {
     /// Prompt plus output tokens.
     Tokens,
     Time,
+    /// The model sent nothing for as long as its connection allows.
+    Silence,
 }
 
 /// How a turn ended. What its calls changed stays, as one undo step.
@@ -240,6 +243,10 @@ impl From<crate::request::Stopped> for End {
         match stop {
             crate::request::Stopped::Cancelled => Self::Stopped,
             crate::request::Stopped::Limit(hit, why) => Self::Limit { hit, why },
+            crate::request::Stopped::Silent(why) => Self::Limit {
+                hit: Hit::Silence,
+                why,
+            },
             crate::request::Stopped::Failed(why) => Self::Failed(why),
         }
     }
@@ -441,6 +448,9 @@ pub fn turn(
             Err(stop) => break stop.into(),
         };
         if let Some(stop) = received.terminal {
+            if matches!(received.reply.stop, StopReason::Silent { .. }) {
+                keep_text(received.reply, history, events);
+            }
             break stop.into();
         }
         let n = received.n;
@@ -579,6 +589,31 @@ pub fn turn(
         end,
         usage: usage(&tally),
     }
+}
+
+/// What a reply that went silent had said: shown, and the history's for the
+/// next message. A call it began is not, for it may be incomplete.
+fn keep_text(reply: ModelReply, history: &mut Vec<Message>, events: &mut dyn FnMut(Event)) {
+    let content: Vec<Part> = reply
+        .content
+        .into_iter()
+        .filter(|part| matches!(part, Part::Text { text, .. } if !text.trim().is_empty()))
+        .collect();
+    if content.is_empty() {
+        return;
+    }
+    let text: Vec<&str> = content
+        .iter()
+        .filter_map(|part| match part {
+            Part::Text { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    events(Event::Text(text.join("\n\n")));
+    history.push(Message {
+        role: Role::Assistant,
+        content,
+    });
 }
 
 /// The person's message after the history: joined to the last message when

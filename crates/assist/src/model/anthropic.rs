@@ -458,6 +458,7 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
 
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply> {
         let body = request_body(&self.profile, request);
+        self.wire.set_silence(self.profile.silence);
         let response = self.wire.post(
             "/v1/messages",
             &Self::headers(&body),
@@ -481,6 +482,7 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
             fields.insert("stream".into(), Value::Bool(true));
         }
         let mut assembly = Assembly::default();
+        self.wire.set_silence(self.profile.silence);
         let streamed = self.wire.post_stream(
             "/v1/messages",
             &Self::headers(&body),
@@ -500,8 +502,12 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
                 redactor.finish(true, deltas);
                 return Ok(reply);
             }
-            Streamed::Stopped => true,
-            Streamed::Done if assembly.complete => false,
+            Streamed::Stopped => Some(StopReason::Stopped),
+            Streamed::Silent(why) if assembly.message.is_empty() => {
+                return Err(Error::Silent(why));
+            }
+            Streamed::Silent(why) => Some(StopReason::Silent { why }),
+            Streamed::Done if assembly.complete => None,
             Streamed::Done => {
                 return Err(Error::Protocol(
                     "the stream ended before the reply was complete".into(),
@@ -510,10 +516,17 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
         };
         let response = self.wire.clean_value(assembly.finish());
         let mut reply = parse_reply(&response, &self.profile.model)?;
-        if stopped {
-            reply.stop = StopReason::Stopped;
+        let whole = stopped.is_none();
+        if let Some(stop) = stopped {
+            if matches!(stop, StopReason::Silent { .. }) {
+                // The count of a reply's output comes with its end.
+                let output = crate::usage::estimated_output_tokens(&reply.content);
+                reply.usage.output_tokens = reply.usage.output_tokens.max(output);
+                reply.usage_estimated = true;
+            }
+            reply.stop = stop;
         }
-        redactor.finish(!stopped, deltas);
+        redactor.finish(whole, deltas);
         self.wire.clean_reply(reply)
     }
 
@@ -526,6 +539,7 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
                 prompt[key] = v.clone();
             }
         }
+        self.wire.set_silence(self.profile.count_silence);
         let reply = self.wire.post(
             "/v1/messages/count_tokens",
             &[("anthropic-version", API_VERSION)],

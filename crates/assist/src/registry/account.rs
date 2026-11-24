@@ -26,10 +26,6 @@ pub const SIGN_IN_NEEDED: &str = "Sign in to the online library in Settings to d
      Searching works without an account.";
 /// Characters of the client name the registry shows on the account page.
 pub const MAX_CLIENT_NAME: usize = 80;
-/// How long one account request may take.
-const ACCOUNT_TIMEOUT: Duration = Duration::from_secs(10);
-/// How long revoking the token may take before sign-out goes on without.
-const REVOKE_TIMEOUT: Duration = Duration::from_secs(5);
 /// Bytes of an account or device reply.
 const MAX_ACCOUNT_BYTES: u64 = 64 * 1024;
 /// What `slow_down` adds to the polling interval (the contract's 5 s).
@@ -350,7 +346,7 @@ impl RegistryClient {
         let reply = self.send(
             Request::Read(Some(&token)),
             "/v1/account",
-            ACCOUNT_TIMEOUT,
+            self.silence(|n| n.account),
             MAX_ACCOUNT_BYTES,
         )?;
         match reply.status {
@@ -376,7 +372,7 @@ impl RegistryClient {
         let reply = self.send(
             Request::SignIn(&name),
             "/v1/device/code",
-            ACCOUNT_TIMEOUT,
+            self.silence(|n| n.account),
             MAX_ACCOUNT_BYTES,
         )?;
         if reply.status >= 300 {
@@ -403,7 +399,7 @@ impl RegistryClient {
         let reply = self.send(
             Request::Poll(&code.device_code),
             "/v1/device/token",
-            ACCOUNT_TIMEOUT,
+            self.silence(|n| n.account),
             MAX_ACCOUNT_BYTES,
         )?;
         match reply.status {
@@ -440,8 +436,8 @@ impl RegistryClient {
     }
 
     /// Poll `code` until the person confirms or declines it, it expires
-    /// (the registry's `expires_in`) or `cancel` is set. `sleep` waits between polls and says whether `cancel` was
-    /// set meanwhile ([`sleep_unless`]). The interval is the registry's,
+    /// (the registry's `expires_in`) or `cancel` is set. `sleep` waits between
+    /// polls and says whether `cancel` was set meanwhile ([`sleep_unless`]). The interval is the registry's,
     /// longer by 5 s after each `slow_down`; a registry that cannot be
     /// reached for a moment is polled again.
     pub fn wait_for_sign_in(
@@ -467,6 +463,7 @@ impl RegistryClient {
                 Ok(Poll::Approved(account)) => return Ok(account),
                 Ok(Poll::Expired) => return Err(SIGN_IN_EXPIRED.into()),
                 Ok(Poll::Denied) => return Err(SIGN_IN_DENIED.into()),
+                Err(_) if cancel.load(Ordering::SeqCst) => return Err(SIGN_IN_CANCELLED.into()),
                 Err(error) if unreachable(&error) => {}
                 Err(error) => return Err(error),
             }
@@ -484,7 +481,7 @@ impl RegistryClient {
         let revoked = self.send(
             Request::Revoke(&token),
             "/v1/auth/token",
-            REVOKE_TIMEOUT,
+            self.silence(|n| n.sign_out),
             MAX_ACCOUNT_BYTES,
         );
         let (revoked, problem) = match revoked {
