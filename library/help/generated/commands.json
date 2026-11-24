@@ -4171,6 +4171,30 @@
     }
   },
   {
+    "id": "command/shape.bs-coincident",
+    "title": "Coincident",
+    "summary": "PCB › Board shape: Coincident.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "J",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-concentric",
+    "title": "Concentric",
+    "summary": "PCB › Board shape: Concentric.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "N",
+      "reaches": "panel/layout"
+    }
+  },
+  {
     "id": "command/shape.bs-conic",
     "title": "Conic",
     "summary": "PCB › Board shape: Conic.",
@@ -4179,6 +4203,18 @@
       "kind": "command",
       "context": "PCB › Board shape",
       "default_key": "Shift+A",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-constraints",
+    "title": "Constraints",
+    "summary": "PCB › Board shape: Constraints.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "G",
       "reaches": "panel/layout"
     }
   },
@@ -4219,6 +4255,18 @@
     }
   },
   {
+    "id": "command/shape.bs-equal",
+    "title": "Equal",
+    "summary": "PCB › Board shape: Equal.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Q",
+      "reaches": "panel/layout"
+    }
+  },
+  {
     "id": "command/shape.bs-fillet",
     "title": "Fillet",
     "summary": "PCB › Board shape: Fillet.",
@@ -4227,6 +4275,18 @@
       "kind": "command",
       "context": "PCB › Board shape",
       "default_key": "F",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-fix",
+    "title": "Fix",
+    "summary": "PCB › Board shape: Fix.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "K",
       "reaches": "panel/layout"
     }
   },
@@ -4243,6 +4303,18 @@
     }
   },
   {
+    "id": "command/shape.bs-horizontal",
+    "title": "Horizontal",
+    "summary": "PCB › Board shape: Horizontal.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Z",
+      "reaches": "panel/layout"
+    }
+  },
+  {
     "id": "command/shape.bs-line",
     "title": "Line",
     "summary": "PCB › Board shape: Line.",
@@ -4255,6 +4327,18 @@
     }
   },
   {
+    "id": "command/shape.bs-midpoint",
+    "title": "Midpoint",
+    "summary": "PCB › Board shape: Midpoint.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "M",
+      "reaches": "panel/layout"
+    }
+  },
+  {
     "id": "command/shape.bs-name-edge",
     "title": "Name edge",
     "summary": "PCB › Board shape: Name edge.",
@@ -4263,6 +4347,42 @@
       "kind": "command",
       "context": "PCB › Board shape",
       "default_key": "E",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-on-curve",
+    "title": "On curve",
+    "summary": "PCB › Board shape: On curve.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "O",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-parallel",
+    "title": "Parallel",
+    "summary": "PCB › Board shape: Parallel.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "P",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-perpendicular",
+    "title": "Perpendicular",
+    "summary": "PCB › Board shape: Perpendicular.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Shift+P",
       "reaches": "panel/layout"
     }
   },
@@ -4311,6 +4431,42 @@
       "kind": "command",
       "context": "PCB › Board shape",
       "default_key": "S",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-symmetric",
+    "title": "Symmetric",
+    "summary": "PCB › Board shape: Symmetric.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Y",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-tangent",
+    "title": "Tangent",
+    "summary": "PCB › Board shape: Tangent.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "T",
+      "reaches": "panel/layout"
+    }
+  },
+  {
+    "id": "command/shape.bs-vertical",
+    "title": "Vertical",
+    "summary": "PCB › Board shape: Vertical.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Board shape",
+      "default_key": "Shift+V",
       "reaches": "panel/layout"
     }
   },

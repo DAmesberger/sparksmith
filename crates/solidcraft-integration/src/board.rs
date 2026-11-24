@@ -188,8 +188,14 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
     fn apply_sketch(&self, sketch: &SketchBlob, edit: &SketchEdit) -> Result<SketchOutcome> {
         let stored = check::check_board_sketch(&sketch.0)?;
         let edited = crate::footprint::edit::apply(&stored, edit)?;
-        if matches!(edit, SketchEdit::AddDimension { .. }) {
-            not_set_already(&edited)?;
+        match edit {
+            SketchEdit::AddDimension { .. } => not_set_already(&edited)?,
+            SketchEdit::AddConstraint { .. } => {
+                if let Some(added) = edited.constraints.last() {
+                    holds_on_free_form(&edited, &added.kind)?;
+                }
+            }
+            _ => {}
         }
         Ok(finish(&stored, &edited)?)
     }
@@ -1209,52 +1215,112 @@ fn dim(values: &Values, value: &DimValue) -> Outcome<(f64, Option<String>)> {
     Ok((v, param))
 }
 
+/// What already determines the constraint at `index`, for a message: the
+/// dimensions and, apart, the kinds of the geometric constraints. `None` when
+/// it removes a degree of freedom.
+fn set_by(sk: &Sketch, index: usize) -> Option<(Vec<String>, Vec<String>)> {
+    let by = determined_by(sk, index);
+    if by.is_empty() {
+        return None;
+    }
+    let (mut dimensions, mut kinds) = (Vec::new(), Vec::new());
+    for k in by.iter().filter_map(|i| sk.constraints.get(*i)) {
+        let (list, name) = match (k.kind.value(), &k.param) {
+            (None, _) => (&mut kinds, k.kind.name().to_owned()),
+            (Some(_), Some(p)) => (&mut dimensions, format!("‘{p}’")),
+            (Some(v), None) if k.kind.is_angle() => (
+                &mut dimensions,
+                format!("the {}° angle", limits::mm(v.to_degrees())),
+            ),
+            (Some(v), None) => (
+                &mut dimensions,
+                format!("the {} mm dimension", limits::mm(v)),
+            ),
+        };
+        if !list.contains(&name) {
+            list.push(name);
+        }
+    }
+    Some((dimensions, kinds))
+}
+
+/// `names`, at most [`DETERMINED_NAMED`] of them.
+fn listed(names: &[String]) -> String {
+    let shown: Vec<&str> = names
+        .iter()
+        .take(DETERMINED_NAMED)
+        .map(String::as_str)
+        .collect();
+    match names.len().saturating_sub(DETERMINED_NAMED) {
+        0 => shown.join(", "),
+        n => format!("{} and {n} more", shown.join(", ")),
+    }
+}
+
 /// Refuses the dimension just added (the last constraint) when other
 /// constraints already determine it: it would remove no freedom, which
 /// Solidcraft's Dimension command calls over-constraining (there it can
 /// become a driven dimension; a board sketch has none).
 fn not_set_already(sk: &Sketch) -> Result<()> {
-    let Some(last) = sk.constraints.len().checked_sub(1) else {
+    let last = sk.constraints.len().checked_sub(1);
+    let Some((names, _)) = last.and_then(|last| set_by(sk, last)) else {
         return Ok(());
-    };
-    let by = determined_by(sk, last);
-    if by.is_empty() {
-        return Ok(());
-    }
-    let mut names: Vec<String> = Vec::new();
-    for k in by.iter().filter_map(|i| sk.constraints.get(*i)) {
-        let Some(value) = k.kind.value() else {
-            continue;
-        };
-        let name = match &k.param {
-            Some(p) => format!("‘{p}’"),
-            None if k.kind.is_angle() => format!("the {}° angle", limits::mm(value.to_degrees())),
-            None => format!("the {} mm dimension", limits::mm(value)),
-        };
-        if !names.contains(&name) {
-            names.push(name);
-        }
-    }
-    let more = match names.len().saturating_sub(DETERMINED_NAMED) {
-        0 => String::new(),
-        n => format!(" and {n} more"),
     };
     let what = match names.as_slice() {
         [] => "this is already set by the sketch's constraints; it needs no dimension".into(),
         [one] => format!("{one} already sets this; edit that instead of adding a dimension"),
         _ => format!(
-            "{}{more} already set this; edit those instead of adding a dimension",
-            names
-                .iter()
-                .take(DETERMINED_NAMED)
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ")
+            "{} already set this; edit those instead of adding a dimension",
+            listed(&names)
         ),
     };
     Err(Error::Conflict(format!(
         "board.dimension_redundant: {what}"
     )))
+}
+
+/// Refuses the last constraint of `sketch` when others already determine it,
+/// naming them: what the window's Constrain tools ask before they add one. A
+/// geometric constraint sent as a `board.edit` follows Solidcraft's rule (one
+/// that holds is kept, one that does not is refused by the solve).
+pub fn refuse_redundant_constraint(sketch: &SketchBlob) -> Result<()> {
+    let sk = check::check_board_sketch(&sketch.0)?;
+    let last = sk.constraints.len().checked_sub(1);
+    let Some((mut names, kinds)) = last.and_then(|last| set_by(&sk, last)) else {
+        return Ok(());
+    };
+    names.extend(kinds);
+    let verb = if names.len() == 1 { "sets" } else { "set" };
+    Err(Error::Conflict(format!(
+        "board.constraint_redundant: {} already {verb} this; it would hold nothing more",
+        listed(&names)
+    )))
+}
+
+/// Refuses a constraint on a free-form curve that Solidcraft's solver takes but
+/// that says nothing: a point of the curve itself put on it, and Equal, which
+/// compares lengths or radii.
+fn holds_on_free_form(sk: &Sketch, kind: &ConstraintKind) -> Result<()> {
+    let refuse = |what: &str| Err(Error::Invalid(format!("board.constraint: {what}")));
+    let curve = |i: usize| sk.curves.get(i).map(|c| &c.kind);
+    let free = |i: usize| {
+        matches!(
+            curve(i),
+            Some(CurveKind::Spline { .. } | CurveKind::Ellipse { .. } | CurveKind::Conic { .. })
+        )
+    };
+    match *kind {
+        ConstraintKind::PointOnCurve { p, c } if free(c) => {
+            if curve(c).is_some_and(|k| k.point_ids().contains(&p)) {
+                return refuse("that point is one of the curve's own");
+            }
+        }
+        ConstraintKind::Equal { a, b } if free(a) || free(b) => {
+            return refuse("equal needs two lines, or two circles or arcs");
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn finish(stored: &Sketch, sk: &Sketch) -> Outcome<SketchOutcome> {

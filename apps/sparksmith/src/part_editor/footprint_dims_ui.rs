@@ -17,6 +17,7 @@ use super::footprint_dims::{
     ValueField,
 };
 use super::footprint_tools::FootprintTool;
+use crate::sketch_glyphs;
 use crate::symbol_view::View;
 use egui::{Align2, Pos2, Rect, Response, Stroke, Ui, vec2};
 use sparksmith_core::Point;
@@ -26,52 +27,21 @@ use sparksmith_core::library::footprint_source::{
 };
 use sparksmith_solidcraft::footprint::SketchEvaluator;
 use sparksmith_solidcraft::footprint::view::ViewGeometry;
-use sparksmith_ui::icons;
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::type_face;
 
 /// Pick distance around sketch points and curves, in pixels.
 const PICK_PX: f32 = 6.0;
-/// Constraint glyph size, in pixels (Solidcraft's `GLYPH`).
-const GLYPH: f32 = 15.0;
-/// Most glyphs drawn in one frame.
-const MAX_GLYPHS: usize = 512;
 /// Width of the inline value field, in pixels.
 const FIELD_W: f32 = 150.0;
 /// Arrowhead length and half width, in pixels.
 const ARROW: f32 = 8.0;
 const ARROW_HALF: f32 = 2.6;
 
-/// Solidcraft's glyph icon for a constraint type (`icons/markers.rs`).
-fn glyph_icon(kind: &str) -> Option<&'static str> {
-    Some(match kind {
-        "Parallel" => "c_parallel",
-        "Perpendicular" => "c_perpendicular",
-        "Collinear" => "c_collinear",
-        "Tangent" => "c_tangent",
-        "Equal" => "c_equal",
-        "Concentric" => "c_concentric",
-        "MidPoint" => "c_midpoint",
-        "Symmetry" => "c_symmetry",
-        "Fix" => "c_fix",
-        _ => return None,
-    })
-}
-
-/// Solidcraft's glyph letter where there is no icon.
-fn glyph_letter(kind: &str) -> &'static str {
-    match kind {
-        "Horizontal" => "-",
-        "Vertical" => "|",
-        _ => "?",
-    }
-}
-
 /// A Constrain tool's ribbon look: id, icon, label, tip.
 pub(super) fn constrain_look(
     tool: FootprintTool,
 ) -> Option<(&'static str, &'static str, &'static str)> {
-    use sparksmith_core::library::footprint_source::GeomConstraint as G;
     let FootprintTool::Constrain(kind) = tool else {
         return match tool {
             FootprintTool::Dimension => Some((
@@ -82,20 +52,7 @@ pub(super) fn constrain_look(
             _ => None,
         };
     };
-    Some(match kind {
-        G::Coincident => ("c_coincident", "Coincident", dims::hint(kind)),
-        G::Horizontal => ("line", "Horizontal", dims::hint(kind)),
-        G::Vertical => ("centerline", "Vertical", dims::hint(kind)),
-        G::Parallel => ("c_parallel", "Parallel", dims::hint(kind)),
-        G::Perpendicular => ("c_perpendicular", "Perpendicular", dims::hint(kind)),
-        G::Equal => ("c_equal", "Equal", dims::hint(kind)),
-        G::Tangent => ("c_tangent", "Tangent", dims::hint(kind)),
-        G::Midpoint => ("c_midpoint", "Midpoint", dims::hint(kind)),
-        G::PointOnCurve => ("c_coincident", "On curve", dims::hint(kind)),
-        G::Concentric => ("c_concentric", "Concentric", dims::hint(kind)),
-        G::Symmetric => ("c_symmetry", "Symmetric", dims::hint(kind)),
-        G::Fixed => ("c_fix", "Fix", dims::hint(kind)),
-    })
+    Some(dims::constrain_look(kind))
 }
 
 /// Sample a curve in footprint millimetres.
@@ -124,27 +81,6 @@ fn polyline(geometry: &ViewGeometry) -> Vec<Point> {
         }
         ViewGeometry::FreeForm { .. } => Vec::new(),
     }
-}
-
-/// Where a curve's glyphs start: its middle, and the unit normal (screen)
-/// they step away along.
-fn glyph_base(view: View, geometry: &ViewGeometry) -> Option<(Pos2, egui::Vec2, f32)> {
-    let line = polyline(geometry);
-    let (first, last) = (line.first()?, line.last()?);
-    let mid = line.get(line.len() / 2)?;
-    let (a, b) = (view.screen(*first), view.screen(*last));
-    let along = b - a;
-    let length = along.length();
-    let normal = if length > 1e-3 {
-        vec2(-along.y, along.x) / length
-    } else {
-        vec2(0.0, -1.0)
-    };
-    let mid = match geometry {
-        ViewGeometry::Line { a, b } => view.screen([(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0]),
-        _ => view.screen(*mid),
-    };
-    Some((mid, normal, length.max(GLYPH * 2.0)))
 }
 
 fn dashed(painter: &egui::Painter, points: &[Pos2], stroke: Stroke) {
@@ -749,83 +685,29 @@ impl PartEditor {
         }
         // Constraint glyphs beside their entities, stepping along where
         // they would overlap.
-        let mut glyph_rects: Vec<(SketchConstraintId, Rect)> = Vec::new();
-        let mut taken: Vec<Rect> = label_rects.iter().map(|(_, r)| r.expand(2.0)).collect();
         let focus = self.dim_focus();
-        for constraint in drawn.constraints.iter().filter(|k| {
+        let shown = drawn.constraints.iter().filter(|k| {
             k.value.is_none()
                 && k.kind != "Coincident"
                 && dims::shows_glyph(k, &loaded.source, state.detail, &focus)
-        }) {
-            if glyph_rects.len() >= MAX_GLYPHS {
-                break;
-            }
-            let base = match (constraint.curves.first(), constraint.points.first()) {
-                (Some(c), _) => drawn
-                    .curve(c)
-                    .and_then(|c| glyph_base(view, &c.geometry))
-                    .filter(|(_, _, length)| *length >= GLYPH * 1.5),
-                (None, Some(p)) => drawn
-                    .point(p)
-                    .map(|p| (view.screen(p.at), vec2(0.7, -0.7), GLYPH * 2.0)),
-                _ => None,
-            };
-            let Some((base, normal, _)) = base else {
-                continue;
-            };
-            let along = vec2(normal.y, -normal.x);
-            let mut at = base + normal * GLYPH;
-            for _ in 0..8 {
-                let r = Rect::from_center_size(at, vec2(GLYPH, GLYPH));
-                if !taken.iter().any(|q| q.intersects(r)) {
-                    break;
-                }
-                at += along * (GLYPH + 2.0);
-            }
-            let r = Rect::from_center_size(at, vec2(GLYPH, GLYPH));
-            if !rect.intersects(r) {
-                continue;
-            }
-            let failing = conflicting.contains(&constraint.id);
-            let lit = state.selected.as_ref() == Some(&constraint.id)
-                || hover.is_some_and(|h| r.contains(h));
-            let ink = if failing {
-                t.sketch_conflict
-            } else if lit {
-                t.accent
-            } else if redundant.contains(&constraint.id) {
-                t.glyph_text.gamma_multiply(0.45)
-            } else {
-                t.glyph_text
-            };
-            painter.rect_filled(
-                r,
-                t.radius_sm.saturating_sub(1),
-                if lit { t.accent_soft } else { t.glyph_bg },
-            );
-            painter.rect_stroke(
-                r,
-                t.radius_sm.saturating_sub(1),
-                Stroke::new(1.0, if failing || lit { ink } else { t.glyph_edge }),
-                egui::StrokeKind::Inside,
-            );
-            match glyph_icon(constraint.kind) {
-                Some(icon) => {
-                    icons::paint_icon(painter, r.shrink(2.0), icon, f32::from(ink.a()) / 255.0);
-                }
-                None => {
-                    painter.text(
-                        at,
-                        Align2::CENTER_CENTER,
-                        glyph_letter(constraint.kind),
-                        type_face::semibold(t.font_small),
-                        ink,
-                    );
-                }
-            }
-            taken.push(r.expand(1.0));
-            glyph_rects.push((constraint.id.clone(), r));
-        }
+        });
+        let glyph_rects = sketch_glyphs::paint(
+            &sketch_glyphs::Canvas {
+                painter,
+                rect,
+                screen: &|p| view.screen(p),
+                polyline: &polyline,
+                sketch: drawn,
+            },
+            shown,
+            &label_rects,
+            sketch_glyphs::State {
+                conflicting,
+                redundant,
+                selected: state.selected.as_slice(),
+                hover,
+            },
+        );
         // A placed-pick dimension follows the pointer until it is placed.
         if self.footprint_tool.tool == Some(FootprintTool::Dimension)
             && let Some(h) = hover

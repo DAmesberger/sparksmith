@@ -652,7 +652,8 @@ fn the_shape_mode_draws_the_sketch_and_a_rectangle_commits_one_board_edit() -> F
     let ids: Vec<&str> = ribbon
         .groups
         .iter()
-        .flat_map(|g| g.tools.iter().map(|t| t.id))
+        .flat_map(|g| &g.tools)
+        .flat_map(|t| std::iter::once(t.id).chain(t.menu.iter().map(|v| v.id)))
         .collect();
     for tool in ShapeTool::ALL {
         assert!(ids.contains(&tool.id()), "{}", tool.id());
@@ -1821,5 +1822,270 @@ fn a_sketch_point_drag_outlives_a_fill_store() -> Fallible {
         "{:?}",
         view.points
     );
+    Ok(())
+}
+
+/// Every constraint tool has its own key in the registry, as Constraints
+/// has, and the card shows the registry's key.
+#[test]
+fn the_constraint_tools_keys_come_from_the_registry() -> Fallible {
+    use crate::commands::{Context, Registry, active_contexts};
+    let registry = Registry::standard();
+    let active = active_contexts(Context::BoardShape);
+    let constraints = ShapeTool::ALL
+        .into_iter()
+        .filter(|t| matches!(t, ShapeTool::Constrain(_)));
+    let mut seen = std::collections::BTreeSet::new();
+    for id in constraints.map(ShapeTool::id).chain([CONSTRAINTS_TOOL]) {
+        let command = registry.get_parts("shape", id).ok_or(id)?;
+        let chord = registry.chord(command).ok_or(id)?;
+        let found = registry.resolve(chord, &active).map(|c| c.id.clone());
+        assert_eq!(found, Some(format!("shape.{id}")));
+        assert!(seen.insert(format!("{chord:?}")), "{id}");
+    }
+    assert_eq!(seen.len(), 13);
+    let mut d = Drawn::new()?;
+    d.editor
+        .shape
+        .arm(ShapeTool::Constrain(GeomConstraint::Vertical));
+    let (output, _) = slot(&mut d.editor, &d.engine, &d.ctx, vec![]);
+    let command = registry.get("shape.bs-vertical").ok_or("no command")?;
+    let key = registry.shortcut(command).ok_or("no key")?;
+    assert!(painted(&output).iter().any(|(t, _)| *t == key), "{key}");
+    Ok(())
+}
+
+/// A construction line of the board sketch and its curve.
+fn guide(d: &mut Drawn, a: Point, b: Point) -> Fallible<SketchCurveId> {
+    d.apply(Some(operation(vec![BoardEdit::Sketch {
+        edit: SketchEdit::AddLine {
+            a,
+            b,
+            construction: true,
+        },
+    }])))?;
+    let view = scene_view(&d.board()?)?;
+    Ok(view.curves.last().ok_or("no curve")?.id.clone())
+}
+
+fn middle(d: &Drawn, curve: &SketchCurveId) -> Fallible<Point> {
+    let view = scene_view(&d.board()?)?;
+    match view.curve(curve).map(|c| c.geometry.clone()) {
+        Some(ViewGeometry::Line { a, b }) => Ok(scale(add(a, b), 0.5)),
+        other => Err(format!("{other:?}").into()),
+    }
+}
+
+/// Nothing is drawn until something is pointed at; then the glyph of what it
+/// is under can be clicked, and Delete removes the constraint in one step.
+#[test]
+fn a_constraints_glyph_shows_on_hover_and_deletes_it() -> Fallible {
+    let mut d = Drawn::new()?;
+    let (a, b) = (d.at(0.3, 0.3), d.at(0.6, 0.33));
+    let line = guide(&mut d, a, b)?;
+    let at = middle(&d, &line)?;
+    d.hover(at);
+    assert!(d.key(egui::Key::Z, false).is_none());
+    let op = d.click(at);
+    let edits = d.apply(op)?;
+    assert!(
+        matches!(
+            edits.as_slice(),
+            [BoardEdit::Sketch {
+                edit: SketchEdit::AddConstraint {
+                    kind: GeomConstraint::Horizontal,
+                    ..
+                }
+            }]
+        ),
+        "{edits:?}"
+    );
+    let added = d.board()?;
+    d.key(egui::Key::Escape, false);
+    assert_eq!(d.editor.shape.tool, ShapeTool::Select);
+    // Off the sketch, no glyph; G shows them all and back.
+    let away = d.at(0.45, 0.6);
+    for _ in 0..2 {
+        d.hover(away);
+    }
+    assert!(d.editor.shape.glyphs.is_empty());
+    d.key(egui::Key::G, false);
+    d.hover(away);
+    assert!(!d.editor.shape.glyphs.is_empty(), "all of them");
+    d.key(egui::Key::G, false);
+    for _ in 0..2 {
+        d.hover(away);
+    }
+    assert!(d.editor.shape.glyphs.is_empty());
+    let at = middle(&d, &line)?;
+    for _ in 0..2 {
+        d.hover(at);
+    }
+    let view = scene_view(&added)?;
+    let id = view
+        .constraints
+        .iter()
+        .find(|k| k.kind == "Horizontal" && k.curves.contains(&line))
+        .map(|k| k.id.clone())
+        .ok_or("no constraint")?;
+    let glyph = |d: &Drawn| {
+        let found = d.editor.shape.glyphs.iter().find(|(k, _)| *k == id);
+        found.map(|(_, r)| r.center())
+    };
+    let pos = glyph(&d).ok_or("no glyph")?;
+    d.frame(vec![egui::Event::PointerMoved(pos)]);
+    let pos = glyph(&d).ok_or("gone before the pointer reached it")?;
+    d.frame(press_at(pos));
+    d.frame(release_at(pos));
+    assert_eq!(
+        d.editor.shape.selection,
+        vec![SketchRef::Constraint(id.clone())]
+    );
+    assert!(d.editor.can_delete(d.engine.project()));
+    let op = d.key(egui::Key::Delete, false);
+    d.apply(op)?;
+    let left = scene_view(&d.board()?)?;
+    assert!(!left.constraints.iter().any(|k| k.id == id));
+    assert!(left.curve(&line).is_some(), "the line stays");
+    d.engine.undo()?;
+    assert_eq!(d.board()?, added);
+    Ok(())
+}
+
+/// A point dropped on another point joins it: one step, one place, and
+/// moving one moves both.
+#[test]
+fn a_point_dropped_on_another_joins_it() -> Fallible {
+    let mut d = Drawn::new()?;
+    let (p, q) = (d.at(0.3, 0.3), d.at(0.5, 0.45));
+    let (a, b) = (d.at(0.3, 0.6), d.at(0.6, 0.7));
+    guide(&mut d, p, a)?;
+    guide(&mut d, q, b)?;
+    let near_q = [q[0] + 0.05, q[1]];
+    let pos = d.view.screen(p);
+    d.hover(p);
+    d.frame(press_at(pos));
+    for f in [0.3, 0.7, 1.0] {
+        d.hover([p[0] + (near_q[0] - p[0]) * f, p[1] + (near_q[1] - p[1]) * f]);
+    }
+    let pos = d.view.screen(near_q);
+    let op = d.frame(release_at(pos));
+    let edits = d.apply(op)?;
+    assert!(
+        matches!(
+            edits.as_slice(),
+            [
+                BoardEdit::Sketch {
+                    edit: SketchEdit::Drag { .. }
+                },
+                BoardEdit::Sketch {
+                    edit: SketchEdit::AddConstraint {
+                        kind: GeomConstraint::Coincident,
+                        ..
+                    }
+                },
+            ]
+        ),
+        "{edits:?}"
+    );
+    let view = scene_view(&d.board()?)?;
+    let there = view.points.iter().filter(|p| dist(p.at, q) < 1e-3);
+    assert_eq!(there.count(), 2);
+    Ok(())
+}
+
+/// A line's own ends, and ends joined already, are no place to join.
+#[test]
+fn a_line_is_not_closed_up_by_dropping_its_ends_together() -> Fallible {
+    let mut d = Drawn::new()?;
+    let (a, b) = (d.at(0.3, 0.3), d.at(0.6, 0.33));
+    let line = guide(&mut d, a, b)?;
+    let view = scene_view(&d.board()?)?;
+    let points = view.curve(&line).ok_or("no line")?.points.clone();
+    assert!(join_target(&view, &view, &points[0], b, 0.5).is_none());
+    assert_eq!(drop_edits(&view, &view, &points[0], b, 0.5).len(), 1);
+    Ok(())
+}
+
+/// Deleting a constraint names the parts dimensioned to what it held.
+#[test]
+fn held_by_lists_the_constraints_points_and_curves() -> Fallible {
+    let board = board_of([40.0, 20.0], Vec::new())?;
+    let view = scene_view(&board)?;
+    let k = view
+        .constraints
+        .iter()
+        .find(|k| k.kind == "Horizontal")
+        .ok_or("no Horizontal")?;
+    let held = held_by(&view, &[SketchRef::Constraint(k.id.clone())]);
+    let curve = k.curves.first().ok_or("no curve")?;
+    assert!(held.contains(&SketchRef::Curve(curve.clone())));
+    let joined = view
+        .constraints
+        .iter()
+        .find(|k| k.kind == "Coincident")
+        .ok_or("no Coincident")?;
+    let held = held_by(&view, &[SketchRef::Constraint(joined.id.clone())]);
+    let curves = held
+        .iter()
+        .filter(|r| matches!(r, SketchRef::Curve(_)))
+        .count();
+    assert_eq!(curves, 2, "both sides of the corner: {held:?}");
+    Ok(())
+}
+
+/// Free-form curves are picked, and a constraint's picks take them where
+/// the engine does.
+#[test]
+fn constraint_picks_take_free_form_curves() -> Fallible {
+    use crate::part_editor::footprint_dims::{ConstrainPicks, constrain_picks, pick};
+    use sparksmith_solidcraft::footprint::view::{ViewCurve, ViewPoint};
+    let curve = |id: &str, geometry| ViewCurve {
+        id: SketchCurveId(id.into()),
+        geometry,
+        construction: false,
+        points: Vec::new(),
+    };
+    let points = vec![[0.0, 10.0], [5.0, 12.0], [10.0, 10.0]];
+    let view = SketchView {
+        points: vec![ViewPoint {
+            id: SketchPointId("p".into()),
+            at: [2.0, 2.0],
+            fixed: false,
+        }],
+        curves: vec![
+            curve("free", ViewGeometry::FreeForm { points }),
+            curve(
+                "line",
+                ViewGeometry::Line {
+                    a: [0.0, 0.0],
+                    b: [10.0, 0.0],
+                },
+            ),
+        ],
+        ..Default::default()
+    };
+    let free = SketchRef::Curve(SketchCurveId("free".into()));
+    let line = SketchRef::Curve(SketchCurveId("line".into()));
+    let point = SketchRef::Point(SketchPointId("p".into()));
+    assert_eq!(pick(&view, [5.0, 12.1], 0.5), Some(free.clone()));
+    let picks = |kind, refs: &[&SketchRef]| {
+        let refs: Vec<SketchRef> = refs.iter().map(|r| (*r).clone()).collect();
+        constrain_picks(&view, kind, &refs)
+    };
+    use GeomConstraint as G;
+    assert_eq!(picks(G::Tangent, &[&line, &free]), ConstrainPicks::Ready);
+    assert_eq!(
+        picks(G::PointOnCurve, &[&point, &free]),
+        ConstrainPicks::Ready
+    );
+    assert!(matches!(
+        picks(G::Equal, &[&free]),
+        ConstrainPicks::Wrong(_)
+    ));
+    assert!(matches!(
+        picks(G::Tangent, &[&line, &line]),
+        ConstrainPicks::Wrong(_)
+    ));
     Ok(())
 }

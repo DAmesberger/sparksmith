@@ -17,7 +17,7 @@
 //! (the board sketch is the same SolidCraft sketch a footprint keeps), via
 //! [`source_of`], and the dimension helpers are the Footprint tab's
 //! (`part_editor::footprint_dims`).
-use crate::part_editor::footprint_dims::{self as dims, DimInput, DimPicks};
+use crate::part_editor::footprint_dims::{self as dims, ConstrainPicks, DimInput, DimPicks};
 use sparksmith_core::Point;
 use sparksmith_core::diagnostics::{Error, Result};
 use sparksmith_core::layout::outline::{BoardEdit, BoardShapeEvaluator, FreeFormCurve};
@@ -44,6 +44,12 @@ pub(crate) const MAX_SPLINE_POINTS: usize = 500;
 /// The range of a conic's rho the Conic tool offers (open at 0 and 1).
 pub(crate) const RHO_RANGE: std::ops::RangeInclusive<f64> = 0.01..=0.99;
 
+/// The ribbon's Constraints switch: every constraint's glyph, or only those
+/// of what is pointed at or selected.
+pub(crate) const CONSTRAINTS_TOOL: &str = "bs-constraints";
+pub(crate) const CONSTRAINTS_LABEL: &str = "Constraints";
+pub(crate) const CONSTRAINTS_ICON: &str = "display";
+
 /// One ribbon tool of the Board shape mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum ShapeTool {
@@ -57,6 +63,8 @@ pub(crate) enum ShapeTool {
     /// Round the corner two lines meet at.
     Fillet,
     Dimension,
+    /// A geometric constraint between picked points and curves.
+    Constrain(GeomConstraint),
     /// A rectangular or round cutout through the board.
     Cutout,
     /// A milled slot between two clicked ends.
@@ -83,7 +91,7 @@ pub(crate) enum CutoutShape {
 
 impl ShapeTool {
     /// Every tool, in ribbon order.
-    pub(crate) const ALL: [Self; 14] = [
+    pub(crate) const ALL: [Self; 26] = [
         Self::Select,
         Self::Line,
         Self::Arc,
@@ -94,6 +102,18 @@ impl ShapeTool {
         Self::Conic,
         Self::Fillet,
         Self::Dimension,
+        Self::Constrain(GeomConstraint::Coincident),
+        Self::Constrain(GeomConstraint::Horizontal),
+        Self::Constrain(GeomConstraint::Vertical),
+        Self::Constrain(GeomConstraint::Parallel),
+        Self::Constrain(GeomConstraint::Perpendicular),
+        Self::Constrain(GeomConstraint::Equal),
+        Self::Constrain(GeomConstraint::Tangent),
+        Self::Constrain(GeomConstraint::Midpoint),
+        Self::Constrain(GeomConstraint::PointOnCurve),
+        Self::Constrain(GeomConstraint::Concentric),
+        Self::Constrain(GeomConstraint::Symmetric),
+        Self::Constrain(GeomConstraint::Fixed),
         Self::Cutout,
         Self::Slot,
         Self::Hole,
@@ -102,6 +122,7 @@ impl ShapeTool {
 
     /// The ribbon id (prefixed `bs-`, distinct from Layout's own tools).
     pub(crate) fn id(self) -> &'static str {
+        use GeomConstraint as G;
         match self {
             Self::Select => "bs-select",
             Self::Line => "bs-line",
@@ -117,6 +138,20 @@ impl ShapeTool {
             Self::Spline => "bs-spline",
             Self::Ellipse => "bs-ellipse",
             Self::Conic => "bs-conic",
+            Self::Constrain(kind) => match kind {
+                G::Coincident => "bs-coincident",
+                G::Horizontal => "bs-horizontal",
+                G::Vertical => "bs-vertical",
+                G::Parallel => "bs-parallel",
+                G::Perpendicular => "bs-perpendicular",
+                G::Equal => "bs-equal",
+                G::Tangent => "bs-tangent",
+                G::Midpoint => "bs-midpoint",
+                G::PointOnCurve => "bs-on-curve",
+                G::Concentric => "bs-concentric",
+                G::Symmetric => "bs-symmetric",
+                G::Fixed => "bs-fix",
+            },
         }
     }
 
@@ -140,6 +175,7 @@ impl ShapeTool {
             Self::Spline => "Spline",
             Self::Ellipse => "Ellipse",
             Self::Conic => "Conic",
+            Self::Constrain(kind) => dims::constrain_look(kind).1,
         }
     }
 
@@ -160,6 +196,7 @@ impl ShapeTool {
             Self::Spline => "spline",
             Self::Ellipse => "ellipse",
             Self::Conic => "conic",
+            Self::Constrain(kind) => dims::constrain_look(kind).0,
         }
     }
 
@@ -167,8 +204,10 @@ impl ShapeTool {
     /// Footprint tab's (A arc, H hole, Shift+H slot), plus F fillet,
     /// U cutout, E name edge, S spline, and Shift on the curve each
     /// generalises: Shift+C ellipse (a stretched circle) and Shift+A conic
-    /// (a shaped arc).
+    /// (a shaped arc). A constraint's key is a letter of its name, or of
+    /// what it does (J joins, K locks), that no drawing tool has.
     pub(crate) fn key(self) -> Option<(egui::Key, bool)> {
+        use GeomConstraint as G;
         use egui::Key as K;
         match self {
             Self::Line => Some((K::L, false)),
@@ -184,27 +223,21 @@ impl ShapeTool {
             Self::Spline => Some((K::S, false)),
             Self::Ellipse => Some((K::C, true)),
             Self::Conic => Some((K::A, true)),
+            Self::Constrain(kind) => Some(match kind {
+                G::Coincident => (K::J, false),
+                G::Horizontal => (K::Z, false),
+                G::Vertical => (K::V, true),
+                G::Parallel => (K::P, false),
+                G::Perpendicular => (K::P, true),
+                G::Equal => (K::Q, false),
+                G::Tangent => (K::T, false),
+                G::Midpoint => (K::M, false),
+                G::PointOnCurve => (K::O, false),
+                G::Concentric => (K::N, false),
+                G::Symmetric => (K::Y, false),
+                G::Fixed => (K::K, false),
+            }),
             Self::Select => None,
-        }
-    }
-
-    /// The key cap the tool card shows.
-    pub(crate) fn key_text(self) -> &'static str {
-        match self {
-            Self::Line => "L",
-            Self::Arc => "A",
-            Self::Circle => "C",
-            Self::Rect => "R",
-            Self::Fillet => "F",
-            Self::Dimension => "D",
-            Self::Cutout => "U",
-            Self::Slot => "⇧H",
-            Self::Hole => "H",
-            Self::NameEdge => "E",
-            Self::Spline => "S",
-            Self::Ellipse => "⇧C",
-            Self::Conic => "⇧A",
-            Self::Select => "",
         }
     }
 
@@ -227,6 +260,7 @@ impl ShapeTool {
             }
             Self::Ellipse => "Click the centre, the end of the major axis, then a point on it",
             Self::Conic => "Click the start, the end, then the apex; Rho shapes it (0.5 parabola)",
+            Self::Constrain(kind) => dims::hint(kind),
         }
     }
 
@@ -395,7 +429,6 @@ impl<'a> Stage<'a> {
     }
 
     /// The sketch with every staged edit applied.
-    #[cfg(test)]
     pub(crate) fn staged(&self) -> &SketchBlob {
         &self.sketch
     }
@@ -942,6 +975,7 @@ pub(crate) fn press(
     match tool {
         ShapeTool::Select => Ok(Step::More),
         ShapeTool::Dimension => dimension_press(gesture, at, scene),
+        ShapeTool::Constrain(kind) => constrain_press(kind, gesture, at, scene),
         ShapeTool::Fillet => {
             let mut stage = Stage::new(scene.evaluator, &scene.board.sketch);
             fillet(
@@ -1336,6 +1370,158 @@ pub(crate) fn preview_curve(
         }),
         _ => None,
     }
+}
+
+/// A click of a Constrain tool: picks collect (a second click on one drops
+/// it) until they complete the constraint, which is one commit. Refused here
+/// when the sketch sets it already.
+fn constrain_press(
+    kind: GeomConstraint,
+    gesture: &mut Gesture,
+    at: Point,
+    scene: &Scene<'_>,
+) -> Result<Step> {
+    let Some(pick) = dims::pick(scene.view, at, scene.tolerance) else {
+        return Ok(Step::More);
+    };
+    match gesture.picks.iter().position(|p| *p == pick) {
+        Some(again) => {
+            gesture.picks.remove(again);
+        }
+        None => gesture.picks.push(pick),
+    }
+    match dims::constrain_picks(scene.view, kind, &gesture.picks) {
+        ConstrainPicks::More => Ok(Step::More),
+        ConstrainPicks::Ready => {
+            let mut stage = Stage::new(scene.evaluator, &scene.board.sketch);
+            let refs = std::mem::take(&mut gesture.picks);
+            let created = stage.sketch(SketchEdit::AddConstraint { kind, refs })?;
+            if !created
+                .iter()
+                .any(|r| matches!(r, SketchRef::Constraint(_)))
+            {
+                return Err(invalid("board.constraint: the sketch has this already"));
+            }
+            not_set_already(kind, &stage)?;
+            Ok(commit(stage))
+        }
+        ConstrainPicks::Wrong(why) => {
+            gesture.picks.clear();
+            Err(invalid(format!("board.constraint: {why}")))
+        }
+    }
+}
+
+/// Refuses the constraint staged last when the sketch sets it already. A
+/// fixed point stays where it is and adds no equation to compare.
+fn not_set_already(kind: GeomConstraint, stage: &Stage<'_>) -> Result<()> {
+    if kind == GeomConstraint::Fixed {
+        return Ok(());
+    }
+    sparksmith_solidcraft::board::refuse_redundant_constraint(stage.staged())
+}
+
+/// Whether constraint `k` is about `r`: it names the point or curve, or, for
+/// a curve, its ends (a Coincident is its points' alone).
+pub(crate) fn touches(view: &SketchView, k: &view::ViewConstraint, r: &SketchRef) -> bool {
+    match r {
+        SketchRef::Point(p) => k.points.contains(p),
+        SketchRef::Curve(c) => {
+            k.curves.contains(c)
+                || k.kind != "Coincident"
+                    && view
+                        .curve(c)
+                        .is_some_and(|c| c.points.iter().any(|p| k.points.contains(p)))
+        }
+        SketchRef::Constraint(id) => k.id == *id,
+    }
+}
+
+/// The points and curves the constraints among `ids` hold, with the curves
+/// of those points.
+pub(crate) fn held_by(view: &SketchView, ids: &[SketchRef]) -> Vec<SketchRef> {
+    let mut held = Vec::new();
+    for id in ids {
+        let SketchRef::Constraint(id) = id else {
+            continue;
+        };
+        let Some(k) = view.constraints.iter().find(|k| k.id == *id) else {
+            continue;
+        };
+        held.extend(k.points.iter().cloned().map(SketchRef::Point));
+        held.extend(k.curves.iter().cloned().map(SketchRef::Curve));
+        let of_points = |c: &&view::ViewCurve| c.points.iter().any(|p| k.points.contains(p));
+        held.extend(
+            view.curves
+                .iter()
+                .filter(of_points)
+                .map(|c| SketchRef::Curve(c.id.clone())),
+        );
+    }
+    held
+}
+
+/// What a point dragged to `at` does: moves there, or onto the point it is
+/// dropped on, joined to it in the same commit. `view` is the sketch before
+/// the drag, `moved` as it is at the drop.
+pub(crate) fn drop_edits(
+    view: &SketchView,
+    moved: &SketchView,
+    point: &SketchPointId,
+    at: Point,
+    tolerance: f64,
+) -> Vec<BoardEdit> {
+    let target = join_target(view, moved, point, at, tolerance);
+    let to = target.map_or(at, |t| t.at);
+    let mut edits = vec![SketchEdit::Drag {
+        point: point.clone(),
+        to,
+    }];
+    if let Some(target) = target {
+        edits.push(SketchEdit::AddConstraint {
+            kind: GeomConstraint::Coincident,
+            refs: vec![
+                SketchRef::Point(point.clone()),
+                SketchRef::Point(target.id.clone()),
+            ],
+        });
+    }
+    edits
+        .into_iter()
+        .map(|edit| BoardEdit::Sketch { edit })
+        .collect()
+}
+
+/// The point a dragged `point` joins when dropped at `at`: the nearest one
+/// within `tolerance`, but none that was at `point`'s place before (they are
+/// joined) nor of a curve they share (the curve would close up).
+pub(crate) fn join_target<'a>(
+    view: &SketchView,
+    moved: &'a SketchView,
+    point: &SketchPointId,
+    at: Point,
+    tolerance: f64,
+) -> Option<&'a view::ViewPoint> {
+    let from = view.point(point)?.at;
+    let with: Vec<&SketchPointId> = view
+        .points
+        .iter()
+        .filter(|p| dist(p.at, from) <= 1e-6)
+        .map(|p| &p.id)
+        .collect();
+    let shares = |id: &SketchPointId| {
+        view.curves
+            .iter()
+            .any(|c| c.points.contains(id) && with.iter().any(|w| c.points.contains(w)))
+    };
+    moved
+        .points
+        .iter()
+        .filter(|p| !with.contains(&&p.id) && !shares(&p.id))
+        .map(|p| (dist(p.at, at), p))
+        .filter(|(d, _)| *d <= tolerance)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, p)| p)
 }
 
 fn dimension_press(gesture: &mut Gesture, at: Point, scene: &Scene<'_>) -> Result<Step> {

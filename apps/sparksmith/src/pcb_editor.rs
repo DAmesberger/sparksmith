@@ -1804,7 +1804,7 @@ impl PcbEditor {
         }
         if self.shape.active {
             return self.shape.tool == board_shape::ShapeTool::Select
-                && !self.shape.selection.is_empty();
+                && (!self.shape.selection.is_empty() || self.shape.dimension.is_some());
         }
         if self.dimension.is_some() && matches!(self.tool, Tool::Select | Tool::Dimension) {
             return true;

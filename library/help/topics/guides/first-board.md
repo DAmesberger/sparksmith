@@ -22,6 +22,7 @@
     "wire two parts"
   ],
   "related": [
+    "guide/board-outline",
     "guide/libraries",
     "guide/routing",
     "guide/fab-profiles",
@@ -36,7 +37,7 @@ Start a project with [[command/file.new]]. Its board starts with the Standard fa
 
 - In Schematic, choose Place and search for a component. For a simple exercise use two headers, or a header and a resistor. Choose a result with a footprint and place an instance of each on the sheet. For a resistor enter the required value on the instance.
 - Use Wire to connect one pin of each component. Select the wire to inspect the net and its members. Open [[panel/issues]] and check the schematic before placing the parts on the board.
-- Open PCB and choose Update PCB. Review the instances and connectivity in the preview, then apply the update. Set the board outline and place the footprints inside it. An airwire shows the connection you made on the sheet.
+- Open PCB and choose Update PCB. Review the instances and connectivity in the preview, then apply the update. Set the board outline in Board shape and constrain it ([[guide/board-outline]]), then place the footprints inside it. An airwire shows the connection you made on the sheet.
 - Start Route at the first pad and finish on the matching pad. Check the connection in Layout and inspect the board in 3D. Save your work. Use [[guide/fab-output]] when you are ready to check a production set.
 
 For automation, use [[entry/library.search]] to find the part, then [[entry/component.place]] with its physical choice and properties. Leave out position to let Sparksmith place the symbol in the next free space. Search again after making a generic component. Its value belongs on each instance.

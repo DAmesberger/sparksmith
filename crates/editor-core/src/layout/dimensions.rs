@@ -1000,16 +1000,25 @@ pub fn dimensions_of(project: &Project, target: ConstraintTarget) -> Vec<&PartDi
 /// How many objects dimensions hold: all of them, or those dimensioned to
 /// one board curve.
 pub fn dimensioned(project: &Project, to: Option<&SketchCurveId>) -> usize {
+    match to {
+        Some(c) => dimensioned_to(project, &[SketchRef::Curve(c.clone())]),
+        None => held_count(project, |_| true),
+    }
+}
+
+/// How many objects are dimensioned to any of these board points and curves.
+pub fn dimensioned_to(project: &Project, any: &[SketchRef]) -> usize {
+    held_count(project, |d| {
+        d.refs
+            .iter()
+            .any(|r| matches!(r, BoardRef::Board(k) if any.contains(k)))
+    })
+}
+
+fn held_count(project: &Project, by: impl Fn(&PartDimension) -> bool) -> usize {
     let mut targets = BTreeSet::new();
-    for d in project.part_dimensions.iter() {
-        let names = |c: &SketchCurveId| {
-            d.refs
-                .iter()
-                .any(|r| matches!(r, BoardRef::Board(SketchRef::Curve(k)) if k == c))
-        };
-        if to.is_none_or(names) {
-            targets.extend(targets_of(d).map(key));
-        }
+    for d in project.part_dimensions.iter().filter(|d| by(d)) {
+        targets.extend(targets_of(d).map(key));
     }
     targets.len()
 }

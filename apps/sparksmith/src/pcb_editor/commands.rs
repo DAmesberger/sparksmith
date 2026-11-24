@@ -2,13 +2,15 @@
 //! keyboard context, the board shape tools' keys and the display toggles
 //! the command palette runs. Toggles change view state only; nothing here
 //! changes the document or rebuilds the board.
-use super::{PcbEditor, Tool, board_shape::ShapeTool};
+use super::board_shape::{CONSTRAINTS_ICON, CONSTRAINTS_LABEL, CONSTRAINTS_TOOL, ShapeTool};
+use super::{PcbEditor, Tool};
 use crate::commands::{Chord, Context, KeyDecl, PcbView, ToolEntry};
 use crate::layer_view::ViewLayer;
 use sparksmith_core::CopperLayer;
 
 /// The board shape sketch's tools for the registry, with the keys its
-/// canvas handles (`board_shape_ui`).
+/// canvas handles (`board_shape_ui`), and its Constraints switch (G, for
+/// glyphs).
 pub(crate) fn shape_tool_entries() -> Vec<ToolEntry> {
     ShapeTool::ALL
         .into_iter()
@@ -22,6 +24,13 @@ pub(crate) fn shape_tool_entries() -> Vec<ToolEntry> {
             }),
             also: &[],
         })
+        .chain([ToolEntry {
+            id: CONSTRAINTS_TOOL,
+            label: CONSTRAINTS_LABEL,
+            icon: CONSTRAINTS_ICON,
+            chord: Some(Chord::key(egui::Key::G)),
+            also: &[],
+        }])
         .collect()
 }
 

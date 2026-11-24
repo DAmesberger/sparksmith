@@ -16,6 +16,7 @@ use super::{BoardInk, BoardView, PcbEditor, ZOOM_RANGE, board_view, zoom_pan};
 use crate::kit::{self, ToolCard, list};
 use crate::part_editor::{footprint_dims as dims, footprint_params};
 use crate::refusal::{self, Origin};
+use crate::sketch_glyphs;
 use egui::{Align2, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Ui, vec2};
 use sparksmith_core::layout::outline::{BoardCommand, BoardEdit, BoardShapeEvaluator};
 use sparksmith_core::library::footprint_source::{
@@ -33,6 +34,8 @@ use sparksmith_ui::ui_kit::type_face;
 
 /// Pick and snap distance, in pixels.
 const PICK_PX: f32 = 7.0;
+/// How near the pointer is to a constraint glyph that stays shown, in pixels.
+const GLYPH_REACH_PX: f32 = 10.0;
 /// Chord tolerance of drawn outlines, mm.
 const CHORD_MM: f64 = 0.02;
 
@@ -78,6 +81,13 @@ pub(super) struct ShapeMode {
     pub(super) options: ShapeOptions,
     pub(super) gesture: Gesture,
     pub(super) selection: Vec<SketchRef>,
+    /// Every constraint's glyph shows, not only those of what the pointer is
+    /// on, the selection and the picks.
+    pub(super) all_constraints: bool,
+    /// The constraint the ribbon's split button shows: the last one armed.
+    last_constraint: Option<ShapeTool>,
+    /// The point or curve under the pointer.
+    hover: Option<SketchRef>,
     /// The selected dimension, whose value field the card shows.
     pub(super) dimension: Option<SketchConstraintId>,
     dim_text: Option<(SketchConstraintId, String)>,
@@ -99,6 +109,8 @@ pub(super) struct ShapeMode {
     pub(super) params: ParamRows,
     /// Dimension labels drawn last frame, for picking.
     labels: Vec<(SketchConstraintId, Rect)>,
+    /// Constraint glyphs drawn last frame, for picking.
+    pub(super) glyphs: Vec<sketch_glyphs::Placed>,
     errors: std::collections::BTreeMap<&'static str, String>,
 }
 
@@ -110,6 +122,9 @@ impl Default for ShapeMode {
             options: ShapeOptions::default(),
             gesture: Gesture::default(),
             selection: Vec::new(),
+            all_constraints: false,
+            last_constraint: None,
+            hover: None,
             dimension: None,
             dim_text: None,
             dim_sent: false,
@@ -121,6 +136,7 @@ impl Default for ShapeMode {
             starting: None,
             params: ParamRows::default(),
             labels: Vec::new(),
+            glyphs: Vec::new(),
             errors: Default::default(),
         }
     }
@@ -186,6 +202,9 @@ impl ShapeMode {
     pub(super) fn arm(&mut self, tool: ShapeTool) {
         self.reset_gesture();
         self.tool = tool;
+        if matches!(tool, ShapeTool::Constrain(_)) {
+            self.last_constraint = Some(tool);
+        }
         if tool != ShapeTool::Select {
             self.selection.clear();
         }
@@ -268,6 +287,19 @@ impl ShapeMode {
             view,
             live,
         });
+    }
+}
+
+/// The parts that depend on what the constraints among `ids` hold, for a
+/// warning before one is deleted.
+fn held_note(project: &Project, view: &SketchView, ids: &[SketchRef]) -> Option<String> {
+    let held = shape::held_by(view, ids);
+    match sparksmith_core::layout::dimensions::dimensioned_to(project, &held) {
+        0 => None,
+        1 => Some("1 part is dimensioned to what this holds; it moves when that does".to_owned()),
+        n => Some(format!(
+            "{n} parts are dimensioned to what this holds; they move when that does"
+        )),
     }
 }
 
@@ -377,26 +409,55 @@ impl PcbEditor {
                 .selected(self.shape.tool == tool)
                 .tip(tool.hint())
         };
+        let buttons =
+            |tools: &[ShapeTool]| -> Vec<Button> { tools.iter().map(|t| button(*t)).collect() };
         let group = |label, tools: &[ShapeTool]| Group {
             label,
-            tools: tools.iter().map(|t| button(*t)).collect(),
+            tools: buttons(tools),
         };
+        // A family is one split button, so the groups fit a small window:
+        // the armed tool, else the last used, else the first.
+        let family = |tools: &[ShapeTool], last: Option<ShapeTool>| {
+            let shown = [Some(self.shape.tool), last, tools.first().copied()]
+                .into_iter()
+                .flatten()
+                .find(|t| tools.contains(t))?;
+            Some(Button::family(button(shown), buttons(tools)))
+        };
+        let mut sketch = buttons(&[
+            ShapeTool::Select,
+            ShapeTool::Line,
+            ShapeTool::Arc,
+            ShapeTool::Circle,
+            ShapeTool::Rect,
+        ]);
+        let curves = [ShapeTool::Spline, ShapeTool::Ellipse, ShapeTool::Conic];
+        sketch.extend(family(&curves, None));
+        sketch.push(button(ShapeTool::Fillet));
+        let constraints: Vec<ShapeTool> = ShapeTool::ALL
+            .into_iter()
+            .filter(|t| matches!(t, ShapeTool::Constrain(_)))
+            .collect();
+        let mut constrain = vec![button(ShapeTool::Dimension)];
+        constrain.extend(family(&constraints, self.shape.last_constraint));
+        constrain.push(
+            Button::new(
+                shape::CONSTRAINTS_TOOL,
+                shape::CONSTRAINTS_ICON,
+                shape::CONSTRAINTS_LABEL,
+            )
+            .selected(self.shape.all_constraints)
+            .tip("Show every constraint; otherwise those of what you point at or select"),
+        );
         vec![
-            group(
-                "Sketch",
-                &[
-                    ShapeTool::Select,
-                    ShapeTool::Line,
-                    ShapeTool::Arc,
-                    ShapeTool::Circle,
-                    ShapeTool::Rect,
-                    ShapeTool::Spline,
-                    ShapeTool::Ellipse,
-                    ShapeTool::Conic,
-                    ShapeTool::Fillet,
-                ],
-            ),
-            group("Constrain", &[ShapeTool::Dimension]),
+            Group {
+                label: "Sketch",
+                tools: sketch,
+            },
+            Group {
+                label: "Constrain",
+                tools: constrain,
+            },
             group(
                 "Board",
                 &[
@@ -423,6 +484,10 @@ impl PcbEditor {
         if id == "bs-done" {
             self.shape.active = false;
             self.shape.reset_gesture();
+            return Some(None);
+        }
+        if id == shape::CONSTRAINTS_TOOL {
+            self.shape.all_constraints = !self.shape.all_constraints;
             return Some(None);
         }
         let tool = ShapeTool::from_id(id)?;
@@ -499,15 +564,14 @@ impl PcbEditor {
                     let _ = self.shape_tool(tool.id(), engine);
                 }
             }
+            if crate::keys::pressed_tool(&ctx, "shape", shape::CONSTRAINTS_TOOL) {
+                let _ = self.shape_tool(shape::CONSTRAINTS_TOOL, engine);
+            }
             if crate::keys::pressed(&ctx, "shape.construction") {
                 self.shape.options.construction = !self.shape.options.construction;
             }
             if delete && self.shape.tool == ShapeTool::Select {
-                let edits = shape::delete_edits(board, &self.shape.selection);
-                if !edits.is_empty() {
-                    self.shape.selection.clear();
-                    operation = Some(shape::operation(edits));
-                }
+                operation = self.delete_shape_selection(&ctx, project, board);
             }
         }
         // Taken for the frame, so the gesture can update the mode's state.
@@ -541,12 +605,9 @@ impl PcbEditor {
         if response.drag_stopped_by(PointerButton::Primary)
             && let Some(drag) = self.shape.drag.take()
         {
-            operation = Some(shape::operation(vec![BoardEdit::Sketch {
-                edit: sparksmith_core::library::footprint_source::SketchEdit::Drag {
-                    point: drag.point,
-                    to: drag.at,
-                },
-            }]));
+            let moved = drag.live.view();
+            let edits = shape::drop_edits(&loaded.view, &moved, &drag.point, drag.at, tolerance);
+            operation = Some(shape::operation(edits));
         }
         if response.clicked_by(PointerButton::Secondary) {
             if self.shape.tool == ShapeTool::Spline && self.shape.gesture.pending.len() >= 2 {
@@ -559,21 +620,26 @@ impl PcbEditor {
             && let Some(at) = cursor
         {
             let additive = ui.input(|i| i.modifiers.shift || i.modifiers.command);
-            let label = pointer.and_then(|p| {
-                self.shape
-                    .labels
-                    .iter()
-                    .find(|(_, r)| r.contains(p))
-                    .map(|(id, _)| id.clone())
-            });
+            let at_pointer = |drawn: &[sketch_glyphs::Placed]| {
+                let at = pointer?;
+                let (id, _) = drawn.iter().find(|(_, r)| r.contains(at))?;
+                Some(id.clone())
+            };
+            let label = at_pointer(&self.shape.labels);
+            let glyph = at_pointer(&self.shape.glyphs);
             if let Some(id) = label.filter(|_| {
                 matches!(self.shape.tool, ShapeTool::Select | ShapeTool::Dimension)
                     && self.shape.gesture.is_empty()
             }) {
+                if !additive {
+                    self.shape.selection.clear();
+                }
                 self.shape.dimension = Some(id);
                 self.shape.dim_text = None;
             } else if self.shape.tool == ShapeTool::Select {
-                let pick = dims::pick(&loaded.view, at, tolerance);
+                let pick = glyph
+                    .map(SketchRef::Constraint)
+                    .or_else(|| dims::pick(&loaded.view, at, tolerance));
                 if !additive {
                     self.shape.selection.clear();
                     self.shape.dimension = None;
@@ -651,6 +717,12 @@ impl PcbEditor {
                 Err(error) => refused = Some(error),
             }
         }
+        let points = matches!(self.shape.tool, ShapeTool::Select | ShapeTool::Constrain(_))
+            && self.shape.drag.is_none()
+            && response.contains_pointer();
+        self.shape.hover = cursor
+            .filter(|_| points)
+            .and_then(|at| dims::pick(&loaded.view, at, tolerance));
         self.shape.loaded = Some(loaded);
         if let Some(error) = refused {
             kit::toast::post(
@@ -719,6 +791,17 @@ impl PcbEditor {
         let picks = &self.shape.gesture.picks;
         let placed = self.shape.draft.as_ref().map(|d| d.new.refs.as_slice());
         let placed = placed.unwrap_or_default();
+        // What a constraint pointed at or selected holds is lit with it.
+        let pointed = |id: &SketchConstraintId| {
+            let on =
+                |(k, r): &sketch_glyphs::Placed| k == id && pointer.is_some_and(|p| r.contains(p));
+            self.shape.glyphs.iter().any(on)
+        };
+        let held: Vec<_> = drawn
+            .constraints
+            .iter()
+            .filter(|k| selected(&SketchRef::Constraint(k.id.clone())) || pointed(&k.id))
+            .collect();
         let cut: Vec<_> = board
             .solved
             .cutouts
@@ -731,7 +814,11 @@ impl PcbEditor {
                 .into_iter()
                 .map(|p| view.screen(p))
                 .collect();
-            let color = if selected(&r) || picks.contains(&r) || placed.contains(&r) {
+            let color = if selected(&r)
+                || picks.contains(&r)
+                || placed.contains(&r)
+                || held.iter().any(|k| k.curves.contains(&curve.id))
+            {
                 t.accent
             } else if conflict_curves.contains(&curve.id) {
                 t.sketch_conflict
@@ -752,7 +839,11 @@ impl PcbEditor {
         for point in drawn.points.iter().filter(|p| p.id.0 != "origin") {
             let r = SketchRef::Point(point.id.clone());
             let free = report.is_some_and(|rep| rep.free_points.contains(&point.id));
-            let color = if selected(&r) || picks.contains(&r) || placed.contains(&r) {
+            let color = if selected(&r)
+                || picks.contains(&r)
+                || placed.contains(&r)
+                || held.iter().any(|k| k.points.contains(&point.id))
+            {
                 t.accent
             } else if free {
                 t.sketch_point_free
@@ -855,6 +946,57 @@ impl PcbEditor {
             painter.text(centre, Align2::CENTER_CENTER, text, font.clone(), color);
             rects.push((layout.id.clone(), r));
         }
+        // Constraint glyphs: of what the pointer is on, the selection, the
+        // picks and a conflict, or of everything. One drawn last frame stays
+        // while the pointer is at it, so it can be clicked.
+        let near: Vec<&SketchConstraintId> = self
+            .shape
+            .glyphs
+            .iter()
+            .filter(|(_, r)| pointer.is_some_and(|p| r.expand(GLYPH_REACH_PX).contains(p)))
+            .map(|(id, _)| id)
+            .collect();
+        let focus: Vec<&SketchRef> = self
+            .shape
+            .selection
+            .iter()
+            .chain(picks)
+            .chain(&self.shape.hover)
+            .collect();
+        let shown = drawn.constraints.iter().filter(|k| {
+            k.value.is_none()
+                && (self.shape.all_constraints
+                    || conflicting.contains(&k.id)
+                    || near.contains(&&k.id)
+                    || focus.iter().any(|r| shape::touches(&drawn, k, r)))
+        });
+        let redundant = report.map(|r| r.redundant.as_slice()).unwrap_or_default();
+        let chosen: Vec<SketchConstraintId> = held.iter().map(|k| k.id.clone()).collect();
+        let glyphs = sketch_glyphs::paint(
+            &sketch_glyphs::Canvas {
+                painter,
+                rect: painter.clip_rect(),
+                screen: &|p| view.screen(p),
+                polyline: &polyline,
+                sketch: &drawn,
+            },
+            shown,
+            &rects,
+            sketch_glyphs::State {
+                conflicting: &conflicting,
+                redundant,
+                selected: &chosen,
+                hover: pointer,
+            },
+        );
+        // Dropped here, the dragged point joins the one ringed.
+        if let Some(drag) = &self.shape.drag {
+            let tolerance = f64::from(PICK_PX / view.view.scale);
+            let target = shape::join_target(&loaded.view, &drawn, &drag.point, drag.at, tolerance);
+            if let Some(target) = target {
+                painter.circle_stroke(view.screen(target.at), 6.0, Stroke::new(1.5, t.accent));
+            }
+        }
         // Named edges: each name centred on its edge just outside the
         // outline, slid along or away from the edge to stay clear of the
         // dimension labels, the other names and the parts' pads.
@@ -888,6 +1030,7 @@ impl PcbEditor {
             }
         }
         self.shape.labels = rects;
+        self.shape.glyphs = glyphs;
         // The gesture's preview: clicked points and a rubber band.
         if let Some(at) = cursor {
             let pending: Vec<Point> = self.shape.gesture.pending.iter().map(|c| c.at).collect();
@@ -973,6 +1116,7 @@ impl PcbEditor {
         let board = sketch_of(project)?;
         self.claim_shape_refusals(ui.ctx());
         let tool = self.shape.tool;
+        let key = crate::keys::shown(ui.ctx(), &format!("shape.{}", tool.id()));
         let card = ToolCard {
             icon: tool.icon(),
             name: if tool == ShapeTool::Select {
@@ -980,7 +1124,7 @@ impl PcbEditor {
             } else {
                 tool.label()
             },
-            key: tool.key_text(),
+            key: key.as_deref().unwrap_or_default(),
             hint: tool.hint(),
             tip: "The board outline is a parametric sketch: dimensions bind to the board \
                   parameters, and parts constrained to a named edge follow it when the \
@@ -1094,17 +1238,17 @@ impl PcbEditor {
                     kit::field_error(ui, &r, "Use letters, digits and _", true);
                 }
             }
-            ShapeTool::Select | ShapeTool::Dimension => {}
+            ShapeTool::Select | ShapeTool::Dimension | ShapeTool::Constrain(_) => {}
         }
         let dimension = if self.shape.draft.is_some() {
             self.new_dimension_rows(ui, board)
         } else {
-            self.dimension_rows(ui, board)
+            self.dimension_rows(ui, project, board)
         };
         if let Some(op) = dimension {
             operation = Some(op);
         }
-        if let Some(op) = self.selection_rows(ui, board) {
+        if let Some(op) = self.selection_rows(ui, project, board) {
             operation = Some(op);
         }
         let status = self
@@ -1204,7 +1348,12 @@ impl PcbEditor {
 
     /// The selected dimension's value: a number, a parameter, an
     /// expression or `name = expr`; Enter commits it.
-    fn dimension_rows(&mut self, ui: &mut Ui, board: &BoardSketch) -> Option<Operation> {
+    fn dimension_rows(
+        &mut self,
+        ui: &mut Ui,
+        project: &Project,
+        board: &BoardSketch,
+    ) -> Option<Operation> {
         let id = self.shape.dimension.clone()?;
         let loaded = self.shape.loaded.as_ref()?;
         let shown = loaded.view.constraints.iter().find(|k| k.id == id)?;
@@ -1214,6 +1363,9 @@ impl PcbEditor {
         let view = loaded.view.clone();
         let label = dims::label(shown);
         let original = dims::field_text(shown);
+        let ids = [SketchRef::Constraint(id.clone())];
+        let held = held_note(project, &view, &ids);
+        let mut delete = false;
         let (_, text) = self.shape.dim_text.as_mut()?;
         let mut operation = None;
         kit::section(ui, "board-dimension", "Dimension", true, None, |ui| {
@@ -1243,12 +1395,48 @@ impl PcbEditor {
                 "A number, a parameter, or name = expression",
                 "Type width, or width = 80 mm, to bind the dimension to a board parameter",
             );
+            delete = kit::summary_row(ui, "", Some("Delete dimension"));
+            if let Some(held) = &held {
+                kit::note(ui, held);
+            }
         });
+        if delete {
+            let ctx = ui.ctx().clone();
+            return self.delete_shape_selection(&ctx, project, board);
+        }
         operation
     }
 
-    /// What the selection can become: the outline, a cutout or a slot.
-    fn selection_rows(&mut self, ui: &mut Ui, board: &BoardSketch) -> Option<Operation> {
+    /// Delete the selection and the selected dimension, one `board.edit`.
+    /// Parts dimensioned to what a deleted constraint held keep their places
+    /// now and are named: they move when that geometry does.
+    fn delete_shape_selection(
+        &mut self,
+        ctx: &egui::Context,
+        project: &Project,
+        board: &BoardSketch,
+    ) -> Option<Operation> {
+        let mut ids = std::mem::take(&mut self.shape.selection);
+        ids.extend(self.shape.dimension.take().map(SketchRef::Constraint));
+        let edits = shape::delete_edits(board, &ids);
+        if edits.is_empty() {
+            return None;
+        }
+        let loaded = self.shape.loaded.as_ref();
+        if let Some(held) = loaded.and_then(|l| held_note(project, &l.view, &ids)) {
+            kit::toast::post(ctx, kit::severity::Level::Warning, held, vec![]);
+        }
+        Some(shape::operation(edits))
+    }
+
+    /// What the selection can become: the outline, a cutout or a slot; and
+    /// the selected constraints, with the parts that depend on them.
+    fn selection_rows(
+        &mut self,
+        ui: &mut Ui,
+        project: &Project,
+        board: &BoardSketch,
+    ) -> Option<Operation> {
         if self.shape.tool != ShapeTool::Select || self.shape.selection.is_empty() {
             return None;
         }
@@ -1258,18 +1446,41 @@ impl PcbEditor {
             .iter()
             .filter(|r| matches!(r, SketchRef::Curve(_)))
             .count();
-        let points = self.shape.selection.len() - curves;
+        let view = self.shape.loaded.as_ref().map(|l| &l.view);
+        let constraints: Vec<&'static str> = self
+            .shape
+            .selection
+            .iter()
+            .filter_map(|r| match r {
+                SketchRef::Constraint(id) => view?.constraints.iter().find(|k| k.id == *id),
+                _ => None,
+            })
+            .map(dims::constraint_label)
+            .collect();
+        let points = self.shape.selection.len() - curves - constraints.len();
+        let held = view.and_then(|v| held_note(project, v, &self.shape.selection));
         let mut edits = None;
+        let mut delete = false;
         kit::section(ui, "board-selection", "Selection", true, None, |ui| {
-            kit::value_row(
-                ui,
-                "Selected",
-                &format!(
-                    "{curves} {} · {points} {}",
-                    if curves == 1 { "curve" } else { "curves" },
-                    if points == 1 { "point" } else { "points" }
-                ),
-            );
+            if curves + points > 0 {
+                kit::value_row(
+                    ui,
+                    "Selected",
+                    &format!(
+                        "{curves} {} · {points} {}",
+                        if curves == 1 { "curve" } else { "curves" },
+                        if points == 1 { "point" } else { "points" }
+                    ),
+                );
+            }
+            if !constraints.is_empty() {
+                let label = if constraints.len() == 1 {
+                    "Constraint"
+                } else {
+                    "Constraints"
+                };
+                kit::value_row(ui, label, &constraints.join(", "));
+            }
             // A hole of the board is a cutout until it is made a slot.
             if let Some((hole, kind)) = shape::selected_hole(board, &self.shape.selection) {
                 let (now, action, next) = match kind {
@@ -1285,10 +1496,15 @@ impl PcbEditor {
                     }]);
                 }
             }
-            if kit::summary_row(ui, "", Some("Delete")) {
-                edits = Some(shape::delete_edits(board, &self.shape.selection));
+            delete = kit::summary_row(ui, "", Some("Delete"));
+            if let Some(held) = &held {
+                kit::note(ui, held);
             }
         });
+        if delete {
+            let ctx = ui.ctx().clone();
+            return self.delete_shape_selection(&ctx, project, board);
+        }
         let edits = edits.filter(|e| !e.is_empty())?;
         self.shape.selection.clear();
         Some(shape::operation(edits))
@@ -1398,11 +1614,31 @@ impl PcbEditor {
                     .collect();
                 let list_id = egui::Id::unique(("board-parameters-list", editable));
                 let editing = rows.editing.as_ref().map(|(n, _)| n.clone());
+                // Why a value is wrong or was refused, or does not evaluate:
+                // shown under its row.
+                let refused = rows
+                    .refused
+                    .as_ref()
+                    .map(|(n, why, _)| (n.clone(), why.clone()));
+                let why = match &rows.error {
+                    Some((Some(n), why)) => Some((n.clone(), why.clone())),
+                    _ => refused.or_else(|| {
+                        values.iter().find_map(|v| match &v.value {
+                            Err(why) => Some((v.name.clone(), why.clone())),
+                            Ok(_) => None,
+                        })
+                    }),
+                };
+                let why = why.map(|(name, why)| {
+                    let text = format!("{}: {why}", name.0);
+                    (list::RowKey::of(("board-param", &name.0)), text)
+                });
                 let view = list::ListView {
                     multiple: false,
                     delete: editable,
                     editing: editing.is_some(),
                     click_edits: true,
+                    error: why.as_ref().map(|(key, text)| (*key, text.as_str())),
                     ..list::ListView::new(
                         list_id,
                         "Board parameters",
@@ -1530,24 +1766,6 @@ impl PcbEditor {
                             }
                         }
                     }
-                }
-                // Why a value is wrong or was refused, or does not evaluate:
-                // one line under the list, naming the parameter.
-                let refused = rows
-                    .refused
-                    .as_ref()
-                    .map(|(n, why, _)| (n.clone(), why.clone()));
-                let why = match &rows.error {
-                    Some((Some(n), why)) => Some((n.clone(), why.clone())),
-                    _ => refused.or_else(|| {
-                        values.iter().find_map(|v| match &v.value {
-                            Err(why) => Some((v.name.clone(), why.clone())),
-                            Ok(_) => None,
-                        })
-                    }),
-                };
-                if let Some((name, why)) = why {
-                    list::row::field_error(ui, &format!("{}: {why}", name.0), 0.0);
                 }
                 if board.parameters.is_empty() {
                     kit::hint(

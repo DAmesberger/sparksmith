@@ -314,3 +314,52 @@ fn the_filter_bar_shows_chips_and_removes_a_term() {
         "saved chip"
     );
 }
+
+/// Why a row's value was refused stands right under that row, the rows
+/// below it move down, and in a window too small for the list it is
+/// scrolled to with its row.
+#[test]
+fn an_error_shows_under_its_row_and_in_sight() {
+    let lines = lines();
+    let why = "R1: out of range";
+    let paint = |ui: &mut egui::Ui| {
+        let view = ListView {
+            error: Some((RowKey::of("R10"), why)),
+            ..ListView::new(
+                egui::Id::unique("error-list"),
+                "Parts",
+                Layout::Bounded { rows: 8 },
+            )
+        };
+        let cols = Columns::measure(ui, &ListTokens::get(ui.ctx()), std::iter::empty());
+        view.show(ui, &lines, |ui, rect, line, cx| {
+            let name = [line.name];
+            row::paint(ui, cx.id, rect, &Row::new(line.key, &name), &cols)
+        });
+    };
+    let mut h = Harness::new(230.0, 400.0);
+    let painted = h.frame(vec![], paint);
+    let at = |text: &str| painted.iter().find(|p| p.text == text).map(|p| p.rect);
+    let (Some(row), Some(error), Some(next)) = (at("R10"), at(why), at("U1")) else {
+        panic!("{painted:?}");
+    };
+    assert!(error.top() >= row.bottom() - 1.0 && error.top() < row.bottom() + 12.0);
+    assert!(next.top() > error.bottom(), "{next:?} {error:?}");
+    // Two rows high: the list is scrolled to the row and its error.
+    let mut h = Harness::new(230.0, 70.0);
+    let mut painted = Vec::new();
+    for _ in 0..8 {
+        painted = h.frame(vec![], |ui| {
+            egui::ScrollArea::vertical().show(ui, paint);
+        });
+    }
+    for text in ["R10", why] {
+        let Some(p) = painted.iter().find(|p| p.text == text) else {
+            panic!("{text}: {painted:?}");
+        };
+        assert!(
+            p.clip.expand(0.5).contains_rect(p.rect),
+            "{text} is out of sight: {p:?}"
+        );
+    }
+}
