@@ -78,10 +78,13 @@ fn a_board_imports_with_its_outline_sketch_copper_and_zone() -> Fallible {
     assert_eq!(reply["counts"]["vias"], 1);
     assert_eq!(reply["counts"]["fills"], 2);
     assert_eq!(count(rows, "track_refused") + count(rows, "via_refused"), 0);
-    // Named after its own file, not after a staging file.
+    // Named after its own file, not after a staging file, and on the
+    // profile a new board takes.
+    let project = sparksmith_io::read_project(&target)?.project;
+    assert_eq!(project.name, "imported");
     assert_eq!(
-        sparksmith_io::read_project(&target)?.project.name,
-        "imported"
+        project.rules.profile.map(|p| p.id).as_deref(),
+        Some("standard")
     );
     // The detail stays beside the new file.
     assert!(dir.path().join("imported.kicad-import.json").is_file());

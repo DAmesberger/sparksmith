@@ -984,6 +984,19 @@ mod tests {
     use super::*;
     use egui::Key as K;
 
+    /// With no default of the person's own, the choice names the shipped one
+    /// a new board starts with: there is no choice of none.
+    #[test]
+    fn the_default_profile_choice_names_the_shipped_one() {
+        let choices = profile_choices();
+        let (none, rest) = (choices.first(), choices.get(1..).unwrap_or_default());
+        assert!(
+            none.is_some_and(|(id, name)| id.is_none() && name.starts_with("Shipped default (")),
+            "{choices:?}"
+        );
+        assert!(rest.iter().all(|(id, _)| id.is_some()), "{choices:?}");
+    }
+
     /// One frame with a key press: what the window captured and how many
     /// events are left for the canvases and the key dispatcher.
     fn press(

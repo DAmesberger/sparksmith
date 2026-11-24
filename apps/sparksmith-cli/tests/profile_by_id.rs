@@ -172,6 +172,39 @@ fn a_new_project_takes_the_shipped_standard_profile_unless_one_is_named() -> Fal
     Ok(())
 }
 
+/// A session starts on the person's default profile, else on the shipped
+/// one, also when the default is gone; so does every project file the CLI
+/// makes on its own.
+#[test]
+fn every_project_the_cli_starts_or_writes_has_a_profile() -> Fallible {
+    let at = json!({"command": "project.inspect", "params": {"at": "/project/rules/profile/id"}});
+    for (default, starts_on) in [
+        (None, "standard"),
+        (Some("jlcpcb-4-layer"), "jlcpcb-4-layer"),
+        (Some("gone"), "standard"),
+    ] {
+        let dir = tempfile::tempdir()?;
+        let (config, cache) = (dir.path().join("config"), dir.path().join("cache"));
+        sparksmith_io::settings::write_settings(
+            &config.join(sparksmith_io::settings::SETTINGS_FILE),
+            &sparksmith_io::settings::UserSettings {
+                default_rule_profile: default.map(str::to_owned),
+                ..Default::default()
+            },
+        )?;
+        let replies = session(&config, &cache, std::slice::from_ref(&at))?;
+        assert_eq!(replies[0]["result"]["value"], starts_on, "{replies:?}");
+        for command in ["parts", "showcase"] {
+            let file = dir.path().join(format!("{command}.sparksmith"));
+            run(&config, &cache, &[command, &file.display().to_string()])?;
+            let project = sparksmith_io::read_project(&file)?.project;
+            let profile = project.rules.profile.map(|p| p.id);
+            assert_eq!(profile.as_deref(), Some(starts_on), "{command}");
+        }
+    }
+    Ok(())
+}
+
 /// The CLI reaches a profile's manufacturing options as the desktop does:
 /// `rules.effective` lists them with the board's choices,
 /// `rules.preview_fab_options` shows the limits that change and
