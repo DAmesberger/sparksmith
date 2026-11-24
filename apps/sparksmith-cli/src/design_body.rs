@@ -136,7 +136,7 @@ pub fn run(args: &[String]) -> Result<()> {
         grant: config.reach.grant(),
         config: &config,
     };
-    let cancel = interrupt::stop_on_ctrl_c()?;
+    let cancel = interrupt::stop_on_ctrl_c(interrupt::RUN)?;
     let outcome = Cancel::from(Arc::clone(&cancel)).scope(|| {
         runner::run_workflow(
             run,

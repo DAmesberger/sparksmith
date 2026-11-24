@@ -80,7 +80,9 @@ const STEPS: usize = 5;
 /// there, and only then moved or written to the output.
 /// `checks` are the host's check settings ([`sparksmith_core::Engine::check_settings`]).
 /// `progress` is called before each step and while the files are read back;
-/// `Break` stops the export (`fabrication.stopped`) with nothing written.
+/// `Break` stops the export (`fabrication.stopped`) with nothing written; so
+/// does cancelling the call it runs for (`sparksmith_generators::cancel`: an
+/// agent's cancellation, a closed connection, Ctrl-C).
 pub fn export(
     project: &Project,
     drafts: &Drafts,
@@ -97,9 +99,10 @@ pub fn export(
     };
     let mut step = |step: usize, label: &'static str| -> Result<()> {
         let total = STEPS;
+        // The caller's stop, or the cancellation of the call this runs for.
         match progress(Progress { step, total, label }) {
-            ControlFlow::Continue(()) => Ok(()),
-            ControlFlow::Break(()) => Err(Error::Document(readback::stopped())),
+            ControlFlow::Continue(()) if !sparksmith_generators::cancel::requested() => Ok(()),
+            _ => Err(Error::Document(readback::stopped())),
         }
     };
     check_output(&request.output, request.zip)?;
@@ -880,6 +883,7 @@ mod tests {
         project.production.waivers = vec![Waiver {
             key: format!("{} []", readback::MISMATCH),
             reason: "as it is".into(),
+            accepted: Vec::new(),
         }];
         for zip in [false, true] {
             for (what, file, fault) in seeded::faults() {

@@ -416,7 +416,7 @@ fn run() -> Result<()> {
             let session = open(Some(source))?;
             print(&check_bodies::report(session.engine().project(), all))
         }
-        [command, rest @ ..] if command == "fab" => fab::run(rest),
+        [command, rest @ ..] if command == "fab" => fab::command(rest),
         [command, rest @ ..] if command == "pinout" => pinout::run(rest),
         [command, rest @ ..] if command == "firmware" => firmware::run(rest),
         [command, rest @ ..] if command == "fab-profile" => fab_profile::run(rest),

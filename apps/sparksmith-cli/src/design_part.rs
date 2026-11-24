@@ -541,7 +541,7 @@ pub fn run(args: &[String]) -> Result<()> {
     };
     let mut session =
         super::user_session(sparksmith_io::new_project::run_engine(&super::context()?)?);
-    let cancel = interrupt::stop_on_ctrl_c()?;
+    let cancel = interrupt::stop_on_ctrl_c(interrupt::RUN)?;
     let run = WorkflowRun {
         loaded: &loaded,
         inputs: inputs(&args),
@@ -585,7 +585,7 @@ fn replay_conversation(args: &Args, mut replay: Replay) -> Result<()> {
         &mut replay,
         &mut session,
         &mut print_event,
-        interrupt::stop_on_ctrl_c()?.as_ref(),
+        interrupt::stop_on_ctrl_c(interrupt::RUN)?.as_ref(),
     )?;
     save(&mut session, args, &outcome)
 }
