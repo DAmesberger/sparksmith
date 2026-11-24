@@ -21,6 +21,43 @@
       ],
       "source": "The profile covers PCBWay's 2-layer standard service (see the profile's notes)."
     },
+    "drill_rules": [
+      {
+        "id": "through",
+        "kind": "mechanical",
+        "layers": {
+          "span": "board"
+        },
+        "fills": [
+          {
+            "fill": "none"
+          },
+          {
+            "fill": "capped",
+            "not_stated": true,
+            "order": {
+              "form": [
+                {
+                  "label": "Via in pad",
+                  "choice": "tick it"
+                }
+              ],
+              "source": "https://www.pcbway.com/orderonline.aspx (read 2026-11-24): \"Via in pad\", beside \"All vias filled with resin and capped\", which fills every via."
+            },
+            "source": "PCBWay's pages disagree on the holes it fills (read 2026-11-24): \"Diameter range of resin-filled vias 0.254-6.5mm\" on its HDI page, \"Min.size can be plugged: 0.15mm(CNC)\", at most 0.7 mm, on its 2016-2018 roadmap."
+          }
+        ]
+      }
+    ],
+    "charges": [
+      {
+        "when": {
+          "drill_below_mm": 0.3
+        },
+        "text": "Any holes greater than 6.3mm or smaller than 0.3mm will be subject to extra charges.",
+        "source": "Manufacturing tolerances (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html), \"Drill Sizes (CNC)\"; its capabilities page says 0.2mm. No amount is published."
+      }
+    ],
     "options": [
       {
         "id": "limits",

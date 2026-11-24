@@ -22,6 +22,22 @@
       ],
       "source": "The counts each rule takes its rows for: JLCPCB's \"1-layer\", \"2-layer\" and \"Multilayer\" rows, PCBWay's tolerance table and its 4-layer inner rows, OSH Park's 2, 4 and 6 layer services, Eurocircuits' outer and inner class 6 rows (all read 2026-11-24). Every rule holds the strictest of them, so one value covers each count. JLCPCB's 1-layer boards plate no holes (\"1-layer (NPTH only)\")."
     },
+    "drill_rules": [
+      {
+        "id": "through",
+        "kind": "mechanical",
+        "layers": {
+          "span": "board"
+        },
+        "fills": [
+          {
+            "fill": "none",
+            "source": "The strictest of the four fabricators decides: OSH Park makes open through vias only."
+          }
+        ],
+        "source": "OSH Park (read 2026-11-24): \"Filled+Plated Vias (via-in-pad) | No\" decides. JLCPCB makes filled and capped vias of 0.15 to 0.55 mm (https://jlcpcb.com/capabilities/pcb-capabilities); PCBWay's sizes conflict."
+      }
+    ],
     "rules": {
       "aspect_ratio_max": {
         "value": 8.0,
