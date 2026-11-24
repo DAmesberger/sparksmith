@@ -8,15 +8,24 @@
 //! back into the pad frame by the placement written out below. The written
 //! Gerber image is read the same way ([`Image`]): the last object covering
 //! a point decides.
+//!
+//! Shared with production, and so not told apart by it: the document itself
+//! (its solved outline and stored fill regions included), the footprint a
+//! part resolves to, the effective rule values, whether a tie's pad takes
+//! paste, and, for a drawn shape whose corner radii do not fit, how far they
+//! are reduced.
 use super::Fallible;
-use super::reader::{self, GerberFile, Kind, Path, Prim as MacroPrim, Template};
 use crate::geometry::Point;
+use crate::ids::Id;
 use crate::library::{
     FootprintDefinition, HoleShape, MaskRule, Outline, Pad, PadKind, PadShape, PadSide, PasteRule,
     Segment, ShapeNm,
 };
 use crate::model::board::CutoutKind;
 use crate::model::{CopperLayer, Layer, Placement, Project};
+#[cfg(test)]
+use sparksmith_fabcheck::gerber as reader;
+use sparksmith_fabcheck::gerber::{GerberFile, Kind, Path, Prim as MacroPrim, Template};
 
 fn sub(a: Point, b: Point) -> Point {
     [a[0] - b[0], a[1] - b[1]]
@@ -96,7 +105,7 @@ impl Edge {
         }
     }
 
-    fn ends(&self) -> (Point, Point) {
+    pub(crate) fn ends(&self) -> (Point, Point) {
         match *self {
             Self::Line { a, b } | Self::Arc { a, b, .. } => (a, b),
         }
@@ -175,6 +184,24 @@ impl Edge {
                 ([c[0] + r * k, c[1] + r * s], [out * k, out * s])
             }
         }
+    }
+
+    /// Points of the edge from its start, its end left out, whose chords
+    /// stay within `tolerance` mm of it.
+    pub(crate) fn flattened(&self, tolerance: f64) -> Vec<Point> {
+        let n = match *self {
+            Self::Line { .. } => 1,
+            Self::Arc { a, c, sweep, .. } => {
+                let r = len(sub(a, c));
+                let step = if r > tolerance {
+                    2.0 * (1.0 - tolerance / r).acos()
+                } else {
+                    std::f64::consts::FRAC_PI_2
+                };
+                (sweep.abs() / step).ceil().clamp(1.0, 100_000.0) as usize
+            }
+        };
+        (0..n).map(|k| self.along(k as f64 / n as f64).0).collect()
     }
 
     /// Points along the edge with the direction to its right.
@@ -276,6 +303,9 @@ impl Area {
     }
 
     pub(crate) fn disc(c: Point, r: f64) -> Self {
+        if r <= 1e-9 {
+            return Self::default();
+        }
         let (a, b) = ([c[0] + r, c[1]], [c[0] - r, c[1]]);
         Self::new(vec![Edge::of_bulge(a, b, 1.0), Edge::of_bulge(b, a, 1.0)])
     }
@@ -289,6 +319,27 @@ impl Area {
 
     /// A polygon whose corners are rounded by fillets of `radii`.
     pub(crate) fn rounded(points: &[Point], radii: &[f64]) -> Self {
+        // A corner drawn twice is one.
+        let mut kept: Vec<(Point, f64)> = Vec::with_capacity(points.len());
+        for (k, p) in points.iter().enumerate() {
+            let r = radii.get(k).copied().unwrap_or(0.0);
+            if kept.last().is_none_or(|(q, _)| len(sub(*q, *p)) > 1e-9) {
+                kept.push((*p, r));
+            }
+        }
+        if kept.len() > 1
+            && let (Some(a), Some(b)) = (kept.first(), kept.last())
+            && len(sub(a.0, b.0)) <= 1e-9
+        {
+            kept.pop();
+        }
+        if kept.len() < 3 {
+            return Self::default();
+        }
+        let (points, radii): (Vec<Point>, Vec<f64>) = kept.into_iter().unzip();
+        if !radii_fit(&points, &radii) {
+            return Self::new(reduced(&points, &radii, true));
+        }
         let n = points.len();
         let unit = |d: Point| [d[0] / len(d), d[1] / len(d)];
         // Each corner's tangent points, and the fillet's bulge.
@@ -372,6 +423,51 @@ impl Area {
             })
             .fold(0.0, f64::max)
     }
+}
+
+/// Whether the fillets of a closed polygon's corners leave every edge.
+fn radii_fit(points: &[Point], radii: &[f64]) -> bool {
+    let n = points.len();
+    let trim = |k: usize| -> f64 {
+        let r = radii.get(k).copied().unwrap_or(0.0);
+        if r <= 0.0 {
+            return 0.0;
+        }
+        let u = sub(points[k], points[(k + n - 1) % n]);
+        let v = sub(points[(k + 1) % n], points[k]);
+        let turn = cross(u, v).atan2(u[0] * v[0] + u[1] * v[1]);
+        r * (turn / 2.0).tan().abs()
+    };
+    (0..n).all(|k| {
+        let next = (k + 1) % n;
+        trim(k) + trim(next) <= len(sub(points[next], points[k])) + 1e-9
+    })
+}
+
+/// A path whose corner radii are reduced as the drawing reduces them
+/// ([`crate::geometry::rounded_path`], production's own).
+fn reduced(points: &[Point], radii: &[f64], closed: bool) -> Vec<Edge> {
+    crate::geometry::rounded_path(points, radii, closed)
+        .iter()
+        .filter_map(|s| match *s {
+            crate::geometry::Shape::Line { a, b } => Some(Edge::Line { a, b }),
+            crate::geometry::Shape::Arc {
+                center,
+                radius,
+                start_deg,
+                sweep_deg,
+            } => {
+                let at = |deg: f64| add(center, turned([radius, 0.0], deg));
+                Some(Edge::Arc {
+                    a: at(start_deg),
+                    b: at(start_deg + sweep_deg),
+                    c: center,
+                    sweep: sweep_deg.to_radians(),
+                })
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// The land of a pad in its own frame.
@@ -582,6 +678,7 @@ impl Prim {
 
 /// One pad of the design where it is placed.
 pub(crate) struct DesignPad {
+    pub instance: Id,
     pub pad: Pad,
     pub frame: Frame,
     pub layer: Layer,
@@ -605,6 +702,7 @@ pub(crate) fn pads(project: &Project) -> Vec<DesignPad> {
         for pad in &footprint.pads {
             let over = pad.side == PadSide::Bottom;
             out.push(DesignPad {
+                instance: instance.id,
                 pad: pad.clone(),
                 frame: Frame::of(placement, footprint, pad),
                 layer: match (placement.layer, over) {
@@ -634,6 +732,7 @@ pub(crate) fn has_copper(pad: &DesignPad, layer: CopperLayer) -> bool {
 }
 
 /// The copper of `layer`.
+#[cfg(test)]
 pub(crate) fn copper(project: &Project, layer: CopperLayer) -> Vec<Prim> {
     let mut out = Vec::new();
     for fill in project.fills.iter().filter(|f| f.layer == layer) {
@@ -742,12 +841,14 @@ pub(crate) struct Ink {
     pub half: f64,
     pub filled: bool,
     pub frame: Frame,
-    /// A stroke of a letter, else of a shape.
+    /// A stroke of a letter, else of a shape: the tests tell them apart.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub letter: bool,
     pub what: String,
 }
 
 /// One silkscreen text and where its anchor is on the board.
+#[cfg(test)]
 pub(crate) struct InkText {
     pub at: Point,
     pub text: String,
@@ -758,6 +859,7 @@ pub(crate) struct InkText {
 /// height `h` wide, 0.42 of it wide itself and 0.09 in from the cell's
 /// left. Text on the bottom reads from below: seen from the top it is
 /// reflected, left for right.
+#[cfg(test)]
 fn letters(text: &str, at: Point, h: f64, half: f64, bottom: bool) -> Vec<Ink> {
     let cells = text.chars().count() as f64;
     let mut out = Vec::new();
@@ -799,9 +901,10 @@ fn letters(text: &str, at: Point, h: f64, half: f64, bottom: bool) -> Vec<Ink> {
 /// stroke of every visible text of the parts (literal text and designators;
 /// other text prints nothing). Text is read here only where it is level:
 /// one centred line, unturned, of a part that is not turned.
+#[cfg(test)]
 pub(crate) fn legend(project: &Project, side: Layer) -> Fallible<(Vec<Ink>, Vec<InkText>)> {
-    use crate::library::{DrawingLayer, Fill, Item, Justify, Rotation, Side, TextContent};
-    let (mut inks, mut texts) = (Vec::new(), Vec::new());
+    use crate::library::{DrawingLayer, Item, Justify, Rotation, Side, TextContent};
+    let (mut inks, mut texts) = (silkscreen(project, side)?, Vec::new());
     let silk = project.rules.effective().silkscreen;
     for (placement, footprint, name) in parts(project) {
         let frame = Frame::of_part(&placement, &footprint);
@@ -811,18 +914,7 @@ pub(crate) fn legend(project: &Project, side: Layer) -> Fallible<(Vec<Ink>, Vec<
                 continue;
             }
             match &graphic.item {
-                Item::Shape {
-                    shape,
-                    width_nm,
-                    fill,
-                } => inks.push(Ink {
-                    edges: drawn(shape)?,
-                    half: width_nm.to_mm_f64() / 2.0,
-                    filled: *fill != Fill::None,
-                    frame,
-                    letter: false,
-                    what: format!("silkscreen {} of {name}", graphic.id.0),
-                }),
+                Item::Shape { .. } => {}
                 Item::Text(text) => {
                     let content = match &text.content {
                         TextContent::Literal(s) => s.clone(),
@@ -851,6 +943,79 @@ pub(crate) fn legend(project: &Project, side: Layer) -> Fallible<(Vec<Ink>, Vec<
     Ok((inks, texts))
 }
 
+/// Every silkscreen shape the legend of `side` must print.
+pub(crate) fn silkscreen(project: &Project, side: Layer) -> Fallible<Vec<Ink>> {
+    use crate::library::{DrawingLayer, Fill, Item, Side};
+    let mut inks = Vec::new();
+    for (placement, footprint, name) in parts(project) {
+        let frame = Frame::of_part(&placement, &footprint);
+        for graphic in &footprint.graphics {
+            let here = (placement.layer == side) == (graphic.side == Side::Component);
+            let Item::Shape {
+                shape,
+                width_nm,
+                fill,
+            } = &graphic.item
+            else {
+                continue;
+            };
+            if graphic.layer != DrawingLayer::Silkscreen || !here {
+                continue;
+            }
+            inks.push(Ink {
+                edges: drawn(shape)?,
+                half: width_nm.to_mm_f64() / 2.0,
+                filled: *fill != Fill::None && closed(shape),
+                frame,
+                letter: false,
+                what: format!("a silkscreen line of {name}"),
+            });
+        }
+    }
+    Ok(inks)
+}
+
+/// The strokes of every text the legend of `side` must print, as
+/// production lays text out ([`crate::layout::legend`]): where a letter's
+/// strokes lie is not told apart from what the writer was given.
+pub(crate) fn lettering(project: &Project, side: Layer) -> Vec<Ink> {
+    use crate::layout::{BoardDrawing, PlacedItem};
+    let silk = project.rules.effective().silkscreen;
+    let mut inks = Vec::new();
+    for graphic in crate::layout::placed_graphics(project) {
+        let PlacedItem::Text(text) = &graphic.item else {
+            continue;
+        };
+        if graphic.layer != BoardDrawing::Silkscreen(side) {
+            continue;
+        }
+        let strokes = crate::layout::legend::text_strokes(text, &silk);
+        for stroke in &strokes.strokes {
+            // A stroke of one point is a dot.
+            let ends = stroke.windows(2).map(|w| (w[0], w[1]));
+            let dot = (stroke.len() == 1).then(|| (stroke[0], stroke[0]));
+            inks.push(Ink {
+                edges: ends.chain(dot).map(|(a, b)| Edge::Line { a, b }).collect(),
+                half: strokes.width / 2.0,
+                filled: false,
+                frame: Frame::still([0.0; 2]),
+                letter: true,
+                what: format!("the text {:?}", text.text),
+            });
+        }
+    }
+    inks
+}
+
+/// Whether a shape encloses an area.
+fn closed(shape: &ShapeNm) -> bool {
+    match shape {
+        ShapeNm::Circle { .. } | ShapeNm::Rect { .. } | ShapeNm::Polygon { .. } => true,
+        ShapeNm::Arc { start, end, .. } => start == end,
+        _ => false,
+    }
+}
+
 /// The edges a drawn shape strokes.
 fn drawn(shape: &ShapeNm) -> Fallible<Vec<Edge>> {
     use crate::units::ArcDirection;
@@ -860,15 +1025,14 @@ fn drawn(shape: &ShapeNm) -> Fallible<Vec<Edge>> {
             b: b.to_mm_f64(),
         }],
         ShapeNm::Polyline { points, radii_nm } => {
-            if radii_nm.iter().any(|r| r.to_mm_f64() > 0.0) {
-                return Err("the oracle draws no rounded polyline".into());
+            let points: Vec<Point> = points.iter().map(|p| p.to_mm_f64()).collect();
+            let radii: Vec<f64> = radii_nm.iter().map(|r| r.to_mm_f64()).collect();
+            if radii.iter().any(|r| *r > 0.0) {
+                return Ok(reduced(&points, &radii, false));
             }
             points
                 .windows(2)
-                .map(|w| Edge::Line {
-                    a: w[0].to_mm_f64(),
-                    b: w[1].to_mm_f64(),
-                })
+                .map(|w| Edge::Line { a: w[0], b: w[1] })
                 .collect()
         }
         ShapeNm::Arc {
@@ -933,8 +1097,19 @@ pub(crate) fn mask(project: &Project, side: Layer) -> Vec<Prim> {
 /// reduction, or by its own, or its explicit windows.
 pub(crate) fn paste(project: &Project, side: Layer) -> Fallible<Vec<Prim>> {
     let rule = project.rules.effective().paste.reduction;
+    let terminals: std::collections::BTreeMap<_, _> = crate::layout::placed_pads(project)
+        .into_iter()
+        .map(|p| ((p.instance, p.pad.id), p.terminal))
+        .collect();
     let mut out = Vec::new();
-    for pad in pads(project).into_iter().filter(|p| p.layer == side) {
+    for pad in pads(project).into_iter().filter(|p| {
+        p.layer == side
+            && crate::instances::ties::prints_paste(
+                project,
+                p.instance,
+                terminals.get(&(p.instance, p.pad.id)).copied().flatten(),
+            )
+    }) {
         let shrunk = |by: f64| Prim::new(land(&pad.pad.shape), pad.frame, -by, &pad.name);
         match &pad.pad.paste {
             PasteRule::Inherit => {
@@ -964,12 +1139,40 @@ pub(crate) struct DesignHole {
     pub to: Point,
     pub width: f64,
     pub plated: bool,
+    /// A board via.
     pub via: bool,
+    /// A component's lead goes through it, or it is a via of its pad.
+    pub lead: bool,
     pub what: String,
 }
 
+impl DesignHole {
+    pub(crate) fn slot(&self) -> bool {
+        self.from != self.to
+    }
+
+    /// The X2 drill function: what the hole is for.
+    pub(crate) fn function(&self) -> &'static str {
+        match (self.via, self.lead) {
+            (true, _) => "ViaDrill",
+            (_, true) => "ComponentDrill",
+            _ => "MechanicalDrill",
+        }
+    }
+
+    /// The same, as the drill table words it.
+    pub(crate) fn word(&self) -> &'static str {
+        match (self.via, self.lead) {
+            (true, _) => "via",
+            (_, true) => "component",
+            _ => "mechanical",
+        }
+    }
+}
+
 /// The straight slot or circle an outline drawn as one is, by its two half
-/// turns: their centres and width. The caller's fixtures draw nothing else.
+/// turns: their centres and width. A board with another plated slot is
+/// refused before its files are made (`fabrication::representable`).
 fn drawn_slot(outline: &Outline) -> Fallible<(Point, Point, f64)> {
     let arcs: Vec<(Point, f64)> = Area::of_outline(outline)
         .edges
@@ -980,8 +1183,13 @@ fn drawn_slot(outline: &Outline) -> Fallible<(Point, Point, f64)> {
         })
         .collect();
     match arcs.as_slice() {
-        [(a, r), (b, _)] => Ok((*a, *b, 2.0 * r)),
-        _ => Err("a plated slot of the fixture has two ends".into()),
+        // A circle's two halves, a hair apart, are one hole.
+        [(a, r), (b, s)] if len(sub(*a, *b)) < 1e-6 => {
+            let c = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0];
+            Ok((c, c, r + s))
+        }
+        [(a, r), (b, s)] => Ok((*a, *b, r + s)),
+        _ => Err("a plated slot is not a straight slot with round ends".into()),
     }
 }
 
@@ -995,6 +1203,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
             width: v.drill,
             plated: true,
             via: true,
+            lead: false,
             what: "a via".into(),
         });
     }
@@ -1019,6 +1228,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
                 width,
                 plated: hole.plated,
                 via: false,
+                lead: hole.plated,
                 what: format!("the hole of {}", pad.name),
             });
         }
@@ -1030,6 +1240,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
                 width: via.drill_nm.to_mm_f64(),
                 plated: true,
                 via: false,
+                lead: true,
                 what: format!("a via of {}", pad.name),
             });
         }
@@ -1042,6 +1253,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
             width: h.drill,
             plated: h.plated,
             via: false,
+            lead: false,
             what: "a mounting hole".into(),
         });
     }
@@ -1054,6 +1266,7 @@ pub(crate) fn holes(project: &Project) -> Fallible<Vec<DesignHole>> {
                 width,
                 plated: true,
                 via: false,
+                lead: false,
                 what: "a plated board slot".into(),
             });
         }
@@ -1163,9 +1376,14 @@ fn box_at(center: Point, w: f64, h: f64, rotation: f64) -> Area {
 
 fn flashed(template: &Template, at: Point) -> Fallible<Cover> {
     Ok(match template {
-        Template::Circle { diameter, .. } => Cover::Area(Area::disc(at, diameter / 2.0)),
-        Template::Rect { w, h, .. } => Cover::Area(moved(box_at([0.0; 2], *w, *h, 0.0), at)),
-        Template::Obround { w, h, .. } => {
+        Template::Circle {
+            diameter,
+            hole: None,
+        } => Cover::Area(Area::disc(at, diameter / 2.0)),
+        Template::Rect { w, h, hole: None } => {
+            Cover::Area(moved(box_at([0.0; 2], *w, *h, 0.0), at))
+        }
+        Template::Obround { w, h, hole: None } => {
             let half = (w - h).abs() / 2.0;
             let d = if w >= h { [half, 0.0] } else { [0.0, half] };
             Cover::Area(Area::capsule(sub(at, d), add(at, d), w.min(*h) / 2.0))
@@ -1193,11 +1411,12 @@ fn flashed(template: &Template, at: Point) -> Fallible<Cover> {
             }
             Cover::Macro(parts)
         }
-        Template::Polygon { .. } => return Err("a polygon aperture".into()),
+        _ => return Err("a polygon aperture, or one with a hole".into()),
     })
 }
 
 impl Image {
+    #[cfg(test)]
     pub(crate) fn read(source: &str) -> Fallible<Self> {
         Self::of(&reader::parse(source)?)
     }
@@ -1211,7 +1430,10 @@ impl Image {
             };
             let round = || -> Fallible<f64> {
                 match template()? {
-                    Template::Circle { diameter, .. } => Ok(diameter / 2.0),
+                    Template::Circle {
+                        diameter,
+                        hole: None,
+                    } => Ok(diameter / 2.0),
                     other => Err(format!("a draw with {other:?}").into()),
                 }
             };
@@ -1272,6 +1494,7 @@ impl Image {
     }
 
     /// Of each object, its box's centre and points on its edges.
+    #[cfg(test)]
     pub(crate) fn object_points(&self) -> Vec<Vec<Point>> {
         self.objects
             .iter()
@@ -1291,6 +1514,7 @@ impl Image {
             .collect()
     }
 
+    #[cfg(test)]
     pub(crate) fn dark(&self, p: Point) -> bool {
         self.objects
             .iter()
@@ -1306,7 +1530,9 @@ pub(crate) const BAND_MM: f64 = 0.0021;
 
 /// Where a layer's written image and the design's material differ: points
 /// on a grid over `window` and beside every edge, as messages. Points
-/// within [`BAND_MM`] of an edge are not judged.
+/// within [`BAND_MM`] of an edge are not judged. Every point is held to
+/// every primitive: the tests' thorough form of [`openings`].
+#[cfg(test)]
 pub(crate) fn differences(
     image: &Image,
     design: &[Prim],
@@ -1382,6 +1608,154 @@ pub(crate) fn differences(
     out
 }
 
+/// Which boxes reach a point: filed by [`Grid::CELL_MM`] cells.
+struct Grid {
+    cells: std::collections::HashMap<(i64, i64), Vec<usize>>,
+    /// Boxes too large to file.
+    wide: Vec<usize>,
+}
+
+impl Grid {
+    const CELL_MM: f64 = 0.5;
+    const MOST_CELLS: i64 = 4096;
+
+    fn cell(p: Point) -> (i64, i64) {
+        let k = |v: f64| (v / Self::CELL_MM).floor() as i64;
+        (k(p[0]), k(p[1]))
+    }
+
+    fn of(boxes: impl Iterator<Item = [Point; 2]>) -> Self {
+        let mut grid = Self {
+            cells: Default::default(),
+            wide: Vec::new(),
+        };
+        for (k, [min, max]) in boxes.enumerate() {
+            if !(min[0] <= max[0] && min[1] <= max[1]) {
+                continue;
+            }
+            let (a, b) = (Self::cell(min), Self::cell(max));
+            let wide = (b.0.saturating_sub(a.0).saturating_add(1))
+                .saturating_mul(b.1.saturating_sub(a.1).saturating_add(1));
+            if wide > Self::MOST_CELLS {
+                grid.wide.push(k);
+                continue;
+            }
+            for x in a.0..=b.0 {
+                for y in a.1..=b.1 {
+                    grid.cells.entry((x, y)).or_default().push(k);
+                }
+            }
+        }
+        grid
+    }
+
+    fn near(&self, p: Point) -> impl Iterator<Item = usize> + '_ {
+        self.cells
+            .get(&Self::cell(p))
+            .into_iter()
+            .flatten()
+            .chain(&self.wide)
+            .copied()
+    }
+}
+
+/// A point where an image is not the design.
+#[derive(Clone, Debug)]
+pub(crate) struct Wrong {
+    pub at: Point,
+    /// The design has material there, and the file none; else the reverse.
+    pub missing: bool,
+    pub what: String,
+}
+
+/// Where a written image and the design's material differ: points beside
+/// every edge of both, as [`differences`] takes them but for its grid (a
+/// difference has an edge of one of them). At most `most` points are
+/// returned. `go` is asked now and then whether to go on.
+pub(crate) fn openings(
+    image: &Image,
+    design: &[Prim],
+    most: usize,
+    go: &mut dyn FnMut() -> bool,
+) -> Fallible<Vec<Wrong>> {
+    // Material farther than this decides nothing about a point.
+    const NEAR_MM: f64 = 0.1;
+    let prims = Grid::of(design.iter().map(|p| {
+        let [min, max] = p.bounds();
+        [
+            [min[0] - NEAR_MM, min[1] - NEAR_MM],
+            [max[0] + NEAR_MM, max[1] + NEAR_MM],
+        ]
+    }));
+    let objects = Grid::of(image.objects.iter().map(|o| o.1));
+    let dark = |p: Point| {
+        objects
+            .near(p)
+            .filter(|k| image.objects[*k].0.at(p))
+            .max()
+            .is_some_and(|k| image.objects[k].2)
+    };
+    let mut out: Vec<Wrong> = Vec::new();
+    // Whether enough is found.
+    let mut judge = |p: Point| {
+        let mut within = f64::INFINITY;
+        let mut near = false;
+        let mut what = None;
+        for k in prims.near(p) {
+            let e = design[k].excess(p);
+            near |= e.abs() < BAND_MM;
+            if e < within {
+                within = e;
+                what = Some(k);
+            }
+        }
+        let want = within < 0.0;
+        if !near && dark(p) != want {
+            out.push(Wrong {
+                at: p,
+                missing: want,
+                what: what.map_or_else(String::new, |k| design[k].what.clone()),
+            });
+        }
+        out.len() >= most
+    };
+    let mut points = Vec::new();
+    let mut enough = false;
+    for (k, prim) in design.iter().enumerate() {
+        if enough || k % 64 == 0 && !go() {
+            break;
+        }
+        points.clear();
+        prim.probes(0.25, &mut points);
+        enough = points.iter().any(|p| judge(*p));
+    }
+    for (k, (cover, b, _)) in image.objects.iter().enumerate() {
+        if enough || k % 64 == 0 && !go() {
+            break;
+        }
+        points.clear();
+        points.push([(b[0][0] + b[1][0]) / 2.0, (b[0][1] + b[1][1]) / 2.0]);
+        let (edges, half): (Vec<&Edge>, f64) = match cover {
+            Cover::Area(a) => (a.edges.iter().collect(), 0.0),
+            Cover::Macro(parts) => (parts.iter().flat_map(|(_, a)| &a.edges).collect(), 0.0),
+            Cover::Stroke(e, half) => (vec![e], *half),
+        };
+        for edge in edges {
+            for (at, right) in edge.samples(0.25) {
+                for off in [0.003, 0.02] {
+                    for d in [half + off, half - off] {
+                        points.push([at[0] - right[0] * d, at[1] - right[1] * d]);
+                        points.push([at[0] + right[0] * d, at[1] + right[1] * d]);
+                    }
+                }
+            }
+        }
+        enough = points.iter().any(|p| judge(*p));
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
