@@ -1037,6 +1037,7 @@ fn a_saved_waiver_of_what_cannot_be_waived_is_not_listed() -> Fallible<()> {
             reason: String::new(),
             accepted: Vec::new(),
             footprints: Vec::new(),
+            given_for: None,
         })
         .collect();
     let engine = Engine::from_file(file)?;
@@ -1361,6 +1362,7 @@ fn the_waived_list_shows_the_accepted_value() {
         reason: reason.into(),
         accepted,
         footprints: Vec::new(),
+        given_for: None,
     };
     let number = vec![Measured::at_least(0.15, 0.2, Unit::Mm, 0.0)];
     assert_eq!(

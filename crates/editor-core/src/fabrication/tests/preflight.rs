@@ -264,6 +264,7 @@ fn cannot_be_waived(engine: &mut Engine, keys: &[String], instead: &str) -> Fall
             reason: "Reviewed".into(),
             accepted: Vec::new(),
             footprints: Vec::new(),
+            given_for: None,
         })
         .collect();
     let held = Engine::from_file(file)?;
@@ -384,6 +385,7 @@ fn an_unrouted_connection_cannot_be_waived() -> Fallible<()> {
             reason: "prototype".into(),
             accepted: Vec::new(),
             footprints: Vec::new(),
+            given_for: None,
         })
         .collect();
     let engine = Engine::from_file(file)?;
@@ -469,6 +471,7 @@ fn an_unplaced_part_cannot_be_waived() -> Fallible<()> {
         reason: "prototype".into(),
         accepted: Vec::new(),
         footprints: Vec::new(),
+        given_for: None,
     }];
     let engine = Engine::from_file(file)?;
     let after = report(&engine)?;

@@ -457,10 +457,10 @@ fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Str
     for (key, measured) in &legend {
         now.entry(key.clone()).or_default().push(measured);
     }
-    let footprints = |key: &str| {
-        crate::model::production::StoredKey::parse(key).map_or_else(Vec::new, |k| {
-            crate::instances::pad_footprints(project, &k.objects)
-        })
+    let subject = |key: &str| {
+        crate::model::production::StoredKey::parse(key)
+            .map(|k| crate::issues::waived_subject(project, &k.code, &k.objects))
+            .unwrap_or_default()
     };
     waivers
         .iter()
@@ -470,7 +470,7 @@ fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Str
                     matches!(
                         project
                             .production
-                            .acceptance(&w.key, measured, || footprints(&w.key)),
+                            .acceptance(&w.key, measured, || subject(&w.key)),
                         crate::model::production::Acceptance::Holds(_)
                     )
                 })
@@ -840,12 +840,14 @@ mod tests {
                 reason: String::new(),
                 accepted: Vec::new(),
                 footprints: Vec::new(),
+                given_for: None,
             },
             Waiver {
                 key: waiver_key(&finding.code, &finding.objects),
                 reason: "Checked with the fab".into(),
                 accepted: finding.measured.clone(),
                 footprints: Vec::new(),
+                given_for: None,
             },
         ];
         project.production.waivers.sort_by(|a, b| a.key.cmp(&b.key));

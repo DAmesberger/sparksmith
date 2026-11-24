@@ -155,7 +155,7 @@ The declarations are data in `sparksmith_core::format::records`, and the encoder
 | `board/fills.jsonl` | `id`, `net`, `layer`, `name`, `region`, `priority`, `settings`, `outline`, `locked` | `id` | allowed |
 | `board/keepouts.jsonl` | `id`, `name`, `layers`, `forbid`, `outline` | `id` | allowed |
 | `board/dimensions.jsonl` | `id`, `kind`, `refs`, `value`, `reference` | `id` | allowed |
-| `rules/waivers.jsonl` | `key`, `accepted`, `footprints`, `reason` | `key` | allowed (numbers a check measured, of any unit) |
+| `rules/waivers.jsonl` | `key`, `accepted`, `footprints`, `given_for`, `reason` | `key` | allowed (numbers a check measured, of any unit) |
 
 | Document | Members after `format` and `version`, in order | Tables |
 |---|---|---|

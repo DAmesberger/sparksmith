@@ -3,7 +3,8 @@
 //! - [`NOT_MADE`]: the profile's drill rules exclude the fill, or the via's
 //!   hole is outside the sizes it fills. Never waivable.
 //! - [`NOT_STATED`]: the fabricator offers it without stating what it makes.
-//!   A person may accept that, with a reason; there is no number to keep.
+//!   A person may accept that, with a reason, for this profile and these
+//!   sizes of via ([`given_for`]).
 //! - [`IN_PAD_OPEN`]: an open hole under a solder paste opening.
 //! - [`TOLD`]: the fabricator is told which vias to fill by their hole size,
 //!   and open vias share it.
@@ -13,10 +14,11 @@ use super::{CURVE_SLACK_MM, EPS};
 use crate::diagnostics::{Finding, FindingCode, Measured, ObjectRef, Requirement, Unit};
 use crate::geometry::{Bounds, Shape};
 use crate::library::{PadKind, PasteRule};
+use crate::model::production::{GivenFor, GivenVia};
 use crate::model::{Project, Via, ViaFill};
 use crate::rules::RuleKey;
 use crate::rules::drills::{Verdict, through_fill};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const NOT_MADE: &str = FindingCode::BoardDrillNotMade.as_str();
 pub const NOT_STATED: &str = FindingCode::BoardDrillNotStated.as_str();
@@ -93,6 +95,47 @@ fn profile(project: &Project, out: &mut Vec<Finding>) {
             Verdict::Made(_) => sizes(project, &vias, out),
         }
     }
+}
+
+/// The profile and the vias a waiver of [`NOT_STATED`] is given for; none
+/// where the profile leaves nothing the board uses unstated.
+pub fn given_for(project: &Project) -> Option<GivenFor> {
+    use sha2::{Digest, Sha256};
+    let fab = project.rules.profile.as_ref()?;
+    let nm = |mm: f64| (mm * 1e6).round() as i64;
+    let vias: BTreeSet<GivenVia> = project
+        .vias
+        .iter()
+        .filter(|v| {
+            matches!(
+                through_fill(&fab.drill_rules, v.fill),
+                Verdict::NotStated(_)
+            )
+        })
+        .map(|v| GivenVia {
+            fill: v.fill,
+            drill_nm: nm(v.drill),
+            diameter_nm: nm(v.diameter),
+        })
+        .collect();
+    if vias.is_empty() {
+        return None;
+    }
+    let mut digest = Sha256::new();
+    // Plain data: neither list can fail to be written.
+    digest.update(serde_json::to_vec(&fab.source).unwrap_or_default());
+    digest.update(serde_json::to_vec(&fab.drill_rules).unwrap_or_default());
+    Some(GivenFor {
+        profile: fab.id.clone(),
+        read: fab.source.date.clone(),
+        statement: digest
+            .finalize()
+            .iter()
+            .take(8)
+            .map(|b| format!("{b:02x}"))
+            .collect(),
+        vias: vias.into_iter().collect(),
+    })
 }
 
 /// The holes of filled vias against the sizes the fabricator fills.

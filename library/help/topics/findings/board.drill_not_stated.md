@@ -14,7 +14,7 @@
     "entry/layout.via_set",
     "entry/rules.set_fab_profile"
   ],
-  "explanation": "Sparksmith does not guess a limit the fabricator has not published. A waiver of this finding always needs a reason and stores no measured value.",
+  "explanation": "Sparksmith does not guess a limit the fabricator has not published. A waiver of this finding always needs a reason. It holds only for the profile and the via sizes it was given for: under another profile, or with other sizes, it asks again.",
   "related": [
     "finding/board.drill_not_made",
     "guide/fab-profiles"

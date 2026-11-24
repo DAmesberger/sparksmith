@@ -18,7 +18,7 @@ use crate::layout::{self, BoardDrawing, CopperRing, PlacedItem};
 use crate::library::{Drafts, PackageModel};
 use crate::model::board::CutoutKind;
 use crate::model::production::{
-    Acceptance, MAX_ACCEPTED, MAX_WAIVE_KEYS, MAX_WAIVER_TEXT, Production, Waiver,
+    Acceptance, MAX_ACCEPTED, MAX_WAIVE_KEYS, MAX_WAIVER_TEXT, Production, Subject, Waiver,
 };
 use crate::model::{CopperLayer, Layer, Project, Track};
 use crate::rules::RuleProfile;
@@ -118,9 +118,10 @@ pub fn apply(
                 )));
             }
             if let Some(k) = keys.iter().find(|k| {
-                accepted
-                    .get(*k)
-                    .is_some_and(|a| a.measured.len() > MAX_ACCEPTED)
+                accepted.get(*k).is_some_and(|a| {
+                    let vias = a.subject.given_for.as_ref().map_or(0, |g| g.vias.len());
+                    a.measured.len().max(vias) > MAX_ACCEPTED
+                })
             }) {
                 return Err(Error::Limit(format!(
                     "fabrication.waiver_bounds: `{k}` measures more than {MAX_ACCEPTED} numbers"
@@ -130,7 +131,8 @@ pub fn apply(
                 let what = accepted.get(&key).cloned().unwrap_or_default();
                 let waiver = Waiver {
                     accepted: what.measured,
-                    footprints: what.footprints,
+                    footprints: what.subject.footprints,
+                    given_for: what.subject.given_for,
                     reason: reason.clone(),
                     key,
                 };
@@ -260,7 +262,7 @@ pub fn needs_reason(code: &str) -> bool {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Accepted {
     pub measured: Vec<Measured>,
-    pub footprints: Vec<DefinitionId>,
+    pub subject: Subject,
 }
 
 /// What waiving `keys` accepts on `project` (a snapshot's): the numbers of
@@ -279,9 +281,9 @@ pub fn accepted(
     let mut out: BTreeMap<String, Accepted> = keys
         .iter()
         .filter_map(|k| {
-            let objects = crate::model::production::StoredKey::parse(k)?.objects;
+            let stored = crate::model::production::StoredKey::parse(k)?;
             let accepted = Accepted {
-                footprints: crate::instances::pad_footprints(project, &objects),
+                subject: crate::issues::waived_subject(project, &stored.code, &stored.objects),
                 ..Accepted::default()
             };
             Some(((*k).to_owned(), accepted))
@@ -458,8 +460,8 @@ pub fn check(
         if unwaivable(&i.key) || i.needs.is_some() {
             continue;
         }
-        let footprints = || crate::instances::pad_footprints(p, &i.objects);
-        match p.production.acceptance(&i.key, &i.measured, footprints) {
+        let subject = || crate::issues::waived_subject(p, &i.code, &i.objects);
+        match p.production.acceptance(&i.key, &i.measured, subject) {
             Acceptance::None => {}
             Acceptance::Holds(waiver) => i.waiver = Some(waiver.clone()),
             Acceptance::Lapsed(waiver, text) => {

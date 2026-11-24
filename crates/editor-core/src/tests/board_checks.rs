@@ -1061,6 +1061,7 @@ fn a_waived_finding_leaves_issues_and_stays_waived_in_production() -> Result<()>
         reason: "Accepted".into(),
         accepted: row.finding.measured.clone(),
         footprints,
+        given_for: None,
     });
     let after = issues::report(&project, &drafts, &IssueScope::All, &Default::default())?;
     let keyed = |r: &issues::IssueRow| preflight::key(&r.finding.code, &r.finding.objects);

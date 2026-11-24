@@ -115,6 +115,7 @@ fn a_change_only_the_drawings_print_is_another_release() -> Fallible<()> {
         reason: "Fab-confirmed".into(),
         accepted: Vec::new(),
         footprints: Vec::new(),
+        given_for: None,
     });
     let (reasoned, drawing) = release(&waived, None, Outputs::default(), dir.path(), "waived")?;
     assert!(drawing.contains("Fab-confirmed"), "the note is printed");

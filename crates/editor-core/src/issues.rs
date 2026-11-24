@@ -313,8 +313,23 @@ fn acceptance<'a>(project: &'a Project, finding: &Finding) -> Acceptance<'a> {
     project.production.acceptance(
         &crate::model::production::waiver_key(&finding.code, &finding.objects),
         &finding.measured,
-        || crate::instances::pad_footprints(project, &finding.objects),
+        || waived_subject(project, &finding.code, &finding.objects),
     )
+}
+
+/// What a finding of `code` about `objects` is of, as a waiver of it keeps
+/// it.
+pub(crate) fn waived_subject(
+    project: &Project,
+    code: &str,
+    objects: &[ObjectRef],
+) -> crate::model::production::Subject {
+    crate::model::production::Subject {
+        footprints: crate::instances::pad_footprints(project, objects),
+        given_for: (code == layout::via_fill::NOT_STATED)
+            .then(|| layout::via_fill::given_for(project))
+            .flatten(),
+    }
 }
 
 /// The report of `scope` from every raw finding of the project, by area:

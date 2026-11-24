@@ -284,6 +284,66 @@ fn not_made_is_never_waived_and_not_stated_only_with_a_reason() -> Fallible<()> 
     Ok(())
 }
 
+/// Red when a waiver of what is not stated goes by its key alone: it then
+/// holds under another profile, another reading of it and other vias.
+#[test]
+fn a_not_stated_waiver_is_for_its_profile_and_its_vias() -> Fallible<()> {
+    let filled = |profile: RuleProfile, vias: &[(f64, ViaFill)]| -> Fallible<Engine> {
+        let engine = under(profile)?;
+        let mut file = engine.to_file();
+        file.project = with(&engine, vias)?;
+        Ok(Engine::from_file(file)?)
+    };
+    let one = [(0.3, ViaFill::Capped)];
+    let mut engine = filled(filling(false)?, &one)?;
+    let key = item(&engine, via_fill::NOT_STATED)?.key;
+    engine.apply(
+        engine.revision(),
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys: vec![key],
+            reason: "they confirmed 0.3 mm by mail".into(),
+            profile: None,
+        }),
+    )?;
+    let waivers = engine.project().production.waivers.clone();
+    let given = waivers.first().and_then(|w| w.given_for.clone());
+    let given = given.ok_or("what it was given for")?;
+    assert_eq!(given.profile, "test-filling");
+    assert_eq!(given.vias.len(), 1);
+    assert!(given.vias.iter().all(|v| v.drill_nm == 300_000));
+    assert!(waivers.iter().all(|w| w.accepted.is_empty()));
+
+    let lapsed = |profile: RuleProfile, vias: &[(f64, ViaFill)]| -> Fallible<Option<String>> {
+        let engine = filled(profile, vias)?;
+        let mut file = engine.to_file();
+        file.project.production.waivers.clone_from(&waivers);
+        let found = item(&Engine::from_file(file)?, via_fill::NOT_STATED)?;
+        assert_eq!(found.blocks(), found.lapsed.is_some());
+        Ok(found.lapsed.map(|l| l.text))
+    };
+    // The same, and the same with one more via of the size.
+    assert_eq!(lapsed(filling(false)?, &one)?, None);
+    let two = [(0.3, ViaFill::Capped), (0.3, ViaFill::Capped)];
+    assert_eq!(lapsed(filling(false)?, &two)?, None);
+    let sizes = Some("Was accepted for vias of other sizes".to_owned());
+    assert_eq!(lapsed(filling(false)?, &[(0.25, ViaFill::Capped)])?, sizes);
+    let more = [(0.3, ViaFill::Capped), (0.25, ViaFill::Capped)];
+    assert_eq!(lapsed(filling(false)?, &more)?, sizes);
+    let other = Some("Was accepted under another fab profile".to_owned());
+    let mut renamed = filling(false)?;
+    renamed.id = "test-filling-2".into();
+    assert_eq!(lapsed(renamed, &one)?, other);
+    let mut read = filling(false)?;
+    read.source.date = "2026-01-02".into();
+    assert_eq!(lapsed(read, &one)?, other);
+    let mut said = filling(false)?;
+    for rule in &mut said.drill_rules {
+        rule.source = "Says something else.".into();
+    }
+    assert_eq!(lapsed(said, &one)?, other);
+    Ok(())
+}
+
 /// The data itself: every shipped profile states the open through via, and
 /// what it says of the filled one carries a source.
 #[test]
@@ -296,7 +356,11 @@ fn shipped_profiles_source_what_they_say_of_filled_vias() -> Fallible<()> {
     assert!(!rule.source.is_empty());
     assert!(!jlc.charges.is_empty());
     let holes = jlc.rules().holes;
-    assert!(holes.capped_drill_min.is_some() && holes.capped_drill_max.is_some());
+    // Of two pages that conflict, the stricter one.
+    assert_eq!(
+        (holes.capped_drill_min, holes.capped_drill_max),
+        (Some(0.2), Some(0.5))
+    );
     Ok(())
 }
 

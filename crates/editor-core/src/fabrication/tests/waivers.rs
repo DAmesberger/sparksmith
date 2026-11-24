@@ -182,6 +182,7 @@ fn a_waiver_without_its_value_counts_for_nothing_until_given_again() -> Fallible
         reason: "before".into(),
         accepted: Vec::new(),
         footprints: Vec::new(),
+        given_for: None,
     }];
     let mut engine = Engine::from_file(file)?;
     let found = item(&engine, &key)?;
@@ -299,6 +300,7 @@ fn a_value_makes_nothing_waivable() -> Fallible<()> {
         reason: String::new(),
         accepted: vec![Measured::at_least(0.0, 1.0, Unit::Mm, 0.0)],
         footprints: Vec::new(),
+        given_for: None,
     }];
     let engine = Engine::from_file(file)?;
     let found = item(&engine, &stale)?;
