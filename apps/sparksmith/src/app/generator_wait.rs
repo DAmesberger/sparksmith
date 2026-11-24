@@ -1,11 +1,13 @@
-//! Requests waiting for a generator. No generator runs on the window's
-//! thread ([`Deferred`]): a request that met one still running changed
-//! nothing, is kept here and runs again when its answer is there. The
-//! application bar shows that the window waits, with Stop.
+//! Requests waiting for a generator or the online library. Neither is
+//! waited for on the window's thread ([`Deferred`], [`OnlineCalls`]): a
+//! request that met one still running changed nothing, is kept here and
+//! runs again when its answer is there. The application bar shows what the
+//! window waits for, with Stop.
 use super::App;
 use crate::assistant::worker::ToolRequest;
 use crate::document_version::DocumentVersion;
 use crate::kit::severity::Level;
+use crate::online_window::OnlineCalls;
 use crate::refusal::Origin;
 use serde_json::{Value, json};
 use sparksmith_assist::desk::Called;
@@ -39,21 +41,37 @@ impl Waiting {
     }
 }
 
-/// The window's generator runtime and what waits for it.
+/// The window's generator runtime, its online requests and what waits for
+/// them.
 pub(super) struct GeneratorWait {
     pub runtime: Arc<Deferred>,
+    pub online: OnlineCalls,
     waiting: Vec<Waiting>,
 }
 
 impl GeneratorWait {
     pub fn new(ctx: &egui::Context) -> Self {
-        let wake = ctx.clone();
+        let (wake, answered) = (ctx.clone(), ctx.clone());
         Self {
             runtime: sparksmith_automation::session::generators::window_runtime(move || {
                 wake.request_repaint();
             }),
+            online: OnlineCalls::new(move || answered.request_repaint()),
             waiting: Vec::new(),
         }
+    }
+
+    /// Whether a call met something still running since this was last
+    /// asked.
+    pub fn take_met(&self) -> bool {
+        let generator = self.runtime.take_met();
+        self.online.take_met() || generator
+    }
+
+    /// End every generator call and online request of the window.
+    fn end(&self) {
+        self.runtime.stop();
+        self.online.stop();
     }
 
     pub fn hold(&mut self, waiting: Waiting) {
@@ -79,7 +97,7 @@ impl GeneratorWait {
                 }
             }
         }
-        self.runtime.stop();
+        self.end();
         origins
     }
 
@@ -95,28 +113,28 @@ impl GeneratorWait {
         self.end_unneeded();
     }
 
-    /// A generator nothing waits for any more is stopped.
+    /// What nothing waits for any more is stopped.
     fn end_unneeded(&mut self) {
         if self.waiting.is_empty() {
-            self.runtime.stop();
+            self.end();
         }
     }
 }
 
 fn stopped() -> Value {
     json!({"ok": false, "error": {"code": "generator.cancelled",
-        "message": "Not run: it was stopped while it waited for a generator. Nothing was changed."}})
+        "message": "Not run: it was stopped while it waited. Nothing was changed."}})
 }
 
 impl App {
-    /// Run what waited for a generator once none is running.
+    /// Run what waited once nothing is running.
     pub(super) fn serve_generator_wait(&mut self, ctx: &egui::Context) {
         let held = !self.generators.waiting.is_empty();
         self.generators.waiting.retain(|w| !w.gone());
         if held {
             self.generators.end_unneeded();
         }
-        if self.generators.runtime.waiting() > 0 {
+        if self.generators.runtime.waiting() + self.generators.online.waiting() > 0 {
             return;
         }
         for waiting in std::mem::take(&mut self.generators.waiting) {
@@ -146,15 +164,20 @@ impl App {
         }
         if self.generators.waiting.is_empty() {
             self.generators.runtime.trim();
+            self.generators.online.forget();
         }
     }
 
     /// Work the application bar offers Stop for, in words.
     pub(super) fn stoppable(&self) -> Option<&'static str> {
-        if self.generators.is_waiting() {
+        if self.generators.is_waiting() && self.generators.online.waiting() > 0 {
+            Some("Waiting for the online library\u{2026}")
+        } else if self.generators.is_waiting() {
             Some("Waiting for a generator\u{2026}")
         } else if self.schematic.making().is_some() || self.part.making().is_some() {
             Some("Making a part\u{2026}")
+        } else if self.sources.online().is_some_and(|o| o.downloading()) {
+            Some("Downloading a part\u{2026}")
         } else {
             None
         }
@@ -171,6 +194,9 @@ impl App {
             .flatten()
         {
             making.stop();
+        }
+        if let Some(online) = self.sources.online() {
+            online.stop_downloads();
         }
         self.say(Level::Info, "Stopped; nothing was changed");
     }

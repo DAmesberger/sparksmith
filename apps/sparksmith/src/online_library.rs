@@ -15,6 +15,7 @@ use sparksmith_assist::registry::account::{self, DeviceCode, Known};
 use sparksmith_assist::registry::{
     AccountEvent, DEBOUNCE, RegistryClient, RegistryEvent, RegistryWorker,
 };
+use sparksmith_assist::settings::Network;
 use sparksmith_automation::session::online::OnlineReport;
 use sparksmith_core::library::bundle::SourceRevision;
 use std::collections::BTreeMap;
@@ -78,12 +79,17 @@ pub enum AccountView {
     SigningOut,
 }
 
-/// A sign-in button pressed in Settings › Libraries.
+/// A button of the registry's pressed in Settings › Libraries.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AccountAction {
     SignIn,
     Cancel,
     SignOut,
+    /// Stop telling the registry of the sign-out.
+    StopSignOut,
+    /// Read the registry's index again, or stop reading it.
+    ReadIndex,
+    StopIndex,
     /// Open the sign-in page with the code filled in.
     OpenBrowser(String),
     /// Copy the sign-in code.
@@ -120,13 +126,15 @@ pub struct OnlineLibrary {
 impl OnlineLibrary {
     /// Start the registry at `url`, mirrored under `cache`, and sync its
     /// index in the background. `repaint` asks for a frame when something
-    /// arrives.
+    /// arrives; `network` is how long its requests may hear nothing.
     pub fn start(
         url: &str,
         cache: Option<&Path>,
         repaint: Option<egui::Context>,
+        network: Network,
     ) -> Result<Self, String> {
         let client = Arc::new(RegistryClient::new(url, cache)?);
+        client.set_network(network);
         let notify: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
             if let Some(ctx) = &repaint {
                 ctx.request_repaint();
@@ -195,6 +203,35 @@ impl OnlineLibrary {
             code: None,
         });
         self.account_note = None;
+    }
+
+    /// Stop waiting for the registry to know of the sign-out: this computer
+    /// is signed out either way.
+    pub fn stop_sign_out(&self) {
+        self.worker.stop_sign_out();
+    }
+
+    /// Read the index again.
+    pub fn sync(&mut self) {
+        self.status = OnlineStatus::Syncing;
+        self.worker.sync();
+    }
+
+    /// Stop reading the index.
+    pub fn stop_sync(&self) {
+        self.worker.stop_sync();
+    }
+
+    /// Whether a part's data is being fetched to place or import it.
+    pub fn downloading(&self) -> bool {
+        !self.tickets.is_empty()
+    }
+
+    /// Stop fetching parts' data: each says it was stopped.
+    pub fn stop_downloads(&self) {
+        for ticket in self.tickets.keys() {
+            self.worker.stop_bundle(*ticket);
+        }
     }
 
     /// Stop waiting for the sign-in.

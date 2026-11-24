@@ -955,6 +955,7 @@ impl App {
         // The online registry: its name, the palette's newest reply, and
         // the chat's and live MCP's sessions reaching it with src:online.
         if let Some(online) = self.sources.take_online_change() {
+            let online = online.map(|o| self.generators.online.source(o));
             self.assistant.session.set_online(online.clone());
             self.live.set_online(online);
         }
@@ -1380,9 +1381,9 @@ impl App {
         // One conversation per open project.
         self.assistant.document_opened();
         self.assistant.session.set_online(
-            self.sources.online().map(|o| {
-                o.client() as Arc<dyn sparksmith_automation::session::online::OnlineSource>
-            }),
+            self.sources
+                .online()
+                .map(|o| self.generators.online.source(o.client())),
         );
         self.workflow_cards.document_opened();
         self.workflow_pick = None;

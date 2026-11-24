@@ -145,6 +145,8 @@ pub struct TurnSummary {
 pub struct LimitStop {
     /// "Your limit of 40 model requests a run".
     pub which: String,
+    /// The model went silent: Try again asks it to go on.
+    pub silence: bool,
     /// The person pressed Continue.
     pub continued: bool,
 }
@@ -416,6 +418,7 @@ impl Conversation {
         if let chat::End::Limit { hit, .. } = end {
             summary.limit = Some(LimitStop {
                 which: limit_words(*hit, self.limits.as_ref()),
+                silence: *hit == Hit::Silence,
                 continued: false,
             });
         }
@@ -514,6 +517,9 @@ pub fn spend_lines(
 
 /// Which of the person's limits a turn stopped at, in words.
 pub fn limit_words(hit: Hit, limits: Option<&Limits>) -> String {
+    if hit == Hit::Silence {
+        return "The model's silence limit".into();
+    }
     let Some(limits) = limits else {
         return "A limit of this turn".into();
     };
@@ -527,7 +533,7 @@ pub fn limit_words(hit: Hit, limits: Option<&Limits>) -> String {
             group(limits.output_tokens)
         ),
         Hit::Tokens => format!("Your limit of {} tokens", group(limits.total_tokens)),
-        Hit::Time => format!("Your limit of {} minutes", limits.minutes),
+        Hit::Time | Hit::Silence => format!("Your limit of {} minutes", limits.minutes),
     }
 }
 
@@ -820,6 +826,13 @@ mod tests {
         );
         c.ended(card(3, Usage::default()), &chat::End::Answered);
         assert!(!c.continue_from(2), "only the last card continues");
+        c.ended(card(4, Usage::default()), &stop(Hit::Silence));
+        assert!(
+            c.summary(4)
+                .and_then(|card| card.limit.as_ref())
+                .is_some_and(|l| l.silence)
+        );
+        assert!(c.continue_from(4), "a silent model is asked again");
         assert_eq!(c.summary(3).and_then(|card| card.limit.clone()), None);
     }
 

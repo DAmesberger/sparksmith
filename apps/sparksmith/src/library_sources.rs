@@ -649,6 +649,8 @@ pub struct LibrarySources {
     updates: Option<(usize, u64, u64, Arc<Vec<UpdateAvailable>>)>,
     /// The turned-on online registry (Settings › Libraries), if any.
     online: Option<crate::online_library::OnlineLibrary>,
+    /// How long its requests may hear nothing.
+    network: sparksmith_assist::settings::Network,
     /// Why the configured registry could not start.
     online_problem: Option<String>,
     /// Bumped whenever the registry starts or stops.
@@ -679,6 +681,8 @@ impl LibrarySources {
         };
         sources.repaint = Some(ctx.clone());
         sources.rescan();
+        let config = sources.dirs.as_ref().map(|d| d.config.clone());
+        sources.set_network(config.as_deref());
         sources.start_online();
         sources
     }
@@ -696,9 +700,27 @@ impl LibrarySources {
             &setting.url,
             cache.as_deref(),
             self.repaint.clone(),
+            self.network,
         ) {
             Ok(online) => self.online = Some(online),
             Err(error) => self.online_problem = Some(error),
+        }
+    }
+
+    /// How long the registry's requests may hear nothing, as the person
+    /// keeps it in `config`, from now on.
+    pub fn set_network(&mut self, config: Option<&Path>) {
+        match sparksmith_assist::settings::network(config) {
+            Ok(network) => self.network = network,
+            Err(error) => {
+                self.say(
+                    format!("The network settings could not be read: {error}"),
+                    true,
+                );
+            }
+        }
+        if let Some(online) = &self.online {
+            online.client().set_network(self.network);
         }
     }
 
@@ -716,6 +738,9 @@ impl LibrarySources {
         match action {
             A::SignIn => online.sign_in(),
             A::Cancel => online.cancel_sign_in(),
+            A::StopSignOut => online.stop_sign_out(),
+            A::ReadIndex => online.sync(),
+            A::StopIndex => online.stop_sync(),
             A::SignOut => online.sign_out(),
             A::OpenBrowser(_) | A::Copy(_) => {}
         }
@@ -882,6 +907,7 @@ impl LibrarySources {
             bundles: Vec::new(),
             updates: None,
             online: None,
+            network: sparksmith_assist::settings::Network::NO_LIMITS,
             online_problem: None,
             online_generation: 0,
             online_installed: 0,
