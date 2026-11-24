@@ -42,8 +42,8 @@ pub use profile::{
 };
 
 pub use netclass::{
-    ClassClearance, NetClass, NetClassAssignment, NetClassId, NetClassPattern, NetClassSpec,
-    glob_matches,
+    ClassClearance, ClassLayer, ClassSpan, ClassVias, NetClass, NetClassAssignment, NetClassId,
+    NetClassPattern, NetClassSpec, glob_matches,
 };
 
 /// A fab profile as a request names it: by id, or the whole profile.

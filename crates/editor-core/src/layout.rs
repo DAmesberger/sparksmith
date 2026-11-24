@@ -56,6 +56,7 @@ pub mod several;
 pub mod showcase;
 pub mod staging;
 pub mod via;
+pub mod via_class;
 pub mod via_fill;
 pub use crate::rules::signal::CheckSettings;
 pub use arrange::part_envelope;
@@ -1094,9 +1095,24 @@ fn apply_routes(project: &mut Project, edits: RouteEditSet) -> Result<()> {
             ));
         }
         check_request_with_nets(project, &request_from(track), &nets)?;
+        // A track that stays on its layer is left there: the board check
+        // tells what its class does not allow.
+        if track_at
+            .get(&track.id)
+            .and_then(|k| project.tracks.get(*k))
+            .is_some_and(|old| old.layer != track.layer)
+        {
+            via_class::check_layer(project, track.net, track.layer)?;
+        }
     }
     for request in &edits.add {
         check_request_with_nets(project, request, &nets)?;
+        via_class::check_layer(project, request.net, request.layer)?;
+    }
+    let mut vias_before: BTreeMap<Id, usize> = BTreeMap::new();
+    for request in &edits.vias {
+        let count = || project.vias.iter().filter(|v| v.net == request.net).count();
+        vias_before.entry(request.net).or_insert_with(count);
     }
     for track in &edits.restore {
         if !touched.insert(track.id) {
@@ -1137,6 +1153,9 @@ fn apply_routes(project: &mut Project, edits: RouteEditSet) -> Result<()> {
             return Err(Error::NotFound("unknown electrical net".into()));
         }
         added_vias.push(via::insert(project, request)?);
+    }
+    for (net, before) in vias_before {
+        via_class::check_vias(project, net, before)?;
     }
     let mut changed = BTreeSet::new();
     if !edits.replace.is_empty() {
@@ -1810,10 +1829,12 @@ pub enum BoardCheck {
     MaskWeb,
     /// Filled vias against the fab profile ([`via_fill`]).
     ViaFills,
+    /// Vias and layers a net class does not allow ([`via_class`]).
+    ViaClass,
 }
 
 impl BoardCheck {
-    pub const ALL: [BoardCheck; 18] = [
+    pub const ALL: [BoardCheck; 19] = [
         Self::Unplaced,
         Self::Clearance,
         Self::Connectivity,
@@ -1832,6 +1853,7 @@ impl BoardCheck {
         Self::Fiducials,
         Self::MaskWeb,
         Self::ViaFills,
+        Self::ViaClass,
     ];
 
     /// Whether the family reads the board's tracks or vias. A change to
@@ -1848,7 +1870,8 @@ impl BoardCheck {
             | Self::Lengths
             | Self::Etch
             | Self::Fiducials
-            | Self::ViaFills => true,
+            | Self::ViaFills
+            | Self::ViaClass => true,
             Self::Unplaced
             | Self::Courtyards
             | Self::Outline
@@ -1915,6 +1938,7 @@ impl BoardCheck {
             Self::Fiducials => fiducial::findings(project),
             Self::MaskWeb => mask_web::findings(project),
             Self::ViaFills => via_fill::findings(project),
+            Self::ViaClass => via_class::findings(project),
         };
         (findings, false)
     }

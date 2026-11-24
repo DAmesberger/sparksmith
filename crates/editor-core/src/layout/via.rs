@@ -91,7 +91,9 @@ pub struct LayerChangeRequest {
 
 /// Add a via clear of other nets' copper; returns its identity.
 pub(super) fn add(project: &mut Project, request: ViaRequest) -> Result<Id> {
+    let before = project.vias.iter().filter(|v| v.net == request.net).count();
     let id = insert(project, request)?;
+    super::via_class::check_vias(project, request.net, before)?;
     check_clearance(project, id)?;
     Ok(id)
 }

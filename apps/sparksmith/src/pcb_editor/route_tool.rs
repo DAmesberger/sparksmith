@@ -1003,6 +1003,22 @@ impl PcbEditor {
         self.layer = layer;
     }
 
+    /// Refuses a layer change the net's class does not allow, and says
+    /// which class: the route stays on its layer.
+    pub(super) fn refuse_layer_change(&mut self, project: &Project) -> Option<String> {
+        let (_, from) = self.pending_via?;
+        let nets: Vec<Id> = match &self.route.pair {
+            Some(pair) => pair.nets.to_vec(),
+            None => self.net.into_iter().collect(),
+        };
+        let why = nets.into_iter().find_map(|net| {
+            layout::via_class::check_change(project, net, self.layer, true).err()
+        })?;
+        self.pending_via = None;
+        self.layer = from;
+        Some(format!("{why}. The route stays on {}.", from.name()))
+    }
+
     /// A step stopped before its layer change: the route stays on the layer
     /// its copper is on, and the refusal says so.
     pub(super) fn drop_layer_change(&mut self) {

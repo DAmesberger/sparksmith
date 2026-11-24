@@ -24,6 +24,40 @@ pub(super) fn first_id() -> u32 {
     1
 }
 
+/// The drill of a via, as a class names it.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ClassSpan {
+    /// Through the whole board.
+    Through,
+}
+
+/// The vias a class allows its nets.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ClassVias {
+    /// The drills its vias may be; unset, any; an empty list, none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spans: Option<Vec<ClassSpan>>,
+    /// The most vias one net may have; unset, any number.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max: Option<u32>,
+}
+
+/// A copper layer by its name, written as the board's layers are (`"Top"`,
+/// `{"Inner": n}`, `"Bottom"`); one the stackup lacks allows nothing.
+#[derive(
+    Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
+pub enum ClassLayer {
+    Top,
+    Inner(u8),
+    Bottom,
+}
+
+/// Layers a class lists, at most: a 32-layer board's.
+const MAX_LAYERS: usize = 32;
+
 /// A class's values; `None` falls back to the effective rules.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -50,6 +84,12 @@ pub struct NetClassSpec {
     pub via_drill: Option<f64>,
     #[serde(default)]
     pub via_diameter: Option<f64>,
+    /// The vias its nets may have; unset, any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vias: Option<ClassVias>,
+    /// The copper layers its tracks may use; unset, any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layers: Option<Vec<ClassLayer>>,
     /// Track width of this class's differential pairs (the derived
     /// width when a differential impedance target is set and this is
     /// unset).
@@ -83,6 +123,10 @@ pub struct NetClass {
     pub via_drill: Option<f64>,
     #[serde(default)]
     pub via_diameter: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vias: Option<ClassVias>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layers: Option<Vec<ClassLayer>>,
     #[serde(default)]
     pub diff_pair_width: Option<f64>,
     #[serde(default)]
@@ -104,6 +148,8 @@ impl NetClass {
             fill_clearance: s.fill_clearance,
             via_drill: s.via_drill,
             via_diameter: s.via_diameter,
+            vias: s.vias,
+            layers: s.layers,
             diff_pair_width: s.diff_pair_width,
             diff_pair_gap: s.diff_pair_gap,
             fill_connection: s.fill_connection,
@@ -232,6 +278,20 @@ fn class_problem(c: &NetClass) -> Option<String> {
     {
         return Some(format!(
             "net_class.via: net class {name} via pad must be wider than its drill"
+        ));
+    }
+    if let Some(layers) = &c.layers {
+        let named: BTreeSet<&ClassLayer> = layers.iter().collect();
+        if layers.is_empty() || layers.len() > MAX_LAYERS || named.len() != layers.len() {
+            return Some(format!(
+                "net_class.layers: net class {name} needs at least one layer, each listed once"
+            ));
+        }
+    }
+    let spans = c.vias.iter().filter_map(|v| v.spans.as_ref());
+    if spans.into_iter().any(|s| s.len() > 1) {
+        return Some(format!(
+            "net_class.vias: net class {name} lists a kind of via twice"
         ));
     }
     c.signal.problem(name)

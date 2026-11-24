@@ -423,6 +423,8 @@ mod tests {
             fill_clearance: None,
             via_drill: None,
             via_diameter: None,
+            vias: None,
+            layers: None,
             diff_pair_width: None,
             diff_pair_gap: None,
             fill_connection: None,

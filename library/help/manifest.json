@@ -80,6 +80,7 @@
     "findings/board.unrouted.md",
     "findings/board.via_annular_ring.md",
     "findings/board.via_aspect_ratio.md",
+    "findings/board.via_class.md",
     "findings/board.via_dangling.md",
     "findings/board.via_drill_clearance.md",
     "findings/board.via_drill_size.md",

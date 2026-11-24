@@ -3,8 +3,12 @@
 //! `net_class.*` queries describe membership without applying anything.
 use super::support::*;
 use crate::layout::{self, LayoutCommand, RouteRequest};
+use crate::model::CopperLayer;
 use crate::rules::netclass::{ClassBasis, NetClassReport};
-use crate::rules::{NetClassId, NetClassPattern, NetClassSpec, RulesCommand};
+use crate::rules::{
+    ClassLayer, ClassSpan, ClassVias, NetClass, NetClassId, NetClassPattern, NetClassSpec,
+    RulesCommand,
+};
 use crate::schematic::SchematicCommand;
 use crate::{Engine, Error, Layer, Operation, Outcome, Query, QueryResult, Result};
 
@@ -599,5 +603,124 @@ fn a_bad_fill_clearance_is_refused_and_an_unset_one_stays_off_the_wire() -> Resu
             .and_then(|c| c.fill_clearance),
         None
     );
+    Ok(())
+}
+
+/// Red when the class's vias are not read by one of: adding a via, a route
+/// edit set, the board check.
+#[test]
+fn a_class_allows_its_nets_so_many_vias() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let net = engine.project().nets.first().map(|n| n.id);
+    let net = net.ok_or_else(|| Error::NotFound("a net".into()))?;
+    let name = engine.project().net_name(net).to_owned();
+    let row = |max| NetClassSpec {
+        name: "B-row".into(),
+        vias: Some(ClassVias {
+            spans: Some(vec![ClassSpan::Through]),
+            max: Some(max),
+        }),
+        ..Default::default()
+    };
+    let class = add_class(&mut engine, row(1))?;
+    assign(&mut engine, vec![net], Some(class))?;
+    let [w, h] = engine.project().board_size;
+    let via = |k: f64| layout::ViaRequest::fixture(net, [w - 1.0 - 3.0 * k, h - 1.0]);
+    let add = |via| Operation::Layout(LayoutCommand::AddVia { via });
+    apply(&mut engine, add(via(0.0)))?;
+    let edits = Operation::Layout(LayoutCommand::ApplyRoute {
+        edits: layout::RouteEditSet {
+            vias: vec![via(1.0)],
+            ..Default::default()
+        },
+    });
+    for second in [add(via(1.0)), edits] {
+        let refused = apply(&mut engine, second).err().map(|e| e.to_string());
+        assert_eq!(
+            refused,
+            Some(format!("{name}: net class B-row allows 1 via"))
+        );
+    }
+    assert!(layout::via_class::findings(engine.project()).is_empty());
+    assert!(
+        layout::via_class::check_change(engine.project(), net, CopperLayer::Bottom, true).is_err()
+    );
+    // A class edit leaves the copper and the check tells it.
+    let edited = |max| {
+        Operation::Rules(RulesCommand::EditNetClass {
+            class: NetClass::from_spec(class, row(max)),
+        })
+    };
+    apply(&mut engine, edited(2))?;
+    apply(&mut engine, add(via(1.0)))?;
+    apply(&mut engine, edited(1))?;
+    let found = layout::via_class::findings(engine.project());
+    assert_eq!(
+        found.iter().map(|f| f.message.clone()).collect::<Vec<_>>(),
+        [format!(
+            "Via on {name}: net class B-row allows 1 via, this is the 2nd"
+        )]
+    );
+    // A waiver holds for the second via, not for a third.
+    assert!(found.iter().all(|f| !f.measured.is_empty()));
+    apply(&mut engine, edited(0))?;
+    assert_eq!(layout::via_class::findings(engine.project()).len(), 2);
+    Ok(())
+}
+
+/// Red when a class's layers are not read by routing or the board check.
+#[test]
+fn a_class_keeps_its_nets_on_its_layers() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let net = engine.project().nets.first().map(|n| n.id);
+    let net = net.ok_or_else(|| Error::NotFound("a net".into()))?;
+    let name = engine.project().net_name(net).to_owned();
+    let row = |layers| NetClassSpec {
+        name: "A-row".into(),
+        layers,
+        ..Default::default()
+    };
+    let class = add_class(&mut engine, row(Some(vec![ClassLayer::Top])))?;
+    assign(&mut engine, vec![net], Some(class))?;
+    let [w, h] = engine.project().board_size;
+    let route = |layer| {
+        Operation::Layout(LayoutCommand::ApplyRoute {
+            edits: layout::RouteEditSet {
+                add: vec![RouteRequest {
+                    net,
+                    start: [w - 4.0, h - 1.0],
+                    end: [w - 2.0, h - 1.0],
+                    width: 0.25,
+                    layer,
+                }],
+                ..Default::default()
+            },
+        })
+    };
+    let refused = apply(&mut engine, route(CopperLayer::Bottom));
+    assert_eq!(
+        refused.err().map(|e| e.to_string()),
+        Some(format!("{name}: net class A-row does not allow Bottom"))
+    );
+    let edited = |layers| {
+        Operation::Rules(RulesCommand::EditNetClass {
+            class: NetClass::from_spec(class, row(layers)),
+        })
+    };
+    apply(&mut engine, edited(None))?;
+    apply(&mut engine, route(CopperLayer::Bottom))?;
+    assert!(layout::via_class::findings(engine.project()).is_empty());
+    apply(&mut engine, edited(Some(vec![ClassLayer::Top])))?;
+    let found = layout::via_class::findings(engine.project());
+    assert_eq!(
+        found.iter().map(|f| f.message.clone()).collect::<Vec<_>>(),
+        [format!(
+            "Track on {name}: net class A-row does not allow Bottom"
+        )]
+    );
+    // A list without a layer, or with one twice, is no list.
+    for bad in [vec![], vec![ClassLayer::Top, ClassLayer::Top]] {
+        assert!(apply(&mut engine, edited(Some(bad))).is_err());
+    }
     Ok(())
 }

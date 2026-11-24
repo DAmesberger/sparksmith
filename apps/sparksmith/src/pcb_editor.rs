@@ -1971,6 +1971,9 @@ impl PcbEditor {
         if self.tool == Tool::Route && response.hovered() {
             let at = cursor.map(|at| self.route_point(project, at, scale));
             self.hover_at = at;
+            if let Some(why) = self.refuse_layer_change(project) {
+                kit::toast::post(ui.ctx(), kit::severity::Level::Warning, why, Vec::new());
+            }
             if let Some(back) = self.route_keys(ui, project, engine.revision(), at) {
                 operation = Some(back);
             }

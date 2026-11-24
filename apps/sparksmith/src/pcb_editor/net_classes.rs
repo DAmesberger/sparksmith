@@ -13,7 +13,8 @@ use crate::refusal::{self, Origin};
 use egui::Ui;
 use sparksmith_core::rules::netclass::{ClassBasis, NetClassReport, report};
 use sparksmith_core::rules::{
-    NetClass, NetClassId, NetClassPattern, NetClassSpec, PadConnection, RulesCommand,
+    ClassLayer, ClassSpan, ClassVias, NetClass, NetClassId, NetClassPattern, NetClassSpec,
+    PadConnection, RulesCommand,
 };
 use sparksmith_core::{Engine, Id, Operation, Project, layout};
 use sparksmith_ui::ui_kit::{self, Button};
@@ -53,7 +54,9 @@ fn shown(value: f64, unit: &str) -> String {
     use sparksmith_core::units::{LengthUnit, Nm, format_length};
     match Nm::from_mm_f64_rounded(value) {
         Ok(nm) if unit == "mm" => format_length(nm, LengthUnit::Mm),
-        _ => format!("{} {unit}", kit::number_text(value)),
+        _ => format!("{} {unit}", kit::number_text(value))
+            .trim_end()
+            .to_owned(),
     }
 }
 
@@ -488,6 +491,7 @@ fn class_section(
                 edited = Some(next);
             }
         }
+        edited = via_rows(ui, project, card, class).or(edited.take());
         let mut connection = class.fill_connection;
         let options = [
             (None, "Design rules".to_owned()),
@@ -506,6 +510,91 @@ fn class_section(
     });
     let class = edited?;
     Some(Operation::Rules(RulesCommand::EditNetClass { class }))
+}
+
+/// The vias and layers the class allows its nets.
+fn via_rows(
+    ui: &mut Ui,
+    project: &Project,
+    card: &mut NetClassesCard,
+    class: &NetClass,
+) -> Option<NetClass> {
+    let mut edited = None;
+    let vias = class.vias.clone().unwrap_or_default();
+    let set = |vias: ClassVias| NetClass {
+        vias: (vias != ClassVias::default()).then_some(vias),
+        ..class.clone()
+    };
+    let mut spans = vias.spans.clone();
+    let options = [
+        (None, "Any".to_owned()),
+        (Some(vec![ClassSpan::Through]), "Only through".to_owned()),
+        (Some(Vec::new()), "None".to_owned()),
+    ];
+    if kit::choice_row(ui, "Vias", &mut spans, &options) && spans != vias.spans {
+        edited = Some(set(ClassVias {
+            spans,
+            ..vias.clone()
+        }));
+    }
+    let none = vias.spans.as_ref().is_some_and(Vec::is_empty);
+    if !none
+        && let Some(max) = optional_value(
+            ui,
+            card,
+            "At most",
+            vias.max.map(f64::from),
+            "",
+            "Any number",
+            "Enter a whole number of vias a net may have, or leave it empty",
+        )
+    {
+        // Bounded by the field: whole numbers a via count can be.
+        let whole = max.filter(|n| n.fract() == 0.0 && *n <= f64::from(u32::MAX));
+        if max.is_none() || whole.is_some() {
+            edited = Some(set(ClassVias {
+                max: whole.map(|n| n as u32),
+                ..vias
+            }));
+        }
+    }
+    let stack = project.stackup.layers();
+    kit::value_row(
+        ui,
+        "Layers",
+        if class.layers.is_none() {
+            "Any"
+        } else {
+            "Only these"
+        },
+    );
+    for layer in &stack {
+        let named = ClassLayer::from(*layer);
+        let mut on = class.layers.as_ref().is_none_or(|l| l.contains(&named));
+        if kit::check_row(ui, &layer.name(), &mut on) {
+            let layers: Vec<ClassLayer> = stack
+                .iter()
+                .map(|l| ClassLayer::from(*l))
+                .filter(|l| match *l == named {
+                    true => on,
+                    false => class.layers.as_ref().is_none_or(|c| c.contains(l)),
+                })
+                .collect();
+            // Every layer is no list; a class keeps at least one.
+            if layers.len() == stack.len() {
+                edited = Some(NetClass {
+                    layers: None,
+                    ..class.clone()
+                });
+            } else if !layers.is_empty() {
+                edited = Some(NetClass {
+                    layers: Some(layers),
+                    ..class.clone()
+                });
+            }
+        }
+    }
+    edited
 }
 
 /// The selected class's high-speed rules: impedance targets, pair width,

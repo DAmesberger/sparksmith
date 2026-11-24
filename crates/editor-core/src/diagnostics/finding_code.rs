@@ -119,6 +119,7 @@ declare_findings! {
     BoardUnrouted => ("board.unrouted", ToDo, None, "Unrouted connections"),
     BoardViaAnnularRing => ("board.via_annular_ring", Error, None, "Thin via annular rings"),
     BoardViaAspectRatio => ("board.via_aspect_ratio", Error, None, "Via aspect ratio too high"),
+    BoardViaClass => ("board.via_class", Error, None, "Vias or tracks the net class does not allow"),
     BoardViaDangling => ("board.via_dangling", Warning, None, "Vias joining nothing"),
     BoardViaDrillClearance => ("board.via_drill_clearance", Error, None, "Via drills too close to copper"),
     BoardViaDrillSize => ("board.via_drill_size", Error, None, "Via drills too small"),
