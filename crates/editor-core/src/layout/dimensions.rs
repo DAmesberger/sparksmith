@@ -738,9 +738,10 @@ fn solve_component(
 /// to bring their copper along.
 ///
 /// While the board's solve is not current (`BoardSketch::current`) nothing is
-/// solved: the parts stay with the stored shape and values, a command that
-/// would need them solved is refused, and the edit that makes the outline
-/// valid solves them all.
+/// placed: the parts stay with the stored shape and values, a command that
+/// would move them is refused, and the edit that makes the outline valid
+/// places them all. A board edit is still refused when the parts do not
+/// solve on it.
 pub fn follow(
     before: &Project,
     project: &mut Project,
@@ -756,11 +757,11 @@ pub fn follow(
         return Ok(Vec::new());
     }
     let invalid = project.board_shape.invalid();
-    let board_changed = invalid.is_none()
-        && (before.board_size != project.board_size || before.board_shape != project.board_shape);
+    let board_changed =
+        before.board_size != project.board_size || before.board_shape != project.board_shape;
     let mut touched = Vec::new();
     for c in components(project) {
-        if !board_changed {
+        if !board_changed || invalid.is_some() {
             let same_dims = c.dimensions.iter().all(|d| {
                 before
                     .part_dimensions
@@ -769,6 +770,11 @@ pub fn follow(
             });
             let parts_now = solve_parts(project, &c);
             if same_dims && parts_now.is_some() && solve_parts(before, &c) == parts_now {
+                if board_changed {
+                    let evaluator = evaluator.ok_or_else(needs_evaluator)?;
+                    let board = board_sketch(project, evaluator)?;
+                    solve_component(before, project, &c, &board, evaluator)?;
+                }
                 continue;
             }
         }

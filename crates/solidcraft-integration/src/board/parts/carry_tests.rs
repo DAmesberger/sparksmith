@@ -566,11 +566,9 @@ fn a_dimension_edit_waits_for_a_valid_outline() -> Fallible<()> {
         Operation::Dimension(DimensionCommand::Edit { dimension }),
         moved(),
     ] {
-        let error = apply(&mut engine, operation)
-            .err()
-            .ok_or("accepted")?
-            .to_string();
-        assert!(error.contains("the board outline is not valid"), "{error}");
+        let error = apply(&mut engine, operation).err().ok_or("accepted")?;
+        assert_eq!(error.rule(), Some("layout.dimension_outline"));
+        assert!(error.to_string().contains("not valid"), "{error}");
         assert_eq!(engine.revision(), revision);
         assert_eq!(engine.to_file(), before);
     }
@@ -579,5 +577,35 @@ fn a_dimension_edit_waits_for_a_valid_outline() -> Fallible<()> {
         Operation::Dimension(DimensionCommand::Delete { id }),
     )?;
     apply(&mut engine, moved())?;
+    Ok(())
+}
+
+/// A parameter the held parts cannot be solved with is refused while the
+/// outline is invalid as it is on a valid board, changing nothing.
+#[test]
+fn an_unsolvable_parameter_is_refused_while_the_outline_is_invalid() -> Fallible<()> {
+    let (mut engine, _) = held_and_routed()?;
+    let mut dimension = engine
+        .project()
+        .part_dimensions
+        .iter()
+        .next()
+        .ok_or("a dimension")?
+        .clone();
+    // The same place on the 60 mm board; below 30 mm it has no length.
+    dimension.value = Some(DimValue::Expr(Expr("width - 30 mm".into())));
+    apply(
+        &mut engine,
+        Operation::Dimension(DimensionCommand::Edit { dimension }),
+    )?;
+    invalidate(&mut engine)?;
+    let (revision, before) = (engine.revision(), engine.to_file());
+    let error = edit(&mut engine, vec![set("width", "28 mm")])
+        .err()
+        .ok_or("accepted")?
+        .to_string();
+    assert!(error.contains("out of range"), "{error}");
+    assert_eq!(engine.revision(), revision);
+    assert_eq!(engine.to_file(), before);
     Ok(())
 }
