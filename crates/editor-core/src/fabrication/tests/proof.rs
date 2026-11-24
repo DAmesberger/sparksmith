@@ -30,9 +30,9 @@ use sparksmith_fabcheck::{drills, outline};
 
 /// How far fill copper may measure short of a rule: the fill chord its
 /// computation flattens curves at and the reader's chords, mm.
-const SPACING_SLACK_MM: f64 = 0.002;
+pub(super) const SPACING_SLACK_MM: f64 = 0.002;
 
-fn lines(points: &[Point]) -> Outline {
+pub(super) fn lines(points: &[Point]) -> Outline {
     Outline {
         start: points[0],
         segments: points[1..]
@@ -241,7 +241,7 @@ fn rules(project: &mut Project) {
     }
 }
 
-fn refill(p: &mut Project) -> Fallible<()> {
+pub(super) fn refill(p: &mut Project) -> Fallible<()> {
     for (id, copper) in crate::layout::fill::refill(p, crate::layout::fill::RefillTarget::All)? {
         if let Some(fill) = p.fills.iter_mut().find(|f| f.id == id) {
             fill.computed = Some(copper);
@@ -271,7 +271,7 @@ fn fill(p: &mut Project, net: u64, layer: CopperLayer) -> Fallible<u64> {
 /// pad shape on a part turned on each side, paste that splits, a mask
 /// opening that closes, slots and holes of every kind, pours with islands
 /// and holes on both layers.
-fn board() -> Fallible<Project> {
+pub(super) fn board() -> Fallible<Project> {
     let mut p = Engine::demo()?.project().clone();
     let footprint = &mut p
         .library
@@ -505,9 +505,9 @@ fn board() -> Fallible<Project> {
 
 /// A written set: file names and texts (the CSV, PDF and job files left
 /// out).
-type Files = Vec<(String, String)>;
+pub(super) type Files = Vec<(String, String)>;
 
-fn written(project: &Project) -> Fallible<Files> {
+pub(super) fn written(project: &Project) -> Fallible<Files> {
     let set = fabrication::generate(
         &ProductionSnapshot::resolve(project, None)?,
         &FabricationOptions {
@@ -523,7 +523,7 @@ fn written(project: &Project) -> Fallible<Files> {
         .collect()
 }
 
-fn file<'a>(files: &'a Files, suffix: &str) -> Fallible<&'a str> {
+pub(super) fn file<'a>(files: &'a Files, suffix: &str) -> Fallible<&'a str> {
     files
         .iter()
         .find(|(name, _)| name == &format!("proof-{suffix}"))
@@ -531,7 +531,7 @@ fn file<'a>(files: &'a Files, suffix: &str) -> Fallible<&'a str> {
         .ok_or_else(|| format!("no {suffix}").into())
 }
 
-fn layer_name(project: &Project, layer: CopperLayer) -> Fallible<(String, String)> {
+pub(super) fn layer_name(project: &Project, layer: CopperLayer) -> Fallible<(String, String)> {
     let n = project
         .stackup
         .layers()
@@ -887,7 +887,7 @@ fn everything_the_files_hold_is_the_design() -> Fallible<()> {
     Ok(())
 }
 
-fn near(a: Point, b: Point) -> bool {
+pub(super) fn near(a: Point, b: Point) -> bool {
     (a[0] - b[0]).hypot(a[1] - b[1]) < 1e-6
 }
 
@@ -2026,7 +2026,7 @@ fn an_arc_shorter_than_the_format_draws_no_circle() -> Fallible<()> {
 }
 
 /// The whole list of `key` lines of a file's text, with their numbers.
-fn line_numbers(text: &str, matches: impl Fn(&str) -> bool) -> Vec<usize> {
+pub(super) fn line_numbers(text: &str, matches: impl Fn(&str) -> bool) -> Vec<usize> {
     text.lines()
         .enumerate()
         .filter(|(_, l)| matches(l))
@@ -2034,7 +2034,7 @@ fn line_numbers(text: &str, matches: impl Fn(&str) -> bool) -> Vec<usize> {
         .collect()
 }
 
-fn edit(files: &mut Files, suffix: &str, change: impl Fn(Vec<String>) -> Vec<String>) {
+pub(super) fn edit(files: &mut Files, suffix: &str, change: impl Fn(Vec<String>) -> Vec<String>) {
     for (name, text) in files {
         if *name == format!("proof-{suffix}") {
             let lines: Vec<String> = text.lines().map(str::to_owned).collect();
@@ -2045,7 +2045,7 @@ fn edit(files: &mut Files, suffix: &str, change: impl Fn(Vec<String>) -> Vec<Str
 
 /// `line` with its `axis` word changed by `by` (mm as written: nm in
 /// Gerber, decimals in Excellon).
-fn shifted(line: &str, axis: char, by: f64, decimals: bool) -> String {
+pub(super) fn shifted(line: &str, axis: char, by: f64, decimals: bool) -> String {
     let Some(at) = line.find(axis) else {
         return line.to_owned();
     };
@@ -2063,7 +2063,7 @@ fn shifted(line: &str, axis: char, by: f64, decimals: bool) -> String {
 }
 
 /// `line`'s `axis` word mirrored about `2·about` (mm).
-fn mirrored(line: &str, axis: char, about: f64, decimals: bool) -> String {
+pub(super) fn mirrored(line: &str, axis: char, about: f64, decimals: bool) -> String {
     let Some(at) = line.find(axis) else {
         return line.to_owned();
     };
@@ -2080,7 +2080,7 @@ fn mirrored(line: &str, axis: char, about: f64, decimals: bool) -> String {
     format!("{}{axis}{value}{}", &line[..at], &rest[end..])
 }
 
-fn without(lines: Vec<String>, gone: std::ops::RangeInclusive<usize>) -> Vec<String> {
+pub(super) fn without(lines: Vec<String>, gone: std::ops::RangeInclusive<usize>) -> Vec<String> {
     lines
         .into_iter()
         .enumerate()
@@ -2090,7 +2090,7 @@ fn without(lines: Vec<String>, gone: std::ops::RangeInclusive<usize>) -> Vec<Str
 }
 
 /// The regions (`G36` to `G37`) of a Gerber file, as line ranges.
-fn regions(lines: &[String]) -> Vec<std::ops::RangeInclusive<usize>> {
+pub(super) fn regions(lines: &[String]) -> Vec<std::ops::RangeInclusive<usize>> {
     let mut out = Vec::new();
     let mut from = None;
     for (k, l) in lines.iter().enumerate() {
