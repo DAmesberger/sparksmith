@@ -383,7 +383,7 @@ fn a_dimension_is_placed_then_bound_to_a_board_parameter() -> Fallible {
         [30.0, 0.0],
         &scene,
     )?;
-    let Step::Commit(commit) = press(
+    let Step::Dimension(new) = press(
         ShapeTool::Dimension,
         &options,
         &mut gesture,
@@ -393,12 +393,24 @@ fn a_dimension_is_placed_then_bound_to_a_board_parameter() -> Fallible {
     else {
         return Err("the dimension was not placed".into());
     };
-    let id = commit
-        .select
-        .clone()
-        .ok_or("the new dimension is not selected")?;
+    assert_eq!(new.value, 60.0);
+    // The value defines the parameter and adds the dimension bound to it.
+    let edits = new_dimension_edits(&board, &new, "width = 80 mm")?;
+    assert!(matches!(
+        edits.first(),
+        Some(BoardEdit::SetParameter { param }) if param.name.0 == "width" && param.expr.0 == "80 mm"
+    ));
+    assert!(matches!(
+        edits.get(1),
+        Some(BoardEdit::Sketch { edit: SketchEdit::AddDimension { value: DimValue::Param(p), .. } })
+            if p.0 == "width"
+    ));
+    assert!(new_dimension_edits(&board, &new, "nowhere").is_err());
+    // Untouched, it is taken as measured.
+    let edits = new_dimension_edits(&board, &new, "60")?;
+    let id = new.id.clone();
     let dimensioned = BoardSketch {
-        sketch: applied(&board.sketch, &commit.edits)?,
+        sketch: applied(&board.sketch, &edits)?,
         ..board.clone()
     };
     let view = scene_view(&dimensioned)?;
@@ -1620,5 +1632,90 @@ fn j1s_dimension_rows_name_their_axis() -> Fallible {
     let count = names.len();
     names.dedup();
     assert_eq!(names.len(), count, "{rows:?}");
+    Ok(())
+}
+
+/// The sketch with the named edge's curve deleted, as Delete sends it.
+fn opened(d: &mut Drawn, edge: &str) -> Fallible {
+    let board = d.board()?;
+    let curve = board
+        .edges
+        .iter()
+        .find(|e| e.name.0 == edge)
+        .map(|e| SketchRef::Curve(e.curve.clone()))
+        .ok_or("no such edge")?;
+    d.apply(Some(operation(delete_edits(&board, &[curve]))))?;
+    let fault = d.board()?.fault.ok_or("the outline is still closed")?;
+    assert_eq!(fault.kind, ShapeFaultKind::Open);
+    Ok(())
+}
+
+/// GUI check 1, K5: a line drawn back to the corner at the origin snaps to
+/// it and closes the outline.
+#[test]
+fn a_line_to_the_origin_corner_closes_the_outline() -> Fallible {
+    let mut d = Drawn::new()?;
+    opened(&mut d, "left")?;
+    let top = d.at(0.0, 1.0);
+    d.hover(top);
+    d.key(egui::Key::L, false);
+    assert_eq!(d.editor.shape.tool, ShapeTool::Line);
+    d.click([top[0] - 0.05, top[1] + 0.05]);
+    // A hand's click, beside the corner.
+    let line = d.click([-0.05, 0.04]);
+    d.apply(line)?;
+    let board = d.board()?;
+    assert_eq!(board.fault, None);
+    assert!(board.current);
+    Ok(())
+}
+
+/// GUI check 1, K6: an arc whose ends are clicked on existing points ends
+/// on both, wherever its centre was clicked, and closes the outline.
+#[test]
+fn an_arc_between_two_corners_closes_the_outline() -> Fallible {
+    let mut d = Drawn::new()?;
+    opened(&mut d, "right")?;
+    let (low, high) = (d.at(1.0, 0.0), d.at(1.0, 1.0));
+    d.hover(low);
+    d.key(egui::Key::A, false);
+    assert_eq!(d.editor.shape.tool, ShapeTool::Arc);
+    // Not as far from the one corner as from the other.
+    let mut centre = d.at(0.9, 0.5);
+    centre[1] += 0.4;
+    d.click(centre);
+    d.click([low[0] + 0.05, low[1] - 0.05]);
+    let arc = d.click([high[0] + 0.05, high[1] + 0.05]);
+    d.apply(arc)?;
+    let board = d.board()?;
+    assert_eq!(board.fault, None);
+    assert!(board.current);
+    // The corners stayed where they were.
+    let view = scene_view(&board)?;
+    for corner in [low, high] {
+        assert!(
+            view.points.iter().any(|p| dist(p.at, corner) < 1e-6),
+            "{corner:?}: {:?}",
+            view.points
+        );
+    }
+    Ok(())
+}
+
+/// With a free start, the end's point sets the radius and the start goes
+/// onto that circle.
+#[test]
+fn an_arcs_free_start_gives_way_to_its_tied_end() -> Fallible {
+    let at = |p: Point| Click {
+        at: p,
+        snapped: None,
+    };
+    let end = Click {
+        at: [4.0, 5.0],
+        snapped: Some(SketchPointId("p9".into())),
+    };
+    let (c, s, e) = arc_points(&at([0.0, 5.0]), &at([0.0, 0.0]), &end).ok_or("an arc")?;
+    assert!(dist(c, [0.0, 5.0]) < 1e-12 && dist(e, end.at) < 1e-12);
+    assert!(dist(s, [0.0, 1.0]) < 1e-12, "{s:?}");
     Ok(())
 }

@@ -2225,6 +2225,9 @@ pub(crate) fn sheet_rows(
 }
 
 #[cfg(test)]
+#[path = "app/board_param_tests.rs"]
+mod board_param_tests;
+#[cfg(test)]
 #[path = "app/browser_tree_tests.rs"]
 mod browser_tree_tests;
 #[cfg(test)]
