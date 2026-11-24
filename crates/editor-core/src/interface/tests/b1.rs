@@ -134,6 +134,56 @@ fn sketched() -> Fallible<Engine> {
     Ok(Engine::from_file(file)?)
 }
 
+/// A board parameter is exported with its value as the board sketch
+/// writes it, a number with its unit ("60 mm"). One written as an
+/// expression over others has no value here: the host's evaluator reads
+/// it.
+#[test]
+fn a_board_parameter_written_with_its_unit_is_exported_with_its_value() -> Fallible {
+    let mut file = sketched()?.to_file();
+    let param = |name: &str, expr: &str| FootprintParam {
+        name: ParamName(name.into()),
+        expr: Expr(expr.into()),
+        unit: ParamUnit::Mm,
+        comment: String::new(),
+    };
+    let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
+        return Err("a sketched board".into());
+    };
+    sketch.parameters = vec![
+        param("width", "60 mm"),
+        param("tab_x", "(width - 12 mm) / 2"),
+    ];
+    let mut engine = Engine::from_file(file)?;
+    for name in ["width", "tab_x"] {
+        export(
+            &mut engine,
+            ExportTarget::BoardParameter {
+                name: ParamName(name.into()),
+            },
+        )?;
+    }
+    let listed = list(&engine)?;
+    let row = |token: &str| {
+        listed
+            .datums
+            .iter()
+            .find(|d| d.token == token)
+            .ok_or_else(|| format!("no datum {token}"))
+    };
+    assert_eq!(
+        row("board.parameter.width")?.geometry,
+        Some(DatumGeometry::Parameter {
+            value: 60.0,
+            unit: "mm".into()
+        })
+    );
+    let derived = row("board.parameter.tab_x")?;
+    assert_eq!(derived.geometry, None);
+    assert_eq!(derived.status, DatumStatus::Resolved);
+    Ok(())
+}
+
 /// Save and reopen through the document format.
 fn reopened(engine: &Engine) -> Fallible<Engine> {
     let bytes = format::encode(&engine.to_file())?;

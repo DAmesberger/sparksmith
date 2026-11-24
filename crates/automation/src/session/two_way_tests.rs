@@ -7,7 +7,8 @@
 //! linked design is missing or moved" `b4_a_missing_linked_design_keeps_the_snapshot`.
 use super::Session;
 use super::assembly_link_tests::{
-    FAR_WALL_Y, changed, far_face, files, link, preflight, save_linked_design, status, with,
+    FAR_WALL_Y, changed, far_face, files, height_and_top, link, preflight, save_linked_design,
+    status, with,
 };
 use super::interface_publish_tests::{
     TestResult, apply, faces, instance, linked_design, move_j1, ok, open, publish,
@@ -16,8 +17,7 @@ use serde_json::{Value, json};
 use sparksmith_core::Operation;
 use sparksmith_core::layout::outline::{BoardCommand, BoardEdit};
 use sparksmith_core::library::footprint_source::{
-    DimKind, DimValue, ParamName, SketchConstraintId, SketchCurveId, SketchEdit, SketchPointId,
-    SketchRef,
+    DimKind, DimValue, ParamName, SketchCurveId, SketchEdit, SketchRef,
 };
 use sparksmith_solidcraft::linked_design::{LinkedDesign, Operation as Extrude};
 use std::path::Path;
@@ -67,13 +67,14 @@ fn follow_top_edge(
         .as_str()
         .ok_or("the reference owns a fixed line")?
         .to_owned();
+    let (height, top_end) = height_and_top(session)?;
     apply(
         session,
         Operation::Board(BoardCommand::Edit {
             edits: vec![
                 BoardEdit::Sketch {
                     edit: SketchEdit::Delete {
-                        ids: vec![SketchRef::Constraint(SketchConstraintId("k6".into()))],
+                        ids: vec![SketchRef::Constraint(height)],
                     },
                 },
                 BoardEdit::RemoveParameter {
@@ -83,7 +84,7 @@ fn follow_top_edge(
                     edit: SketchEdit::AddDimension {
                         kind: DimKind::Distance,
                         refs: vec![
-                            SketchRef::Point(SketchPointId("p2".into())),
+                            SketchRef::Point(top_end),
                             SketchRef::Curve(SketchCurveId(curve.clone())),
                         ],
                         value: DimValue::Fixed(FAR_WALL_Y - 64.0),

@@ -171,8 +171,8 @@ Feature geometry is rebuilt from the library snapshot for each solve and never s
 A part the solve moves or turns, or a `layout.move`, carries the copper on its pads in the same operation and undo step (`dimensions::carry`): what is attached is read off the copper graph of the document before the operation, island by island (a net's tracks and vias joined other than through a pad).
 
 - An island whose pads all move with one motion moves rigidly with them, so the routes inside a group of parts held together keep their shape.
-- An island between moved and unmoved pads, when the parts slid without turning, keeps every segment's direction, as a dragged track does: from each moved pad, a segment running along the move stretches; else, at a corner where one other segment meets it end to end, it slides and that neighbour stretches along its own line to meet it; else it slides whole with the copper at its far end. The two halves of a differential pair can take different branches of this rule (on the ESP32 board, 40 → 41 mm left 21 mm of the USB pair uncoupled); the re-route below lays them together again.
-- Otherwise (a turn, parts moving differently, locked copper, or a slide that would reach an unmoved pad or flip a segment), a via joined only to the part's pads moves rigidly with it, and a track end on a carried pad or via moves rigidly too, so its segment stretches and the corners beyond it stay; when stretching would take the segment off copper that meets it in mid-span, the segment stays and a new segment like it joins its old end to the carried one.
+- An island between pads that slide two ways, no part turning (a pad that stays slides by nothing, so this is also the island between moved and unmoved pads), goes with the shorter slide and keeps every segment's direction as the other pads slide the rest of the way, as a dragged track does: from each such pad, a segment running along the move stretches; else, at a corner where one other segment meets it end to end, it slides and that neighbour stretches along its own line to meet it; else it slides whole with the copper at its far end. So one edit that makes a board wider and taller carries the routes between parts on its centre line and parts that also follow its top edge (`a_route_between_parts_that_slide_two_ways_keeps_its_directions`). The two halves of a differential pair can take different branches of this rule (on the ESP32 board, 40 → 41 mm left 21 mm of the USB pair uncoupled); the re-route below lays them together again.
+- Otherwise (a turn, parts sliding three ways, locked copper, or a slide that would reach a pad that stays or flip a segment), a via joined only to the part's pads moves rigidly with it, and a track end on a carried pad or via moves rigidly too, so its segment stretches and the corners beyond it stay; when stretching would take the segment off copper that meets it in mid-span, the segment stays and a new segment like it joins its old end to the carried one.
 
 Locked copper stays. No edit is refused for the carried copper. What the carry leaves offending is then re-routed in the same operation and undo step ([push-and-shove](push-and-shove.md#re-routing-dragged-copper)): carried copper too close to other copper or a keepout, carried copper off a pad it joined, copper the moved parts' pads now come too close to, and a pair half carried out of coupling with its partner. What the router cannot route cleanly is removed and left unrouted (an airwire), never left as a clearance error. Fills refill as before.
 
@@ -564,10 +564,12 @@ References use typed ids (`{"part": {"feature": "face", "placement": <id>, "face
 
 The ESP32-S31 dev board's J1 uses an original USB4105 part file (`examples/esp32-s31-devboard/parts/usb4105.solidcraft`, authored by `author_parts`). It is held by two part dimensions:
 
-- its shell's front face at distance 0 from the bottom edge;
+- its shell's front face at distance 0 from the `bottom` edge, the edge of the tab that carries it;
 - its origin at `width / 2` from the left edge.
 
 `the_usb_c_receptacle_follows_the_board_width` widens the board from 40 mm to 50 mm and J1 moves from x = 20 to x = 25 with its face still on the edge.
+
+The module U1 is held the same way, by the antenna end of its own board (`F1:+y` of the body `board` in the module's part file) on the `top` edge and its origin at `width / 2`. Every other part of that board is held by two part dimensions as well, to an edge or to J1 or U1, and its outline is a sketch with no freedom left ([the example](../examples/esp32-s31-devboard/README.md#parameters), `crates/automation/tests/esp32_parametric.rs`).
 
 ### For S4 and S5
 

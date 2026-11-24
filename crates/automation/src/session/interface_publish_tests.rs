@@ -268,10 +268,16 @@ pub(super) fn linked_design(
         2.0,
         Extrude::Cut,
     )?;
+    // Mounting hole 1's wall: the board's curved face round the hole,
+    // which stands 3.5 mm from the left edge and from the tab's edge.
     let wall = assembly_link
         .faces("board")?
         .into_iter()
-        .find(|f| f.normal.is_none())
+        .find(|f| {
+            f.normal.is_none()
+                && (f.centroid[0] - 3.5).abs() < 1e-6
+                && (f.centroid[1] - 3.5).abs() < 1e-6
+        })
         .ok_or("a hole wall")?;
     assembly_link.projected(
         "Boss",

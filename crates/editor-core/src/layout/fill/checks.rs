@@ -289,7 +289,15 @@ impl Stored {
         // Cheap first: no contact at all is no overlap.
         self.gap(ring, f64::MIN_POSITIVE)?;
         let solid = geom::ccw(ring.to_vec())?;
-        (self.overlap(&[vec![solid]]) > OVERLAP_AREA_MM2).then_some(0.0)
+        let n = solid.len();
+        let around: f64 = (0..n)
+            .map(|i| {
+                let (a, b) = (solid[i], solid[(i + 1) % n]);
+                (b[0] - a[0]).hypot(b[1] - a[1])
+            })
+            .sum();
+        let rounding = OVERLAP_AREA_MM2 + around * OVERLAP_DEPTH_MM;
+        (self.overlap(&[vec![solid]]) > rounding).then_some(0.0)
     }
 
     /// The copper's area outside the solid outline `outer`, with a vertex
@@ -322,6 +330,14 @@ impl Stored {
 /// edge, as its computation leaves it) differ by the polygon arithmetic's
 /// rounding only.
 const OVERLAP_AREA_MM2: f64 = 1e-6;
+
+/// How deep, mm, copper computed up to an outline may lie inside it along
+/// the edge they share and still differ by the polygon arithmetic's
+/// rounding only: the arithmetic snaps coordinates to its own grid
+/// (measured: 0.12 nm on a 40 × 70 mm board), so the sliver's area grows
+/// with the length of the shared edge, 2.6e-6 mm² along a 22 mm keepout
+/// edge. No copper is 10 nm deep.
+const OVERLAP_DEPTH_MM: f64 = 1e-5;
 
 /// Every board object the stored fills are audited against, made once per
 /// check run and filed in a bounds grid, with the board shape.

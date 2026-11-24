@@ -246,7 +246,12 @@ fn j1s_dimension_rows_edit_delete_and_follow_3d() -> Fallible {
 #[test]
 fn the_updating_chip_sits_beside_the_issues_badge() -> Fallible {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
-    let engine = esp32()?;
+    // The example holds every part by dimensions; this test moves U1 by
+    // hand, so the board is taken without them.
+    let mut file = esp32()?.to_file();
+    file.project.part_dimensions = Default::default();
+    file.project.model_traces = Default::default();
+    let engine = Engine::from_file(file)?;
     let project = engine.project();
     let u1 = project
         .instances

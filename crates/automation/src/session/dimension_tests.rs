@@ -46,9 +46,13 @@ fn close(a: [f64; 2], b: [f64; 2]) -> bool {
 #[test]
 fn the_usb_c_receptacle_follows_the_board_width() -> TestResult {
     let mut session = open()?;
+    // J1's shell face and the module's antenna end.
     let traces = &session.engine().project().model_traces;
-    assert_eq!(traces.len(), 1, "{traces:?}");
-    assert_eq!(traces[0].status, ReferenceStatus::Resolved);
+    assert_eq!(traces.len(), 2, "{traces:?}");
+    assert!(
+        traces.iter().all(|t| t.status == ReferenceStatus::Resolved),
+        "{traces:?}"
+    );
     let (_, at) = j1(&session)?;
     assert!(close(at, [20.0, 3.675]), "{at:?}");
     let widened = apply(
