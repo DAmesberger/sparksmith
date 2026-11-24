@@ -402,19 +402,31 @@ from the GUI. The core warning that restated them is no longer shown twice.
 
 ## Build cost (measured)
 
-At revision `8dea4ac3`, the four-layer showcase with 100 added vias (121 total,
-108 tracks) built 881 native bodies in 39.585 s. With 10,000 added vias (10,021
-total, 258 tracks), the exact build was still running when the probe stopped at
-120 s. Both observations used the optimized CI profile on an Apple M5 Max.
-All 400 main-thread stack samples in a two-second window of the large run were
-inside substrate slab extrusion. Total build time and the share spent in extrusion
-remain unknown.
+The exact board of the four-layer via boards (`via_board`: the showcase with that many added
+vias) is far from its target of seconds at 10,000 vias. Measured on 24 November 2026 at
+revision `f8b711ad` (Solidcraft pinned at `f78bfe81`), with the optimized `ci` profile, at
+lowered priority (`nice -n 15`) on a shared 32-thread machine (AMD Ryzen AI MAX+ 395,
+125 GiB), two runs each:
 
-To reproduce the full builds, run `via_build_profile` with `SPARKSMITH_VIAS=100`
-and then `10000`. To time the five substrate slabs individually for the same two
-boards, run `cargo test --locked --profile ci -p sparksmith-solidcraft --lib
-four_layer_exact_slab_profile -- --ignored --nocapture`. This probe uses the
-board plan and native slab builder and reports deferred evaluation separately.
+| Added vias | Total vias | Tracks | Native bodies | Build, first run (load average before, after) | Build, second run |
+| --- | --- | --- | --- | --- | --- |
+| 100 | 121 | 108 | 881 | 22.5 s (20.3, 15.6) | 21.1 s (3.8, 3.6) |
+| 300 | 321 | 208 | 1,981 | 47.2 s (15.6, 10.2) | 46.5 s (3.6, 5.6) |
+| 1,000 | 1,021 | 255 | 5,528 | 163.9 s (10.2, 3.8) | 161.9 s (5.6, 2.9) |
+
+10,000 added vias were not built to the end.
+
+The stage probe, run once at a load average of 28 to 36, timed the five substrate slabs one
+after another in a design of their own. Extruding and evaluating them took 15.5 s, 54.5 s and
+221.8 s for the three sizes, against 25.3 s, 47.4 s and 211.0 s for the whole build in the
+same run. This does not give the laminate's share: the
+load changed during the run, and at the two larger sizes the slabs alone took longer than the
+whole build.
+
+To reproduce, run `via_build_profile` with `SPARKSMITH_VIAS=100`, `300` and `1000`
+(`SPARKSMITH_BODY_TABLE=FILE` also writes the native bodies, to compare two Solidcraft
+revisions), and for the stages `cargo test --locked --profile ci -p sparksmith-solidcraft --lib
+four_layer_exact_slab_profile -- --ignored --nocapture`.
 
 ### Historical via-scaling measurements
 
