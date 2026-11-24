@@ -1634,7 +1634,6 @@ fn retained_copper_keeps_one_pads_and_the_rules_fill_clearance() -> Fallible<()>
 #[test]
 fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
     use crate::diagnostics::ObjectRef;
-    use crate::layout::LayoutCommand;
     use crate::model::production::{Waiver, waiver_key};
     let mut engine = Engine::showcase()?;
     // 1. The drill rule is raised: the pours are stale.
@@ -1673,7 +1672,7 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
             reason: "accepted".into(),
         })
         .collect();
-    let mut engine = Engine::from_file(file)?;
+    let engine = Engine::from_file(file)?;
     // 3. A via of another net goes where the pour is solid: 0.8 mm from its
     // edge, and 1.5 mm from all other copper, holes and the board's edge.
     let project = engine.project().clone();
@@ -1740,10 +1739,12 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
         }
     }
     let (fill, via, position) = target.ok_or("a place in a pour for a via")?;
-    engine.apply(
-        engine.revision(),
-        Operation::Layout(LayoutCommand::MoveVia { id: via, position }),
-    )?;
+    // In the file: `layout.via_move` would take the via's tracks along.
+    let mut file = engine.to_file();
+    for v in file.project.vias.iter_mut().filter(|v| v.id == via) {
+        v.position = position;
+    }
+    let engine = Engine::from_file(file)?;
     // 4. and 5. The files would short the two nets; the export must not be
     // free to write them.
     let report = fabrication::preflight::report(

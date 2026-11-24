@@ -901,6 +901,9 @@ impl PcbEditor {
             return None;
         };
         self.route.refused = refusal(plan.reached, plan.blocked.as_deref(), &plan.edits);
+        if !plan.reached && !plan.via_placed {
+            self.drop_layer_change();
+        }
         if plan.edits.add.is_empty() && plan.edits.vias.is_empty() {
             if finish && plan.reached {
                 self.finish_route();
@@ -997,6 +1000,18 @@ impl PcbEditor {
             self.pending_via = None;
         }
         self.layer = layer;
+    }
+
+    /// A step stopped before its layer change: the route stays on the layer
+    /// its copper is on, and the refusal says so.
+    pub(super) fn drop_layer_change(&mut self) {
+        if let Some((_, from)) = self.pending_via.take() {
+            self.layer = from;
+            if let Some(why) = &mut self.route.refused {
+                let stop = if why.ends_with('.') { "" } else { "." };
+                why.push_str(&format!("{stop} The route stays on {}.", from.name()));
+            }
+        }
     }
 
     /// Whether copper of the routed net at `head` already joins the

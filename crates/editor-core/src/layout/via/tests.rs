@@ -964,3 +964,94 @@ fn a_moved_via_is_refused_as_against_every_object() -> Result<()> {
     );
     Ok(())
 }
+
+/// A moved via takes the track ends on it along; copper that cannot follow
+/// (a locked track, a pad) refuses the move in words, nothing changed.
+#[test]
+fn a_moved_via_takes_its_tracks_or_is_refused() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let net = engine.project().nets[0].id;
+    let at = [30.0, 25.0];
+    layout(
+        &mut engine,
+        LayoutCommand::AddVia {
+            via: ViaRequest::fixture(net, at),
+        },
+    )?;
+    let via = engine.project().vias[0].id;
+    for (layer, end) in [
+        (CopperLayer::Top, [20.0, 25.0]),
+        (CopperLayer::Bottom, [30.0, 35.0]),
+    ] {
+        layout(
+            &mut engine,
+            LayoutCommand::Route {
+                request: RouteRequest {
+                    net,
+                    start: at,
+                    end,
+                    width: 0.3,
+                    layer,
+                },
+            },
+        )?;
+    }
+    let to = [30.5, 25.5];
+    layout(
+        &mut engine,
+        LayoutCommand::MoveVia {
+            id: via,
+            position: to,
+        },
+    )?;
+    let ends: Vec<Point> = engine.project().tracks.iter().map(|t| t.start).collect();
+    assert_eq!(ends, [to, to], "both tracks followed");
+    let track = engine.project().tracks[0].id;
+    layout(
+        &mut engine,
+        LayoutCommand::SetTrackLock {
+            id: track,
+            locked: true,
+        },
+    )?;
+    let before = engine.project().clone();
+    let refused = layout(
+        &mut engine,
+        LayoutCommand::MoveVia {
+            id: via,
+            position: [32.0, 25.5],
+        },
+    );
+    assert!(
+        matches!(&refused, Err(Error::Conflict(m)) if m.contains("a track")),
+        "{refused:?}"
+    );
+    assert_eq!(engine.project(), &before);
+
+    // In a pad: the pad stays.
+    let mut engine = Engine::demo()?;
+    layout(&mut engine, LayoutCommand::Sync)?;
+    let pad = crate::layout::pads(engine.project())
+        .into_iter()
+        .next()
+        .ok_or_else(|| Error::NotFound("pad".into()))?;
+    layout(
+        &mut engine,
+        LayoutCommand::AddVia {
+            via: ViaRequest::fixture(pad.net, pad.position),
+        },
+    )?;
+    let via = engine.project().vias[0].id;
+    let refused = layout(
+        &mut engine,
+        LayoutCommand::MoveVia {
+            id: via,
+            position: [30.0, 30.0],
+        },
+    );
+    assert!(
+        matches!(&refused, Err(Error::Conflict(m)) if m.contains("a pad")),
+        "{refused:?}"
+    );
+    Ok(())
+}

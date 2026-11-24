@@ -24,7 +24,7 @@ use super::hull::{DIRS, Facets, Hull};
 use super::world::{Ctx, Hit, Line, MovedVia, Piece, State, Target};
 use crate::geometry::{Point, distance};
 use crate::layout::CopperGraph;
-use crate::layout::connectivity::{Meets, TrackEnd, TrackJoint, keeps_joint};
+use crate::layout::connectivity::{Meets, TrackEnd, TrackJoint, keeps_joint, leaves_pour};
 use crate::layout::posture::{self, Posture};
 use crate::rules::CopperObject;
 use std::collections::VecDeque;
@@ -499,7 +499,15 @@ fn push_via(ctx: &Ctx<'_>, state: &mut State, m: usize, pusher: &Piece) -> Optio
             let t = hull.support(k) - (d[0] * c[0] + d[1] * c[1]);
             (t, [c[0] + d[0] * t, c[1] + d[1] * t])
         })
-        .filter(|(t, _)| *t > 0.0 && t.is_finite())
+        .filter(|(t, to)| {
+            // Not out of a pour the via joins.
+            *t > 0.0
+                && t.is_finite()
+                && !ctx
+                    .project
+                    .via(via.id)
+                    .is_some_and(|board| leaves_pour(ctx.project, board, *to))
+        })
         .collect();
     options.sort_by(|a, b| a.0.total_cmp(&b.0));
     for (_, to) in options {

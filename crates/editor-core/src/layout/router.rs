@@ -846,6 +846,10 @@ pub fn pair_plan(
             undo: moved.undo,
             blocked: if reached {
                 None
+            } else if request.via.is_some()
+                && blocker.is_some_and(|h| h.net.is_some_and(|n| request.nets.contains(&n)))
+            {
+                Some("The pair's own halves leave no room for its two vias there".into())
             } else {
                 Some(stopped_by(&ctx, state, blocker))
             },
@@ -869,6 +873,23 @@ pub fn pair_plan(
             let (walked, reached, blocker) = pair_walk(&ctx, request);
             if reached {
                 return done(walked, &empty, RouteMode::Walkaround, true, None);
+            }
+            if request.via.is_some() {
+                // No way is clear as the board stands: push for the first
+                // that has room.
+                for step in pair::layer_changes(request).into_iter().skip(1) {
+                    let mut state = pair_state(&ctx, request, &step, move_vias);
+                    if shove::shove(&ctx, &mut state).is_ok() {
+                        return done(step, &state, RouteMode::Shove, true, None);
+                    }
+                }
+                return done(
+                    walked,
+                    &empty,
+                    RouteMode::Walkaround,
+                    false,
+                    blocker.or(Some(first)),
+                );
             }
             // Shove as far along the centre line as room allows.
             let line = posture::path(
@@ -911,20 +932,23 @@ pub fn pair_plan(
 /// Walk the pair's centre line round obstacles as one envelope, then lay
 /// both halves along it; the longest clear prefix when the whole is not.
 fn pair_walk(ctx: &Ctx<'_>, request: &PairStepRequest) -> (PairStep, bool, Option<Hit>) {
-    let plain = pair::step(request);
     if request.via.is_some() {
-        // A layer change keeps its straight legs; it is checked, and cut
-        // back short of the vias when it collides.
-        let Some(hit) = pair_conflict(ctx, request, &plain) else {
-            return (plain, true, None);
+        // A layer change keeps its straight legs: the first way that is
+        // clear, else no copper, which would run past the vias' place on
+        // the layer the route was to leave.
+        let mut first = None;
+        for step in pair::layer_changes(request) {
+            match pair_conflict(ctx, request, &step) {
+                None => return (step, true, None),
+                Some(hit) => first = first.or(Some(hit)),
+            }
+        }
+        let stay = PairStep {
+            edits: RouteEditSet::default(),
+            head: request.head,
+            layer: request.layer,
         };
-        let line = posture::path(
-            request.head.center,
-            request.to,
-            request.posture,
-            request.flipped,
-        );
-        return cut_back(ctx, request, &line, hit);
+        return (stay, false, first);
     }
     let envelope = 2.0 * request.style.width + request.style.gap;
     let counts = |_: &Hit| true;

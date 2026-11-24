@@ -382,3 +382,186 @@ fn a_lost_plane_via_of_the_moved_part_is_reported_unrouted() -> Fallible {
     );
     Ok(())
 }
+
+fn locked_wall(engine: &mut Engine, start: Point, end: Point) -> Fallible {
+    do_(
+        engine,
+        LayoutCommand::Route {
+            request: RouteRequest {
+                net: A,
+                start,
+                end,
+                width: 0.3,
+                layer: Top,
+            },
+        },
+    )?;
+    let id = engine.project().tracks.last().map(|t| t.id).ok_or("wall")?;
+    do_(engine, LayoutCommand::SetTrackLock { id, locked: true })
+}
+
+fn pad_of(engine: &Engine, part: Id, right: bool) -> Fallible<layout::WorldPad> {
+    let x = |p: &layout::WorldPad| if right { -p.position[0] } else { p.position[0] };
+    layout::pads(engine.project())
+        .into_iter()
+        .filter(|p| p.instance == part)
+        .min_by(|a, b| x(a).total_cmp(&x(b)))
+        .ok_or("no pad".into())
+}
+
+/// A stub the moved part carries onto locked copper: nothing could be
+/// routed in its place, so it stays and is a finding, not "re-routed".
+#[test]
+fn a_carried_stub_in_the_way_stays() -> Fallible {
+    let (mut engine, r2) = parts()?;
+    let pad = pad_of(&engine, r2, true)?;
+    let [x, y] = pad.position;
+    do_(
+        &mut engine,
+        LayoutCommand::Route {
+            request: RouteRequest {
+                net: pad.net,
+                start: [x, y],
+                end: [x + 3.0, y],
+                width: 0.3,
+                layer: Top,
+            },
+        },
+    )?;
+    let stub = engine.project().tracks.last().map(|t| t.id).ok_or("stub")?;
+    locked_wall(&mut engine, [x + 2.0, 22.0], [x + 2.0, 28.0])?;
+    engine.apply(engine.revision(), mv(r2, [25.0, 25.0]))?;
+    assert!(engine.rerouted().is_empty(), "{:?}", engine.rerouted());
+    let at = engine
+        .project()
+        .tracks
+        .iter()
+        .find(|t| t.id == stub)
+        .map(|t| t.end)
+        .ok_or("the stub is gone")?;
+    assert!(close(at, [x + 3.0, y + 15.0]), "{at:?}");
+    assert!(!violations(engine.project()).is_empty());
+    Ok(())
+}
+
+/// A second way round between two parts that move together, carried onto
+/// locked copper, is laid again: before, its middle was removed as if
+/// re-routed and its ends left hanging.
+#[test]
+fn a_carried_second_way_round_is_laid_again() -> Fallible {
+    let (mut engine, r2) = parts()?;
+    let (r1, _) = ids()?;
+    let (a, b) = ([11.2, 10.0], [23.8, 10.0]);
+    for (start, end) in [
+        (a, b),
+        (a, [11.2, 14.0]),
+        ([11.2, 14.0], [23.8, 14.0]),
+        ([23.8, 14.0], b),
+    ] {
+        do_(
+            &mut engine,
+            LayoutCommand::Route {
+                request: RouteRequest {
+                    net: SHARED,
+                    start,
+                    end,
+                    width: 0.3,
+                    layer: Top,
+                },
+            },
+        )?;
+    }
+    locked_wall(&mut engine, [17.0, 27.5], [17.0, 33.0])?;
+    let to = |instance, x| layout::arrange::PartMove {
+        instance,
+        position: [x, 25.0],
+        rotation_deg: 0.0,
+        layer: Layer::Top,
+    };
+    do_(
+        &mut engine,
+        LayoutCommand::MoveParts {
+            moves: vec![to(r1, 10.0), to(r2, 25.0)],
+            copper: None,
+        },
+    )?;
+    let after = engine.project();
+    let graph = CopperGraph::of(after);
+    let stubs: Vec<_> = graph
+        .stubs()
+        .into_iter()
+        .filter(|s| s.net == SHARED)
+        .collect();
+    assert!(stubs.is_empty(), "{stubs:?}");
+    assert_eq!(
+        engine.rerouted().rerouted,
+        vec![after.net_name(SHARED).to_owned()]
+    );
+    assert_eq!(violations(after), Vec::<String>::new());
+    Ok(())
+}
+
+/// A via carried out of the drawn pour it stood in is named as unrouted:
+/// no refill joins it there again.
+#[test]
+fn a_via_carried_out_of_its_pour_is_named() -> Fallible {
+    let (mut engine, r2) = parts()?;
+    let pad = pad_of(&engine, r2, true)?;
+    do_(
+        &mut engine,
+        LayoutCommand::AddVia {
+            via: ViaRequest::fixture(pad.net, pad.position),
+        },
+    )?;
+    engine.apply(
+        engine.revision(),
+        Operation::Fill(layout::fill::FillCommand::Add {
+            fill: Box::new(crate::model::fill::FillSpec {
+                region: crate::model::fill::FillRegion::Drawn,
+                name: String::new(),
+                net: Some(pad.net),
+                layer: CopperLayer::Bottom,
+                outline: rectangle(20.0, 5.0, 32.0, 15.0),
+                priority: 0,
+                settings: crate::model::fill::FillSettings::default(),
+            }),
+        }),
+    )?;
+    engine.apply(engine.revision(), mv(r2, [25.0, 12.0]))?;
+    assert!(engine.rerouted().is_empty(), "still in it");
+    engine.apply(engine.revision(), mv(r2, [45.0, 25.0]))?;
+    assert_eq!(
+        engine.rerouted().unrouted,
+        vec![engine.project().net_name(pad.net).to_owned()]
+    );
+    Ok(())
+}
+
+/// A shove moves a via within the pour it stands in, never out of it.
+#[test]
+fn a_shoved_via_stays_in_its_pour() -> Fallible {
+    let mut p = board()?;
+    let v = via(&mut p, A, [30.0, 20.2])?;
+    layout::fill::apply(
+        &mut p,
+        layout::fill::FillCommand::Add {
+            fill: Box::new(crate::model::fill::FillSpec {
+                region: crate::model::fill::FillRegion::Drawn,
+                name: String::new(),
+                net: Some(A),
+                layer: CopperLayer::Bottom,
+                outline: rectangle(28.0, 18.0, 32.0, 20.22),
+                priority: 0,
+                settings: crate::model::fill::FillSettings::default(),
+            }),
+        },
+    )?;
+    let plan = run(
+        &p,
+        &request(B, [25.0, 19.6], [35.0, 19.6], RouteMode::Shove),
+    );
+    commit(&mut p, &plan)?;
+    let y = p.via(v).ok_or("via")?.position[1];
+    assert!((18.0..=20.22).contains(&y), "shoved out to {y}");
+    Ok(())
+}

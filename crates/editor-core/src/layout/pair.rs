@@ -373,6 +373,161 @@ pub fn step(request: &PairStepRequest) -> PairStep {
         request.flipped,
     );
     let out = posture::path(vias.at, request.to, request.posture, request.flipped);
+    through(request, &vias, vias.at, &into, &out)
+}
+
+/// The eight compass directions.
+const COMPASS: [Point; 8] = {
+    let d = std::f64::consts::FRAC_1_SQRT_2;
+    [
+        [1.0, 0.0],
+        [d, d],
+        [0.0, 1.0],
+        [-d, d],
+        [-1.0, 0.0],
+        [-d, -d],
+        [0.0, -1.0],
+        [d, -d],
+    ]
+};
+
+/// The ways to lay a step with a layer change, [`step`]'s first, for the
+/// router to take the first that fits.
+///
+/// The halves run half the pitch either side of the centre line and the
+/// vias lie farther apart, so they spread before the vias and close up
+/// after them, along the centre line. [`step`] fits only when its elbows
+/// happen to leave a straight run through the vias long enough for both:
+/// not after the jog from pads off the grid, at a corner, or with a turn
+/// right behind the vias. The others lead straight into and out of the
+/// vias for a via pitch each, in the direction nearest the target's first;
+/// out of pads they may first lead square to them while the halves close
+/// up; and where the head is near, the vias go as far ahead as that takes.
+pub fn layer_changes(request: &PairStepRequest) -> Vec<PairStep> {
+    let mut steps = vec![step(request)];
+    let head = request.head.center;
+    let (Some(vias), Some(aim)) = (request.via, unit(head, request.to)) else {
+        return steps;
+    };
+    let lead = vias.pitch;
+    let [p, n] = request.head.ends;
+    let came = request.head.coupled.map(|(d, _)| d);
+    let spread = if came.is_some() {
+        0.0
+    } else {
+        0.5 * distance(p, n)
+    };
+    let mut directions: Vec<Point> = match request.posture {
+        Posture::Free => vec![aim],
+        Posture::Orthogonal => COMPASS.iter().copied().step_by(2).collect(),
+        Posture::Diagonal => COMPASS.to_vec(),
+    };
+    directions.retain(|d| dot(*d, aim) > -1e-9);
+    directions.sort_by(|a, b| dot(*b, aim).total_cmp(&dot(*a, aim)));
+    // How the halves leave the head: as the line goes, or square to pads.
+    let mut starts = vec![vec![head]];
+    if came.is_none()
+        && let Some(across) = unit(n, p)
+    {
+        let square = left(across);
+        let toward = if dot(square, aim) < 0.0 { -1.0 } else { 1.0 };
+        starts.push(vec![
+            head,
+            along(head, square, toward * (spread + MIN_SEGMENT_MM)),
+        ]);
+    }
+    let near = distance(head, vias.at) <= 2.0 * (spread + lead);
+    for ahead in [false, true] {
+        if ahead && !near {
+            break;
+        }
+        for &d in &directions {
+            let at = if ahead {
+                along(head, d, spread + lead)
+            } else {
+                vias.at
+            };
+            let (before, after) = (along(at, d, -lead), along(at, d, lead));
+            for start in &starts {
+                let from = start.last().copied().unwrap_or(head);
+                for into_flipped in [request.flipped, !request.flipped] {
+                    let mut into = start.clone();
+                    if !ahead || start.len() > 1 {
+                        let legs = posture::path(from, before, request.posture, into_flipped);
+                        into.extend(legs.into_iter().skip(1));
+                    }
+                    into.push(at);
+                    let into = straightened(&into);
+                    if !onward(&into, came) || !leads(&into, d) {
+                        continue;
+                    }
+                    for out_flipped in [request.flipped, !request.flipped] {
+                        let mut out = vec![at, after];
+                        let legs = posture::path(after, request.to, request.posture, out_flipped);
+                        out.extend(legs.into_iter().skip(1));
+                        let out = straightened(&out);
+                        if onward(&out, Some(d)) {
+                            steps.push(through(request, &vias, at, &into, &out));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    steps
+}
+
+/// `line` without legs too short for a track and without points on one
+/// straight run.
+fn straightened(line: &[Point]) -> Vec<Point> {
+    let mut out: Vec<Point> = Vec::with_capacity(line.len());
+    for &p in line {
+        if out.last().is_some_and(|q| distance(*q, p) < MIN_SEGMENT_MM) {
+            continue;
+        }
+        if let [.., a, b] = out[..]
+            && let (Some(u), Some(v)) = (unit(a, b), unit(b, p))
+            && dot(u, v) > 1.0 - 1e-9
+        {
+            out.pop();
+        }
+        out.push(p);
+    }
+    out
+}
+
+/// Whether no corner of `line`, the one from `came` included, turns by
+/// more than 90°.
+fn onward(line: &[Point], came: Option<Point>) -> bool {
+    let mut last = came;
+    line.windows(2).all(|w| {
+        let Some(d) = unit(w[0], w[1]) else {
+            return true;
+        };
+        last.replace(d).is_none_or(|c| dot(c, d) > -1e-9)
+    })
+}
+
+/// Whether `line` ends running along `d`.
+fn leads(line: &[Point], d: Point) -> bool {
+    line.windows(2)
+        .last()
+        .and_then(|w| unit(w[0], w[1]))
+        .is_some_and(|e| dot(e, d) > 1.0 - 1e-6)
+}
+
+/// A layer change at `at` between the centre lines `into` and `out`.
+fn through(
+    request: &PairStepRequest,
+    vias: &PairVias,
+    at: Point,
+    into: &[Point],
+    out: &[Point],
+) -> PairStep {
+    let mut b = Builder {
+        nets: request.nets,
+        edits: RouteEditSet::default(),
+    };
     // The vias sit side by side across the incoming direction, the
     // positive one on the positive half's side.
     let d_in = into
@@ -391,13 +546,10 @@ pub fn step(request: &PairStepRequest) -> PairStep {
     });
     let n = left(d_in);
     let half = vias.pitch.max(2.0 * request.style.half()) / 2.0;
-    let positions = [
-        along(vias.at, n, side * half),
-        along(vias.at, n, -side * half),
-    ];
+    let positions = [along(at, n, side * half), along(at, n, -side * half)];
     run(
         &mut b,
-        &into,
+        into,
         request.layer,
         request.style,
         request.head,
@@ -405,23 +557,23 @@ pub fn step(request: &PairStepRequest) -> PairStep {
         Some(positions),
         Some(side),
     );
-    for (net, at) in request.nets.iter().zip(positions) {
+    for (net, position) in request.nets.iter().zip(positions) {
         b.edits.vias.push(ViaRequest {
             drill: vias.drill,
             diameter: vias.diameter,
             tented: vias.tented,
             net: *net,
-            position: at,
+            position,
             span: crate::model::ViaSpan::Through,
         });
     }
     let head = run(
         &mut b,
-        &out,
+        out,
         vias.layer,
         vias.style,
         PairHead {
-            center: vias.at,
+            center: at,
             ends: positions,
             coupled: None,
         },
@@ -624,7 +776,13 @@ pub fn route(project: &Project, request: &PairRouteRequest) -> Result<RouteEditS
                 drill,
                 diameter,
                 tented: project.rules.effective().mask.tent_vias,
-                pitch: via_pitch(project, nets, drill, diameter, s),
+                pitch: via_pitch(project, nets, drill, diameter, s).max(via_pitch(
+                    project,
+                    nets,
+                    drill,
+                    diameter,
+                    style_on(layer),
+                )),
                 layer: to_layer,
                 style: s,
             }
