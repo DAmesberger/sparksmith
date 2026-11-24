@@ -237,7 +237,7 @@ fn offending(
         had.get(&id)
             .is_some_and(|pads| has.get(&id).is_none_or(|now| !pads.is_subset(now)))
     };
-    let mut hard: BTreeSet<Id> = project
+    let hard: BTreeSet<Id> = project
         .tracks
         .iter()
         .filter(|t| tracks.contains(&t.id))
