@@ -1387,6 +1387,7 @@ fn an_unrouted_exposed_pad_land_is_reported_although_its_terminal_is_one_net() -
         Ok(())
     };
 
+    crate::tests::support::choose_profile(&mut engine)?;
     // Three separate copper islands on one net.
     assert_eq!(unrouted(&engine), [21, 22, 23]);
     // Two lands joined: land 23 is still its own island, so the net is not

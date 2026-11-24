@@ -841,7 +841,7 @@ fn regenerating_with_an_inserted_pad_keeps_every_other_id_and_the_tracks() -> Te
     use crate::layout::{LayoutCommand, RouteRequest};
     use crate::model::CopperLayer;
     use crate::model::PhysicalChoice;
-    use crate::tests::support::{apply, connect, ep, net_of, sync_onto_board};
+    use crate::tests::support::{apply, choose_profile, connect, ep, net_of, sync_onto_board};
     use crate::{InstanceCommand, Outcome as Placed, ids::UnitId, updates::Change};
     let mut engine = engine();
     let first = generate(
@@ -887,6 +887,7 @@ fn regenerating_with_an_inserted_pad_keeps_every_other_id_and_the_tracks() -> Te
             .ok_or("not placed")
     };
     let (a, b) = (at(r1)?, at(r2)?);
+    choose_profile(&mut engine)?;
     apply(
         &mut engine,
         Operation::Layout(LayoutCommand::Route {

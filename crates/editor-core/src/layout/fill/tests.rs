@@ -2011,11 +2011,14 @@ fn without_a_round_pad_angle_every_pad_keeps_the_one_spoke_angle() -> Fallible<(
 /// lets both through (GUI check 1, K9).
 #[test]
 fn without_a_profile_no_fill_copper_is_computed_or_stored() -> Fallible<()> {
-    let mut engine = Engine::default();
+    let mut engine = Engine::profiled()?;
     let id = add(
         &mut engine,
         spec(None, CopperLayer::Top, rect(5.0, 5.0, 20.0, 20.0)),
     )?;
+    let mut file = engine.to_file();
+    file.project.rules = Default::default();
+    let mut engine = Engine::from_file(file)?;
     let mut cache = FillCache::default();
     assert!(compute_stale(engine.project(), &mut cache)?.is_empty());
     assert_eq!(engine.refill_stale()?, 0);

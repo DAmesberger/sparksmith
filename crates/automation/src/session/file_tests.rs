@@ -334,6 +334,158 @@ fn a_failed_first_save_leaves_the_project_without_an_identity() -> Fallible {
     Ok(())
 }
 
+/// A first save names an Untitled project after its file, as the desktop's
+/// does: the reply's revision is after the name, which is one undo step, and
+/// the file holds what the session has. Save As and later saves keep it.
+#[test]
+fn a_first_save_names_an_untitled_project_as_the_desktop_does() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("usb-led-e2e.sparksmith");
+    let mut session = Session::new(Engine::demo()?);
+    assert_eq!(session.engine().project().name, sparksmith_core::UNTITLED);
+    let before = session.engine().revision();
+    let saved = ok(
+        &mut session,
+        json!({"command": "project.save", "params": {"path": path}}),
+    )?;
+    assert_eq!(saved["revision"], before + 1);
+    assert_eq!(session.engine().revision(), before + 1);
+    assert_eq!(session.engine().project().name, "usb-led-e2e");
+    assert_eq!(
+        sparksmith_io::read_project(&path)?,
+        session.engine().to_file()
+    );
+    let other = dir.path().join("other.sparksmith");
+    assert_eq!(save(&mut session, Some(&other))["ok"], true);
+    assert_eq!(session.engine().revision(), before + 1);
+    assert_eq!(
+        sparksmith_io::read_project(&other)?,
+        session.engine().to_file()
+    );
+    ok(
+        &mut session,
+        json!({"command": "project.undo", "params": {"expected_revision": before + 1}}),
+    )?;
+    assert_eq!(session.engine().project().name, sparksmith_core::UNTITLED);
+    assert!(session.engine().project().production.project_id.is_some());
+
+    // In a turn the name joins the turn's one undo step.
+    let mut session = Session::new(Engine::demo()?);
+    let at = session.engine().revision();
+    let turn = ok(
+        &mut session,
+        json!({"command": "project.turn_begin", "params": {"label": "Build"}}),
+    )?;
+    let call = |entry: &str, params: Value, revision: Option<u64>| crate::front::Call {
+        entry: entry.to_owned(),
+        params,
+        expected_revision: revision,
+        turn: turn["turn"].as_str().map(str::to_owned),
+        project: None,
+        dry_run: false,
+        confirm: None,
+        job: false,
+    };
+    for call in [
+        call(
+            "layout.set_board_size",
+            json!({"size": [41.0, 31.0]}),
+            Some(at),
+        ),
+        call("project.save", json!({"path": path}), None),
+    ] {
+        session
+            .call(
+                crate::front::CallCx {
+                    who: crate::gate::Principal::Operator,
+                    asker: &mut crate::front::NoOne,
+                    verbose: false,
+                    window: None,
+                },
+                call,
+            )
+            .map_err(|e| format!("{e:?}"))?;
+    }
+    assert_eq!(session.engine().project().name, "usb-led-e2e");
+    let now = session.engine().revision();
+    ok(
+        &mut session,
+        json!({"command": "project.undo", "params": {"expected_revision": now}}),
+    )?;
+    assert_eq!(session.engine().project().name, sparksmith_core::UNTITLED);
+    assert_ne!(session.engine().project().board_size, [41.0, 31.0]);
+    Ok(())
+}
+
+/// The same script saved under the same file name gives the same bytes, in
+/// any folder: name, identity and all.
+#[test]
+fn a_script_saving_an_untitled_project_replays_byte_for_byte() -> Fallible {
+    let mut files = Vec::new();
+    for _ in 0..2 {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("script.sparksmith");
+        let mut session = Session::new(Engine::demo()?);
+        let saved = ok(
+            &mut session,
+            json!({"command": "project.save", "params": {"path": path}}),
+        )?;
+        let operation = serde_json::to_value(heavy_note(1)?)?;
+        ok(
+            &mut session,
+            json!({"command": "project.apply", "params": {
+                "expected_revision": saved["revision"], "operation": operation}}),
+        )?;
+        ok(
+            &mut session,
+            json!({"command": "project.save", "params": {}}),
+        )?;
+        files.push(std::fs::read(&path)?);
+    }
+    assert!(files[0] == files[1]);
+    Ok(())
+}
+
+/// A save that finds its file changed gives the project neither name nor
+/// identity: the kept version is the document as it was, and the next save
+/// names it by the file it is in.
+#[test]
+fn a_conflicted_first_save_changes_nothing_in_the_project() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("board.sparksmith");
+    sparksmith_io::write_project(&path, &Engine::demo()?.to_file())?;
+    let mut session = Session::new(Engine::default());
+    assert_eq!(open(&mut session, &path)["ok"], true);
+    // Another program saves the file meanwhile.
+    sparksmith_io::write_project(&path, &Engine::profiled()?.to_file())?;
+    let before = (
+        session.engine().to_file(),
+        session.engine().revision(),
+        session.engine().undo_step(),
+    );
+    let refused = save(&mut session, None);
+    assert_eq!(refused["error"]["code"], "file_conflict", "{refused}");
+    assert_eq!(
+        (
+            session.engine().to_file(),
+            session.engine().revision(),
+            session.engine().undo_step()
+        ),
+        before
+    );
+    let kept = dir.path().join("board (conflict 1).sparksmith");
+    assert_eq!(session.path(), Some(kept.as_path()));
+    assert_eq!(sparksmith_io::read_project(&kept)?, before.0);
+    // The kept file is the session's, at the identity it has on disk.
+    assert_eq!(save(&mut session, None)["ok"], true);
+    assert_eq!(session.engine().project().name, "board (conflict 1)");
+    assert_eq!(
+        sparksmith_io::read_project(&kept)?,
+        session.engine().to_file()
+    );
+    Ok(())
+}
+
 /// Review finding 17: a host lends its engine twice in one frame, the
 /// first call an edit, the second a new project, before it has looked at
 /// the edit. The host's file holds the revision before the edit; the
@@ -442,8 +594,16 @@ fn a_project_filled_to_the_limit_saves_identifies_and_recovers() -> Fallible {
         sparksmith_io::recovery::read(snapshot)?.document,
         session.engine().to_file()
     );
-    // The history is the one the edits made: the last batch undoes.
+    // The history is the one the edits made, with the name the save gave
+    // after them: then the last batch undoes.
+    assert_eq!(session.engine().project().name, "full");
     let drawings = session.engine().project().drawings.len();
+    let revision = session.engine().revision();
+    ok(
+        &mut session,
+        json!({"command": "project.undo", "params": {"expected_revision": revision}}),
+    )?;
+    assert_eq!(session.engine().project().drawings.len(), drawings);
     let revision = session.engine().revision();
     ok(
         &mut session,

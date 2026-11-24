@@ -1519,19 +1519,10 @@ impl App {
                     source,
                     report,
                 } => self.imported(*document, source, *report),
-                Effect::Identify { id, saved } => match self.engine.adopt_project_id(id) {
-                    Ok(()) => self.files.identified(&self.engine, saved),
-                    Err(error) => self.say(Level::Error, format!("Save failed: {error}")),
+                Effect::FirstSave { given, saved } => match self.engine.adopt_first_save(&given) {
+                    Ok(()) => self.files.first_saved(&self.engine, saved),
+                    Err(error) => self.say(Level::Error, format!("Rename failed: {error}")),
                 },
-                Effect::Rename { name, saved } => {
-                    let rename = Operation::Schematic(
-                        sparksmith_core::schematic::SchematicCommand::RenameProject { name },
-                    );
-                    match self.engine.apply(self.engine.revision(), rename) {
-                        Ok(_) => self.files.renamed(&self.engine, saved),
-                        Err(error) => self.say(Level::Error, format!("Rename failed: {error}")),
-                    }
-                }
                 Effect::Close => {
                     self.closing = true;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);

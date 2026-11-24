@@ -459,6 +459,21 @@ fn quitting_during_a_save_quits_once_it_is_written() -> Fallible {
     Ok(())
 }
 
+/// What the app does with a first save's one effect; whether the save was
+/// current.
+fn take_first_save(h: &mut Harness) -> Fallible<bool> {
+    let given = h
+        .effects
+        .iter()
+        .position(|e| matches!(e, Effect::FirstSave { .. }));
+    let Effect::FirstSave { given, saved } = h.effects.remove(given.ok_or("no first save")?) else {
+        return Err("not a first save".into());
+    };
+    h.engine.adopt_first_save(&given)?;
+    h.files.first_saved(&h.engine, saved);
+    Ok(saved)
+}
+
 /// E2E run 4, finding 7: the first save of an Untitled project names it
 /// after the file the save panel chose. The file holds that name, the
 /// engine takes it as one undo step, and the project is then saved; undo
@@ -474,27 +489,10 @@ fn a_first_save_names_an_untitled_project_after_its_file() -> Fallible {
         .event_sender
         .send(Event::Picked(ticket, Kind::Save, Some(path.clone())))?;
     h.until("the write", |h| !h.files.busy())?;
-    let renames: Vec<_> = h
-        .effects
-        .drain(..)
-        .filter_map(|e| match e {
-            Effect::Rename { name, saved } => Some((name, saved)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(renames, [("usb-led-e2e".to_owned(), true)]);
-    assert_eq!(
-        sparksmith_io::read_project(&path)?.project.name,
-        "usb-led-e2e"
-    );
-    // What the app does with the effect.
-    h.engine.apply(
-        h.engine.revision(),
-        Operation::Schematic(SchematicCommand::RenameProject {
-            name: "usb-led-e2e".into(),
-        }),
-    )?;
-    h.files.renamed(&h.engine, true);
+    assert!(take_first_save(&mut h)?, "the save was current");
+    let file = sparksmith_io::read_project(&path)?;
+    assert_eq!(file.project.name, "usb-led-e2e");
+    assert_eq!(h.engine.to_file(), file, "the engine holds what it wrote");
     h.frame(vec![]);
     assert_eq!(h.engine.project().name, "usb-led-e2e");
     assert!(!h.files.dirty(), "the renamed project is the saved one");
@@ -511,7 +509,11 @@ fn a_first_save_names_an_untitled_project_after_its_file() -> Fallible {
     h.edit("Chosen name")?;
     h.files.request(Action::Save);
     h.until("the second write", |h| !h.files.busy())?;
-    assert!(!h.effects.iter().any(|e| matches!(e, Effect::Rename { .. })));
+    assert!(
+        !h.effects
+            .iter()
+            .any(|e| matches!(e, Effect::FirstSave { .. }))
+    );
     assert_eq!(
         sparksmith_io::read_project(&path)?.project.name,
         "Chosen name"
@@ -531,15 +533,8 @@ fn saving_an_untitled_project_under_its_file_names_it() -> Fallible {
     h.files.adopt(&h.engine, Some(path.clone()), None, false)?;
     h.files.request(Action::Save);
     h.until("the write", |h| !h.files.busy())?;
-    let renames: Vec<_> = h
-        .effects
-        .drain(..)
-        .filter_map(|e| match e {
-            Effect::Rename { name, saved } => Some((name, saved)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(renames, [("blinkpad-imported".to_owned(), true)]);
+    assert!(take_first_save(&mut h)?, "the save was current");
+    assert_eq!(h.engine.project().name, "blinkpad-imported");
     assert_eq!(
         sparksmith_io::read_project(&path)?.project.name,
         "blinkpad-imported"
@@ -549,7 +544,11 @@ fn saving_an_untitled_project_under_its_file_names_it() -> Fallible {
     h.edit("My blinker")?;
     h.files.request(Action::Save);
     h.until("the second write", |h| !h.files.busy())?;
-    assert!(!h.effects.iter().any(|e| matches!(e, Effect::Rename { .. })));
+    assert!(
+        !h.effects
+            .iter()
+            .any(|e| matches!(e, Effect::FirstSave { .. }))
+    );
     assert_eq!(
         sparksmith_io::read_project(&path)?.project.name,
         "My blinker"

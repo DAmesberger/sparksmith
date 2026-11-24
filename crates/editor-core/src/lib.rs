@@ -121,6 +121,41 @@ impl Operation {
         }
     }
 
+    /// Whether this makes or reshapes copper, or places a part by a
+    /// dimension: work at the widths and clearances of a fab profile. The
+    /// engine refuses it on a board without one
+    /// ([`rules::ProjectRules::require`]), as the desktop's tools do;
+    /// taking copper away needs none.
+    fn needs_profile(&self) -> bool {
+        use layout::LayoutCommand as L;
+        match self {
+            Self::Layout(L::ApplyRoute { edits }) => {
+                !(edits.add.is_empty()
+                    && edits.replace.is_empty()
+                    && edits.vias.is_empty()
+                    && edits.restore.is_empty()
+                    && edits.move_vias.is_empty())
+            }
+            Self::Layout(
+                L::Route { .. }
+                | L::SetTrack { .. }
+                | L::AddVia { .. }
+                | L::MoveVia { .. }
+                | L::RouteLayerChange { .. }
+                | L::RoutePair { .. }
+                | L::TuneLength { .. }
+                | L::RouteStep { .. }
+                | L::TrackDrag { .. },
+            ) => true,
+            Self::Fill(layout::fill::FillCommand::Add { .. }) => true,
+            Self::Dimension(
+                layout::dimensions::DimensionCommand::Add { .. }
+                | layout::dimensions::DimensionCommand::Edit { .. },
+            ) => true,
+            _ => false,
+        }
+    }
+
     /// This operation's title for people, from [`Self::entries`].
     pub fn title(&self) -> &'static str {
         permission::find(Self::entries(), self.command()).map_or("Change", |entry| entry.title)
@@ -745,32 +780,55 @@ impl Step {
     }
 }
 
-/// The name a project's first save gives it: a project still called
-/// [`UNTITLED`] takes the file's name ("usb-led.sparksmith" names it
-/// "usb-led"); a name someone chose is kept (`None`). `project` is the
-/// copy being written, cloned only when renamed. Once the write succeeds the caller applies the same
-/// `project.rename` to the engine, its own undo step: undo never takes back
-/// a file, and a failed write leaves the document unchanged.
-pub fn name_by_file(project: &mut Arc<Project>, file: &std::path::Path) -> Option<String> {
-    let stem = file.file_stem()?.to_str()?.trim();
-    if project.name != UNTITLED || stem == UNTITLED {
-        return None;
-    }
-    schematic::sheets::rename_project(Arc::make_mut(project), stem).ok()?;
-    Some(project.name.clone())
+/// What a first save gave the document it wrote ([`first_save`]); only
+/// that makes one. The engine takes it with [`Engine::adopt_first_save`]
+/// once the file holds the document.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FirstSave {
+    name: Option<String>,
+    id: Option<String>,
 }
 
-/// Give `project` its identity when it has none, as it is first saved to
-/// `file`: [`model::production::project_id_for`] of the file's name, the
-/// host's `nonce` and the project. A host that wants every new project
-/// distinct whatever it holds (the desktop) passes random bytes as the
-/// nonce; a scripted host (a replay through a session) passes none, so the
-/// same script saved under the same file name reproduces the identity, in
-/// any folder. Returns the identity given; `None` when it had one. A host
-/// that saves a copy of the engine's document (off the UI thread) gives
-/// the copy its identity here, then the engine the same with
-/// [`Engine::adopt_project_id`] once the file holds it.
-pub fn identify_by_file(
+impl FirstSave {
+    /// The project had its name and identity already.
+    pub fn is_empty(&self) -> bool {
+        self.name.is_none() && self.id.is_none()
+    }
+}
+
+/// Every save to `file` starts here, on the copy to be written: a project
+/// still called [`UNTITLED`] takes the file's name ("usb-led.sparksmith"
+/// names it "usb-led"; a name someone chose is kept), then a project
+/// without an identity takes one, [`model::production::project_id_for`] of
+/// the file's name, the host's `nonce` and the named project.
+///
+/// `nonce` is the only thing a host decides: the desktop passes random
+/// bytes, so every new project is its own whatever it holds; a scripted
+/// host (a session) passes none, so the same script saved under the same
+/// file name gives the same identity, in any folder.
+pub fn first_save(document: &mut Document, file: &std::path::Path, nonce: &str) -> FirstSave {
+    FirstSave {
+        name: name_by_file(document, file),
+        id: identify_by_file(&mut document.project, file, nonce),
+    }
+}
+
+/// [`first_save`]'s name. A name the project cannot take, or that would
+/// make it too large to save, is not given.
+fn name_by_file(document: &mut Document, file: &std::path::Path) -> Option<String> {
+    let stem = file.file_stem()?.to_str()?.trim();
+    if document.project.name != UNTITLED || stem == UNTITLED {
+        return None;
+    }
+    let mut named = document.clone();
+    schematic::sheets::rename_project(Arc::make_mut(&mut named.project), stem).ok()?;
+    format::room::check_file(&format::EditorFile::from_document(&named)).ok()?;
+    *document = named;
+    Some(document.project.name.clone())
+}
+
+/// [`first_save`]'s identity; `None` when the project had one.
+fn identify_by_file(
     project: &mut Arc<Project>,
     file: &std::path::Path,
     nonce: &str,
@@ -1848,6 +1906,9 @@ impl Engine {
         let _context = self.enter_context();
         let evaluator = evaluators.footprint;
         self.check_revision(expected_revision)?;
+        if operation.needs_profile() {
+            self.document.project.rules.require()?;
+        }
         self.rerouted = Default::default();
         let step = Step::of(&operation, &self.document.project);
         let mut rerouted = layout::router::reroute::Rerouted::default();
@@ -2512,6 +2573,7 @@ impl Engine {
             Query::RoutePreview { request } => {
                 request.check()?;
                 let project = &self.document.project;
+                project.rules.require()?;
                 let index = layout::router::RouteIndex::with_graph(project, self.copper_graph());
                 Ok(QueryResult::RoutePreview(Box::new(layout::router::plan(
                     project, &index, &request,
@@ -2520,6 +2582,7 @@ impl Engine {
             Query::TrackDragPreview { request } => {
                 request.check()?;
                 let project = &self.document.project;
+                project.rules.require()?;
                 let index = layout::router::RouteIndex::with_graph(project, self.copper_graph());
                 Ok(QueryResult::RoutePreview(Box::new(
                     layout::router::drag::drag_plan(project, &index, &request),
@@ -2527,6 +2590,7 @@ impl Engine {
             }
             Query::TunePreview { request } => {
                 let project = &self.document.project;
+                project.rules.require()?;
                 let obstacles = layout::obstacles::Obstacles::of(project);
                 Ok(QueryResult::TunePreview(Box::new(
                     layout::meander::plan(project, &obstacles, &self.copper_graph(), &request)?
@@ -2772,28 +2836,26 @@ impl Engine {
         self.room = room;
     }
 
-    /// Give the project its identity when it has none, as it is first
-    /// saved to `file` ([`identify_by_file`]). It names the project, not a
-    /// state of it, so it takes no revision and no undo step, and undo and
-    /// redo keep it. A project that has one keeps it.
-    pub fn identify_by_file(&mut self, file: &std::path::Path, nonce: &str) {
-        identify_by_file(&mut self.document.project, file, nonce);
-    }
-
-    /// Take `id`, the identity a save gave a copy of this document
-    /// ([`identify_by_file`]), when the project has none; as for
-    /// [`Self::identify_by_file`], no revision and no undo step. An id that
-    /// is not RFC 4122-shaped is refused.
-    pub fn adopt_project_id(&mut self, id: String) -> Result<()> {
-        if !model::production::is_guid(&id) {
-            return Err(Error::Invalid(format!(
-                "project.id: {id} is not a project identity"
-            )));
-        }
-        if self.document.project.production.project_id.is_none() {
+    /// Take what a save gave the copy it wrote ([`first_save`]), once the
+    /// file holds it; a failed or conflicted write gives nothing. The
+    /// identity names the project, not a state of it: no revision, no undo
+    /// step, and undo and redo keep it. The name is a `project.rename`, its
+    /// own undo step (undo never takes back a file). An identity or a name
+    /// the project took meanwhile stays.
+    pub fn adopt_first_save(&mut self, given: &FirstSave) -> Result<()> {
+        if let Some(id) = &given.id
+            && self.document.project.production.project_id.is_none()
+        {
             Arc::make_mut(&mut self.document.project)
                 .production
-                .project_id = Some(id);
+                .project_id = Some(id.clone());
+        }
+        if let Some(name) = &given.name
+            && self.document.project.name == UNTITLED
+        {
+            let name = name.clone();
+            let rename = Operation::Schematic(schematic::SchematicCommand::RenameProject { name });
+            self.apply(self.revision, rename)?;
         }
         Ok(())
     }

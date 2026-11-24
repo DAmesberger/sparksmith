@@ -4,9 +4,9 @@
 //! the UI thread; every result retains its document epoch and captured content.
 use crate::kit::severity::Level;
 use sparksmith_automation::{FileChange, HostFile};
-use sparksmith_core::{Document, Engine, Project, format::EditorFile};
-use sparksmith_io::DiskIdentity;
+use sparksmith_core::{Document, Engine, FirstSave, Project, format::EditorFile};
 use sparksmith_io::recovery::{self, RecoveryEntry, RecoveryRecord, RecoveryStore, Snapshot};
+use sparksmith_io::{DiskIdentity, SavedDocument};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button};
 use std::{
@@ -275,20 +275,12 @@ pub enum Effect {
         identity: Option<DiskIdentity>,
         recovered: bool,
     },
-    /// A save of an Untitled project wrote it under its file's name
-    /// (`sparksmith_core::name_by_file`): apply that `project.rename`, then
-    /// call [`FileUi::renamed`]. `saved` says the write saved the current
-    /// revision.
-    Rename {
-        name: String,
-        saved: bool,
-    },
-    /// A first save gave the project its identity
-    /// (`sparksmith_core::identify_by_file`): the engine takes it
-    /// (`Engine::adopt_project_id`), then call [`FileUi::identified`].
+    /// A save gave the project its name or identity
+    /// (`sparksmith_core::first_save`): the engine takes them
+    /// (`Engine::adopt_first_save`), then call [`FileUi::first_saved`].
     /// `saved` says the write saved the current revision.
-    Identify {
-        id: String,
+    FirstSave {
+        given: FirstSave,
         saved: bool,
     },
     /// A KiCad project imported from `source`: the new project, unsaved,
@@ -305,16 +297,9 @@ enum Job {
     Read(Ticket, PathBuf),
     Import(Ticket, PathBuf),
     /// Write the document; replace the file only while it holds the
-    /// identity, when one is given. With a nonce, a project without an
-    /// identity takes one first (`sparksmith_core::identify_by_file`),
-    /// here, off the UI thread: it reads the whole document.
-    Write(
-        Ticket,
-        PathBuf,
-        Document,
-        Option<DiskIdentity>,
-        Option<String>,
-    ),
+    /// identity, when one is given. A first save names and identifies it
+    /// here, off the UI thread: that reads the whole document.
+    Write(Ticket, PathBuf, Document, Option<DiskIdentity>),
     SchematicPdf(Ticket, PathBuf, Arc<Project>),
     Recover(Ticket, Document, Option<PathBuf>),
     ClearRecovery(Ticket, bool),
@@ -332,8 +317,7 @@ enum Event {
         PathBuf,
         Outcome<Box<(EditorFile, sparksmith_automation::kicad_import::Report)>>,
     ),
-    /// A save's result, and the identity it gave the project.
-    Written(Ticket, PathBuf, Outcome<Wrote>, Option<String>),
+    Written(Ticket, PathBuf, Outcome<Wrote>),
     PdfExported(Ticket, PathBuf, Outcome<usize>),
     Recovered(Ticket, bool, bool, Outcome<()>),
     Restored(Ticket, Outcome<Box<(RecoveryRecord, Snapshot)>>),
@@ -344,8 +328,8 @@ enum Event {
 
 /// What a save wrote.
 enum Wrote {
-    /// The file it was for, now holding this identity.
-    Saved(DiskIdentity),
+    /// The file it was for, and what it holds now.
+    Saved(Box<SavedDocument>),
     /// The file changed on disk since it was opened: it is kept, and this
     /// document went to a new file beside it.
     Kept(Box<sparksmith_io::Conflict>),
@@ -392,21 +376,20 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                         .map(|imported| Box::new((imported.engine.to_file(), imported.report)));
                     Event::Imported(ticket, path, value)
                 }
-                Job::Write(ticket, path, mut document, expected, nonce) => {
-                    let id = nonce.and_then(|nonce| {
-                        sparksmith_core::identify_by_file(&mut document.project, &path, &nonce)
-                    });
+                Job::Write(ticket, path, document, expected) => {
+                    // A random nonce: two new projects saved under one file
+                    // name are still two projects.
+                    let nonce = sparksmith_io::interface::random_hex().unwrap_or_default();
                     // The deep copy into the file form happens here, off the UI thread.
-                    let result = match sparksmith_io::save_project(
-                        &path,
-                        &EditorFile::from_document(&document),
-                        expected,
-                    ) {
-                        Ok(identity) => Ok(Wrote::Saved(identity)),
-                        Err(sparksmith_io::Error::Conflict(conflict)) => Ok(Wrote::Kept(conflict)),
-                        Err(error) => Err(error.to_string()),
-                    };
-                    Event::Written(ticket, path, result, id)
+                    let result =
+                        match sparksmith_io::save_document(&path, &document, expected, &nonce) {
+                            Ok(saved) => Ok(Wrote::Saved(Box::new(saved))),
+                            Err(sparksmith_io::Error::Conflict(conflict)) => {
+                                Ok(Wrote::Kept(conflict))
+                            }
+                            Err(error) => Err(error.to_string()),
+                        };
+                    Event::Written(ticket, path, result)
                 }
                 Job::SchematicPdf(ticket, path, project) => {
                     let result =
@@ -491,9 +474,6 @@ pub struct FileUi {
     /// Older session files past the listing's read limit, named so the
     /// recovery question can say so and offer to discard them.
     older_recoveries: Vec<Snapshot>,
-    /// The name a first save in flight writes (its ticket id), for the
-    /// engine to take once the file holds it.
-    naming: Option<(u64, String)>,
     /// The recovery the dialog would restore or discard.
     recovery_selected: usize,
     /// A restored session file, removed once this session has saved its
@@ -571,7 +551,6 @@ impl FileUi {
             status: None,
             recoveries: vec![],
             older_recoveries: vec![],
-            naming: None,
             recovery_selected: 0,
             restored_source: None,
             restored_origin: None,
@@ -623,18 +602,9 @@ impl FileUi {
             self.clear_recovery(false);
         }
     }
-    /// The engine took the identity the first save wrote
-    /// ([`Effect::Identify`]); it takes no revision, so the document this
-    /// window saves and recovers is the engine's again now.
-    pub fn identified(&mut self, engine: &Engine, saved: bool) {
-        self.document = engine.document().clone();
-        if saved {
-            self.saved_document = Some(self.document.clone());
-        }
-    }
-    /// The engine took the name the first save wrote ([`Effect::Rename`]):
-    /// when that save was current, the renamed document is the saved one.
-    pub fn renamed(&mut self, engine: &Engine, saved: bool) {
+    /// The engine took what the first save wrote ([`Effect::FirstSave`]):
+    /// when that save was current, the engine's document is the saved one.
+    pub fn first_saved(&mut self, engine: &Engine, saved: bool) {
         self.observe(engine, self.now);
         if saved {
             self.controller.back_at_saved();
@@ -957,27 +927,12 @@ impl FileUi {
             self.pick(ticket, Kind::Save);
         }
     }
-    /// Write the captured document to `path`. A project still called
-    /// Untitled takes the file's name (`sparksmith_core::name_by_file`):
-    /// on its first save, and on the next save of a file that was written
-    /// without one (an import, or a save that failed to name it).
+    /// Write the captured document to `path`.
     fn write(&mut self, ticket: Ticket, path: PathBuf, expected: Option<DiskIdentity>) {
-        let Some(mut document) = self.captured.clone() else {
+        let Some(document) = self.captured.clone() else {
             return;
         };
-        if let Some(name) = sparksmith_core::name_by_file(&mut document.project, &path) {
-            self.naming = Some((ticket.id, name));
-            self.captured = Some(document.clone());
-        }
-        // A random nonce: two new projects saved under one file name are
-        // still two projects. The worker gives the identity.
-        let nonce = document
-            .project
-            .production
-            .project_id
-            .is_none()
-            .then(|| sparksmith_io::interface::random_hex().unwrap_or_default());
-        self.send(Job::Write(ticket, path, document, expected, nonce));
+        self.send(Job::Write(ticket, path, document, expected));
     }
     /// The folder and file name the project's save panel proposes: its
     /// own file's, else (a restored session) the file it was restored
@@ -1219,27 +1174,40 @@ impl FileUi {
                     }
                 }
             }
-            Event::Written(ticket, path, result, id) => match result {
+            Event::Written(ticket, path, result) => match result {
                 Ok(wrote) => {
                     // A conflict kept both versions: this document is in
                     // the new file, which is the window's file from now on.
-                    let (path, identity, conflict) = match wrote {
-                        Wrote::Saved(identity) => (path, identity, None),
+                    // The first case's document is the one the file holds,
+                    // with what a first save gave it.
+                    let (path, identity, saved, conflict) = match wrote {
+                        Wrote::Saved(saved) => (
+                            path,
+                            saved.identity,
+                            Some((saved.document, saved.first)),
+                            None,
+                        ),
                         Wrote::Kept(conflict) => (
                             conflict.kept.clone(),
                             conflict.identity,
+                            None,
                             Some(sparksmith_io::Error::Conflict(conflict).to_string()),
                         ),
                     };
                     if let Some((current, continuation)) =
                         self.controller.saved(&ticket, path.clone(), identity)
                     {
-                        // The file holds the identity the worker gave.
-                        if let (Some(id), Some(captured)) = (&id, self.captured.as_mut()) {
-                            Arc::make_mut(&mut captured.project).production.project_id =
-                                Some(id.clone());
-                        }
-                        self.saved_document = self.captured.take();
+                        let captured = self.captured.take();
+                        let given = match saved {
+                            Some((document, given)) => {
+                                self.saved_document = Some(document);
+                                given
+                            }
+                            None => {
+                                self.saved_document = captured;
+                                FirstSave::default()
+                            }
+                        };
                         self.status = Some(match conflict {
                             Some(conflict) => (Level::Warning, conflict),
                             None if current => (Level::Ok, format!("Saved {}", path.display())),
@@ -1254,12 +1222,9 @@ impl FileUi {
                         if current {
                             self.clear_recovery(false);
                         }
-                        if let Some(id) = id {
-                            self.effects.push(Effect::Identify { id, saved: current });
-                        }
-                        if let Some((_, name)) = self.naming.take().filter(|n| n.0 == ticket.id) {
-                            self.effects.push(Effect::Rename {
-                                name,
+                        if !given.is_empty() {
+                            self.effects.push(Effect::FirstSave {
+                                given,
                                 saved: current,
                             });
                         }
@@ -1269,7 +1234,6 @@ impl FileUi {
                     }
                 }
                 Err(error) => {
-                    self.naming = None;
                     self.controller.cancel(&ticket, Kind::Save);
                     self.status = Some((Level::Error, format!("Save failed: {error}")));
                 }

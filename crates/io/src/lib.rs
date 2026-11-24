@@ -29,8 +29,8 @@ pub mod shipped;
 pub mod standards;
 
 pub use persistence::{
-    Conflict, DiskIdentity, create_project, open_project, read_project, same_file, save_project,
-    write_project,
+    Conflict, DiskIdentity, SavedDocument, create_project, open_project, read_project, same_file,
+    save_document, save_project, write_project,
 };
 
 #[derive(Debug, thiserror::Error)]

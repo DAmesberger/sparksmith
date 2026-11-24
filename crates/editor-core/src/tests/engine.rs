@@ -621,6 +621,7 @@ fn malformed_references_and_routed_connectivity_changes_leave_state_unchanged() 
         .into_iter()
         .find(|p| p.terminal == ep(a, 2))
         .ok_or_else(|| Error::NotFound("pad".into()))?;
+    crate::tests::support::choose_profile(&mut engine)?;
     apply(
         &mut engine,
         Operation::Layout(LayoutCommand::Route {
