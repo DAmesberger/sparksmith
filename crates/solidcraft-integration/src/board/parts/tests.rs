@@ -139,7 +139,7 @@ fn a_rectangle_board_without_a_profile_takes_part_dimensions() -> Fallible<()> {
     assert!(close(p, [width - 6.0, y]), "{p:?}");
     let refused = apply(&mut engine, Operation::Board(BoardCommand::StartSketch));
     assert!(
-        refused.is_err_and(|e| e.to_string().contains("rules.no_fab_profile")),
+        refused.is_err_and(|e| e.rule() == Some("rules.no_fab_profile")),
         "the outline sketch"
     );
     assert!(engine.project().rules.profile.is_none());

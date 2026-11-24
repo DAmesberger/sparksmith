@@ -1018,7 +1018,9 @@ fn history_and_replacing_requests_at_a_stale_revision_change_nothing() -> TestRe
 
 /// Every request that can change the document requires the revision it
 /// expects: all but reads, the window's show entries and the requests that
-/// only write files or the user's library settings, named here.
+/// only write files or the user's library settings, named here. A save
+/// writes whatever the document is, so it expects none, though the first
+/// save of an Untitled project names it.
 #[test]
 fn every_document_changing_request_requires_an_expected_revision() {
     let no_document_change = [

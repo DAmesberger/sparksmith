@@ -2040,10 +2040,8 @@ fn without_a_profile_no_fill_copper_is_computed_or_stored() -> Fallible<()> {
             .apply(engine.revision(), Operation::Fill(store))
             .err()
             .ok_or("stored without a profile")?;
-        assert!(
-            refused.to_string().contains("rules.no_fab_profile"),
-            "{refused}"
-        );
+        // The sentence people see leaves the rule code out.
+        assert_eq!(refused.rule(), Some("rules.no_fab_profile"), "{refused}");
     }
     assert!(fill(engine.project(), id)?.computed.is_none());
     engine.apply(
