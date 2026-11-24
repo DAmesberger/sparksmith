@@ -1322,7 +1322,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "2e7b317f16545255",
+      "schema_digest": "3a1402fad0c07e68",
       "examples": []
     }
   },
@@ -1630,7 +1630,21 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "e572aa1b757a23d8",
+      "schema_digest": "941da897bada23f7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.stackups",
+    "title": "List fabricators' stackups",
+    "summary": "The fabricators' stackups `layout.use_stackup` takes.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "b0078808d53b7e15",
       "examples": []
     }
   },
@@ -1743,6 +1757,20 @@
       "class": "read",
       "entry_kind": "query",
       "schema_digest": "aafa0f8c78f2a7f6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.use_stackup",
+    "title": "Use a fabricator's stackup",
+    "summary": "Take a fabricator's stackup (an id `layout.stackups` lists) as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "3fe1251b959e72ba",
       "examples": []
     }
   },
@@ -2941,7 +2969,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "c695692851fa2bb8",
+      "schema_digest": "0f75aa55818ebf7c",
       "examples": []
     }
   },
@@ -2955,7 +2983,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "37e5aed6b30dcab2",
+      "schema_digest": "96b00328a2842a6d",
       "examples": []
     }
   },
@@ -3137,7 +3165,7 @@
       "module": "project",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "e77782d8d8d54af9",
+      "schema_digest": "f6c36c678611d089",
       "examples": []
     }
   },
