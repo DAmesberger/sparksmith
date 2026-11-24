@@ -223,7 +223,7 @@ impl Session {
 
     /// Give the engine a generator runtime when it has none:
     /// [`session_runtime`], a worker thread per call with the host's
-    /// limits, a wall time and no state, waiting for a busy worker.
+    /// limits and no state, waiting for a busy worker.
     pub fn ensure_generators(&mut self) {
         if !self.engine.has_generators() {
             self.engine.set_generators(session_runtime());
@@ -493,7 +493,7 @@ impl Session {
                             .insert(description.id.clone(), (hash, description.version));
                         (Some(GeneratorSummary::of(&description)), None)
                     }
-                    Err(error) => (None, Some(permanent_refusal(error)?)),
+                    Err(error) => (None, Some(module_refusal(error)?)),
                 };
                 shipped.push(ShippedGenerator {
                     name,
@@ -512,7 +512,13 @@ impl Session {
             .iter()
             .filter(|a| a.media_type == generated::MODULE_MEDIA_TYPE)
         {
-            let description = self.describe(&asset.data).ok();
+            let description = match self.describe(&asset.data) {
+                Ok(description) => Some(description),
+                Err(error) => {
+                    module_refusal(error)?;
+                    None
+                }
+            };
             embedded.push(EmbeddedGenerator {
                 module: asset.hash,
                 bytes: asset.data.len(),
@@ -569,35 +575,49 @@ impl Session {
     }
 }
 
-/// Busy is a transient host condition, not evidence against this module.
-/// Keep its typed rule so callers can retry instead of caching a missing
-/// generator. Other module refusals retain their existing presentation.
-pub(super) fn permanent_refusal(error: crate::Error) -> Result<String> {
-    if error.diagnostic().rule.as_deref() == Some("generator.busy") {
+/// Whether `error` is a generator refusal about the host at that moment
+/// ([`sparksmith_generators::worker::is_transient`]): busy workers or a
+/// missed wall time are no evidence against the module, so nothing keeps
+/// them and a retry works.
+pub fn is_transient(error: &crate::Error) -> bool {
+    error
+        .diagnostic()
+        .rule
+        .is_some_and(|rule| sparksmith_generators::worker::is_transient(&rule))
+}
+
+/// A module's own refusal, in words. A transient one is the error it is,
+/// rule and all, so callers retry instead of keeping a missing generator.
+pub(super) fn module_refusal(error: crate::Error) -> Result<String> {
+    if is_transient(&error) {
         return Err(error);
     }
     Ok(error.to_string())
 }
 
-/// The generator runtime a host gives an engine that applies
-/// `library.generate` itself (`Engine::set_generators`): a worker thread
-/// per call with the host's limits and wall time, as the session's own.
+/// The generator runtime of a window, made on its thread, whose engine
+/// applies `library.generate` itself (`Engine::set_generators`): a worker
+/// thread per call with the host's limits. Only a call on the window's own
+/// thread is refused when the workers are busy or its wall time is over;
+/// the window's background work waits as a session's does.
 pub fn runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
-    Arc::new(sparksmith_generators::worker::Worker::default())
+    Arc::new(
+        sparksmith_generators::worker::Worker::default().holding_only_this_thread(SESSION_WAIT),
+    )
 }
 
 /// The generator runtime for batch work nobody is there to retry (a
 /// KiCad import's models): the process's workers, but a call made while
 /// all are busy waits for one until `deadline` instead of being refused.
-/// Interactive callers keep [`runtime`] and its retryable busy reply.
+/// A window's thread keeps [`runtime`] and its retryable busy reply.
 pub fn batch_runtime(deadline: std::time::Instant) -> Arc<dyn GeneratorRuntime + Send + Sync> {
     Arc::new(sparksmith_generators::worker::Worker::default().waiting_until(deadline))
 }
 
 /// How long one call of a headless session waits for a busy worker.
-/// Every call holds a worker for at most its 2 s wall time, so a minute
-/// covers the whole pool turning over many times; past it the call is
-/// refused as busy.
+/// Every call ends with its fuel, about 0.5 s of work, so a minute covers
+/// the whole pool turning over many times on a slow machine too; past it
+/// the call is refused as busy, which nothing remembers.
 pub const SESSION_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// The generator runtime of a session whose engine has none
@@ -622,9 +642,12 @@ pub fn fixture_batch_runtime(
 
 /// A test fixture's isolated four-worker runtime. Install explicitly on
 /// its engine so lending sessions and background forks inherit that pool.
+/// It paces calls as [`runtime`] does, the test's thread the window's.
 #[cfg(any(test, feature = "test-fixtures"))]
 pub fn fixture_runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
-    Arc::new(sparksmith_generators::worker::Worker::fixture())
+    Arc::new(
+        sparksmith_generators::worker::Worker::fixture().holding_only_this_thread(SESSION_WAIT),
+    )
 }
 
 /// `library.generators`' answer.
@@ -802,6 +825,70 @@ mod tests {
     use super::state;
     use sparksmith_core::ids::ContentHash;
 
+    /// A module that misses its time once is not dropped: the report is
+    /// refused by name, and the next one lists every shipped module, as
+    /// one that never missed does.
+    #[test]
+    fn a_module_that_timed_out_once_is_described_the_next_time()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        use sparksmith_generator_abi::{Failure, Generated, GeneratorRuntime, v1};
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        /// Refuses its third call as a slow machine would.
+        struct SlowOnce {
+            runtime: Arc<dyn GeneratorRuntime + Send + Sync>,
+            calls: AtomicUsize,
+        }
+        impl GeneratorRuntime for SlowOnce {
+            fn describe(&self, module: &[u8]) -> std::result::Result<v1::Description, Failure> {
+                if self.calls.fetch_add(1, Ordering::Relaxed) == 2 {
+                    return Err(Failure::one(
+                        "generator.timed_out",
+                        "The generator did not finish.".into(),
+                    ));
+                }
+                self.runtime.describe(module)
+            }
+            fn generate(
+                &self,
+                module: &[u8],
+                request: &v1::Request,
+            ) -> std::result::Result<Generated, Failure> {
+                self.runtime.generate(module, request)
+            }
+        }
+
+        let session = |runtime: Arc<dyn GeneratorRuntime + Send + Sync>| {
+            let mut engine = sparksmith_core::Engine::default();
+            engine.set_generators(runtime);
+            let mut session = super::Session::new(engine);
+            let library = super::ShippedLibrary::for_checkout()?;
+            session.set_shipped(library);
+            Ok::<_, Box<dyn std::error::Error>>(session)
+        };
+        let plain = || -> Arc<dyn GeneratorRuntime + Send + Sync> {
+            Arc::new(
+                sparksmith_generators::worker::Worker::fixture().waiting_for(super::SESSION_WAIT),
+            )
+        };
+        let whole = session(plain())?.generators_report()?;
+        assert!(whole.shipped.len() > 3);
+        assert!(whole.shipped.iter().all(|s| s.description.is_some()));
+        let slow = session(Arc::new(SlowOnce {
+            runtime: plain(),
+            calls: AtomicUsize::new(0),
+        }))?;
+        let missed = slow.generators_report().err().ok_or("no refusal")?;
+        assert!(super::is_transient(&missed));
+        assert_eq!(
+            missed.diagnostic().rule.as_deref(),
+            Some("generator.timed_out")
+        );
+        assert_eq!(slow.generators_report()?, whole);
+        Ok(())
+    }
+
     #[test]
     fn injected_runtime_is_used_by_sessions_forks_and_lending() {
         use sparksmith_generator_abi::{Failure, Generated, GeneratorRuntime, v1};
@@ -851,22 +938,22 @@ mod tests {
     }
 
     #[test]
-    fn a_busy_description_keeps_its_rule_instead_of_becoming_a_bad_module_row() {
-        let failure = sparksmith_generator_abi::Failure::one(
-            "generator.busy",
-            "Workers are busy. It was not run.".into(),
-        );
-        let error = crate::Error::Document(sparksmith_core::library::generated::failure(&failure));
-        let refused = super::permanent_refusal(error).err();
-        assert_eq!(
-            refused.as_ref().and_then(|e| e.diagnostic().rule),
-            Some("generator.busy".into())
-        );
+    fn a_transient_description_keeps_its_rule_instead_of_becoming_a_bad_module_row() {
+        for code in ["generator.busy", "generator.timed_out"] {
+            let failure = sparksmith_generator_abi::Failure::one(code, "Not this time.".into());
+            let error =
+                crate::Error::Document(sparksmith_core::library::generated::failure(&failure));
+            let refused = super::module_refusal(error).err();
+            assert_eq!(
+                refused.as_ref().and_then(|e| e.diagnostic().rule),
+                Some(code.into())
+            );
+        }
         let bad = crate::Error::Document(sparksmith_core::Error::Invalid(
             "generator.invalid_module: This module is invalid.".into(),
         ));
         assert_eq!(
-            super::permanent_refusal(bad).ok().as_deref(),
+            super::module_refusal(bad).ok().as_deref(),
             Some("This module is invalid.")
         );
     }

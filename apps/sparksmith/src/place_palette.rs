@@ -1313,6 +1313,8 @@ impl PlacePalette {
         } else {
             KEYS_IDLE
         };
+        // Nothing matched, but the generators are not all there to match.
+        let unread = self.shelf.status();
         let (hint, empty, heading) = (
             "Find a component: 10k 0603, res>=10k, tol<=1%",
             if self.loading {
@@ -1320,7 +1322,7 @@ impl PlacePalette {
             } else if self.query.trim().is_empty() {
                 "Type to find a component or a part a generator makes"
             } else {
-                NO_MATCH
+                unread.as_deref().unwrap_or(NO_MATCH)
             },
             "In this project",
         );

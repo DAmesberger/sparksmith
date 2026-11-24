@@ -44,7 +44,7 @@ pub fn run(args: &[String]) -> Result<()> {
         }
         [command, name] if command == "approve" => {
             let bundle = ShippedLibrary::locate()?.generator(name)?;
-            let description = sparksmith_generators::worker::Worker::default()
+            let description = sparksmith_automation::session::generators::session_runtime()
                 .describe(&bundle.module)
                 .map_err(|f| f.to_string())?;
             let mut approvals = read_approvals(&path)?;

@@ -100,7 +100,7 @@ fn descriptions_from(
         match result {
             Ok(description) => descriptions.push(description),
             Err(error) => {
-                super::generators::permanent_refusal(error)?;
+                super::generators::module_refusal(error)?;
             }
         }
     }
@@ -143,20 +143,22 @@ mod tests {
     }
 
     #[test]
-    fn busy_then_success_never_caches_a_partial_description_list() {
+    fn a_transient_refusal_then_success_never_caches_a_partial_description_list() {
         let cache = std::sync::OnceLock::new();
-        let first = cached_descriptions(&cache, || {
-            descriptions_from(
-                [
-                    Ok(description("first")),
-                    Err(refused("generator.busy")),
-                    Ok(description("last")),
-                ]
-                .into_iter(),
-            )
-        });
-        assert!(first.is_empty());
-        assert!(cache.get().is_none());
+        for transient in ["generator.busy", "generator.timed_out"] {
+            let first = cached_descriptions(&cache, || {
+                descriptions_from(
+                    [
+                        Ok(description("first")),
+                        Err(refused(transient)),
+                        Ok(description("last")),
+                    ]
+                    .into_iter(),
+                )
+            });
+            assert!(first.is_empty());
+            assert!(cache.get().is_none());
+        }
         let second = cached_descriptions(&cache, || {
             descriptions_from(
                 [

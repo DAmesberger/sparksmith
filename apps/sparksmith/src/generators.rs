@@ -13,7 +13,9 @@
 use crate::document_version::DocumentVersion;
 use sparksmith_automation::Session;
 use sparksmith_automation::session::generators::v1;
-use sparksmith_automation::session::generators::{GeneratePartParams, GeneratorSummary};
+use sparksmith_automation::session::generators::{
+    GeneratePartParams, GeneratorSummary, is_transient,
+};
 use sparksmith_core::catalog::generic::GenericValue;
 use sparksmith_core::catalog::generic::generators::{self as catalog, GeneratorCandidate};
 use sparksmith_core::commands::PackageFromGenerator;
@@ -51,8 +53,10 @@ enum Loaded {
     Loading,
     Ready(Arc<Vec<Offer>>),
     Failed(String),
+    /// Not read this time, and why: read again from `at` on.
     Retry {
         at: Instant,
+        why: String,
     },
 }
 
@@ -65,28 +69,30 @@ pub struct Shelf {
 }
 
 enum ReadFailure {
-    Busy,
+    /// The host could not read them just now: a retry can.
+    Transient(String),
     Failed(String),
 }
 
 impl ReadFailure {
-    fn message(&self) -> String {
+    #[cfg(test)]
+    fn message(self) -> String {
         match self {
-            Self::Busy => "Generators are busy; retrying shortly…".into(),
-            Self::Failed(why) => why.clone(),
+            Self::Transient(why) | Self::Failed(why) => why,
         }
     }
 }
 
-/// `library.generators`, on a session of its own. Permanent module
-/// refusals leave that module out; busy refuses the incomplete read.
+/// `library.generators`, on a session of its own. A module's own refusal
+/// leaves that module out; a transient one refuses the incomplete read.
 fn read_offers_once() -> Result<Vec<Offer>, ReadFailure> {
     let session = Session::lending();
     let report = session.generators_report().map_err(|e| {
-        if e.diagnostic().rule.as_deref() == Some("generator.busy") {
-            ReadFailure::Busy
+        let why = crate::refusal::automation_error(&e);
+        if is_transient(&e) {
+            ReadFailure::Transient(why)
         } else {
-            ReadFailure::Failed(crate::refusal::automation_error(&e))
+            ReadFailure::Failed(why)
         }
     })?;
     if report.shipped_library.is_none() {
@@ -149,7 +155,7 @@ impl Shelf {
 
     fn begin_retry(&self, now: Instant) -> bool {
         if let Ok(mut slot) = self.loaded.lock()
-            && matches!(&*slot, Loaded::Retry { at } if now >= *at)
+            && matches!(&*slot, Loaded::Retry { at, .. } if now >= *at)
         {
             *slot = Loaded::Loading;
             return true;
@@ -189,7 +195,9 @@ impl Shelf {
         match &*self.loaded.lock().ok()? {
             Loaded::Loading => Some("Reading the shipped generators…".into()),
             Loaded::Failed(why) => Some(why.clone()),
-            Loaded::Retry { .. } => Some(ReadFailure::Busy.message()),
+            Loaded::Retry { why, .. } => Some(format!(
+                "The generators are not read yet; reading them again. {why}"
+            )),
             Loaded::Ready(_) => None,
         }
     }
@@ -214,8 +222,9 @@ fn finish_read(loaded: &Mutex<Loaded>, result: Result<Vec<Offer>, ReadFailure>, 
     if let Ok(mut slot) = loaded.lock() {
         *slot = match result {
             Ok(offers) => Loaded::Ready(Arc::new(offers)),
-            Err(ReadFailure::Busy) => Loaded::Retry {
+            Err(ReadFailure::Transient(why)) => Loaded::Retry {
                 at: now + SHELF_RETRY,
+                why,
             },
             Err(ReadFailure::Failed(why)) => Loaded::Failed(why),
         };
@@ -551,7 +560,7 @@ pub fn test_shelf() -> Shelf {
 
 /// Only fixture initialization is shared, as with the previous OnceLock;
 /// tests run concurrently after loading. Other tests can temporarily own
-/// all worker permits, so retry busy within a watchdog and cache successes
+/// all worker permits, so retry a transient refusal within a watchdog and cache successes
 /// only. Neither a transient refusal nor a failed read poisons later tests.
 #[cfg(test)]
 fn test_offers(
@@ -571,7 +580,7 @@ fn test_offers(
                 *saved = Some(offers.clone());
                 return Ok(offers);
             }
-            Err(ReadFailure::Busy) if started.elapsed() < Duration::from_secs(30) => {
+            Err(ReadFailure::Transient(_)) if started.elapsed() < Duration::from_secs(30) => {
                 std::thread::sleep(Duration::from_millis(10));
             }
             Err(failure) => return Err(failure.message()),
@@ -579,16 +588,22 @@ fn test_offers(
     }
 }
 
+/// How long a test waits for a part being made: a watchdog against a hang
+/// on a loaded machine, not a measure.
+#[cfg(test)]
+pub const TEST_PATIENCE: Duration = Duration::from_secs(120);
+
 /// Wait for a part being made (tests): the command or why not.
 #[cfg(test)]
 pub fn wait(making: &mut Making, engine: &Engine) -> Result<Operation, String> {
-    for _ in 0..600 {
+    let started = Instant::now();
+    while started.elapsed() < TEST_PATIENCE {
         if let Some(done) = making.poll(engine) {
             return done;
         }
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(Duration::from_millis(50));
     }
-    Err("making the part took more than 30 s".into())
+    Err(format!("making the part took more than {TEST_PATIENCE:?}"))
 }
 
 #[cfg(test)]
@@ -603,7 +618,7 @@ mod retry_tests {
         let loaded = test_offers(&cache, || {
             calls += 1;
             if calls == 1 {
-                Err(ReadFailure::Busy)
+                Err(ReadFailure::Transient("busy".into()))
             } else {
                 Ok(Vec::new())
             }
@@ -619,14 +634,15 @@ mod retry_tests {
     }
 
     #[test]
-    fn a_busy_shelf_retries_once_when_due_then_keeps_the_complete_result() {
+    fn a_shelf_read_that_timed_out_retries_once_when_due_then_keeps_the_complete_result() {
         let shelf = Shelf::default();
         let now = Instant::now() + Duration::from_secs(3600);
-        finish_read(&shelf.loaded, Err(ReadFailure::Busy), now);
+        let slow = || Err(ReadFailure::Transient("It did not finish.".into()));
+        finish_read(&shelf.loaded, slow(), now);
         assert!(shelf.offers().is_none());
         assert_eq!(
             shelf.status().as_deref(),
-            Some("Generators are busy; retrying shortly…")
+            Some("The generators are not read yet; reading them again. It did not finish.")
         );
         assert!(!shelf.begin_retry(now));
         assert!(shelf.begin_retry(now + SHELF_RETRY));
@@ -664,7 +680,8 @@ mod retry_tests {
     fn replacing_the_shelf_abandons_old_results_and_retry_state() {
         let old = Shelf::default();
         let pending = Arc::downgrade(&old.loaded);
-        finish_read(&old.loaded, Err(ReadFailure::Busy), Instant::now());
+        let busy = Err(ReadFailure::Transient("busy".into()));
+        finish_read(&old.loaded, busy, Instant::now());
         let current = Shelf::with(Vec::new());
         drop(old);
         assert!(pending.upgrade().is_none());

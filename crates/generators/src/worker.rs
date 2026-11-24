@@ -1,34 +1,55 @@
-//! Generation off the caller's thread, with a wall-time bound and
-//! cancellation (slice GP1).
+//! Generation off the caller's thread, with cancellation and, for a
+//! caller that must not be held, a wall-time bound (slice GP1).
 //!
-//! Each call runs on a fresh worker thread under the host's fuel and memory
-//! limits. The caller waits at most [`Worker::wall`] and checks its cancel
-//! flag while it waits; a call that runs out of time or is cancelled is
-//! refused at once and its result, if one ever comes, is dropped. The
-//! worker thread itself stops after bounded module execution and host
-//! decoding. At most four workers are active in the process, including
-//! abandoned calls: a permit stays with the thread through result/runtime
-//! cleanup. A timeout bounds the wait, not the thread's lifetime.
+//! Each call runs on a fresh worker thread under the host's fuel, module
+//! size, memory and decode limits, which end a runaway module after the
+//! same work on every machine. Wall time is no property of a module: the
+//! same call takes longer on a busy machine. So it only bounds how long a
+//! window is held ([`Worker::wall`]), and missing it says nothing about
+//! the module ([`is_transient`]): no host remembers it.
 //!
-//! When all four are busy an interactive call is refused at once with the
-//! retryable `generator.busy`. Batch work that nobody is there to retry (a
-//! KiCad import making every part's model) asks for a worker with
+//! A caller checks its cancel flag while it waits; a call that runs out
+//! of time or is cancelled is refused at once and its result, if one ever
+//! comes, is dropped. The worker thread itself stops after bounded module
+//! execution and host decoding. At most four workers are active in the
+//! process, including abandoned calls: a permit is held through
+//! result/runtime cleanup, and a caller that takes its result has the
+//! permit back by then, so calls made one after another hold one.
+//!
+//! When all four are busy a call that must not be held is refused at once
+//! with the retryable `generator.busy`. Batch work that nobody is there to
+//! retry (a KiCad import making every part's model) asks for a worker with
 //! [`Worker::waiting_until`] instead: it waits for one up to its deadline,
-//! still watching the cancel flag, and its wall time starts once admitted.
-//! A headless session's script or agent, whose calls come one after
-//! another for as long as it runs, uses [`Worker::waiting_for`]: each call
-//! waits up to the same bound from when it is made.
+//! still watching the cancel flag. A headless session's script or agent,
+//! whose calls come one after another for as long as it runs, uses
+//! [`Worker::waiting_for`]: each call waits up to the same bound from when
+//! it is made. Neither has a wall time. A window's runtime is
+//! [`Worker::holding_only_this_thread`]: its own thread is never held past
+//! the wall time, its background threads wait as a headless caller does.
 use crate::{Limits, WasmiRuntime};
 use sparksmith_generator_abi::v1::{Description, Request};
 use sparksmith_generator_abi::{Failure, Generated, GeneratorRuntime};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
+use std::thread::ThreadId;
 use std::time::{Duration, Instant};
 
-/// The wall-time target of one call (`generators/README.md`): fuel bounds
-/// the work, this bounds how long a caller waits on a slow host.
+/// The longest one call holds a window's thread (`generators/README.md`):
+/// fuel bounds the work, this how long the window stands still for it on
+/// a slow host.
 pub const WALL: Duration = Duration::from_secs(2);
+
+/// Whether a refusal with this code is about the host at that moment (its
+/// workers busy, the machine slow, the call cancelled) and not about the
+/// module: calling again can succeed, so it is never kept as the module's
+/// answer.
+pub fn is_transient(code: &str) -> bool {
+    matches!(
+        code,
+        "generator.busy" | "generator.timed_out" | "generator.cancelled" | "generator.not_started"
+    )
+}
 
 /// How often a waiting caller looks at its cancel flag.
 const POLL: Duration = Duration::from_millis(10);
@@ -106,10 +127,13 @@ enum Admission {
 #[derive(Clone, Debug)]
 pub struct Worker {
     limits: Limits,
-    wall: Duration,
+    wall: Option<Duration>,
     cancel: Option<Arc<AtomicBool>>,
     pool: Pool,
     admission: Admission,
+    /// The one thread `admission` and `wall` are for, and how long a call
+    /// of any other waits for a worker.
+    held: Option<(ThreadId, Duration)>,
 }
 
 impl Default for Worker {
@@ -122,10 +146,11 @@ impl Worker {
     pub fn new(limits: Limits, wall: Duration) -> Self {
         Self {
             limits,
-            wall,
+            wall: Some(wall),
             cancel: None,
             pool: Pool::Process(&SLOTS),
             admission: Admission::Refuse,
+            held: None,
         }
     }
 
@@ -149,10 +174,11 @@ impl Worker {
 
     /// This worker for batch work: a call made while all workers are busy
     /// waits for one until `deadline` (or until cancelled) instead of being
-    /// refused at once; past the deadline it is refused as busy. Each
-    /// call's wall time starts when it gets its worker.
+    /// refused at once; past the deadline it is refused as busy. A call
+    /// that has its worker runs to the end of its fuel.
     pub fn waiting_until(mut self, deadline: Instant) -> Self {
         self.admission = Admission::WaitUntil(deadline);
+        self.wall = None;
         self
     }
 
@@ -161,6 +187,16 @@ impl Worker {
     /// the call is made.
     pub fn waiting_for(mut self, wait: Duration) -> Self {
         self.admission = Admission::WaitFor(wait);
+        self.wall = None;
+        self
+    }
+
+    /// This worker for a window, made on its thread: a call on that thread
+    /// is refused when the workers are busy or its wall time is over; a
+    /// call on any other thread (work the window started in the
+    /// background) holds nobody and waits as [`Self::waiting_for`] does.
+    pub fn holding_only_this_thread(mut self, wait: Duration) -> Self {
+        self.held = Some((std::thread::current().id(), wait));
         self
     }
 
@@ -168,8 +204,19 @@ impl Worker {
         self.limits
     }
 
-    pub fn wall(&self) -> Duration {
+    /// The longest a call holds its caller, when it is bounded.
+    pub fn wall(&self) -> Option<Duration> {
         self.wall
+    }
+
+    /// How a call on this thread is admitted, and its wall time.
+    fn pace(&self) -> (Admission, Option<Duration>) {
+        match self.held {
+            Some((thread, wait)) if thread != std::thread::current().id() => {
+                (Admission::WaitFor(wait), None)
+            }
+            _ => (self.admission, self.wall),
+        }
     }
 
     fn cancelled(&self) -> bool {
@@ -178,9 +225,9 @@ impl Worker {
             .is_some_and(|flag| flag.load(Ordering::Relaxed))
     }
 
-    /// A permit from the pool, as this worker's admission says.
-    fn admit(&self) -> Result<Permit, Failure> {
-        let deadline = match self.admission {
+    /// A permit from the pool, as `admission` says.
+    fn admit(&self, admission: Admission) -> Result<Permit, Failure> {
+        let deadline = match admission {
             Admission::Refuse => None,
             Admission::WaitUntil(deadline) => Some(deadline),
             Admission::WaitFor(wait) => Instant::now().checked_add(wait),
@@ -211,7 +258,8 @@ impl Worker {
 
     /// Reserve a worker before preparing owned inputs, then run the job
     /// within the caller's wall time, watching the cancel flag. The thread
-    /// owns the permit; abandoning the receiver cannot release it early.
+    /// owns the permit until it hands it over with the result; abandoning
+    /// the receiver cannot release it early.
     fn run<T: Send + 'static, J>(&self, prepare: impl FnOnce() -> J) -> Result<T, Failure>
     where
         J: FnOnce(&WasmiRuntime) -> Result<T, Failure> + Send + 'static,
@@ -235,29 +283,32 @@ impl Worker {
         if self.cancelled() {
             return Err(cancelled());
         }
-        if self.wall.is_zero() {
-            return Err(timed_out(self.wall));
+        let (admission, wall) = self.pace();
+        if let Some(wall) = wall.filter(Duration::is_zero) {
+            return Err(timed_out(wall));
         }
-        let permit = self.admit()?;
+        let permit = self.admit(admission)?;
         let started = Instant::now();
         let job = prepare();
         if self.cancelled() {
             return Err(cancelled());
         }
-        if started.elapsed() >= self.wall {
-            return Err(timed_out(self.wall));
+        if let Some(wall) = wall.filter(|wall| started.elapsed() >= *wall) {
+            return Err(timed_out(wall));
         }
         let (send, receive) = mpsc::sync_channel(1);
         let limits = self.limits;
         spawn(Box::new(move || {
-            let _permit = permit;
             let runtime = WasmiRuntime::new(limits);
-            // The receiver may have given up; then the result is dropped.
-            let _ = send.send(job(&runtime));
+            let result = job(&runtime);
+            drop(runtime);
+            // The receiver may have given up; then the result is dropped,
+            // and the permit after it.
+            let _ = send.send((result, permit));
         }))
         .map_err(|e| {
             Failure::one(
-                "generator.worker",
+                "generator.not_started",
                 format!("The generator could not be started ({e}). It was not run."),
             )
         })?;
@@ -265,12 +316,19 @@ impl Worker {
             if self.cancelled() {
                 return Err(cancelled());
             }
-            let remaining = self.wall.saturating_sub(started.elapsed());
-            if remaining.is_zero() {
-                return Err(timed_out(self.wall));
+            let mut wait = POLL;
+            if let Some(wall) = wall {
+                let remaining = wall.saturating_sub(started.elapsed());
+                if remaining.is_zero() {
+                    return Err(timed_out(wall));
+                }
+                wait = wait.min(remaining);
             }
-            match receive.recv_timeout(POLL.min(remaining)) {
-                Ok(result) => return result,
+            match receive.recv_timeout(wait) {
+                Ok((result, permit)) => {
+                    drop(permit);
+                    return result;
+                }
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     return Err(Failure::one(
@@ -294,7 +352,7 @@ fn timed_out(wall: Duration) -> Failure {
     Failure::one(
         "generator.timed_out",
         format!(
-            "The generator did not finish within {} ms. Nothing was changed.",
+            "The generator did not finish within {} ms on this machine just now. Nothing was changed. Try again.",
             wall.as_millis()
         ),
     )
@@ -371,6 +429,91 @@ mod tests {
             failure.as_ref().and_then(Failure::code),
             Some("generator.timed_out")
         );
+    }
+
+    /// The wall time is the caller's, not the module's: the same call
+    /// misses it, then runs to its end for a caller that waits, and the
+    /// miss is a transient refusal.
+    #[test]
+    fn a_missed_wall_time_is_of_that_run_only() -> Result<(), String> {
+        let hurried = Worker {
+            wall: Some(Duration::ZERO),
+            ..Worker::fixture()
+        };
+        let missed = hurried.run(|| |_| Ok(7)).err();
+        let code = missed.as_ref().and_then(Failure::code);
+        assert_eq!(code, Some("generator.timed_out"));
+        assert!(code.is_some_and(is_transient));
+        let waits = hurried.clone().waiting_for(Duration::from_secs(60));
+        assert_eq!(waits.run(|| |_| Ok(7)).map_err(|e| e.to_string())?, 7);
+        for verdict in [
+            "generator.out_of_fuel",
+            "generator.trapped",
+            "generator.worker",
+            "generator.invalid_module",
+        ] {
+            assert!(!is_transient(verdict), "{verdict}");
+        }
+        Ok(())
+    }
+
+    /// A window's runtime: its own thread is refused at once when the
+    /// workers are busy and at its wall time, its background threads wait.
+    #[test]
+    fn only_the_windows_own_thread_is_hurried() -> Result<(), String> {
+        let window = Worker {
+            wall: Some(Duration::ZERO),
+            ..Worker::fixture()
+        }
+        .holding_only_this_thread(Duration::from_secs(60));
+        let code =
+            |failure: Option<Failure>| failure.as_ref().and_then(Failure::code).map(str::to_owned);
+        assert_eq!(
+            code(window.run(|| |_| Ok(())).err()).as_deref(),
+            Some("generator.timed_out")
+        );
+        let held: Vec<_> = (0..MAX_ACTIVE)
+            .map(|_| window.pool.acquire())
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.to_string())?;
+        let patient = window.clone();
+        let (waiting, waits) = mpsc::channel();
+        let background = std::thread::spawn(move || {
+            let _ = waiting.send(());
+            patient.run(|| |_| Ok(7))
+        });
+        waits
+            .recv_timeout(Duration::from_secs(10))
+            .map_err(|e| e.to_string())?;
+        let roomy = Worker {
+            wall: Some(Duration::from_secs(30)),
+            ..window
+        };
+        assert_eq!(
+            code(roomy.run(|| |_| Ok(())).err()).as_deref(),
+            Some("generator.busy")
+        );
+        drop(held);
+        let ran = background.join().map_err(|_| "caller panicked")?;
+        assert_eq!(ran.map_err(|e| e.to_string())?, 7);
+        Ok(())
+    }
+
+    /// A caller that takes its result has the permit back: one that calls
+    /// again and again never meets its own finished call as a busy worker.
+    #[test]
+    fn calls_one_after_another_hold_one_permit() -> Result<(), String> {
+        let worker = Worker::fixture();
+        let _others: Vec<_> = (1..MAX_ACTIVE)
+            .map(|_| worker.pool.acquire())
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.to_string())?;
+        for _ in 0..200 {
+            worker.run(|| |_| Ok(())).map_err(|e| e.to_string())?;
+            let held = worker.pool.slots().0.load(Ordering::Acquire);
+            assert_eq!(held, MAX_ACTIVE - 1);
+        }
+        Ok(())
     }
 
     fn capped(worker: Worker, contender: Worker) -> Result<(), String> {
@@ -673,7 +816,7 @@ mod tests {
             .err();
         assert_eq!(
             failure.as_ref().and_then(Failure::code),
-            Some("generator.worker")
+            Some("generator.not_started")
         );
         assert!(!ran.load(Ordering::Relaxed));
         idle(&SLOTS)?;
