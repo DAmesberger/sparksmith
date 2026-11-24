@@ -125,6 +125,14 @@ impl PcbEditor {
         true
     }
 
+    /// Where a pair route's centre line goes for the pointer at `at`: its
+    /// head within 8 pixels, else the grid, never the end of one half.
+    pub(super) fn pair_point(&self, at: Point, scale: f32) -> Option<Point> {
+        let head = self.route.pair.as_ref()?.head.center;
+        let near = geometry::distance(head, at) < f64::from(8.0 / scale);
+        Some(if near { head } else { super::snap(at) })
+    }
+
     /// The pair step to `to` (a centre-line target), finishing on the
     /// pads in `finish`.
     fn pair_request(
@@ -152,7 +160,8 @@ impl PcbEditor {
                 drill,
                 diameter,
                 tented: self.via_tented(project),
-                pitch: pair::via_pitch(project, route.nets, drill, diameter, next),
+                pitch: pair::via_pitch(project, route.nets, drill, diameter, next)
+                    .max(pair::via_pitch(project, route.nets, drill, diameter, style)),
                 layer: self.layer,
                 style: next,
             }
@@ -220,6 +229,9 @@ impl PcbEditor {
         let step = &plan.step;
         self.route.refused =
             super::route_tool::refusal(plan.reached, plan.blocked.as_deref(), &step.edits);
+        if !plan.reached && step.edits.vias.is_empty() {
+            self.drop_layer_change();
+        }
         if step.edits.add.is_empty() && step.edits.vias.is_empty() {
             return None;
         }

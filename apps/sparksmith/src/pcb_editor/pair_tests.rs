@@ -796,3 +796,171 @@ fn a_pair_without_a_partner_pad_on_the_layer_is_refused_in_words() -> TestResult
     );
     Ok(())
 }
+
+/// The ESP32 board with its USB pair unrouted: the pair's nets and the
+/// module's two pads' positions, `[positive, negative]`.
+fn esp32() -> Result<(Engine, [Id; 2], [Point; 2]), Box<dyn std::error::Error>> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith"
+    );
+    let mut engine = Engine::demo()?;
+    engine.replace_document(sparksmith_io::read_project(std::path::Path::new(path))?)?;
+    let project = engine.project();
+    let pair = project.rules.diff_pairs.first().ok_or("pair")?;
+    let nets = [pair.positive, pair.negative];
+    let u1 = project.instance_by_designator("U1").ok_or("U1")?.id;
+    let pads = layout::pads(project);
+    let at = |net: Id| {
+        pads.iter()
+            .find(|p| p.instance == u1 && p.net == net)
+            .map(|p| p.position)
+            .ok_or("pad")
+    };
+    let at = [at(nets[0])?, at(nets[1])?];
+    let edits = layout::RouteEditSet {
+        remove: project
+            .tracks
+            .iter()
+            .filter(|t| nets.contains(&t.net))
+            .map(|t| t.id)
+            .collect(),
+        remove_vias: project
+            .vias
+            .iter()
+            .filter(|v| nets.contains(&v.net))
+            .map(|v| v.id)
+            .collect(),
+        ..Default::default()
+    };
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::ApplyRoute { edits }),
+    )?;
+    Ok((engine, nets, at))
+}
+
+/// K3: a layer change on the first leg, off the pads' own grid, and right
+/// at a corner: two vias a pitch apart, tracks of both halves on Bottom,
+/// and the card on the layer they go to.
+#[test]
+fn a_pair_changes_layer_on_its_first_leg_and_at_a_corner() -> TestResult {
+    // The corner (if any), the pointer at the layer key and the next click,
+    // from the middle of the pads.
+    type Gesture = (Option<Point>, Point, Point);
+    let gestures: [Gesture; 4] = [
+        (None, [0.0, -4.0], [0.0, -8.0]),
+        (None, [0.0, 0.0], [0.0, -8.0]),
+        (None, [0.0, -2.0], [0.0, -8.0]),
+        (Some([0.0, -4.0]), [0.0, -4.0], [0.0, -9.0]),
+    ];
+    for (corner, via, to) in gestures {
+        let (mut engine, nets, pads) = esp32()?;
+        let d = |p: Point| {
+            [
+                0.5 * (pads[0][0] + pads[1][0]) + p[0],
+                0.5 * (pads[0][1] + pads[1][1]) + p[1],
+            ]
+        };
+        let mut canvas = Canvas::new();
+        let mut editor = PcbEditor::default();
+        editor.on_tool("route", &engine);
+        canvas.frame(&mut editor, &engine, vec![], egui::Modifiers::NONE);
+        assert!(canvas.click(&mut editor, &engine, pads[0]).is_none());
+        assert!(editor.route.pair.is_some());
+        if let Some(corner) = corner {
+            let step = canvas.click(&mut editor, &engine, d(corner));
+            canvas.apply(&mut editor, &mut engine, step)?;
+        }
+        key(&mut canvas, &mut editor, &engine, d(via), egui::Key::Num4);
+        let step = canvas.click(&mut editor, &engine, d(to));
+        let name = format!("{corner:?} {via:?} {to:?}");
+        let sent = edits(&step).map_err(|e| format!("{name}: {e}"))?;
+        let at: Vec<Point> = sent.vias.iter().map(|v| v.position).collect();
+        assert_eq!(at.len(), 2, "{name}");
+        let apart = sparksmith_core::geometry::distance(at[0], at[1]);
+        assert!((0.8..0.9).contains(&apart), "{name}: {at:?}");
+        for net in nets {
+            assert!(
+                sent.add
+                    .iter()
+                    .any(|t| t.net == net && t.layer == CopperLayer::Bottom),
+                "{name}"
+            );
+        }
+        canvas.apply(&mut editor, &mut engine, step)?;
+        assert_eq!(editor.layer, CopperLayer::Bottom, "{name}");
+        assert_eq!(editor.pending_via, None, "{name}");
+        let close_calls: Vec<String> = layout::checks(engine.project(), engine.check_settings())
+            .into_iter()
+            .filter(|f| f.code.contains("clearance") && f.message.contains("USB_D"))
+            .map(|f| f.message)
+            .collect();
+        assert!(close_calls.is_empty(), "{name}: {close_calls:?}");
+    }
+    Ok(())
+}
+
+/// A layer change with no room lays no copper, and the card goes back to
+/// the layer the route is on and says so.
+#[test]
+fn a_refused_pair_layer_change_stays_on_its_layer() -> TestResult {
+    use sparksmith_core::layout::fill::FillCommand;
+    use sparksmith_core::library::{Outline, Segment};
+    use sparksmith_core::model::fill::{KeepoutLayers, KeepoutRules, KeepoutSpec};
+    let (mut engine, _, pads) = esp32()?;
+    let mid = [
+        0.5 * (pads[0][0] + pads[1][0]),
+        0.5 * (pads[0][1] + pads[1][1]),
+    ];
+    let (x, y) = (mid[0], mid[1] - 4.0);
+    let corners = [
+        [x - 2.0, y - 2.0],
+        [x + 2.0, y - 2.0],
+        [x + 2.0, y + 2.0],
+        [x - 2.0, y + 2.0],
+    ];
+    apply(
+        &mut engine,
+        Operation::Fill(FillCommand::AddKeepout {
+            keepout: Box::new(KeepoutSpec {
+                name: String::new(),
+                outline: Outline {
+                    start: corners[0],
+                    segments: [corners[1], corners[2], corners[3], corners[0]]
+                        .into_iter()
+                        .map(|to| Segment::Line { to })
+                        .collect(),
+                },
+                layers: KeepoutLayers::All,
+                forbid: KeepoutRules {
+                    fills: false,
+                    tracks: false,
+                    vias: true,
+                    pads: false,
+                },
+            }),
+        }),
+    )?;
+    let mut canvas = Canvas::new();
+    let mut editor = PcbEditor::default();
+    editor.on_tool("route", &engine);
+    canvas.frame(&mut editor, &engine, vec![], egui::Modifiers::NONE);
+    assert!(canvas.click(&mut editor, &engine, pads[0]).is_none());
+    key(&mut canvas, &mut editor, &engine, [x, y], egui::Key::Num4);
+    assert_eq!(editor.layer, CopperLayer::Bottom);
+    crate::kit::toast::take_posted(canvas.ctx());
+    let sent = canvas.click(&mut editor, &engine, [x, y - 4.0]);
+    assert!(sent.is_none(), "no copper: {sent:?}");
+    assert_eq!(editor.layer, CopperLayer::Top);
+    assert_eq!(editor.pending_via, None);
+    let said: Vec<String> = crate::kit::toast::take_posted(canvas.ctx())
+        .into_iter()
+        .map(|t| t.text)
+        .collect();
+    assert!(
+        said.iter().any(|t| t.ends_with("The route stays on Top.")),
+        "{said:?}"
+    );
+    Ok(())
+}

@@ -2462,6 +2462,9 @@ impl PcbEditor {
     /// on the routing layer during a route, else the 0.5 mm grid. A layer
     /// change at a track end continues that track through a via.
     fn route_point(&self, project: &Project, at: Point, scale: f32) -> Point {
+        if let Some(point) = self.pair_point(at, scale) {
+            return point;
+        }
         self.track_end(at, scale, self.net, None)
             .or_else(|| self.net_track_point(project, at, scale))
             .unwrap_or_else(|| snap(at))
@@ -2471,6 +2474,9 @@ impl PcbEditor {
     /// the end of a track on the routing layer. A step ending on another
     /// layer's track end would leave its own end joining nothing.
     pub(super) fn route_destination(&self, project: &Project, at: Point, scale: f32) -> Point {
+        if let Some(point) = self.pair_point(at, scale) {
+            return point;
+        }
         self.track_end(at, scale, self.net, Some(self.layer))
             .or_else(|| self.net_track_point(project, at, scale))
             .unwrap_or_else(|| snap(at))

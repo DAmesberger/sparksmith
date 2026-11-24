@@ -170,3 +170,176 @@ fn close_pads_neck_the_fan_out_down() {
     assert!((w - 0.15).abs() < 1e-9, "{w}");
     assert!((fan_width(&project, 1, [[0.0, 0.0], [0.0, 1.0]], 0.2) - 0.2).abs() < 1e-12);
 }
+
+/// Every layer-change gesture of the GUI check off the ESP32 module's pads
+/// (0.1 mm off the grid, 1.27 mm apart): on the first leg and at or near a
+/// corner, going on in four ways, with either elbow. [`step`] fits only
+/// when both its legs happen to run straight through the vias;
+/// [`layer_changes`] has a way in which the halves keep apart each time.
+#[test]
+fn a_layer_change_has_room_wherever_the_route_stands() {
+    let style = PairStyle {
+        width: 0.24556,
+        gap: 0.127,
+        fan_width: 0.24556,
+    };
+    let (mid, pads) = ([25.1, 34.7], [[25.735, 34.7], [24.465, 34.7]]);
+    let at = |base: Point, p: Point| [base[0] + p[0], base[1] + p[1]];
+    let snap = |p: Point| p.map(|v| (v / 0.5).round() * 0.5);
+    let ask = |head: PairHead, to: Point, flipped: bool| PairStepRequest {
+        nets: [P, N],
+        layer: CopperLayer::Top,
+        style,
+        posture: Posture::Diagonal,
+        flipped,
+        head,
+        last: None,
+        via: None,
+        to,
+        finish: None,
+    };
+    // Each half's copper: two ends, half width, layer (None: a via).
+    type Copper = (Id, Point, Point, f64, Option<CopperLayer>);
+    let copper = |edits: &RouteEditSet| -> Vec<Copper> {
+        let tracks = edits
+            .add
+            .iter()
+            .map(|t| (t.net, t.start, t.end, t.width / 2.0, Some(t.layer)));
+        let vias = edits
+            .vias
+            .iter()
+            .map(|v| (v.net, v.position, v.position, v.diameter / 2.0, None));
+        tracks.chain(vias).collect()
+    };
+    let gap = |a: &Copper, b: &Copper| {
+        use crate::geometry::{segment_distance, segments_cross};
+        if segments_cross(a.1, a.2, b.1, b.2) {
+            return -a.3 - b.3;
+        }
+        [
+            segment_distance(a.1, b.1, b.2),
+            segment_distance(a.2, b.1, b.2),
+            segment_distance(b.1, a.1, a.2),
+            segment_distance(b.2, a.1, a.2),
+        ]
+        .into_iter()
+        .fold(f64::INFINITY, f64::min)
+            - a.3
+            - b.3
+    };
+    let clear = |step: &PairStep, laid: &[Copper]| {
+        let new = copper(&step.edits);
+        // The extended tracks as the step leaves them.
+        let mut laid = laid.to_vec();
+        for t in &step.edits.replace {
+            for old in laid
+                .iter_mut()
+                .filter(|c| c.0 == t.net && distance(c.1, t.start) < 1e-9 && c.4 == Some(t.layer))
+            {
+                old.2 = t.end;
+            }
+        }
+        new.iter().all(|a| {
+            new.iter().chain(&laid).all(|b| {
+                let apart = a.0 == b.0 || (a.4.is_some() && b.4.is_some() && a.4 != b.4);
+                let need = if a.4.is_none() || b.4.is_none() {
+                    0.1778
+                } else {
+                    0.127
+                };
+                apart || gap(a, b) > need - 1e-3
+            })
+        })
+    };
+    let mut gestures: Vec<(Option<Point>, Point, Point)> = Vec::new();
+    for via in [
+        [0.0, -4.0],
+        [0.0, 0.0],
+        [0.0, -2.0],
+        [0.3, -4.0],
+        [-0.6, -4.0],
+        [2.0, -4.0],
+        [0.0, -1.0],
+    ] {
+        for to in [[0.0, -8.0], [3.0, -7.0], [-0.5, -8.0], [4.0, -5.0]] {
+            gestures.push((None, at(mid, via), at(mid, to)));
+        }
+    }
+    for corner in [[0.0, -4.0], [1.0, -4.0], [-2.0, -3.0], [0.0, -2.0]] {
+        for via in [
+            [0.0, 0.0],
+            [0.0, -0.5],
+            [0.5, -0.5],
+            [0.5, 0.0],
+            [-0.5, 0.0],
+            [0.0, -2.0],
+        ] {
+            for to in [[0.0, -5.0], [3.0, 0.0], [-3.0, 0.0], [2.0, -2.0]] {
+                let via = at(at(mid, corner), via);
+                gestures.push((Some(at(mid, corner)), via, at(via, to)));
+            }
+        }
+    }
+    assert_eq!(gestures.len(), 124);
+    let (mut plain, mut stuck) = (0, Vec::new());
+    for flipped in [false, true] {
+        for (corner, via, to) in &gestures {
+            let mut head = PairHead::at(pads[0], pads[1]);
+            let mut laid = Vec::new();
+            let mut last = None;
+            if let Some(corner) = corner {
+                let first = step(&ask(head, snap(*corner), flipped));
+                laid = copper(&first.edits);
+                head = first.head;
+                // The tool extends the tracks that end at the head.
+                let end = |net: Id, at: Point| {
+                    let t = first.edits.add.iter().rev().find(|t| t.net == net);
+                    t.filter(|t| distance(t.end, at) < 1e-9).map(|t| Track {
+                        id: net,
+                        net,
+                        start: t.start,
+                        end: t.end,
+                        width: t.width,
+                        layer: t.layer,
+                        locked: false,
+                    })
+                };
+                last = end(P, head.ends[0])
+                    .zip(end(N, head.ends[1]))
+                    .map(|(p, n)| [p, n]);
+                assert!(last.is_some());
+            }
+            // The pointer snaps to the head when near, else to the grid.
+            let point = |p: Point| {
+                if distance(head.center, p) < 0.8 {
+                    head.center
+                } else {
+                    snap(p)
+                }
+            };
+            let request = PairStepRequest {
+                via: Some(PairVias {
+                    at: point(*via),
+                    drill: 0.3,
+                    diameter: 0.6,
+                    tented: true,
+                    pitch: 0.84,
+                    layer: CopperLayer::Bottom,
+                    style,
+                }),
+                last,
+                ..ask(head, point(*to), flipped)
+            };
+            plain += usize::from(clear(&step(&request), &laid));
+            match layer_changes(&request).iter().find(|s| clear(s, &laid)) {
+                Some(s) => {
+                    assert_eq!(s.edits.vias.len(), 2);
+                    assert_eq!(s.layer, CopperLayer::Bottom);
+                }
+                None => stuck.push((flipped, *corner, *via, *to)),
+            }
+        }
+    }
+    assert!(stuck.is_empty(), "{stuck:?}");
+    assert!(plain < 62, "step alone fits few of 248: {plain}");
+}
