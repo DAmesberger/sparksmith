@@ -379,15 +379,16 @@ fn fixed_geometry(
         }
         FixedEdit::Remove { owned } => {
             let points = owned_points(&sk, owned)?;
+            // By id: removing the line shifts the points after it.
+            let ids: Vec<String> = points
+                .iter()
+                .filter_map(|&i| sk.points.get(i).map(|p| p.id.clone()))
+                .collect();
             if let SketchRef::Curve(c) = owned
                 && let Some(i) = sk.curve_index(&c.0)
             {
                 sk.remove_curves(&[i]);
             }
-            let ids: Vec<String> = points
-                .iter()
-                .filter_map(|&i| sk.points.get(i).map(|p| p.id.clone()))
-                .collect();
             let points: Vec<usize> = ids.iter().filter_map(|id| sk.point_index(id)).collect();
             sk.remove_points(&points);
         }

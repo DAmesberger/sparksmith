@@ -972,6 +972,32 @@ fn loops_are_kept_while_the_outline_is_invalid() -> Fallible<()> {
     Ok(())
 }
 
+/// Removing a followed face removes its own line and nothing drawn after it.
+#[test]
+fn removing_a_followed_face_keeps_what_was_drawn_after_it() -> Fallible<()> {
+    let (mut engine, _) = followed(Vec::new())?;
+    edit(
+        &mut engine,
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::AddCircle {
+                center: [30.0, 20.0],
+                radius: 2.0,
+                construction: false,
+            },
+        }],
+    )?;
+    let cutouts = engine.project().board().cutouts.clone();
+    assert_eq!(cutouts.len(), 1);
+    apply(
+        &mut engine,
+        Operation::Assembly(AssemblyCommand::RemoveReference {
+            id: FollowedFaceId(1),
+        }),
+    )?;
+    assert_eq!(engine.project().board().cutouts, cutouts);
+    Ok(())
+}
+
 /// Two followed faces, each with a loop: one is removed while the outline is
 /// invalid, and its loop with it; the other's is kept.
 #[test]
@@ -1039,6 +1065,7 @@ fn a_followed_face_is_removed_while_the_outline_is_invalid() -> Fallible<()> {
         &mut engine,
         Operation::Assembly(AssemblyCommand::RemoveReference { id: side.id }),
     )?;
+    assert!(engine.project().board_shape.invalid().is_some());
     assert_eq!(loops(&engine)?, [datum]);
     Ok(())
 }
