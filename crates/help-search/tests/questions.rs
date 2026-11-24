@@ -1,7 +1,7 @@
 //! The help questions (`help-questions.json`): how many the search answers
 //! within the first three topics, and the ratchet that keeps it so.
 use serde::Deserialize;
-use sparksmith_core::help::{HelpId, Index};
+use sparksmith_core::help::HelpId;
 use sparksmith_help_search::{Audience, Model, Search};
 
 type Fallible<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -30,7 +30,10 @@ fn questions() -> Fallible<Questions> {
 }
 
 fn library() -> Fallible<sparksmith_io::shipped::ShippedLibrary> {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+    let root = match std::env::var_os("SPARKSMITH_HELP_LIBRARY") {
+        Some(folder) => folder.into(),
+        None => std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library"),
+    };
     Ok(sparksmith_io::shipped::ShippedLibrary::at(&root)?)
 }
 
@@ -108,13 +111,6 @@ fn search(search: &Search, q: &Question) -> Vec<HelpId> {
     search.search(&q.ask, audience(q), &[], 50).hits
 }
 
-fn before(index: &Index, q: &Question) -> Vec<HelpId> {
-    sparksmith_core::help::search(index, &q.ask, &[], 50)
-        .into_iter()
-        .map(|e| e.id.clone())
-        .collect()
-}
-
 /// The measurement: `cargo test -p sparksmith-help-search --test questions
 /// -- --ignored --nocapture measure`. `SPARKSMITH_HELP_MODEL` names another
 /// model folder; `SPARKSMITH_HELP_SET` prints that set's misses.
@@ -150,8 +146,7 @@ fn measure() -> Fallible {
     type Ask<'a> = Box<dyn FnMut(&Question) -> Vec<HelpId> + 'a>;
     for set in ["tune", "held"] {
         for who in ["person", "agent"] {
-            let ways: [(&str, Ask<'_>); 3] = [
-                ("before", Box::new(|q| before(&index, q))),
+            let ways: [(&str, Ask<'_>); 2] = [
                 ("text", Box::new(|q| search(&text, q))),
                 ("text+meaning", Box::new(|q| search(&both, q))),
             ];
@@ -161,7 +156,7 @@ fn measure() -> Fallible {
                     "{set} {who:6} {name:13} first {:2} three {:2} ten {:2} empty {:2} of {}",
                     s.first, s.three, s.ten, s.empty, s.asked
                 );
-                if shown == set && name != "before" {
+                if shown == set {
                     s.missed.iter().for_each(|m| println!("    {m}"));
                 }
             }
@@ -169,7 +164,113 @@ fn measure() -> Fallible {
     }
     for n in &all.nothing_fits {
         let found = both.search(&n.ask, Audience::People, &[], 5);
-        println!("{} {:?}: {found:?}", n.set, n.ask);
+        if n.set == shown {
+            let close = both.closest(&n.ask);
+            println!("{} {:?} {close:?}: {found:?}", n.set, n.ask);
+        }
     }
+    let mut near: Vec<_> = all
+        .questions
+        .iter()
+        .filter(|q| q.set == shown)
+        .filter_map(|q| Some((both.closest(&q.ask)?, &q.ask)))
+        .collect();
+    near.sort_by(|a, b| a.0.total_cmp(&b.0));
+    println!(
+        "least similar: {:?}",
+        near.iter().take(12).collect::<Vec<_>>()
+    );
+    Ok(())
+}
+
+/// The ratchet: questions answered within the first three topics, per set
+/// and audience, with the shipped model and by words alone. Raise a number
+/// when the search or the topics get better; a lower one is a regression.
+#[test]
+fn the_search_answers_the_questions_in_its_first_three_topics() -> Fallible {
+    let all = questions()?;
+    let shipped = library()?;
+    let index = sparksmith_io::help::load(&shipped)?;
+    let files = sparksmith_io::help::model(&shipped)?.ok_or("the shipped model")?;
+    let model = Model::read(&files.tokenizer, &files.weights, &files.config)?;
+    let both = Search::new(&index, Some(&model))?;
+    let text = Search::new(&index, None)?;
+    assert!(both.by_meaning() && !text.by_meaning());
+    // (set, audience, with the model, by words alone)
+    for (set, who, with, alone) in [
+        ("tune", "person", 47, 43),
+        ("held", "person", 50, 45),
+        ("tune", "agent", 6, 7),
+        ("held", "agent", 6, 5),
+    ] {
+        for (by, least) in [(&both, with), (&text, alone)] {
+            let s = score(&all, set, who, |q| search(by, q));
+            assert!(
+                s.three >= least,
+                "{set} {who}, model {}: {} of {}, at least {least}; missed {:#?}",
+                by.by_meaning(),
+                s.three,
+                s.asked,
+                s.missed
+            );
+        }
+    }
+    Ok(())
+}
+
+/// A question nothing answers gets no hits: the nearest topics are offered
+/// as such.
+#[test]
+fn a_question_no_topic_answers_says_so() -> Fallible {
+    let all = questions()?;
+    let shipped = library()?;
+    let index = sparksmith_io::help::load(&shipped)?;
+    let files = sparksmith_io::help::model(&shipped)?.ok_or("the shipped model")?;
+    let model = Model::read(&files.tokenizer, &files.weights, &files.config)?;
+    let search = Search::new(&index, Some(&model))?;
+    let mut answered = Vec::new();
+    for n in &all.nothing_fits {
+        let found = search.search(&n.ask, Audience::People, &[], 10);
+        if !found.hits.is_empty() {
+            answered.push((n.set.as_str(), n.ask.as_str()));
+        }
+    }
+    // Two made-up words are still taken for an answer: a known miss of the
+    // set that is only measured.
+    assert!(
+        answered.iter().all(|a| *a == ("held", "qwxv plmk")),
+        "{answered:?}"
+    );
+    Ok(())
+}
+
+/// People and agents read one ranking; the stated difference is the kind
+/// each looks for first. An exact id comes first, an empty question lists
+/// everything, and a kind filter keeps the order of what it keeps.
+#[test]
+fn the_audience_changes_only_the_weight_of_a_kind() -> Fallible {
+    let shipped = library()?;
+    let index = sparksmith_io::help::load(&shipped)?;
+    let search = Search::new(&index, None)?;
+    use sparksmith_core::help::HelpKind;
+    let ask = "connect two pins";
+    let place = |who, kind| {
+        let hits = search.search(ask, who, &[], usize::MAX).hits;
+        hits.iter().position(|id| id.kind() == kind)
+    };
+    let (people, agents) = (Audience::People, Audience::Agents);
+    assert!(place(people, HelpKind::Guide) < place(agents, HelpKind::Guide));
+    assert!(place(agents, HelpKind::Entry) < place(people, HelpKind::Entry));
+    let first = |ask: &str, who| search.search(ask, who, &[], 5).hits.first().cloned();
+    let exact = first("entry/project.save", Audience::People);
+    assert_eq!(
+        exact.as_ref().map(HelpId::as_str),
+        Some("entry/project.save")
+    );
+    let all = search.search("", Audience::People, &[], usize::MAX).hits;
+    assert_eq!(all.len(), index.len());
+    let only = search.search(ask, Audience::Agents, &[HelpKind::Entry], 5);
+    assert!(only.hits.iter().all(|id| id.kind() == HelpKind::Entry));
+    assert!(!only.hits.is_empty());
     Ok(())
 }

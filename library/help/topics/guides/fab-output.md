@@ -13,6 +13,8 @@
     "pick and place",
     "export ZIP",
     "order a PCB",
+    "gerber files",
+    "drill file",
     "factory",
     "preflight"
   ],

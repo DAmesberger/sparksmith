@@ -1,6 +1,5 @@
-//! The palette's matcher, shared by the offline help readers.
-use super::{Facts, HelpEntry, HelpKind, Index};
-
+//! The palette's letter matcher: what it lists for text the help search
+//! (`sparksmith-help-search`) finds no command for, and while it is made.
 pub const WORD_MATCH: u32 = 300;
 
 pub fn match_score(query: &str, title: &str, id: &str, keywords: &str, workspace: bool) -> u32 {
@@ -28,39 +27,6 @@ pub fn match_score(query: &str, title: &str, id: &str, keywords: &str, workspace
         .max(if all { 700 } else { 0 })
         .max(score(query, id) / 2)
         .max(whole)
-}
-
-pub fn search<'a>(
-    index: &'a Index,
-    text: &str,
-    kinds: &[HelpKind],
-    limit: usize,
-) -> Vec<&'a HelpEntry> {
-    let query = text.trim().to_lowercase();
-    let mut hits: Vec<_> = index
-        .values()
-        .filter(|e| kinds.is_empty() || kinds.contains(&e.id.kind()))
-        .filter_map(|entry| {
-            let mut keywords = entry.keywords.join(" ");
-            keywords.push(' ');
-            keywords.push_str(&entry.summary);
-            if let Facts::Term { avoid, .. } = &entry.facts {
-                keywords.push(' ');
-                keywords.push_str(&avoid.join(" "));
-            }
-            let weight = if entry.id.as_str() == query {
-                u32::MAX
-            } else {
-                match_score(&query, &entry.title, entry.id.as_str(), &keywords, false)
-            };
-            (weight > 0).then_some((weight, entry))
-        })
-        .collect();
-    if !query.is_empty() && hits.iter().any(|(s, _)| *s >= WORD_MATCH) {
-        hits.retain(|(s, _)| *s >= WORD_MATCH);
-    }
-    hits.sort_by_key(|(weight, entry)| (std::cmp::Reverse(*weight), &entry.title, &entry.id));
-    hits.into_iter().take(limit).map(|(_, e)| e).collect()
 }
 
 /// How well `q` matches `s` (0 = not at all): a prefix beats a word start beats a substring

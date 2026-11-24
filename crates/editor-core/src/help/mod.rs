@@ -7,7 +7,7 @@ pub use parameters::{parameter_type, parameter_value};
 mod search;
 use crate::{Class, Stage, diagnostics::Severity, rules::profile::ProfileSource};
 use schemars::JsonSchema;
-pub use search::{WORD_MATCH, match_score, score, search};
+pub use search::{WORD_MATCH, match_score, score};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sparksmith_generator_abi::{

@@ -12,7 +12,9 @@ workspace = true
 sparksmith-core.workspace = true
 # Full-text search (MIT): BM25, the English stemmer and stop words, prefixes
 # and misspellings. No file system, compression or C code.
-tantivy = { version = "0.27", default-features = false, features = ["stemmer", "stopwords"] }
+tantivy = { version = "0.27", default-features = false, features = ["stemmer"] }
+# The English stop words (question words included) the full text leaves out.
+stop-words = { version = "0.10", default-features = false, features = ["nltk"] }
 # Static word embeddings (MIT); `wasm` is its pure Rust build, without network,
 # C++ or progress bars, on every target. Exact: the licence gate reviewed it.
 model2vec-rs = { version = "=0.4.0", default-features = false, features = ["wasm"] }

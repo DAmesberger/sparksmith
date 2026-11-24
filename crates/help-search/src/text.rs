@@ -1,6 +1,6 @@
 //! The full-text ranking, by Tantivy, in memory.
 use crate::Topic;
-use tantivy::collector::TopDocs;
+use tantivy::collector::{Count, TopDocs};
 use tantivy::directory::RamDirectory;
 use tantivy::query::{BooleanQuery, BoostQuery, FuzzyTermQuery, Occur, Query, TermQuery};
 use tantivy::schema::{Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value};
@@ -19,6 +19,16 @@ const BOOSTS: [f32; 4] = [8.0, 4.0, 3.0, 1.0];
 /// Fields a started word or a misspelling is looked up in: title, keywords.
 const LOOSE: usize = 2;
 
+/// What the full text found.
+#[derive(Default)]
+pub(crate) struct Ranked {
+    /// The topics that match a word, best first.
+    pub topics: Vec<usize>,
+    /// Whether at least half of the question's words are words of the help (a
+    /// misspelled one counts): fewer, and a match is by chance.
+    pub most_known: bool,
+}
+
 pub(crate) struct Text {
     reader: IndexReader,
     fields: [Field; 4],
@@ -35,7 +45,8 @@ fn words() -> TextAnalyzer {
 }
 
 fn english() -> Result<TextAnalyzer, String> {
-    let stop = StopWordFilter::new(Language::English).ok_or("No English stop words")?;
+    let stop = stop_words::lookup("en").ok_or("No English stop words")?;
+    let stop = StopWordFilter::remove(stop.iter().map(|word| (*word).to_owned()));
     Ok(TextAnalyzer::builder(SimpleTokenizer::default())
         .filter(RemoveLongFilter::limit(64))
         .filter(LowerCaser)
@@ -99,14 +110,16 @@ impl Text {
     }
 
     /// The topics of `wanted` that match a word of `question`, best first.
-    pub(crate) fn ranked(&self, question: &str, wanted: &dyn Fn(usize) -> bool) -> Vec<usize> {
+    pub(crate) fn ranked(&self, question: &str, wanted: &dyn Fn(usize) -> bool) -> Ranked {
         let searcher = self.reader.searcher();
         let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
         let mut add = |query: Box<dyn Query>, boost: f32| {
             let query: Box<dyn Query> = Box::new(BoostQuery::new(query, boost));
             clauses.push((Occur::Should, query));
         };
+        let (mut asked, mut known_words) = (0usize, 0usize);
         for word in tokens(&self.english, question) {
+            asked += 1;
             let mut known = false;
             for (field, boost) in self.fields.iter().zip(BOOSTS) {
                 let term = Term::from_field_text(*field, &word);
@@ -120,16 +133,19 @@ impl Text {
             }
             // A word no topic has: the words it may be a misspelling of.
             let distance = match word.chars().count() {
-                0..=3 => 0,
-                4..=7 => 1,
+                0..=5 => 0,
+                6..=8 => 1,
                 _ => 2,
             };
             if !known && distance > 0 {
                 for (field, boost) in self.fields.iter().zip(BOOSTS).take(LOOSE) {
                     let term = Term::from_field_text(*field, &word);
-                    add(Box::new(FuzzyTermQuery::new(term, distance, true)), boost);
+                    let near = FuzzyTermQuery::new(term, distance, true);
+                    known |= searcher.search(&near, &Count).is_ok_and(|n| n > 0);
+                    add(Box::new(near), boost);
                 }
             }
+            known_words += usize::from(known);
         }
         // The word being typed: what it is the start of.
         if let Some(last) = tokens(&self.words, question).pop()
@@ -142,21 +158,26 @@ impl Text {
             }
         }
         if clauses.is_empty() {
-            return Vec::new();
+            return Ranked::default();
         }
         let query = BooleanQuery::new(clauses);
         // Every match is read: the wanted kinds may be a small part of them.
         let all = searcher.num_docs().max(1) as usize;
         let Ok(found) = searcher.search(&query, &TopDocs::with_limit(all).order_by_score()) else {
-            return Vec::new();
+            return Ranked::default();
         };
-        found
+        let topics: Vec<usize> = found
             .into_iter()
             .filter_map(|(_, at)| {
                 let document: TantivyDocument = searcher.doc(at).ok()?;
                 usize::try_from(document.get_first(self.number)?.as_u64()?).ok()
             })
             .filter(|i| wanted(*i))
-            .collect()
+            .collect();
+        Ranked {
+            // One word being typed is known by what it starts.
+            most_known: known_words * 2 >= asked || (asked <= 1 && !topics.is_empty()),
+            topics,
+        }
     }
 }

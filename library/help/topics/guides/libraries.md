@@ -8,6 +8,10 @@
   },
   "id": "guide/libraries",
   "keywords": [
+    "add a part",
+    "add a capacitor",
+    "resistor value",
+    "place a part",
     "library folders",
     "find parts",
     "generic resistor",

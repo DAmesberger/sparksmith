@@ -3,7 +3,7 @@
   "id": "guide/ai-setup",
   "kind": "guide",
   "title": "Set up the assistant",
-  "summary": "Connect a model for the chat, or let an assistant you have work on the project.",
+  "summary": "Connect a model for the chat, or let Claude or another assistant work on the project.",
   "since": "0.1.0",
   "covers": {
     "command/app.connect-assistants": "0",

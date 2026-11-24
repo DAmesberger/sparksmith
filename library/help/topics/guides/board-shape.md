@@ -11,6 +11,7 @@
   },
   "keywords": [
     "board size",
+    "edge of the board",
     "outline",
     "edge",
     "resize",

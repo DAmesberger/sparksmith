@@ -25,8 +25,10 @@ const DEPTH: usize = 50;
 /// al., 2009) and commonly used.
 const FUSION: f32 = 60.0;
 /// Cosine similarity under which a topic found by meaning alone is only
-/// "nearest": nothing answers the question.
-const FITS: f32 = 0.45;
+/// "nearest": nothing answers the question. Between the closest of the
+/// tuning questions nothing answers (0.29) and the least similar of those a
+/// topic does (0.40).
+const FITS: f32 = 0.35;
 /// Topics offered when nothing fits.
 const NEAREST: usize = 3;
 /// The longest question read, in bytes (cut at a character).
@@ -126,10 +128,11 @@ impl Search {
             .as_ref()
             .map(|v| v.ranked(question, DEPTH, &wanted))
             .unwrap_or_default();
-        let fits = !text.is_empty() || meaning.first().is_some_and(|(_, cosine)| *cosine >= FITS);
+        let close = meaning.first().is_some_and(|(_, cosine)| *cosine >= FITS);
+        let fits = close || (text.most_known && !text.topics.is_empty());
         let by_meaning = meaning.iter().map(|(i, _)| *i);
         let mut scores: HashMap<usize, f32> = HashMap::new();
-        for ranking in [text, by_meaning.collect()] {
+        for ranking in [text.topics, by_meaning.collect()] {
             for (rank, i) in ranking.into_iter().enumerate() {
                 *scores.entry(i).or_default() += 1.0 / (FUSION + rank as f32);
             }
@@ -156,6 +159,14 @@ impl Search {
             hits: self.named(exact.into_iter().chain(rest).take(limit)),
             nearest: Vec::new(),
         }
+    }
+
+    /// The similarity of the topic closest to `question` by meaning: what
+    /// [`FITS`] is compared with (the measurement reads it).
+    #[doc(hidden)]
+    pub fn closest(&self, question: &str) -> Option<f32> {
+        let found = self.vectors.as_ref()?.ranked(question, 1, &|_| true);
+        found.first().map(|(_, cosine)| *cosine)
     }
 
     fn kind(&self, i: usize) -> Option<HelpKind> {

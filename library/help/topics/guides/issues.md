@@ -9,6 +9,8 @@
     "entry/project.issues": "0"
   },
   "keywords": [
+    "warnings on the board",
+    "errors on the board",
     "error",
     "warning",
     "problem",
