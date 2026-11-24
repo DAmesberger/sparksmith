@@ -768,14 +768,26 @@ impl<'a> Ctx<'a> {
         };
         match hit.target {
             Target::Base(k) => match self.index.obstacles.items().get(k) {
-                Some(o) => format!(
-                    "Too close to {}: {}",
-                    self.index.obstacles.label(k),
-                    need(
-                        o.object(),
-                        o.limiting_net(&self.rules, probe.object, probe.net)
-                    )
-                ),
+                Some(o) => {
+                    let net = o.limiting_net(&self.rules, probe.object, probe.net);
+                    let label = self.index.obstacles.label(k);
+                    // The copper keeps its clearance and the via's drilled
+                    // hole does not: name the hole and the hole's rule
+                    // ([`Self::too_close`] tests both).
+                    let copper = self.clearance(probe.object, probe.net, o.object(), net);
+                    let hole = CopperObject::ViaHole;
+                    let drilled = self.base_via(k).map(CopperRing::of_drill).is_some_and(|d| {
+                        !probe.ring.closer_than(&o.ring, copper)
+                            && probe
+                                .ring
+                                .closer_than(&d, self.clearance(probe.object, probe.net, hole, net))
+                    });
+                    if drilled {
+                        format!("Too close to the hole of {label}: {}", need(hole, net))
+                    } else {
+                        format!("Too close to {label}: {}", need(o.object(), net))
+                    }
+                }
                 None => self.describe(hit),
             },
             Target::Hole(i) => match self.index.holes.get(i) {

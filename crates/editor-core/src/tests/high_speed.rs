@@ -10,7 +10,7 @@ use crate::layout::meander::{MeanderStyle, TuneAmount, TuneRequest};
 use crate::layout::pair::{PairLeg, PairRouteRequest};
 use crate::layout::{self, LayoutCommand};
 use crate::rules::signal::{CheckSettings, DiffPairId, DiffPairSpec, LengthGroupSpec, SignalRules};
-use crate::rules::{NetClassSpec, RulesCommand};
+use crate::rules::{CopperObject, NetClassSpec, RuleKey, RuleValue, RulesCommand};
 use crate::schematic::SchematicCommand;
 use crate::{
     CopperLayer, Engine, Error, Id, InstanceCommand, Layer, Operation, Outcome, Point, Query,
@@ -309,6 +309,62 @@ fn a_layer_change_adds_a_via_pair_and_its_barrel_length() -> Result<()> {
         "{:?}",
         board_codes(&usb.engine)
     );
+    Ok(())
+}
+
+/// A profile may keep a track farther from a via's drilled hole than from
+/// its pad (a fabricator's "via hole to track" row). The via pair of a
+/// layer change is then spaced for the holes too: each half's coupled
+/// track passes the other half's hole at the rule, so the route is not
+/// refused by its own vias.
+#[test]
+fn a_layer_change_spaces_its_via_pair_for_the_hole_clearance() -> Result<()> {
+    const HOLE_MM: f64 = 0.6;
+    let mut usb = usb(usb90())?;
+    apply(
+        &mut usb.engine,
+        Operation::Rules(RulesCommand::SetOverride {
+            key: RuleKey::Clearance {
+                a: CopperObject::Track,
+                b: CopperObject::ViaHole,
+            },
+            value: RuleValue::Length(HOLE_MM),
+        }),
+    )?;
+    let a = mid(usb.start[0], usb.start[1]);
+    let b = mid(usb.end[0], usb.end[1]);
+    let turn = [0.5 * (a[0] + b[0]), a[1]];
+    routed(
+        &mut usb,
+        vec![
+            PairLeg {
+                layer: CopperLayer::Top,
+                points: vec![a, turn],
+            },
+            PairLeg {
+                layer: CopperLayer::Bottom,
+                points: vec![turn, b],
+            },
+        ],
+    )?;
+    let project = usb.engine.project();
+    assert_eq!(project.vias.len(), 2);
+    for via in &project.vias {
+        let nearest = project
+            .tracks
+            .iter()
+            .filter(|t| t.net != via.net)
+            .map(|t| {
+                crate::geometry::segment_distance(via.position, t.start, t.end)
+                    - t.width / 2.0
+                    - via.drill / 2.0
+            })
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            nearest >= HOLE_MM,
+            "{nearest} mm from the other half's hole"
+        );
+    }
     Ok(())
 }
 
