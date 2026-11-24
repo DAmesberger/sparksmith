@@ -197,6 +197,33 @@ fn j1_moved_half_a_millimetre_keeps_the_usb_pair_coupled() -> Fallible {
     undo_to(&mut engine, &before)
 }
 
+/// J1 moved 2 mm takes R2's via to the +3V3 plane onto IO42's track. The
+/// via is shoved clear and stays, R2 stays on +3V3, and no via is lost
+/// (the edit was once accepted with that via gone, R2 off its plane).
+#[test]
+fn j1_moved_two_millimetres_keeps_r2_on_its_plane() -> Fallible {
+    let mut engine = example()?;
+    let vias = |e: &Engine| -> Vec<u64> { e.project().vias.iter().map(|v| v.id).collect() };
+    let had = vias(&engine);
+    for mm in [2.0, -2.0] {
+        let operation = j1_right(&engine, mm)?;
+        let before = engine.to_file();
+        engine.apply_hosted(engine.revision(), operation, hosted())?;
+        assert_eq!(vias(&engine), had, "{mm} mm");
+        println!("{mm} mm: {:?}", engine.rerouted());
+        let found = issues(&mut engine)?;
+        println!("{mm} mm: {found:?}");
+        assert!(
+            !found.iter().any(|f| f.contains("clearance")),
+            "{mm} mm: {found:?}"
+        );
+        let open: Vec<_> = layout::airwires(engine.project());
+        assert!(open.is_empty(), "{mm} mm: {open:?}");
+        undo_to(&mut engine, &before)?;
+    }
+    Ok(())
+}
+
 /// Night finding R7-1: with the pair re-routed by hand, J1 moved 1 mm
 /// along the edge (then by a board 42 mm wide) carried it across U3's pad
 /// and into itself (clearance errors).
