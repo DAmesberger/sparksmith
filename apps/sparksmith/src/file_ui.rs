@@ -5,6 +5,7 @@
 use crate::kit::severity::Level;
 use sparksmith_automation::cancel::Cancel;
 use sparksmith_automation::{FileChange, HostFile};
+use sparksmith_core::library::standards::Context;
 use sparksmith_core::{Document, Engine, FirstSave, Project, format::EditorFile};
 use sparksmith_io::recovery::{self, RecoveryEntry, RecoveryRecord, RecoveryStore, Snapshot};
 use sparksmith_io::{DiskIdentity, SavedDocument, UnsavedCopy};
@@ -13,7 +14,7 @@ use sparksmith_ui::ui_kit::{self, Button};
 use std::{
     path::{Path, PathBuf},
     sync::{
-        Arc,
+        Arc, Mutex, MutexGuard, PoisonError, TryLockError,
         mpsc::{self, Receiver, Sender},
     },
     time::Duration,
@@ -355,25 +356,120 @@ enum Wrote {
     InUse(Box<sparksmith_io::InUse>),
 }
 
-/// The file worker. Without a recovery folder (`directory` is the reason)
-/// files still open and save, and startup reports that recovery is off.
-fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>) -> Sender<Job> {
+/// This session's recovery snapshot, which the file worker writes while the
+/// app runs and the app itself when it ends: then behind no other file job.
+struct Recovery {
+    /// Where, or why nowhere.
+    directory: Outcome<PathBuf>,
+    store: Mutex<Store>,
+    /// The standards documents are written with, as the worker's.
+    context: Option<Arc<Context>>,
+}
+
+enum Store {
+    /// Not made yet.
+    New,
+    Ready(RecoveryStore),
+    /// There is none, and why.
+    Off(String),
+    /// The app has ended: nothing changes its last snapshot.
+    Ended,
+}
+
+impl Recovery {
+    fn new(directory: Outcome<PathBuf>) -> Self {
+        Self {
+            directory,
+            store: Mutex::new(Store::New),
+            context: Context::current().ok(),
+        }
+    }
+
+    /// The store, made when it was not yet. Never held across anything but
+    /// recovery's own writes.
+    fn lock(&self) -> MutexGuard<'_, Store> {
+        self.made(self.store.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    fn made<'a>(&self, mut store: MutexGuard<'a, Store>) -> MutexGuard<'a, Store> {
+        if matches!(*store, Store::New) {
+            let made = self.directory.as_ref().map_err(Clone::clone).and_then(|d| {
+                RecoveryStore::new(d)
+                    .map_err(|e| format!("Recovery unavailable: cannot use {}: {e}", d.display()))
+            });
+            *store = match made {
+                Ok(made) => Store::Ready(made),
+                Err(why) => Store::Off(why),
+            };
+        }
+        store
+    }
+
+    /// The last snapshot: `document`, and after it none is written or
+    /// removed by a job still waiting. One being written is waited for,
+    /// however long it takes; `say` is told so.
+    fn end_with(
+        &self,
+        document: &Document,
+        origin: Option<&Path>,
+        say: &mut dyn FnMut(&str),
+    ) -> Outcome<()> {
+        let mut store = match self.store.try_lock() {
+            Ok(store) => self.made(store),
+            Err(TryLockError::Poisoned(store)) => self.made(store.into_inner()),
+            Err(TryLockError::WouldBlock) => {
+                say("Waiting for the recovery copy being written");
+                self.lock()
+            }
+        };
+        let _context = self.context.as_ref().map(|c| c.enter());
+        let written = store.write(document, origin);
+        if written.is_ok() {
+            *store = Store::Ended;
+        }
+        written
+    }
+}
+
+impl Store {
+    fn write(&mut self, document: &Document, origin: Option<&Path>) -> Outcome<()> {
+        match self {
+            Self::Ready(store) => store
+                .write(&EditorFile::from_document(document), origin)
+                .map_err(|e| e.to_string()),
+            Self::Off(why) => Err(why.clone()),
+            Self::New | Self::Ended => Err("The app is ending".into()),
+        }
+    }
+
+    fn remove_own(&mut self) -> Outcome<()> {
+        match self {
+            Self::Ready(store) => store.remove_own().map_err(|e| e.to_string()),
+            Self::New | Self::Off(_) | Self::Ended => Ok(()),
+        }
+    }
+}
+
+/// The file worker. Without a recovery folder files still open and save,
+/// and startup reports that recovery is off.
+fn worker(ctx: egui::Context, recovery: Arc<Recovery>, events: Sender<Event>) -> Sender<Job> {
     let (sender, jobs) = mpsc::channel();
     std::thread::spawn(sparksmith_core::library::standards::carried(move || {
-        let mut store = directory.as_ref().map_err(Clone::clone).and_then(|d| {
-            RecoveryStore::new(d)
-                .map_err(|e| format!("Recovery unavailable: cannot use {}: {e}", d.display()))
-        });
-        let startup = match (&directory, &store) {
+        let directory = &recovery.directory;
+        let off = match &*recovery.lock() {
+            Store::Off(why) => Some(why.clone()),
+            _ => None,
+        };
+        let startup = match (directory, off) {
             (Err(error), _) => Err(format!(
                 "Recovery unavailable: {error}. Unsaved work is not kept if {product} stops.",
                 product = sparksmith_core::product::NAME
             )),
-            (_, Err(error)) => Err(format!(
+            (_, Some(error)) => Err(format!(
                 "{error}. Unsaved work is not kept if {product} stops.",
                 product = sparksmith_core::product::NAME
             )),
-            (Ok(directory), Ok(_)) => recovery::list(directory).map_err(|e| e.to_string()),
+            (Ok(directory), None) => recovery::list(directory).map_err(|e| e.to_string()),
         };
         if events.send(Event::Startup(startup)).is_err() {
             return;
@@ -426,19 +522,11 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                     Event::PdfExported(ticket, path, result)
                 }
                 Job::Recover(ticket, document, origin) => {
-                    let file = EditorFile::from_document(&document);
-                    let result = store.as_mut().map_err(|e| e.clone()).and_then(|store| {
-                        store
-                            .write(&file, origin.as_deref())
-                            .map_err(|e| e.to_string())
-                    });
+                    let result = recovery.lock().write(&document, origin.as_deref());
                     Event::Recovered(ticket, false, false, result)
                 }
                 Job::ClearRecovery(ticket, close) => {
-                    let result = match &mut store {
-                        Ok(store) => store.remove_own().map_err(|e| e.to_string()),
-                        Err(_) => Ok(()),
-                    };
+                    let result = recovery.lock().remove_own();
                     Event::Recovered(ticket, true, close, result)
                 }
                 Job::Restore(ticket, snapshot) => {
@@ -493,6 +581,8 @@ pub struct FileUi {
     picker: rfd::AsyncFileDialog,
     folder: PathBuf,
     sender: Sender<Job>,
+    /// The session's recovery snapshot.
+    recovery: Arc<Recovery>,
     event_sender: Sender<Event>,
     receiver: Receiver<Event>,
     effects: Vec<Effect>,
@@ -567,7 +657,8 @@ impl FileUi {
         directory: Outcome<PathBuf>,
     ) -> Self {
         let (events, receiver) = mpsc::channel();
-        let sender = worker(ctx.clone(), directory, events.clone());
+        let recovery = Arc::new(Recovery::new(directory));
+        let sender = worker(ctx.clone(), Arc::clone(&recovery), events.clone());
         Self {
             controller: Controller::new(engine.revision()),
             document: engine.document().clone(),
@@ -576,6 +667,7 @@ impl FileUi {
             picker,
             folder: home_directory(),
             sender,
+            recovery,
             event_sender: events,
             receiver,
             effects: vec![],
@@ -813,37 +905,34 @@ impl FileUi {
     }
 
     /// The app is ending without a Save or Don't Save answer (Dock › Quit,
-    /// a logout, a signal): write unsaved work to this session's recovery
-    /// snapshot now, waiting at most `wait`, so the next launch offers it.
-    /// Returns whether the snapshot holds the current document.
-    pub fn keep_for_recovery(&mut self, wait: Duration) -> bool {
+    /// a logout): write unsaved work to this session's recovery snapshot,
+    /// so the next launch offers it. It is written here and not on the file
+    /// worker, so no save, open or import holds it up, and waited for until
+    /// it is there, however long that takes; a running import is stopped.
+    /// `say` is told what it waits for. Whether there was work to keep.
+    pub fn keep_for_recovery(&mut self, say: &mut dyn FnMut(&str)) -> Outcome<bool> {
         if self.closed || !self.controller.dirty() {
-            return false;
+            return Ok(false);
         }
+        self.stop_import();
         if self.controller.recovered.as_ref() == Some(&self.controller.current) {
-            return true;
+            return Ok(true);
         }
-        let Ok(ticket) = self.controller.allocate() else {
-            return false;
-        };
-        self.controller.recovery_flight = Some(ticket.clone());
-        self.send(Job::Recover(
-            ticket.clone(),
-            self.document.clone(),
-            self.controller.path.clone(),
-        ));
-        let deadline = std::time::Instant::now() + wait;
-        while let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) {
-            let Ok(event) = self.receiver.recv_timeout(left) else {
-                break;
-            };
-            let ours = matches!(&event, Event::Recovered(t, false, false, _) if *t == ticket);
-            self.receive(event);
-            if ours {
-                break;
-            }
+        let origin = self.controller.path.clone();
+        self.recovery
+            .end_with(&self.document, origin.as_deref(), say)?;
+        self.controller.recovered = Some(self.controller.current.clone());
+        // This session holds the restored work in its own snapshot now.
+        let epoch = self.controller.current.epoch;
+        if let Some((_, source)) = self.restored_source.take_if(|(e, _)| *e == epoch)
+            && let Ok(directory) = &self.recovery.directory
+            && let Err(error) = recovery::remove_entry(directory, &source)
+        {
+            say(&format!(
+                "The recovery copy this work was restored from stays: {error}"
+            ));
         }
-        self.controller.recovered.as_ref() == Some(&self.controller.current)
+        Ok(true)
     }
     fn send(&mut self, job: Job) {
         if let Job::Write(ticket, path, ..) = &job {

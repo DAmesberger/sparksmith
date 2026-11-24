@@ -448,7 +448,7 @@ fn dont_save_closes_and_removes_the_recovery_copy() -> Fallible {
     }
     assert!(h.recoverable()?.is_empty());
     // The exit that follows keeps nothing either.
-    assert!(!h.files.keep_for_recovery(Duration::from_secs(1)));
+    assert_eq!(h.files.keep_for_recovery(&mut |_| {}), Ok(false));
     assert!(h.recoverable()?.is_empty());
     Ok(())
 }
@@ -754,8 +754,84 @@ fn an_unanswered_exit_keeps_the_latest_edit_for_recovery() -> Fallible {
     h.edit("First")?;
     h.snapshot("First")?;
     h.edit("Latest")?;
-    assert!(h.files.keep_for_recovery(Duration::from_secs(5)));
+    assert_eq!(h.files.keep_for_recovery(&mut |_| {}), Ok(true));
     assert_eq!(h.recoverable()?, ["Latest"]);
+    Ok(())
+}
+
+/// The exit waits for a snapshot being written, however long, says so, and
+/// then holds the latest edit; what the file worker still had to do does
+/// not change it any more.
+#[test]
+fn an_exit_waits_for_a_held_snapshot_and_has_the_last_word() -> Fallible {
+    let mut h = Harness::new()?;
+    h.edit("First")?;
+    h.snapshot("First")?;
+    h.edit("Latest")?;
+    let recovery = Arc::clone(&h.files.recovery);
+    let (held, holding) = mpsc::channel();
+    let (release, released) = mpsc::channel::<()>();
+    let holder = std::thread::spawn(move || {
+        let store = recovery.lock();
+        let _ = held.send(());
+        let _ = released.recv();
+        drop(store);
+    });
+    holding.recv()?;
+    // Queued before the exit, run after it: an older snapshot and a removal.
+    let ticket = h.files.controller.allocate()?;
+    let older = Engine::demo()?.document().clone();
+    h.files.send(Job::Recover(ticket.clone(), older, None));
+    h.files.send(Job::ClearRecovery(ticket, false));
+    let mut said = Vec::new();
+    let kept = h.files.keep_for_recovery(&mut |text| {
+        said.push(text.to_owned());
+        let _ = release.send(());
+    });
+    holder.join().map_err(|_| "the holder panicked")?;
+    // The worker may have run the queued jobs before this write or after.
+    assert_eq!(kept, Ok(true));
+    assert_eq!(said, ["Waiting for the recovery copy being written"]);
+    let mut done = 0;
+    while done < 2 {
+        if matches!(h.files.receiver.recv()?, Event::Recovered(..)) {
+            done += 1;
+        }
+    }
+    assert_eq!(h.recoverable()?, ["Latest"]);
+    Ok(())
+}
+
+/// A snapshot that cannot be written is an error with its reason, never a
+/// silent loss.
+#[test]
+fn an_exit_that_cannot_keep_the_work_says_why() -> Fallible {
+    let mut h = Harness::new()?;
+    h.until("the recovery folder", |h| {
+        h.dir.path().join("recovery").is_dir()
+    })?;
+    h.edit("Lost")?;
+    std::fs::remove_dir_all(h.dir.path().join("recovery"))?;
+    let kept = h.files.keep_for_recovery(&mut |_| {});
+    assert!(kept.as_ref().is_err_and(|why| !why.is_empty()), "{kept:?}");
+    assert!(h.files.dirty());
+    Ok(())
+}
+
+/// A running import is stopped by the exit, which keeps the work without
+/// waiting for it.
+#[test]
+fn an_exit_stops_a_running_import() -> Fallible {
+    let mut h = Harness::new()?;
+    h.edit("Kept")?;
+    let board = h.dir.path().join("demo.kicad_pcb");
+    std::fs::write(&board, KICAD_BOARD)?;
+    let ticket = h.files.begin(Kind::Import, None).ok_or("no import")?;
+    let cancel = Cancel::default();
+    h.files.send(Job::Import(ticket, board, cancel.clone()));
+    assert_eq!(h.files.keep_for_recovery(&mut |_| {}), Ok(true));
+    assert!(cancel.is_set());
+    assert_eq!(h.recoverable()?, ["Kept"]);
     Ok(())
 }
 
@@ -856,7 +932,7 @@ fn a_clean_quit_leaves_no_recovery_file() -> Fallible {
             h.click(DONT_SAVE)?;
         }
         h.until("the close", Harness::closed)?;
-        assert!(!h.files.keep_for_recovery(Duration::from_secs(1)));
+        assert_eq!(h.files.keep_for_recovery(&mut |_| {}), Ok(false));
         assert_eq!(h.recovery_files()?, Vec::<PathBuf>::new(), "edit: {edit}");
     }
     Ok(())

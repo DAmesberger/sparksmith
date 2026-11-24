@@ -2155,9 +2155,16 @@ impl eframe::App for App {
     /// The app ends without asking only when the system ends it (Dock ›
     /// Quit on macOS, a logout): unsaved work then goes to this session's
     /// recovery snapshot, which the next launch offers to restore.
+    /// It is waited for until it is written; a signal ends the app at once,
+    /// this wait included.
     fn on_exit(&mut self) {
-        self.files
-            .keep_for_recovery(std::time::Duration::from_secs(5));
+        let product = sparksmith_core::product::NAME;
+        let mut say = |text: &str| eprintln!("{product}: {text}");
+        if let Err(error) = self.files.keep_for_recovery(&mut say) {
+            say(&format!(
+                "Unsaved work could not be kept for recovery: {error}"
+            ));
+        }
     }
 }
 
