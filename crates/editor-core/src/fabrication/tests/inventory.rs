@@ -102,7 +102,7 @@ fn copper_matches(project: &Project, set: &FabricationSet) -> Fallible<()> {
 }
 
 /// Every drill and slot of both Excellon files is one hole of the
-/// inventory, of its size and plating, and every hole of the inventory is
+/// inventory, of its size, plating and function, and every hole of the inventory is
 /// drilled once.
 fn drills_match(project: &Project, set: &FabricationSet) -> Fallible<()> {
     let mut holes = physical::holes(project);
@@ -117,8 +117,10 @@ fn drills_match(project: &Project, set: &FabricationSet) -> Fallible<()> {
                 .get(&hit.tool())
                 .copied()
                 .ok_or("a hit of no tool")?;
+            let function = drill.tool_functions.get(&hit.tool());
             let at = holes.iter().position(|h| {
                 h.plated == plated
+                    && function.is_some_and(|f| *f == [h.function.aper_function()])
                     && (h.feature.diameter() - size).abs() <= DRILL_MM
                     && match (h.feature, hit) {
                         (HoleFeature::Round { at, .. }, Hit::Round { at: p, .. }) => {

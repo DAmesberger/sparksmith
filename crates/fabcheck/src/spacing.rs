@@ -235,7 +235,7 @@ pub fn fill_spacings(
             let via = file
                 .tool_functions
                 .get(&tool)
-                .is_some_and(|f| f.iter().any(|v| v == "ViaDrill"));
+                .is_some_and(|f| f.first().is_some_and(|v| v == "ViaDrill"));
             let at = match *hit {
                 Hit::Round { at, .. } => at,
                 Hit::Slot { from, to, .. } => [(from[0] + to[0]) / 2.0, (from[1] + to[1]) / 2.0],

@@ -112,7 +112,7 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
 
 ### Excellon conventions
 
-- **Header:** `M48`, X2 attributes as `; #@! TF.…` comments, `FMAT,2`, `METRIC`, and one `TnnCd.ddd` tool table per file, each tool preceded by its `TA.AperFunction` comment.
+- **Header:** `M48`, X2 attributes as `; #@! TF.…` comments, `FMAT,2`, `METRIC`, and one `TnnCd.ddd` tool table per file, each tool preceded by its function (`TA.AperFunction,ViaDrill`, XNC specification 2021.11, p. 18; the file function states the plating).
 - **Body:** `%`, `G90`, `G05`, then decimal-point coordinates at 3 decimals, so no zero-suppression convention applies. The file ends with `T0` and `M30`.
 - **Slots:** pad slots and plated straight board slots are canned `G85` slots with the tool's width. A board slot or circle is one only when its whole outline lies within 0.1 µm of the slot or circle read from its two half turns (`layout::physical::stadium`): arcs that bulge inwards, sides that are not parallel and open or non-tangent outlines are not.
 - **Tools:** one per (plating, diameter to 1 µm, hit or slot, function), numbered from 1 across both files, plated first (T1–T3 plated, T4 non-plated), so a number names one tool in the drill table, the drill map, the fabrication drawing and either file. Excellon numbers tools per file, but a fabricator who loads both files into one CAM job, or reads the combined drill table, then never sees two tools called T1.

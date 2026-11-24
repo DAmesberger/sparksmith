@@ -115,7 +115,7 @@ pub struct LayerResult {
 /// One drill function compared.
 #[derive(Clone, Debug)]
 pub struct DrillResult {
-    /// `Plated` or `NonPlated`.
+    /// The whole file function, such as `Plated,1,4,PTH`.
     pub function: String,
     pub diff: DrillDiff,
     /// Reference hits the scope left out (via drills).
@@ -164,14 +164,15 @@ fn gerbers(files: &[File]) -> Fallible<BTreeMap<String, GerberFile>> {
     Ok(out)
 }
 
-fn drill_files(files: &[File]) -> Fallible<BTreeMap<String, excellon::DrillFile>> {
+/// The drill files by their whole file function (`Plated,1,4,PTH`).
+fn drill_files(
+    files: &[File],
+    read: impl Fn(&str) -> Fallible<excellon::DrillFile>,
+) -> Fallible<BTreeMap<String, excellon::DrillFile>> {
     let mut out = BTreeMap::new();
     for file in files.iter().filter(|f| f.name.ends_with(".drl")) {
-        let parsed = excellon::parse(std::str::from_utf8(&file.bytes)?)?;
-        let Some(kind) = parsed
-            .attribute(".FileFunction")
-            .and_then(|f| f.first().cloned())
-        else {
+        let parsed = read(std::str::from_utf8(&file.bytes)?)?;
+        let Some(kind) = parsed.attribute(".FileFunction").map(|f| f.join(",")) else {
             return Err(format!("sets: {} states no file function", file.name).into());
         };
         if out.insert(kind.clone(), parsed).is_some() {
@@ -339,8 +340,8 @@ pub fn compare_sets(
             reference: b,
         });
     }
-    let mine = drill_files(ours)?;
-    let theirs = drill_files(reference)?;
+    let mine = drill_files(ours, excellon::parse)?;
+    let theirs = drill_files(reference, excellon::parse_reference)?;
     let mut kinds: Vec<&String> = mine.keys().chain(theirs.keys()).collect();
     kinds.sort();
     kinds.dedup();
@@ -354,7 +355,7 @@ pub fn compare_sets(
             Some(file) => {
                 let all = hits(file, |_| true)?;
                 let kept = hits(file, |f| {
-                    scope != Scope::Pads || !f.iter().any(|v| v == "ViaDrill")
+                    scope != Scope::Pads || f.first().is_none_or(|v| v != "ViaDrill")
                 })?;
                 let excluded = all.len() - kept.len();
                 (shifted_hits(kept, judge.shift_nm), excluded)
