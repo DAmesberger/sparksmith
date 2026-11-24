@@ -38,8 +38,8 @@ use sparksmith_core::layout::outline::{
     FreeFormCurve, refuses,
 };
 use sparksmith_core::library::footprint_source::{
-    DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, ParamUnit, SketchBlob, SketchCurveId,
-    SketchEdit, SketchOutcome, SketchPointId, SketchRef, SolveStatus, SolveSummary,
+    DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, ParamUnit, ParamValue, SketchBlob,
+    SketchCurveId, SketchEdit, SketchOutcome, SketchPointId, SketchRef, SolveStatus, SolveSummary,
 };
 use sparksmith_core::library::{MAX_OUTLINE_SEGMENTS, Outline, Segment};
 use sparksmith_core::model::board::{
@@ -903,7 +903,11 @@ fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
         .parameters
         .iter()
         .filter_map(|p| {
-            let value = q(values.of(&p.name.0, p.unit)?).ok()?;
+            let value = match values.of(p)? {
+                ParamValue::Length(mm) => ParamValue::Length(q(mm).ok()?),
+                ParamValue::Angle(deg) => ParamValue::Angle(q(deg).ok()?),
+                count => count,
+            };
             Some(ParameterValue {
                 name: p.name.clone(),
                 value,

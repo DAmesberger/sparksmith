@@ -7,8 +7,8 @@
 use crate::geometry::{Bounds, Point};
 use crate::ids::Id;
 use crate::library::footprint_source::{
-    EvaluatorRef, Expr, FootprintParam, ParamName, SketchBlob, SketchCurveId, SketchPointId,
-    SolveSummary,
+    EvaluatorRef, Expr, FootprintParam, ParamName, ParamValue, SketchBlob, SketchCurveId,
+    SketchPointId, SolveSummary,
 };
 use crate::library::{Outline, Segment};
 use schemars::JsonSchema;
@@ -363,13 +363,12 @@ pub struct BoardSketch {
     pub values: Vec<ParameterValue>,
 }
 
-/// A board parameter's evaluated value, in the parameter's own unit:
-/// millimetres, degrees or a count.
+/// A board parameter's evaluated value, in the parameter's own unit.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ParameterValue {
     pub name: ParamName,
-    pub value: f64,
+    pub value: ParamValue,
 }
 
 /// Points one [`ShapeFault`] names at most.

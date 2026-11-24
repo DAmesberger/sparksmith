@@ -19,8 +19,8 @@ use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::Id;
 use crate::library::MAX_OUTLINE_SEGMENTS;
 use crate::library::footprint_source::{
-    DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, SketchBlob, SketchCurveId, SketchEdit,
-    SketchOutcome, SketchPointId, SketchRef, SolveStatus, SolveSummary,
+    DimValue, EvaluatorRef, Expr, FootprintParam, ParamName, ParamValue, SketchBlob, SketchCurveId,
+    SketchEdit, SketchOutcome, SketchPointId, SketchRef, SolveStatus, SolveSummary,
 };
 use crate::model::board::{
     BoardFeatureId, BoardSketch, CutoutKind, CutoutRole, EdgeName, MAX_FAULT_POINTS,
@@ -1031,11 +1031,14 @@ fn validate_sketch(sketch: &BoardSketch) -> Result<()> {
     if sketch.idle.iter().any(|n| !params.contains(&n)) {
         return bad("idle parameters are board parameters");
     }
-    if sketch
-        .values
-        .iter()
-        .any(|v| !params.contains(&v.name) || !v.value.is_finite())
-    {
+    let evaluated = |v: &crate::model::board::ParameterValue| {
+        params.contains(&v.name)
+            && match v.value {
+                ParamValue::Length(x) | ParamValue::Angle(x) => x.is_finite(),
+                ParamValue::Count(_) => true,
+            }
+    };
+    if !sketch.values.iter().all(evaluated) {
         return bad("evaluated values are finite and of board parameters");
     }
     for h in &sketch.holes {

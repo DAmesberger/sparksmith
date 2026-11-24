@@ -6,11 +6,13 @@
 use super::Fallible;
 use crate::format::{self, EditorFile};
 use crate::ids::{ContentHash, Id, InterfaceSourceId};
+use crate::interface::list::datum_hash;
 use crate::interface::report::InterfaceList;
 use crate::interface::{DatumGeometry, DatumStatus, ExportTarget, InterfaceCommand};
 use crate::library::Outline;
 use crate::library::footprint_source::{
-    Expr, FootprintParam, ParamName, ParamUnit, SketchBlob, SketchCurveId, SketchPointId, SketchRef,
+    Expr, FootprintParam, ParamName, ParamUnit, ParamValue, SketchBlob, SketchCurveId,
+    SketchPointId, SketchRef,
 };
 use crate::library::{Segment, datum::DatumName};
 use crate::model::board::{
@@ -130,7 +132,7 @@ fn sketched() -> Fallible<Engine> {
         idle: Vec::new(),
         values: vec![ParameterValue {
             name: ParamName("width".into()),
-            value: 60.0,
+            value: ParamValue::Length(60.0),
         }],
     }));
     project.board_size = [60.0, 40.0];
@@ -140,8 +142,8 @@ fn sketched() -> Fallible<Engine> {
 
 /// A board parameter is exported with the value the host evaluated for
 /// the board's last solve, a number and an expression over other
-/// parameters alike. One the host gave no value has none here: the core
-/// reads no expression.
+/// parameters alike. It is resolved only with a value (the core reads no
+/// expression), and its content hash follows the value.
 #[test]
 fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
     let param = |name: &str, expr: &str| FootprintParam {
@@ -171,14 +173,9 @@ fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
         }
         list(&engine)
     };
-    let geometry = |listed: &InterfaceList, token: &str| -> Fallible<_> {
-        let row = listed
-            .datums
-            .iter()
-            .find(|d| d.token == token)
-            .ok_or_else(|| format!("no datum {token}"))?;
-        assert_eq!(row.status, DatumStatus::Resolved, "{token}");
-        Ok(row.geometry.clone())
+    let row = |listed: &InterfaceList, token: &str| -> Fallible<_> {
+        let row = listed.datums.iter().find(|d| d.token == token);
+        Ok(row.ok_or_else(|| format!("no datum {token}"))?.clone())
     };
     let mm = |value: f64| {
         Some(DatumGeometry::Parameter {
@@ -186,16 +183,26 @@ fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
             unit: "mm".into(),
         })
     };
-    let unevaluated = listed(Vec::new())?;
-    assert_eq!(geometry(&unevaluated, "board.parameter.width")?, None);
-    assert_eq!(geometry(&unevaluated, "board.parameter.tab_x")?, None);
     let value = |name: &str, value: f64| ParameterValue {
         name: ParamName(name.into()),
-        value,
+        value: ParamValue::Length(value),
     };
+    let unevaluated = listed(Vec::new())?;
     let solved = listed(vec![value("width", 60.0), value("tab_x", 24.0)])?;
-    assert_eq!(geometry(&solved, "board.parameter.width")?, mm(60.0));
-    assert_eq!(geometry(&solved, "board.parameter.tab_x")?, mm(24.0));
+    let wider = listed(vec![value("width", 65.0), value("tab_x", 26.5)])?;
+    for (token, at_60, at_65) in [
+        ("board.parameter.width", 60.0, 65.0),
+        ("board.parameter.tab_x", 24.0, 26.5),
+    ] {
+        let none = row(&unevaluated, token)?;
+        assert_eq!((none.geometry, none.status), (None, DatumStatus::Lost));
+        let (before, after) = (row(&solved, token)?, row(&wider, token)?);
+        assert_eq!(before.status, DatumStatus::Resolved, "{token}");
+        assert_eq!(after.status, DatumStatus::Resolved, "{token}");
+        assert_eq!(before.geometry, mm(at_60));
+        assert_eq!(after.geometry, mm(at_65));
+        assert_ne!(datum_hash(&before)?, datum_hash(&after)?, "{token}");
+    }
     Ok(())
 }
 
