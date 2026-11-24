@@ -234,8 +234,8 @@ fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
     use sparksmith_core::{Operation, Query, QueryResult};
     let check = |engine: &sparksmith_core::Engine| -> Fallible<PreflightReport> {
         match engine.query(Query::Preflight { profile: None })? {
-            QueryResult::Preflight(report) => Ok(report),
-            other => Err(format!("{other:?}").into()),
+            QueryResult::Preflight(report) => Ok(*report),
+            _ => Err("not a preflight report".into()),
         }
     };
     let mut board = routed();
@@ -282,7 +282,7 @@ fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
             reason: "as imported".into(),
         })
         .collect();
-    let mut engine = sparksmith_core::Engine::from_file(file)?;
+    engine.replace_document(file)?;
     let after = check(&engine)?;
     let blocks: Vec<&str> = after
         .items
