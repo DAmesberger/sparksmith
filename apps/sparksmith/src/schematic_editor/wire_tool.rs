@@ -279,7 +279,8 @@ impl SchematicEditor {
             .map(|c| c.radius)
             .filter(|&r| r > 0.0 && r < radius)
             .collect();
-        let operation = self.join(engine, plan);
+        let over = self.pins_run_over(engine.project(), &vertices);
+        let operation = self.join(engine, plan, &over);
         if self.update.is_open() {
             self.wire_review = Some((draft.clone(), engine.revision()));
         }
@@ -287,6 +288,51 @@ impl SchematicEditor {
             post_reduced(ctx, &reduced);
         }
         operation
+    }
+
+    /// The pins on the sheet that a drawn path runs over between its ends,
+    /// which join it: "R92 pin 1".
+    fn pins_run_over(&self, project: &sparksmith_core::Project, path: &[Point]) -> Vec<String> {
+        use sparksmith_core::geometry::{distance, segment_distance};
+        let (Some(first), Some(last)) = (path.first(), path.last()) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for occurrence in project.occurrences.iter().filter(|o| o.sheet == self.sheet) {
+            let Some(instance) = project.drawing_instance(occurrence.instance) else {
+                continue;
+            };
+            let Ok(resolved) = sparksmith_core::instances::resolve(&project.library, instance)
+            else {
+                continue;
+            };
+            let Some(unit) = resolved.symbol.definition.unit(occurrence.unit) else {
+                continue;
+            };
+            for pin in &unit.pins {
+                let end = Endpoint {
+                    instance: instance.id,
+                    terminal: pin.terminal,
+                };
+                let name = resolved
+                    .component
+                    .definition
+                    .terminal(pin.terminal)
+                    .map_or_else(|| pin.terminal.to_string(), |t| t.name.clone());
+                let label = format!("{} pin {name}", instance.designator);
+                if let Some(at) = schematic::pin_position(project, end)
+                    && distance(at, *first) > 1e-6
+                    && distance(at, *last) > 1e-6
+                    && path
+                        .windows(2)
+                        .any(|s| segment_distance(at, s[0], s[1]) < 1e-6)
+                    && !out.contains(&label)
+                {
+                    out.push(label);
+                }
+            }
+        }
+        out
     }
 
     /// The radius new corners get: the card's with arcs on (A), else 0.

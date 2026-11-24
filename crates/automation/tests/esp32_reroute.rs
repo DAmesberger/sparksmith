@@ -250,19 +250,23 @@ fn rerouting_is_deterministic() -> Fallible {
 #[test]
 fn the_reply_names_what_was_rerouted() -> Fallible {
     let mut session = Session::new(example()?);
+    let vias =
+        |s: &Session| -> Vec<u64> { s.engine().project().vias.iter().map(|v| v.id).collect() };
+    let before = vias(&session);
     let reply = session.execute(Request::Apply(ApplyParams {
         expected_revision: session.engine().revision(),
         operation: j1_right(session.engine(), 0.5)?,
     }))?;
-    // The pair, and the regulator's and the power LED's routes: both
-    // stand beside J1 and move with it.
+    assert_eq!(vias(&session), before, "no via is lost");
+    // The pair and the power LED's route beside J1. The regulator's +3V3
+    // via is clear of the pair once that is re-routed, so it stays.
     let rerouted = &reply["rerouted"];
     assert_eq!(
         rerouted["rerouted"],
-        serde_json::json!(["USB_DP", "USB_DN", "+3V3", "IO42"])
+        serde_json::json!(["USB_DP", "USB_DN", "IO42"])
     );
     assert_eq!(rerouted["unrouted"], serde_json::json!([]));
-    assert_eq!(rerouted["summary"], "Re-routed 4 connections");
+    assert_eq!(rerouted["summary"], "Re-routed 3 connections");
     // An edit that moves nothing has no report.
     let reply = session.execute(Request::Apply(ApplyParams {
         expected_revision: session.engine().revision(),

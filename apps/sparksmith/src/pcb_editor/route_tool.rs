@@ -367,7 +367,7 @@ impl PcbEditor {
     /// shows: a pad on this layer, a via, a visible track (this layer's
     /// first) within 8 pixels, or a visible pad on another layer, which
     /// the route moves to. Its net, the head and the layer.
-    fn route_start_on(
+    pub(super) fn route_start_on(
         &self,
         project: &Project,
         at: Point,

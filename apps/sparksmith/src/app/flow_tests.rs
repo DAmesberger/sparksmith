@@ -768,7 +768,7 @@ fn a_reroute_after_a_board_edit_is_one_toast() -> Fallible {
     assert_eq!(
         shown,
         [(
-            "Re-routed 4 connections".to_owned(),
+            "Re-routed 3 connections".to_owned(),
             vec![ToastAction::Undo]
         )]
     );
