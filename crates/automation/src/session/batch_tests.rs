@@ -84,10 +84,9 @@ fn start() -> Fallible<Session> {
 
 /// A profile no library holds.
 fn custom() -> Fallible<RuleProfile> {
-    Ok(RuleProfile {
-        id: "unlisted-example".into(),
-        ..fixtures::jlcpcb_example()?
-    })
+    let mut profile = fixtures::jlcpcb_example()?;
+    profile.id = "unlisted-example".into();
+    Ok(profile)
 }
 
 fn set_profile(profile: ProfileChoice, options: &[(&str, &str)]) -> Operation {

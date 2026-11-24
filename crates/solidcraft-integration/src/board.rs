@@ -198,7 +198,7 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
         let stored = check::check_board_sketch(&board.sketch.0)?;
         Ok(match run(board, &stored) {
             Ok(evaluation) => evaluation,
-            Err(p) => unsolved(board, p),
+            Err(p) => unsolved(p),
         })
     }
 
@@ -396,8 +396,8 @@ fn fixed_geometry(
     Ok((outcome.sketch, made))
 }
 
-/// A failed solve: the last solved shape kept, a fatal finding.
-fn unsolved(board: &BoardSketch, p: Problem) -> BoardEvaluation {
+/// A failed solve: no outline of this solve, a fatal finding.
+fn unsolved(p: Problem) -> BoardEvaluation {
     let status = if p.code == "footprint.solve_failed" {
         SolveStatus::OverConstrained
     } else {
