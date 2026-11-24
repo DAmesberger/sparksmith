@@ -915,24 +915,30 @@ fn group_row(ui: &mut Ui, area: Rect, ribbon: &Ribbon) -> Option<&'static str> {
             .menu(&response)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
             .show(|ui| {
-                crate::kit::form(ui, |ui| {
-                    ui.set_width(OVERFLOW_MENU_WIDTH);
-                    for group in &ribbon.groups[shown..] {
-                        overflow_caption(ui, group.label);
-                        // A family lists its variants in the menu.
-                        for tool in group.tools.iter().flat_map(|t| {
-                            if t.menu.is_empty() {
-                                std::slice::from_ref(t)
-                            } else {
-                                &t.menu[..]
+                // A small window's menu scrolls.
+                let room = ui.ctx().content_rect().bottom() - rect.bottom() - t.space_24;
+                egui::ScrollArea::vertical()
+                    .max_height(room.max(OVERFLOW_ROW_HEIGHT))
+                    .show(ui, |ui| {
+                        crate::kit::form(ui, |ui| {
+                            ui.set_width(OVERFLOW_MENU_WIDTH);
+                            for group in &ribbon.groups[shown..] {
+                                overflow_caption(ui, group.label);
+                                // A family lists its variants in the menu.
+                                for tool in group.tools.iter().flat_map(|t| {
+                                    if t.menu.is_empty() {
+                                        std::slice::from_ref(t)
+                                    } else {
+                                        &t.menu[..]
+                                    }
+                                }) {
+                                    if overflow_item(ui, tool).clicked() && tool.enabled {
+                                        clicked = Some(tool.id);
+                                    }
+                                }
                             }
-                        }) {
-                            if overflow_item(ui, tool).clicked() && tool.enabled {
-                                clicked = Some(tool.id);
-                            }
-                        }
-                    }
-                });
+                        });
+                    });
             });
     }
     clicked

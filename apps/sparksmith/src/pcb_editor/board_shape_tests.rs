@@ -652,7 +652,8 @@ fn the_shape_mode_draws_the_sketch_and_a_rectangle_commits_one_board_edit() -> F
     let ids: Vec<&str> = ribbon
         .groups
         .iter()
-        .flat_map(|g| g.tools.iter().map(|t| t.id))
+        .flat_map(|g| &g.tools)
+        .flat_map(|t| std::iter::once(t.id).chain(t.menu.iter().map(|v| v.id)))
         .collect();
     for tool in ShapeTool::ALL {
         assert!(ids.contains(&tool.id()), "{}", tool.id());

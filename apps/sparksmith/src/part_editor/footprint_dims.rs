@@ -705,6 +705,17 @@ pub fn constrain_picks(
     }
 }
 
+/// What a constraint of the sketch is called.
+pub fn constraint_label(k: &ViewConstraint) -> &'static str {
+    match k.kind {
+        "Coincident" if !k.curves.is_empty() => "On curve",
+        "MidPoint" => "Midpoint",
+        "Symmetry" => "Symmetric",
+        "Fix" => "Fixed",
+        other => other,
+    }
+}
+
 /// A geometric constraint's ribbon look: icon, label, tip.
 pub fn constrain_look(kind: GeomConstraint) -> (&'static str, &'static str, &'static str) {
     use GeomConstraint as G;
