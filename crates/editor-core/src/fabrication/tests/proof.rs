@@ -1633,6 +1633,126 @@ fn overlapping_pours_erase_nothing_of_each_other() -> Fallible<()> {
     Ok(())
 }
 
+/// A fill's regions that overlap, or a hole outside its ring, are refused
+/// by `fill.store`; held by a document all the same, they are plotted as
+/// the copper they say: each outer ring less its own holes, together.
+#[test]
+fn a_fills_own_overlapping_regions_erase_nothing() -> Fallible<()> {
+    use crate::layout::fill::{FillCommand, inputs_key};
+    let ring = |x0: f64, y0: f64, x1: f64, y1: f64| vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    let region = |outer, holes| FilledRegion { outer, holes };
+    let overlapping = vec![
+        region(ring(20.0, 20.0, 30.0, 30.0), Vec::new()),
+        region(
+            ring(20.5, 20.5, 29.5, 29.5),
+            vec![ring(23.0, 23.0, 26.0, 26.0)],
+        ),
+    ];
+    let stray = vec![region(
+        ring(20.0, 20.0, 25.0, 25.0),
+        vec![ring(27.0, 20.0, 29.0, 22.0)],
+    )];
+    let crossing = vec![region(
+        ring(20.0, 20.0, 30.0, 30.0),
+        vec![ring(21.0, 21.0, 24.0, 24.0), ring(23.0, 23.0, 26.0, 26.0)],
+    )];
+    let across = vec![region(
+        ring(20.0, 20.0, 25.0, 25.0),
+        vec![ring(24.0, 21.0, 27.0, 23.0)],
+    )];
+    let sound = vec![
+        region(
+            ring(20.0, 20.0, 30.0, 30.0),
+            vec![ring(22.0, 22.0, 28.0, 28.0)],
+        ),
+        // An island in the other's hole.
+        region(ring(23.0, 23.0, 27.0, 27.0), Vec::new()),
+    ];
+    let mut engine = Engine::showcase()?;
+    let id = engine.project().fills.first().ok_or("a fill")?.id;
+    let store = |engine: &mut Engine, regions: &Vec<FilledRegion>| -> Fallible<bool> {
+        let copper = FilledCopper {
+            key: inputs_key(engine.project(), id)?,
+            regions: regions.clone(),
+            removed_islands: 0,
+            removed_spokes: Vec::new(),
+        };
+        let done = engine.apply(
+            engine.revision(),
+            Operation::Fill(FillCommand::Store {
+                fill: id,
+                copper: Box::new(copper),
+            }),
+        );
+        Ok(done.is_ok())
+    };
+    let before = engine.project().clone();
+    for regions in [&overlapping, &stray, &crossing, &across] {
+        assert!(!store(&mut engine, regions)?, "{regions:?}");
+        assert_eq!(engine.project(), &before);
+    }
+    assert!(store(&mut engine, &sound)?);
+    // Every computed fill is sound.
+    for project in [before, board()?] {
+        for fill in &project.fills {
+            let regions = fill.computed.as_ref().ok_or("copper")?.regions.as_slice();
+            assert!(crate::layout::fill::sound(regions), "{}", fill.name);
+        }
+    }
+    // Plotted: what each says is copper, and nothing else.
+    for (regions, dark, clear) in [
+        (
+            overlapping,
+            vec![[24.5, 24.5], [20.2, 25.0], [29.8, 29.8]],
+            vec![[19.9, 25.0], [30.1, 25.0]],
+        ),
+        (stray, vec![[22.0, 22.0]], vec![[28.0, 21.0], [26.0, 21.0]]),
+        (
+            crossing,
+            vec![[20.5, 20.5], [28.0, 28.0]],
+            vec![[22.0, 22.0], [23.5, 23.5], [25.0, 25.0]],
+        ),
+        (
+            across,
+            vec![[22.0, 22.0], [24.5, 24.0]],
+            vec![[24.5, 22.0], [26.0, 22.0]],
+        ),
+    ] {
+        let mut project = board()?;
+        // Nothing but the pour near these points.
+        project.tracks.clear();
+        project.vias.clear();
+        for f in project
+            .fills
+            .iter_mut()
+            .filter(|f| f.layer == CopperLayer::Top)
+        {
+            f.computed = Some(FilledCopper {
+                key: String::new(),
+                regions: regions.clone(),
+                removed_islands: 0,
+                removed_spokes: Vec::new(),
+            });
+        }
+        let files = written(&project)?;
+        let image = Image::read(file(&files, "copper-l1-top.gbr")?)?;
+        // The fixture's own lands may lie on a point: it is then no test.
+        let lands = oracle::copper_but_fills(&project, CopperLayer::Top);
+        for (p, want) in dark
+            .iter()
+            .map(|p| (*p, true))
+            .chain(clear.iter().map(|p| (*p, false)))
+        {
+            assert!(
+                lands.iter().all(|l| l.excess(p) > 0.0),
+                "{p:?} is on a land"
+            );
+            assert_eq!(image.dark(p), want, "{p:?} of {regions:?}");
+        }
+    }
+    Ok(())
+}
+
 /// An arc shorter than the format's step would be read as a full circle.
 #[test]
 fn an_arc_shorter_than_the_format_draws_no_circle() -> Fallible<()> {
