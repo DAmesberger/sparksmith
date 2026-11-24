@@ -1418,6 +1418,7 @@ fn repeated_front_ends_have_independent_parts_and_copper() -> Result<()> {
             .find(|p| p.terminal == ep(id, 2))
             .ok_or_else(|| Error::Invalid("feedback pad".into()))
     };
+    choose_profile(&mut engine)?;
     let mut tracks = Vec::new();
     for id in [r1, r101] {
         let p = pad(&engine, id)?;

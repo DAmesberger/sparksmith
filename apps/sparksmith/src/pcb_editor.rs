@@ -2059,7 +2059,9 @@ impl PcbEditor {
                     && let Some(drag) = track_drag::TrackDrag::of(project, id, at)
                 {
                     self.select_hit(hit);
-                    self.track_drag = Some(drag);
+                    if self.needs_profile(&project.rules, "Can't drag the track") {
+                        self.track_drag = Some(drag);
+                    }
                 } else if let Some(id) = self.pick_instance(project, at, tolerance, metric) {
                     self.set_selection(Some(id), None, None);
                     // A locked part, or one its dimensions hold in place,

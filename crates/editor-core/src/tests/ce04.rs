@@ -210,6 +210,7 @@ fn ce04_two_units_share_one_package_placement_and_identity() -> Result<()> {
         .find(|p| p.terminal == ep(q1, 1))
         .ok_or_else(|| Error::NotFound("pad".into()))?;
     let net_a = net_of(&engine, ep(q1, 1))?;
+    crate::tests::support::choose_profile(&mut engine)?;
     apply(
         &mut engine,
         Operation::Layout(LayoutCommand::Route {

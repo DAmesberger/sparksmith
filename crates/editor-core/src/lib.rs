@@ -121,6 +121,41 @@ impl Operation {
         }
     }
 
+    /// Whether this makes or reshapes copper, or places a part by a
+    /// dimension: work at the widths and clearances of a fab profile. The
+    /// engine refuses it on a board without one
+    /// ([`rules::ProjectRules::require`]), as the desktop's tools do;
+    /// taking copper away needs none.
+    fn needs_profile(&self) -> bool {
+        use layout::LayoutCommand as L;
+        match self {
+            Self::Layout(L::ApplyRoute { edits }) => {
+                !(edits.add.is_empty()
+                    && edits.replace.is_empty()
+                    && edits.vias.is_empty()
+                    && edits.restore.is_empty()
+                    && edits.move_vias.is_empty())
+            }
+            Self::Layout(
+                L::Route { .. }
+                | L::SetTrack { .. }
+                | L::AddVia { .. }
+                | L::MoveVia { .. }
+                | L::RouteLayerChange { .. }
+                | L::RoutePair { .. }
+                | L::TuneLength { .. }
+                | L::RouteStep { .. }
+                | L::TrackDrag { .. },
+            ) => true,
+            Self::Fill(layout::fill::FillCommand::Add { .. }) => true,
+            Self::Dimension(
+                layout::dimensions::DimensionCommand::Add { .. }
+                | layout::dimensions::DimensionCommand::Edit { .. },
+            ) => true,
+            _ => false,
+        }
+    }
+
     /// This operation's title for people, from [`Self::entries`].
     pub fn title(&self) -> &'static str {
         permission::find(Self::entries(), self.command()).map_or("Change", |entry| entry.title)
@@ -1871,6 +1906,9 @@ impl Engine {
         let _context = self.enter_context();
         let evaluator = evaluators.footprint;
         self.check_revision(expected_revision)?;
+        if operation.needs_profile() {
+            self.document.project.rules.require()?;
+        }
         self.rerouted = Default::default();
         let step = Step::of(&operation, &self.document.project);
         let mut rerouted = layout::router::reroute::Rerouted::default();
@@ -2535,6 +2573,7 @@ impl Engine {
             Query::RoutePreview { request } => {
                 request.check()?;
                 let project = &self.document.project;
+                project.rules.require()?;
                 let index = layout::router::RouteIndex::with_graph(project, self.copper_graph());
                 Ok(QueryResult::RoutePreview(Box::new(layout::router::plan(
                     project, &index, &request,
@@ -2543,6 +2582,7 @@ impl Engine {
             Query::TrackDragPreview { request } => {
                 request.check()?;
                 let project = &self.document.project;
+                project.rules.require()?;
                 let index = layout::router::RouteIndex::with_graph(project, self.copper_graph());
                 Ok(QueryResult::RoutePreview(Box::new(
                     layout::router::drag::drag_plan(project, &index, &request),
@@ -2550,6 +2590,7 @@ impl Engine {
             }
             Query::TunePreview { request } => {
                 let project = &self.document.project;
+                project.rules.require()?;
                 let obstacles = layout::obstacles::Obstacles::of(project);
                 Ok(QueryResult::TunePreview(Box::new(
                     layout::meander::plan(project, &obstacles, &self.copper_graph(), &request)?
