@@ -199,3 +199,15 @@ fn the_part_file_hashes_are_the_bundles_files() -> Result<(), String> {
     }
     Ok(())
 }
+
+/// A length between -1 mm and 0 keeps its minus sign (`nm / MM` is 0 there),
+/// as in the refusal that prints a negative peg position.
+#[test]
+fn mm_keeps_the_sign_of_a_length_below_one_millimetre() {
+    assert_eq!(mm(-500_000), "-0.5");
+    assert_eq!(mm(-1), "-0.000001");
+    assert_eq!(mm(-1_500_000), "-1.5");
+    assert_eq!(mm(0), "0.0");
+    assert_eq!(mm(2_540_000), "2.54");
+    assert_eq!(mm(2_000_000), "2.0");
+}

@@ -776,12 +776,14 @@ fn bends_fit(d: &Dims, foot: i64) -> bool {
 /// A length in mm as people write it: at least one decimal, at most as
 /// many as it needs (2.9, 0.95, 2.285).
 fn mm(nm: i64) -> String {
+    let sign = if nm < 0 { "-" } else { "" };
+    let nm = nm.abs();
     let whole = nm / MM;
-    let mut frac = format!("{:06}", (nm % MM).abs());
+    let mut frac = format!("{:06}", nm % MM);
     while frac.len() > 1 && frac.ends_with('0') {
         frac.pop();
     }
-    format!("{whole}.{frac}")
+    format!("{sign}{whole}.{frac}")
 }
 
 fn pads(d: &Dims) -> Vec<Pad> {
