@@ -1607,11 +1607,31 @@ impl PcbEditor {
                     .collect();
                 let list_id = egui::Id::unique(("board-parameters-list", editable));
                 let editing = rows.editing.as_ref().map(|(n, _)| n.clone());
+                // Why a value is wrong or was refused, or does not evaluate:
+                // shown under its row.
+                let refused = rows
+                    .refused
+                    .as_ref()
+                    .map(|(n, why, _)| (n.clone(), why.clone()));
+                let why = match &rows.error {
+                    Some((Some(n), why)) => Some((n.clone(), why.clone())),
+                    _ => refused.or_else(|| {
+                        values.iter().find_map(|v| match &v.value {
+                            Err(why) => Some((v.name.clone(), why.clone())),
+                            Ok(_) => None,
+                        })
+                    }),
+                };
+                let why = why.map(|(name, why)| {
+                    let text = format!("{}: {why}", name.0);
+                    (list::RowKey::of(("board-param", &name.0)), text)
+                });
                 let view = list::ListView {
                     multiple: false,
                     delete: editable,
                     editing: editing.is_some(),
                     click_edits: true,
+                    error: why.as_ref().map(|(key, text)| (*key, text.as_str())),
                     ..list::ListView::new(
                         list_id,
                         "Board parameters",
@@ -1739,24 +1759,6 @@ impl PcbEditor {
                             }
                         }
                     }
-                }
-                // Why a value is wrong or was refused, or does not evaluate:
-                // one line under the list, naming the parameter.
-                let refused = rows
-                    .refused
-                    .as_ref()
-                    .map(|(n, why, _)| (n.clone(), why.clone()));
-                let why = match &rows.error {
-                    Some((Some(n), why)) => Some((n.clone(), why.clone())),
-                    _ => refused.or_else(|| {
-                        values.iter().find_map(|v| match &v.value {
-                            Err(why) => Some((v.name.clone(), why.clone())),
-                            Ok(_) => None,
-                        })
-                    }),
-                };
-                if let Some((name, why)) = why {
-                    list::row::field_error(ui, &format!("{}: {why}", name.0), 0.0);
                 }
                 if board.parameters.is_empty() {
                     kit::hint(

@@ -47,6 +47,9 @@ pub struct ListView<'a> {
     /// The object hovered elsewhere, for the edge pill when its row is
     /// scrolled out of view.
     pub highlighted: Option<RowKey>,
+    /// Why a row's value is wrong or was refused, under that row
+    /// ([`Layout::Bounded`] only); scrolled to with its row when new.
+    pub error: Option<(RowKey, &'a str)>,
 }
 
 impl<'a> ListView<'a> {
@@ -63,6 +66,7 @@ impl<'a> ListView<'a> {
             editing: false,
             click_edits: false,
             highlighted: None,
+            error: None,
         }
     }
 }
@@ -196,19 +200,32 @@ impl ListView<'_> {
         }
         let shown_cursor = focused && state.keyboard;
         let total = lines.len();
+        let width = ui.available_width();
+        // Why a value was refused: room for it under its row.
+        let error = self
+            .error
+            .filter(|_| matches!(self.layout, Layout::Bounded { .. }))
+            .and_then(|(key, text)| {
+                let index = lines.iter().position(|x| x.key == key)?;
+                let galley = super::row::error_galley(ui, text, width);
+                let height = galley.size().y + super::row::ERROR_GAP;
+                Some((index, text, galley, height))
+            });
+        let failed = error
+            .as_ref()
+            .map(|(index, _, _, height)| (*index, *height));
         let (count, more) = match self.layout {
             Layout::Bounded { rows } if !state.show_all && total > rows => {
-                // The cursor's row stays shown.
+                // The cursor's row stays shown, and one with an error.
                 let at = state
                     .cursor
                     .and_then(|c| lines.iter().position(|x| x.key == c))
                     .map_or(0, |i| i + 1);
-                let n = rows.max(at);
+                let n = rows.max(at).max(failed.map_or(0, |(i, _)| i + 1));
                 (n.min(total), n < total)
             }
             _ => (total, false),
         };
-        let width = ui.available_width();
         let drag = ui.data(|d| d.get_temp::<Drag>(self.id.with("drag")));
         let mut pass = Pass::default();
         let row_h = l.row_h;
@@ -224,10 +241,15 @@ impl ListView<'_> {
                 let Some(line) = lines.get(index) else {
                     return;
                 };
-                let target = top + index as f32 * row_h;
+                let below = match failed {
+                    Some((at, height)) if index > at => height,
+                    _ => 0.0,
+                };
+                let target = top + below + index as f32 * row_h;
                 // FLIP animates the row's place in the list, not on the
                 // screen: scrolling or moving the list never animates rows.
                 let y = top
+                    + below
                     + ui.ctx().animate_value_with_time(
                         self.id.with(("y", line.key)),
                         index as f32 * row_h,
@@ -296,8 +318,8 @@ impl ListView<'_> {
         let mut viewport_h = 0.0;
         match self.layout {
             Layout::Bounded { .. } => {
-                let (rect, _) =
-                    ui.allocate_exact_size(vec2(width, row_h * count as f32), Sense::hover());
+                let height = row_h * count as f32 + failed.map_or(0.0, |(_, h)| h);
+                let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
                 list_rect = rect;
                 let bg = ui.interact(rect, focus_id, Sense::click());
                 container_info(&bg, self, total);
@@ -307,6 +329,11 @@ impl ListView<'_> {
                 }
                 for index in 0..count {
                     draw(ui, index, rect.top(), &mut out, &mut pass, &mut paint);
+                }
+                if let Some((index, text, galley, height)) = error {
+                    let top = rect.top() + row_h * (index + 1) as f32;
+                    let under = Rect::from_min_size(pos2(rect.left(), top), vec2(width, height));
+                    super::row::paint_error(ui, self.id, under, row_h, galley, text);
                 }
                 if more && super::row::more(ui, count, total) {
                     state.show_all = true;
@@ -428,6 +455,14 @@ impl ListView<'_> {
                 });
             } else {
                 ui.data_mut(|d| d.remove::<Drag>(self.id.with("drag")));
+                // The error under a row is no place of its own.
+                let value = match failed {
+                    Some((at, height)) => {
+                        let under = row_h * (at + 1) as f32;
+                        value - (value - under).clamp(0.0, height)
+                    }
+                    _ => value,
+                };
                 let to = ((value / row_h).floor().max(0.0) as usize).min(total.saturating_sub(1));
                 let by = to as i64 - from as i64;
                 if by != 0 && self.reorder {

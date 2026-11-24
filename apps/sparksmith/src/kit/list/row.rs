@@ -944,18 +944,45 @@ pub fn add_row(ui: &mut Ui, text: &str) -> bool {
     response.clicked()
 }
 
-/// One red line under a row, aligned with the name: what is wrong and how
+/// Space under an error's text, in points.
+pub(super) const ERROR_GAP: f32 = 5.0;
+
+/// The red lines under a row, aligned with the name: what is wrong and how
 /// to fix it. The document is unchanged.
-pub fn field_error(ui: &mut Ui, text: &str, indent: f32) {
+pub(super) fn error_galley(ui: &Ui, text: &str, width: f32) -> Arc<Galley> {
     let l = ListTokens::get(ui.ctx());
     let ink = super::super::severity::ink(Level::Error);
-    let width = (ui.available_width() - indent - l.pad_x).max(1.0);
+    let width = (width - 2.0 * l.pad_x).max(1.0);
     let mut job = LayoutJob::simple(text.to_owned(), FontId::proportional(l.fs_s), ink, width);
     job.wrap.max_rows = 3;
-    let g = ui.painter().layout_job(job);
-    let (rect, response) =
-        ui.allocate_exact_size(vec2(ui.available_width(), g.size().y + 5.0), Sense::hover());
-    ui.painter()
-        .galley(pos2(rect.left() + l.pad_x + indent, rect.top()), g, ink);
+    ui.painter().layout_job(job)
+}
+
+/// Paint [`error_galley`] into `rect`, under its row `row_h` high. One just
+/// shown is scrolled to with its row: an open Issues card, a long list or a
+/// small window must not hide why the value went back.
+pub(super) fn paint_error(
+    ui: &Ui,
+    list: egui::Id,
+    rect: Rect,
+    row_h: f32,
+    galley: Arc<Galley>,
+    text: &str,
+) {
+    let l = ListTokens::get(ui.ctx());
+    let id = list.with("field-error");
+    ui.painter().galley(
+        pos2(rect.left() + l.pad_x, rect.top()),
+        galley,
+        Color32::PLACEHOLDER,
+    );
+    let now = ui.ctx().cumulative_frame_nr();
+    let last = ui.data(|d| d.get_temp::<(u64, String)>(id));
+    if last.is_none_or(|(frame, was)| frame + 1 < now || was != text) {
+        let row = rect.with_min_y(rect.top() - row_h);
+        ui.scroll_to_rect(row, None);
+    }
+    ui.data_mut(|d| d.insert_temp(id, (now, text.to_owned())));
+    let response = ui.interact(rect, id, Sense::hover());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, text));
 }

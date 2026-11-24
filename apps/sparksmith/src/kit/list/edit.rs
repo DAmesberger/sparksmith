@@ -3,7 +3,7 @@
 //! value rect. Enter commits, Esc cancels, Tab commits
 //! and moves to the next editable row, and leaving the field commits (the
 //! card's live-commit rule). Invalid text gets a red ring; the caller shows
-//! why under the row (`row::field_error`) and sends nothing, so the
+//! why under the row (`ListView::error`) and sends nothing, so the
 //! document is unchanged.
 use super::measure;
 use super::tokens::ListTokens;

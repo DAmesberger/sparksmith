@@ -1394,8 +1394,15 @@ fn constrain_press(
         ConstrainPicks::More => Ok(Step::More),
         ConstrainPicks::Ready => {
             let mut stage = Stage::new(scene.evaluator, &scene.board.sketch);
-            let staged = stage.constrain(kind, std::mem::take(&mut gesture.picks));
-            staged.and_then(|()| not_set_already(kind, &stage))?;
+            let refs = std::mem::take(&mut gesture.picks);
+            let created = stage.sketch(SketchEdit::AddConstraint { kind, refs })?;
+            if !created
+                .iter()
+                .any(|r| matches!(r, SketchRef::Constraint(_)))
+            {
+                return Err(invalid("board.constraint: the sketch has this already"));
+            }
+            not_set_already(kind, &stage)?;
             Ok(commit(stage))
         }
         ConstrainPicks::Wrong(why) => {

@@ -224,3 +224,155 @@ fn a_redundant_dimension_is_refused_where_it_is_placed() -> Fallible {
     assert!(ax.texts.iter().any(|t| t.contains(says)), "{:?}", ax.texts);
     Ok(())
 }
+
+/// GUI check 1, F7: with Issues open and a long list, the reason a
+/// parameter's value was refused is in sight, right under its row.
+#[test]
+fn a_refused_parameters_reason_is_in_sight_with_issues_open() -> Fallible {
+    use sparksmith_core::layout::outline::BoardEdit;
+    use sparksmith_core::library::footprint_source::{Expr, FootprintParam, ParamName, ParamUnit};
+    let mut ax = sketched()?;
+    ax.window = egui::vec2(1380.0, 720.0);
+    let spare = |i: usize| BoardEdit::SetParameter {
+        param: FootprintParam {
+            name: ParamName(format!("spare{i}")),
+            expr: Expr(format!("{i} mm")),
+            unit: ParamUnit::Mm,
+            comment: String::new(),
+        },
+    };
+    edit(&mut ax, (1..8).map(spare).collect())?;
+    let _ = ax.app.pcb.on_tool("board-shape", &ax.app.engine);
+    ax.app.issues.open();
+    ax.settle();
+    assert!(ax.app.issues.expanded());
+    retype(&mut ax, "width", "2000 mm")?;
+    ax.key(Key::Enter);
+    ax.settle();
+    let why = "is out of range";
+    let (text, rect) = ax
+        .seen
+        .iter()
+        .find(|(t, _)| t.contains(why))
+        .cloned()
+        .ok_or_else(|| format!("out of sight: {:?}", ax.texts))?;
+    assert!(rect.height() > 8.0, "{text}: {rect:?}");
+    let row = ax.find_prefix(Role::ListBoxOption, "width")?.rect;
+    assert!((rect.top() - row.bottom()).abs() < 12.0, "{row:?} {rect:?}");
+    Ok(())
+}
+
+/// The constraints of `kind` (Solidcraft's name) the board sketch holds.
+fn constraints(ax: &Ax, kind: &str) -> Fallible<usize> {
+    let source = crate::pcb_editor::board_shape::source_of(&board(ax)?);
+    let view = sparksmith_solidcraft::footprint::view::sketch_view(&source)?;
+    Ok(view.constraints.iter().filter(|k| k.kind == kind).count())
+}
+
+/// The Board shape mode with one construction line for each pair of ends.
+fn lines(ax: &mut Ax, ends: &[[[f64; 2]; 2]]) -> Fallible {
+    use sparksmith_core::layout::outline::BoardEdit;
+    use sparksmith_core::library::footprint_source::SketchEdit;
+    let add = |[a, b]: &[[f64; 2]; 2]| BoardEdit::Sketch {
+        edit: SketchEdit::AddLine {
+            a: *a,
+            b: *b,
+            construction: true,
+        },
+    };
+    edit(ax, ends.iter().map(add).collect())?;
+    let _ = ax.app.pcb.on_tool("board-shape", &ax.app.engine);
+    ax.settle();
+    Ok(())
+}
+
+fn click_mm(ax: &mut Ax, at: [f64; 2]) -> Fallible {
+    let p = ax.app.pcb.layout_to_screen(at).ok_or("no canvas")?;
+    ax.click_at(p);
+    ax.settle();
+    Ok(())
+}
+
+/// A constraint tool armed by its key takes its pick, commits one step that
+/// one ⌘Z undoes, and one the sketch sets already is refused naming it.
+#[test]
+fn a_constraint_tool_takes_its_picks_in_one_undo_step() -> Fallible {
+    let mut ax = sketched()?;
+    lines(
+        &mut ax,
+        &[[[9.0, 7.0], [17.0, 7.5]], [[9.0, 10.0], [17.0, 10.0]]],
+    )?;
+    let (before, count) = (board(&ax)?, constraints(&ax, "Horizontal")?);
+    let over = ax
+        .app
+        .pcb
+        .layout_to_screen([13.0, 8.5])
+        .ok_or("no canvas")?;
+    ax.hover(over);
+    ax.key(Key::Z);
+    ax.settle();
+    let armed = |ax: &Ax, name: &str| {
+        let hint = format!("Board shape · {name}");
+        ax.texts.iter().any(|t| t.starts_with(&hint))
+    };
+    assert!(armed(&ax, "Horizontal"), "{:?}", ax.texts);
+    click_mm(&mut ax, [13.0, 7.25])?;
+    assert_eq!(constraints(&ax, "Horizontal")?, count + 1);
+    ax.command_key(Key::Z);
+    ax.settle();
+    assert_eq!(board(&ax)?, before, "one ⌘Z undoes it");
+    // Both lines horizontal: Parallel between them says nothing new.
+    for at in [[13.0, 7.25], [13.0, 10.0]] {
+        click_mm(&mut ax, at)?;
+    }
+    assert_eq!(constraints(&ax, "Horizontal")?, count + 2);
+    let held = board(&ax)?;
+    ax.key(Key::P);
+    ax.settle();
+    assert!(armed(&ax, "Parallel"), "{:?}", ax.texts);
+    let source = crate::pcb_editor::board_shape::source_of(&held);
+    let view = sparksmith_solidcraft::footprint::view::sketch_view(&source)?;
+    for line in view.curves.iter().rev().take(2) {
+        let sparksmith_solidcraft::footprint::view::ViewGeometry::Line { a, b } = line.geometry
+        else {
+            return Err("not a line".into());
+        };
+        click_mm(&mut ax, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0])?;
+    }
+    assert_eq!(board(&ax)?, held, "refused");
+    let says = "Horizontal already set";
+    assert!(ax.texts.iter().any(|t| t.contains(says)), "{:?}", ax.texts);
+    Ok(())
+}
+
+/// In the smallest window the Constrain group is in the ribbon's More tools
+/// menu, every constraint with it, and one picked there is armed.
+#[test]
+fn a_small_window_offers_every_constraint() -> Fallible {
+    let mut ax = sketched()?;
+    ax.window = egui::vec2(760.0, 560.0);
+    let _ = ax.app.pcb.on_tool("board-shape", &ax.app.engine);
+    ax.settle();
+    ax.button("More tools")?;
+    ax.settle();
+    for name in ["Coincident", "Perpendicular", "Fix"] {
+        assert!(ax.has(Role::Button, name), "{name}: {}", ax.dump());
+    }
+    ax.click(Role::Button, "Horizontal")?;
+    ax.settle();
+    let armed = |t: &String| t.starts_with("Board shape · Horizontal");
+    assert!(ax.texts.iter().any(armed), "{:?}", ax.texts);
+    Ok(())
+}
+
+/// At an ordinary width the Constrain group is on the ribbon itself.
+#[test]
+fn the_constrain_group_fits_an_ordinary_window() -> Fallible {
+    let mut ax = sketched()?;
+    ax.window = egui::vec2(1000.0, 700.0);
+    let _ = ax.app.pcb.on_tool("board-shape", &ax.app.engine);
+    ax.settle();
+    let shown = |t: &str| ax.seen.iter().any(|(s, r)| s == t && r.width() > 8.0);
+    assert!(shown("Constrain") && shown("Constraints"), "{:?}", ax.seen);
+    Ok(())
+}

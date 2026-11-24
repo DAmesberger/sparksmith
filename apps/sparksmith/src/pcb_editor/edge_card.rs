@@ -564,12 +564,19 @@ impl PcbEditor {
                     .zip(&joined)
                     .map(|(k, n)| Line::item(*k, n))
                     .collect();
+                // Why the value was refused, under its row.
+                let why = self.edge.error.as_ref().and_then(|(dim, why)| {
+                    let i = dims.iter().position(|d| d.id == *dim)?;
+                    let name = joined.get(i).map_or("", String::as_str);
+                    Some((row_key(*dim), format!("{name}: {why}")))
+                });
                 let view = ListView {
                     multiple: false,
                     reorder: true,
                     delete: true,
                     editing: editing.is_some(),
                     click_edits: true,
+                    error: why.as_ref().map(|(key, text)| (*key, text.as_str())),
                     ..ListView::new(
                         id,
                         "Dimensions",
@@ -717,13 +724,6 @@ impl PcbEditor {
                             }
                         }
                     }
-                }
-                // Why the value was refused, under the list, naming the row.
-                if let Some((dim, why)) = &self.edge.error
-                    && let Some(i) = dims.iter().position(|d| d.id == *dim)
-                {
-                    let name = joined.get(i).map_or("", String::as_str);
-                    list::row::field_error(ui, &format!("{name}: {why}"), 0.0);
                 }
                 kit::note(ui, "Follows the board when it changes");
             },

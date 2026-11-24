@@ -1363,3 +1363,149 @@ fn source_of(board: &BoardSketch) -> sparksmith_core::library::footprint_source:
         datum: None,
     }
 }
+
+fn created_by(sketch: &SketchBlob, edit: &SketchEdit) -> Fallible<(SketchBlob, SketchRef)> {
+    let out = EV.apply_sketch(sketch, edit)?;
+    let last = out.created.last().ok_or("nothing created")?.clone();
+    Ok((out.sketch, last))
+}
+
+/// Two horizontal lines are parallel already: the window's check refuses
+/// Parallel between them naming Horizontal, and takes what adds something.
+#[test]
+fn a_redundant_constraint_names_what_sets_it() -> Fallible<()> {
+    use sparksmith_core::library::footprint_source::GeomConstraint as G;
+    let board = EV.rectangle([60.0, 40.0], 0.01)?;
+    let mut sketch = board.sketch;
+    let mut lines = Vec::new();
+    for y in [5.0, 10.0] {
+        let edit = SketchEdit::AddLine {
+            a: [5.0, y],
+            b: [20.0, y],
+            construction: true,
+        };
+        let out = EV.apply_sketch(&sketch, &edit)?;
+        lines.extend(created_curves(&out).into_iter().map(SketchRef::Curve));
+        sketch = out.sketch;
+    }
+    let add = |sketch: &SketchBlob, kind, refs: &[SketchRef]| {
+        let refs = refs.to_vec();
+        created_by(sketch, &SketchEdit::AddConstraint { kind, refs })
+    };
+    for line in &lines {
+        (sketch, _) = add(&sketch, G::Horizontal, std::slice::from_ref(line))?;
+        refuse_redundant_constraint(&sketch)?;
+    }
+    let (both, _) = add(&sketch, G::Parallel, &lines)?;
+    let Err(why) = refuse_redundant_constraint(&both) else {
+        return Err("taken".into());
+    };
+    let why = why.to_string();
+    assert!(why.contains("Horizontal already sets this"), "{why}");
+    let (equal, _) = add(&sketch, G::Equal, &lines)?;
+    refuse_redundant_constraint(&equal)?;
+    Ok(())
+}
+
+/// On a free-form curve, a point is held on it and a line joined to its end
+/// is tangent to it; its own point on it and Equal are refused.
+#[test]
+fn constraints_on_a_free_form_curve_hold_or_are_refused() -> Fallible<()> {
+    use crate::footprint::view::{ViewGeometry, sketch_view};
+    use sparksmith_core::library::footprint_source::GeomConstraint as G;
+    let mut engine = sketched()?;
+    let add = |engine: &mut Engine, e: BoardEdit| created(edit(engine, vec![e])?);
+    let draw = |e: SketchEdit| BoardEdit::Sketch { edit: e };
+    let line = add(
+        &mut engine,
+        draw(SketchEdit::AddLine {
+            a: [10.0, 10.0],
+            b: [8.0, 16.0],
+            construction: true,
+        }),
+    )?;
+    let conic = add(
+        &mut engine,
+        BoardEdit::AddConic {
+            a: [10.0, 10.0],
+            b: [30.0, 10.0],
+            apex: [20.0, 20.0],
+            rho: 0.5,
+            construction: true,
+        },
+    )?;
+    let curve_of = |refs: &[SketchRef]| -> Fallible<SketchRef> {
+        let curve = refs.iter().find(|r| matches!(r, SketchRef::Curve(_)));
+        Ok(curve.ok_or("no curve")?.clone())
+    };
+    let (line, conic) = (curve_of(&line)?, curve_of(&conic)?);
+    let constrain = |kind, refs: &[&SketchRef]| {
+        draw(SketchEdit::AddConstraint {
+            kind,
+            refs: refs.iter().map(|r| (*r).clone()).collect(),
+        })
+    };
+    let before = sketch(&engine)?;
+    let view = sketch_view(&source_of(&before))?;
+    let SketchRef::Curve(conic_id) = &conic else {
+        return Err("not a curve".into());
+    };
+    let own = view.curve(conic_id).ok_or("no conic")?.points.clone();
+    let own = SketchRef::Point(own.first().ok_or("no points")?.clone());
+    for refused in [
+        constrain(G::PointOnCurve, &[&own, &conic]),
+        constrain(G::Equal, &[&line, &conic]),
+    ] {
+        assert!(edit(&mut engine, vec![refused]).is_err());
+        assert_eq!(sketch(&engine)?, before);
+    }
+    let point = add(&mut engine, draw(SketchEdit::AddPoint { at: [20.0, 17.0] }))?;
+    let point = SketchRef::Point(point_of(&point)?);
+    edit(
+        &mut engine,
+        vec![constrain(G::PointOnCurve, &[&point, &conic])],
+    )?;
+    edit(&mut engine, vec![constrain(G::Tangent, &[&line, &conic])])?;
+    let view = sketch_view(&source_of(&sketch(&engine)?))?;
+    let SketchRef::Point(point) = &point else {
+        return Err("not a point".into());
+    };
+    let at = view.point(point).ok_or("no point")?.at;
+    let conic = view.curve(conic_id).ok_or("no conic")?;
+    let ViewGeometry::FreeForm { points } = &conic.geometry else {
+        return Err("not a free-form curve".into());
+    };
+    let gap = points
+        .windows(2)
+        .map(|w| {
+            let (a, b) = (w[0], w[1]);
+            let d = [b[0] - a[0], b[1] - a[1]];
+            let l2 = (d[0] * d[0] + d[1] * d[1]).max(1e-12);
+            let s = (((at[0] - a[0]) * d[0] + (at[1] - a[1]) * d[1]) / l2).clamp(0.0, 1.0);
+            (at[0] - a[0] - s * d[0]).hypot(at[1] - a[1] - s * d[1])
+        })
+        .fold(f64::INFINITY, f64::min);
+    assert!(gap < 0.05, "{gap}");
+    // The conic leaves its end towards its apex.
+    let defining: Vec<Point> = conic
+        .points
+        .iter()
+        .filter_map(|p| Some(view.point(p)?.at))
+        .collect();
+    let [start, _, apex] = defining.as_slice() else {
+        return Err(format!("{defining:?}").into());
+    };
+    let SketchRef::Curve(line) = &line else {
+        return Err("not a curve".into());
+    };
+    let Some(ViewGeometry::Line { a, b }) = view.curve(line).map(|c| c.geometry.clone()) else {
+        return Err("not a line".into());
+    };
+    let (u, v) = (
+        [b[0] - a[0], b[1] - a[1]],
+        [apex[0] - start[0], apex[1] - start[1]],
+    );
+    let sine = (u[0] * v[1] - u[1] * v[0]) / (u[0].hypot(u[1]) * v[0].hypot(v[1]));
+    assert!(sine.abs() < 1e-4, "{sine}");
+    Ok(())
+}
