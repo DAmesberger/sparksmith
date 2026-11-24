@@ -758,7 +758,7 @@ impl SchematicEditor {
             self.template_sent = None;
             self.tool = Tool::Place;
             self.palette.refuse(why);
-        } else if engine.revision() != *revision {
+        } else if !engine.still_at(*revision) {
             let created = crate::generators::new_component(engine, before);
             self.template_sent = None;
             if let Some(component) = created {
@@ -1077,7 +1077,7 @@ impl SchematicEditor {
             self.join_watch = Some((revision, text, Some(seen)));
             return;
         }
-        if engine.revision() != revision {
+        if !engine.still_at(revision) {
             kit::toast::post(
                 ctx,
                 kit::severity::Level::Ok,
@@ -1724,7 +1724,7 @@ impl SchematicEditor {
             return None;
         }
         let project = engine.project();
-        if self.observed_revision != Some(engine.revision()) {
+        if self.observed_revision != Some(engine.content_revision()) {
             self.draft_id = None;
             if self.selected.is_some() {
                 let occurrence = self
@@ -1732,7 +1732,7 @@ impl SchematicEditor {
                     .filter(|o| project.occurrence(*o).is_some());
                 self.select(self.selected, occurrence, project);
             }
-            self.observed_revision = Some(engine.revision());
+            self.observed_revision = Some(engine.content_revision());
         }
         self.say_purchasing(ui.ctx(), project);
         if self
@@ -2065,7 +2065,7 @@ impl SchematicEditor {
         if crate::keys::pressed(ui.ctx(), "schematic.cancel") {
             if self.tool == Tool::Place
                 && let Some(revision) = self.template_armed.take()
-                && revision == engine.revision()
+                && engine.still_at(revision)
             {
                 self.template_undo = Some(revision);
                 self.component = None;
@@ -2548,10 +2548,8 @@ impl SchematicEditor {
                         && let Some(position) = sheet_nm(world(pointer))
                     {
                         // The first placement finishes the create.
-                        self.template_join = self
-                            .template_armed
-                            .take()
-                            .filter(|r| *r == engine.revision());
+                        self.template_join =
+                            self.template_armed.take().filter(|r| engine.still_at(*r));
                         output = Some(Operation::Instance(InstanceCommand::Place(NewInstance {
                             sheet: Some(self.sheet),
                             position: Some(position),

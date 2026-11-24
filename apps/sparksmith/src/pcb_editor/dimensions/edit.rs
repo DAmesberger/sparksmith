@@ -72,7 +72,7 @@ impl PcbEditor {
             edit.sent = None;
             edit.fresh = 2;
             edit.owned = false;
-        } else if engine.revision() != revision {
+        } else if !engine.still_at(revision) {
             self.dims.edit = None;
         }
     }

@@ -363,9 +363,9 @@ impl App {
         }
     }
 
-    /// Whether an undo at `revision` takes back an assistant edit.
-    pub(super) fn live_edit_at(&self, revision: u64) -> bool {
-        self.live.edits.contains(&revision)
+    /// Whether an undo now takes back an assistant edit.
+    pub(super) fn live_edit(&self) -> bool {
+        self.live.edits.iter().any(|r| self.engine.still_at(*r))
     }
 
     /// The Connect AI assistants window and a held request's question.

@@ -1719,3 +1719,107 @@ fn an_arcs_free_start_gives_way_to_its_tied_end() -> Fallible {
     assert!(dist(s, [0.0, 1.0]) < 1e-12, "{s:?}");
     Ok(())
 }
+
+/// `d` on the same board with every fill unfilled, as a file opens.
+fn unfilled() -> Fallible<Drawn> {
+    let mut d = Drawn::new()?;
+    let mut file = d.engine.to_file();
+    file.project
+        .fills
+        .iter_mut()
+        .for_each(|f| f.computed = None);
+    d.engine = Engine::from_file(file)?;
+    d.frame(vec![]);
+    assert!(d.editor.shape.active);
+    Ok(d)
+}
+
+/// The fills' copper is stored as the background worker stores it.
+fn store(d: &mut Drawn) -> Fallible {
+    let revision = d.engine.revision();
+    assert!(d.engine.refill_stale()? > 0, "no fill was stale");
+    assert_eq!(d.engine.revision(), revision + 1);
+    Ok(())
+}
+
+/// Text typed over a sketch dimension's value outlives a fill store.
+#[test]
+fn a_typed_sketch_dimension_outlives_a_fill_store() -> Fallible {
+    let mut d = unfilled()?;
+    let view = scene_view(&d.board()?)?;
+    let width = view
+        .constraints
+        .iter()
+        .find(|k| k.param.as_deref() == Some("width"))
+        .map(|k| k.id.clone())
+        .ok_or("no width dimension")?;
+    d.editor.shape.dimension = Some(width);
+    slot(&mut d.editor, &d.engine, &d.ctx, vec![]);
+    let (output, _) = slot(&mut d.editor, &d.engine, &d.ctx, vec![]);
+    let shown = painted(&output);
+    let row = shown
+        .iter()
+        .find(|(t, _)| t == "Value")
+        .map(|(_, p)| p.y)
+        .ok_or("no Value row")?;
+    let field = shown
+        .iter()
+        .find(|(t, p)| t == "width" && (p.y - row).abs() < 4.0)
+        .map(|(_, p)| *p)
+        .ok_or("no Value field showing width")?;
+    let mut events = press_at(field);
+    events.extend(release_at(field));
+    slot(&mut d.editor, &d.engine, &d.ctx, events);
+    let mut typed = key(egui::Key::A);
+    if let Some(egui::Event::Key { modifiers, .. }) = typed.first_mut() {
+        *modifiers = egui::Modifiers::COMMAND;
+    }
+    typed.push(egui::Event::Text("width = 48 mm".into()));
+    slot(&mut d.editor, &d.engine, &d.ctx, typed);
+    store(&mut d)?;
+    let (output, _) = slot(&mut d.editor, &d.engine, &d.ctx, vec![]);
+    assert!(
+        painted(&output).iter().any(|(t, _)| t == "width = 48 mm"),
+        "{:?}",
+        painted(&output)
+    );
+    let (_, sent) = slot(&mut d.editor, &d.engine, &d.ctx, key(egui::Key::Enter));
+    let Some(Operation::Board(BoardCommand::Edit { edits })) = sent else {
+        return Err(format!("nothing was sent: {sent:?}").into());
+    };
+    assert!(parameters_of(&edits).iter().any(|p| p.expr.0 == "48 mm"));
+    Ok(())
+}
+
+/// A sketch point being dragged stays in hand through a fill store.
+#[test]
+fn a_sketch_point_drag_outlives_a_fill_store() -> Fallible {
+    let mut d = unfilled()?;
+    let at = d.at(0.3, 0.3);
+    // No fill depends on a free point: it makes none fresh or stale.
+    d.apply(Some(operation(vec![BoardEdit::Sketch {
+        edit: SketchEdit::AddPoint { at },
+    }])))?;
+    d.hover(at);
+    let screen = |d: &Drawn, p: Point| d.view.screen(p);
+    let pos = screen(&d, at);
+    d.frame(press_at(pos));
+    for mm in [0.5, 1.0, 1.5] {
+        d.hover([at[0] + mm, at[1]]);
+    }
+    store(&mut d)?;
+    let to = [at[0] + 2.0, at[1]];
+    d.hover(to);
+    let pos = screen(&d, to);
+    let Some(op) = d.frame(release_at(pos)) else {
+        return Err("the drag was dropped".into());
+    };
+    d.apply(Some(op))?;
+    let view = scene_view(&d.board()?)?;
+    assert!(
+        view.points.iter().any(|p| dist(p.at, to) < 0.2),
+        "{:?}",
+        view.points
+    );
+    Ok(())
+}

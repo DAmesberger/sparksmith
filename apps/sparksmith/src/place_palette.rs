@@ -1655,7 +1655,7 @@ impl PlacePalette {
             self.submitted = None;
         }
         if let Some((revision, done)) = self.submitted.take()
-            && engine.revision() != revision
+            && !engine.still_at(revision)
         {
             kit::toast::post(&ctx, Level::Ok, done, vec![ToastAction::Undo]);
             self.close();

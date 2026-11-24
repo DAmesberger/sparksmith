@@ -782,16 +782,17 @@ impl PcbEditor {
         };
         panel.claim(ui.ctx());
         panel.poll(ui.ctx());
-        if panel.revision != Some(engine.revision()) {
-            // Undo, redo or another edit: fields show the document again.
+        if panel.revision != Some(engine.content_revision()) {
+            // Undo, redo or another edit (fill copper stored is none): fields
+            // show the document again.
             panel.staged.clear();
             panel.tie_rise = None;
             panel.errors.clear();
-            panel.revision = Some(engine.revision());
+            panel.revision = Some(engine.content_revision());
         }
         // A switch the engine applied: say so and show the table again.
         if let Mode::Preview(preview) = &panel.mode
-            && preview.sent.is_some_and(|sent| sent != engine.revision())
+            && preview.sent.is_some_and(|sent| !engine.still_at(sent))
         {
             let text = match &preview.options {
                 Some(change) => format!("Using {}", change.label),
@@ -1597,7 +1598,7 @@ fn preview_slot(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> Option<
     let Mode::Preview(preview) = &mut panel.mode else {
         return None;
     };
-    let stale = preview.at != engine.revision();
+    let stale = !engine.still_at(preview.at);
     let (summary, groups, blockers) = match &preview.impact {
         // A switch the engine would refuse is previewed with its reason
         // as the blocker, so Apply is not offered.

@@ -118,7 +118,7 @@ impl PcbEditor {
     pub(super) fn stackup_setup(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Operation> {
         let project = engine.project();
         let setup = self.stackup.as_mut()?;
-        if setup.sent.is_some_and(|sent| sent != engine.revision()) {
+        if setup.sent.is_some_and(|sent| !engine.still_at(sent)) {
             self.stackup = None;
             return None;
         }

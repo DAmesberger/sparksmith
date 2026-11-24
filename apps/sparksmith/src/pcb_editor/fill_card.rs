@@ -28,7 +28,9 @@ const AREA_RANGE: std::ops::RangeInclusive<f64> = 0.0..=10_000.0;
 
 /// The fill being edited in the card and the definition last sent.
 pub(super) struct FillDraft {
-    key: (u64, Id),
+    /// The document and the fill; its definition as stored (no copper).
+    key: ((u64, u64), Id),
+    stored: Fill,
     fill: Fill,
     sent: Option<Fill>,
 }
@@ -60,18 +62,30 @@ impl PcbEditor {
         &mut self,
         ui: &mut Ui,
         project: &Project,
-        revision: u64,
+        content: (u64, u64),
         fill: &Fill,
     ) -> Option<Operation> {
-        let key = (revision, fill.id);
-        if self.fill_card.as_ref().is_none_or(|d| d.key != key) {
+        // The definition only: the copper is computed, and stored whenever it
+        // is ready. What is being typed stays while what it shows does.
+        let key = (content, fill.id);
+        let stored = Fill {
+            computed: None,
+            ..fill.clone()
+        };
+        let typing = ui.memory(|m| m.focused()).is_some();
+        let kept = |d: &FillDraft| {
+            d.key.1 == fill.id && d.stored == stored && (d.key.0 == content || typing)
+        };
+        if self.fill_card.as_ref().is_none_or(|d| !kept(d)) {
             self.fill_card = Some(FillDraft {
                 key,
-                fill: fill.clone(),
+                fill: stored.clone(),
+                stored: stored.clone(),
                 sent: None,
             });
         }
         let draft = self.fill_card.as_mut()?;
+        draft.key = key;
         let mut d = draft.fill.clone();
         let locked = fill.locked;
         let rules = project.rules.effective().fill;
@@ -181,7 +195,7 @@ impl PcbEditor {
         let draft = self.fill_card.as_mut()?;
         draft.fill = d;
         let typing = ui.memory(|m| m.focused()).is_some();
-        if draft.fill == *fill || typing || draft.sent.as_ref() == Some(&draft.fill) {
+        if draft.fill == stored || typing || draft.sent.as_ref() == Some(&draft.fill) {
             return None;
         }
         draft.sent = Some(draft.fill.clone());

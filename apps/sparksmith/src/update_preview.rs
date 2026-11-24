@@ -264,7 +264,7 @@ impl UpdatePreview {
             self.refusal = Some(refused);
             return;
         }
-        if engine.revision() == revision {
+        if engine.still_at(revision) {
             // Not sent (a file operation was running): stay open.
             return;
         }
@@ -288,7 +288,7 @@ impl UpdatePreview {
         let plan = self.plan.as_ref()?;
         let content = content(plan, engine.project(), self.note.as_deref(), &self.choices);
         self.acked.resize(content.lines.len(), false);
-        let stale = plan.revision != engine.revision();
+        let stale = !engine.still_at(plan.revision);
         let panel = ReviewPanel {
             id: Self::id(),
             icon: icon(&plan.change),

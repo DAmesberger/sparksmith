@@ -19,7 +19,7 @@ use crate::refusal::{self, Origin};
 use egui::{Align2, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Ui, vec2};
 use sparksmith_core::layout::outline::{BoardCommand, BoardEdit, BoardShapeEvaluator};
 use sparksmith_core::library::footprint_source::{
-    ParamName, SketchConstraintId, SketchPointId, SketchRef,
+    FootprintParam, ParamName, SketchBlob, SketchConstraintId, SketchPointId, SketchRef,
 };
 use sparksmith_core::library::{Outline, Segment, bulge_arc};
 use sparksmith_core::model::board::{BoardSketch, CutoutKind, ShapeFaultKind, SolvedBoard};
@@ -38,11 +38,22 @@ const CHORD_MM: f64 = 0.02;
 
 /// The loaded board sketch of one revision.
 struct Loaded {
-    key: (u64, usize),
+    /// When the sketch came to be shown: the opening and revision.
+    key: (u64, u64),
+    /// The last revision it was found unchanged at.
+    seen: (u64, u64),
+    /// The sketch and parameters shown.
+    shown: (SketchBlob, Vec<FootprintParam>),
     view: SketchView,
     live: Option<LiveSketch>,
     report: Option<SolveReport>,
     values: Vec<ParamEvaluation>,
+}
+
+impl Loaded {
+    fn shows(&self, board: &BoardSketch) -> bool {
+        self.shown.0 == board.sketch && self.shown.1 == board.parameters
+    }
 }
 
 /// A point being dragged: the live sketch follows the pointer each frame.
@@ -70,6 +81,8 @@ pub(super) struct ShapeMode {
     /// The selected dimension, whose value field the card shows.
     pub(super) dimension: Option<SketchConstraintId>,
     dim_text: Option<(SketchConstraintId, String)>,
+    /// That text was sent and not refused.
+    dim_sent: bool,
     /// The dimension placed whose value is being typed.
     pub(super) draft: Option<Draft>,
     drag: Option<Drag>,
@@ -96,6 +109,7 @@ impl Default for ShapeMode {
             selection: Vec::new(),
             dimension: None,
             dim_text: None,
+            dim_sent: false,
             draft: None,
             drag: None,
             loaded: None,
@@ -109,12 +123,14 @@ impl Default for ShapeMode {
 }
 
 /// A refused parameter, why, and the board's key when it was refused.
-type Refused = (ParamName, String, Option<(u64, usize)>);
+type Refused = (ParamName, String, Option<(u64, u64)>);
 
 /// The parameters section's text buffers.
 #[derive(Default)]
 pub(super) struct ParamRows {
-    key: Option<(u64, usize)>,
+    key: Option<(u64, u64)>,
+    /// The stored expressions the rows show.
+    stored: std::collections::BTreeMap<ParamName, String>,
     exprs: std::collections::BTreeMap<ParamName, String>,
     adding: bool,
     new_name: String,
@@ -171,12 +187,18 @@ impl ShapeMode {
     }
 
     fn load(&mut self, engine: &Engine, board: &BoardSketch) {
-        let key = (
-            engine.revision(),
-            std::sync::Arc::as_ptr(engine.project_arc()) as usize,
-        );
-        if self.loaded.as_ref().is_some_and(|l| l.key == key) {
-            return;
+        let key = (engine.opening(), engine.revision());
+        if let Some(l) = &mut self.loaded {
+            if l.seen == key {
+                return;
+            }
+            // Another revision of the same sketch and parameters (fill copper
+            // stored, an edit elsewhere): everything shown is as it was, so
+            // what is typed or dragged goes on.
+            if l.seen.0 == key.0 && l.shows(board) {
+                l.seen = key;
+                return;
+            }
         }
         let source = shape::source_of(board);
         let live = LiveSketch::load(&source, &[]).ok();
@@ -215,11 +237,26 @@ impl ShapeMode {
         // The Value field shows the new revision's value (an edit applied,
         // an undo), so no earlier text's error stands; a refused edit
         // leaves the revision, and its error, as they were.
-        self.dim_text = None;
+        // Text still typed over a value that stays is kept.
+        let text_of = |v: &SketchView, id: &SketchConstraintId| {
+            let k = v.constraints.iter().find(|k| &k.id == id)?;
+            Some(dims::field_text(k))
+        };
+        let typed = self.dim_text.take().filter(|(id, _)| {
+            let before = self.loaded.as_ref().and_then(|l| text_of(&l.view, id));
+            before.is_some()
+                && before == text_of(&view, id)
+                && !self.errors.contains_key(DIM_FIELD)
+                && !self.dim_sent
+        });
+        self.dim_text = typed;
+        self.dim_sent = false;
         self.errors.remove(DIM_FIELD);
         self.drag = None;
         self.loaded = Some(Loaded {
             key,
+            seen: key,
+            shown: (board.sketch.clone(), board.parameters.clone()),
             report: live.as_ref().map(LiveSketch::report),
             values: sketch_view::parameter_values(&source, &[]).unwrap_or_default(),
             view,
@@ -243,7 +280,7 @@ impl PcbEditor {
         let project = engine.project();
         let is_sketch = sketch_of(project).is_some();
         if let Some(sent) = self.shape.starting
-            && sent != engine.revision()
+            && !engine.still_at(sent)
         {
             self.shape.starting = None;
             self.shape.active = is_sketch;
@@ -1182,6 +1219,7 @@ impl PcbEditor {
             if field.lost_focus() && text.trim() != original {
                 match shape::dimension_value_edits(board, &view, &id, text) {
                     Ok(edits) => {
+                        self.shape.dim_sent = true;
                         self.shape.errors.remove(DIM_FIELD);
                         refusal::mark(ui.ctx(), Origin::Field(egui::Id::unique(DIM_FIELD)));
                         operation = Some(shape::operation(edits));
@@ -1270,11 +1308,19 @@ impl PcbEditor {
         let key = self.shape.loaded.as_ref().map(|l| l.key);
         if rows.key != key {
             rows.key = key;
-            rows.exprs = board
+            let stored: std::collections::BTreeMap<ParamName, String> = board
                 .parameters
                 .iter()
                 .map(|p| (p.name.clone(), p.expr.0.clone()))
                 .collect();
+            // Text still typed over a value that stays is kept.
+            let typed = rows.editing.as_ref().map(|(n, _)| n.clone());
+            let typed =
+                typed.filter(|n| rows.error.is_none() && rows.stored.get(n) == stored.get(n));
+            let typed = typed.and_then(|n| Some((n.clone(), rows.exprs.remove(&n)?)));
+            rows.exprs = stored.clone();
+            rows.exprs.extend(typed);
+            rows.stored = stored;
         }
         // A refusal is about the value that was refused: it goes when the
         // document changes or its row is edited again.
@@ -1644,6 +1690,7 @@ impl PcbEditor {
 
     fn claim_shape_refusals(&mut self, ctx: &egui::Context) {
         if let Some(text) = refusal::claim(ctx, Origin::Field(egui::Id::unique(DIM_FIELD))) {
+            self.shape.dim_sent = false;
             self.shape.errors.insert(DIM_FIELD, text);
             if let Some(draft) = &mut self.shape.draft {
                 draft.focus = true;

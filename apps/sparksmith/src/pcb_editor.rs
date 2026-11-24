@@ -423,7 +423,7 @@ pub struct PcbEditor {
     /// Whether vias the Via tool and layer changes place are tented:
     /// the tool's own choice, else the rules' `tent vias` ([`Self::via_tented`]).
     via_tented: Option<bool>,
-    property_key: Option<(u64, Option<Id>)>,
+    property_key: Option<((u64, u64), Option<Id>)>,
     position: Point,
     rotation: f64,
     placement_layer: Layer,
@@ -437,6 +437,9 @@ pub struct PcbEditor {
     drag_airwires: Option<DragAirwires>,
     show_airwires: bool,
     cached_revision: Option<u64>,
+    /// The document the fields and drags belong to: its opening, and its
+    /// revision without fill copper stored since (`Engine::content_revision`).
+    cached_content: Option<(u64, u64)>,
     /// The engine's copper graph of the cached revision: the airwires and
     /// the drag preview read it.
     graph: Arc<CopperGraph>,
@@ -643,6 +646,7 @@ impl Default for PcbEditor {
             drag_airwires: None,
             show_airwires: true,
             cached_revision: None,
+            cached_content: None,
             graph: Arc::default(),
             airwires: vec![],
             markers: None,
@@ -949,8 +953,17 @@ impl PcbEditor {
         self.route
             .fill_stores
             .retain(|(_, after)| *after > revision);
+        // Fill copper stored in the background changes nothing the person
+        // holds: a drag, an outline being drawn or a typed value goes on.
+        let content = (engine.opening(), engine.content_revision());
+        let edited = self.cached_content != Some(content);
+        self.cached_content = Some(content);
         if self.cached_revision != Some(revision) {
-            self.cancel_drag();
+            if edited {
+                self.cancel_drag();
+                self.fill_drag = None;
+                self.fill_draw.clear();
+            }
             if !continued {
                 self.reset_route();
             }
@@ -989,8 +1002,6 @@ impl PcbEditor {
                 .filter(|s| s.stale)
                 .map(|s| s.fill)
                 .collect();
-            self.fill_drag = None;
-            self.fill_draw.clear();
             if self
                 .fill
                 .is_some_and(|id| engine.project().fill(id).is_none())
@@ -1036,7 +1047,7 @@ impl PcbEditor {
             );
         }
         let key = (
-            engine.revision(),
+            content,
             self.instance.or(self.track).or(self.via).or(self.fill),
         );
         if self.property_key != Some(key) {
@@ -1700,7 +1711,8 @@ impl PcbEditor {
             }
             Inspected::Fill(id) => {
                 let fill = project.fill(id)?;
-                self.fill_section(ui, project, engine.revision(), fill)
+                let content = (engine.opening(), engine.content_revision());
+                self.fill_section(ui, project, content, fill)
             }
             Inspected::Hole(id) => {
                 let board = project.board();

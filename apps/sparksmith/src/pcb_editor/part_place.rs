@@ -171,7 +171,7 @@ impl PcbEditor {
         engine: &Engine,
     ) -> Option<Operation> {
         if let Some(before) = self.select_placed
-            && engine.revision() > before
+            && !engine.still_at(before)
         {
             self.select_placed = None;
             if let Some(last) = engine.project().instances.last() {

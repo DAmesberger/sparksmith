@@ -214,7 +214,7 @@ impl PartEditor {
         if let Some(why) = refusal::claim(ctx, Origin::Dialog(egui::Id::unique(START_CREATE))) {
             self.start.sent = None;
             self.start.notice = Some(why);
-        } else if engine.revision() != *revision {
+        } else if !engine.still_at(*revision) {
             let created = generators::new_component(engine, before);
             self.start.sent = None;
             if let Some(component) = created {

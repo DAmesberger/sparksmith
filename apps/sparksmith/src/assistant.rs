@@ -150,6 +150,20 @@ impl OpenTurn {
         self.at = (engine.revision(), now);
     }
 
+    /// Fill copper computed for `before` was stored at `now`: nobody edited, so
+    /// the turn goes on from there.
+    pub fn fills_stored(&mut self, before: u64, now: u64, document: &Document) {
+        if self.revision == before {
+            self.revision = now;
+        }
+        if self.own_end == Some(before) {
+            self.own_end = Some(now);
+        }
+        if self.at.0 == before {
+            self.at = (now, document.clone());
+        }
+    }
+
     /// Others' revisions since the turn's last call, up to `revision`.
     pub fn caught_up(&mut self, revision: u64, document: &Document) {
         if revision != self.at.0 {
@@ -184,6 +198,8 @@ pub struct RunDone {
 
 /// What the column shows that the window knows.
 pub struct Now {
+    /// The revision of the last change, fill copper stored since aside.
+    pub content_revision: u64,
     /// The project's revision.
     pub revision: u64,
     /// The label of the step Undo would take back.
@@ -1250,7 +1266,7 @@ fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, last: bool, actions: &mut
         }
         let undoable = changed
             && !split
-            && now.revision == card.after
+            && (now.content_revision..=now.revision).contains(&card.after)
             && now.undo_label.as_deref() == Some(card.label.as_str());
         kit::actions(ui, |ui| {
             if ui_kit::button(ui, "Undo turn", Button::Enabled(undoable)).clicked() {

@@ -763,13 +763,8 @@ impl App {
                     let now = self.engine.revision();
                     self.pcb.fills_stored(before, now);
                     self.files.fills_stored(&self.engine, before);
-                    if self.undo_revision == Some(before) {
-                        self.undo_revision = Some(now);
-                    }
-                    if let Some(pending) = &mut self.pending_import
-                        && pending.revision == before
-                    {
-                        pending.revision = now;
+                    if let Some(turn) = self.assistant.turn.as_mut() {
+                        turn.fills_stored(before, now, self.engine.document());
                     }
                 }
                 match polled.refilled {
@@ -859,7 +854,7 @@ impl App {
         }
         if self
             .undo_revision
-            .is_some_and(|revision| revision != self.engine.revision())
+            .is_some_and(|revision| !self.engine.still_at(revision))
         {
             self.toasts.withdraw(ToastAction::Undo);
             self.undo_revision = None;
@@ -873,7 +868,10 @@ impl App {
                 action: ToastAction::Undo,
                 ..
             } => {
-                if self.undo_revision == Some(self.engine.revision()) {
+                if self
+                    .undo_revision
+                    .is_some_and(|revision| self.engine.still_at(revision))
+                {
                     self.toasts.withdraw(ToastAction::Undo);
                     self.undo_revision = None;
                     self.history(false);
@@ -1213,7 +1211,7 @@ impl App {
         if closed != crate::update_preview::Closed::Cancelled {
             return;
         }
-        if self.engine.revision() == pending.revision && self.engine.undo().is_ok() {
+        if self.engine.still_at(pending.revision) && self.engine.undo().is_ok() {
             self.say(
                 Level::Info,
                 format!(
@@ -1241,7 +1239,7 @@ impl App {
     /// Undo or redo one engine step and say which, by its history title.
     /// Undoing an AI assistant's edit says so.
     fn history(&mut self, redo: bool) {
-        let assistant = !redo && self.live_edit_at(self.engine.revision());
+        let assistant = !redo && self.live_edit();
         let (step, result) = if redo {
             (self.engine.redo_step(), self.engine.redo())
         } else {
@@ -1731,7 +1729,7 @@ impl App {
                 let _ = self.engine.join_last_step(revision);
             }
             if let Some(revision) = self.schematic.take_template_undo()
-                && revision == self.engine.revision()
+                && self.engine.still_at(revision)
                 && self.engine.undo().is_ok()
             {
                 self.say(Level::Info, "Cancelled: the component was not kept");
@@ -2245,6 +2243,9 @@ mod dimension_3d_tests;
 #[cfg(test)]
 #[path = "app/dimension_list_tests.rs"]
 mod dimension_list_tests;
+#[cfg(test)]
+#[path = "app/fill_store_tests.rs"]
+mod fill_store_tests;
 #[cfg(test)]
 #[path = "app/flow_tests.rs"]
 mod flow_tests;

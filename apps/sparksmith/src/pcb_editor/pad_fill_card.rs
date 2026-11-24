@@ -23,7 +23,9 @@ const ANGLE_RANGE: std::ops::RangeInclusive<f64> = -360.0..=360.0;
 /// The override being edited and the one last sent, for one part and pad
 /// (`None`: the whole part) at one revision.
 pub(super) struct PadFillDraft {
-    key: (u64, Id, Option<PadId>),
+    /// The document, the part and the pad; the override as stored.
+    key: (Option<(u64, u64)>, Id, Option<PadId>),
+    stored: PadFillOverride,
     settings: PadFillOverride,
     sent: Option<PadFillOverride>,
 }
@@ -97,15 +99,24 @@ impl PcbEditor {
                 .map(|e| e.settings)
                 .unwrap_or_default(),
         };
-        let key = (self.cached_revision.unwrap_or(0), instance, target);
-        if self.pad_fill.as_ref().is_none_or(|d| d.key != key) {
+        // What is being typed stays while the override it shows does.
+        let key = (self.cached_content, instance, target);
+        let typing = ui.memory(|m| m.focused()).is_some();
+        let kept = |d: &PadFillDraft| {
+            (d.key.1, d.key.2, d.stored) == (instance, target, stored)
+                && (d.key.0 == key.0 || typing)
+        };
+        if self.pad_fill.as_ref().is_none_or(|d| !kept(d)) {
             self.pad_fill = Some(PadFillDraft {
                 key,
                 settings: stored,
+                stored,
                 sent: None,
             });
         }
-        let mut d = self.pad_fill.as_ref()?.settings;
+        let draft = self.pad_fill.as_mut()?;
+        draft.key = key;
+        let mut d = draft.settings;
         let rules = project.rules.effective().fill;
         // What an unset row follows: the part's own setting on a pad, else
         // each fill's.

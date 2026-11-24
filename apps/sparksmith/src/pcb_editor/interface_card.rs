@@ -1533,7 +1533,10 @@ impl PcbEditor {
                 };
                 match (preview.as_ref(), waiting) {
                     (Some(p), false) => {
-                        let stale = p.document_revision != engine.revision();
+                        // A Full publish exports the copper too.
+                        let copper =
+                            p.tier == Tier::Full && p.document_revision != engine.revision();
+                        let stale = copper || !engine.still_at(p.document_revision);
                         let summary = publish_summary(p);
                         let blockers = publish_blockers(p);
                         let groups = publish_groups(p);
@@ -1616,7 +1619,7 @@ impl PcbEditor {
                 let title = "Update from linked design";
                 match (preview.as_ref(), waiting) {
                     (Some(p), false) => {
-                        let stale = p.document_revision != engine.revision();
+                        let stale = !engine.still_at(p.document_revision);
                         let (summary, blockers, groups) = assembly_content(p, choices);
                         review.acked.resize(blockers.len(), false);
                         let panel = ReviewPanel {
