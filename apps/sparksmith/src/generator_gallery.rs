@@ -44,6 +44,8 @@ use sparksmith_ui::ui_kit::{self, Button};
 pub const GALLERY: &str = "generator-gallery";
 /// Rows one search lists.
 pub const ROWS: usize = 200;
+/// A search that found nothing.
+const NO_MATCH: &str = "No generator makes this; try a package or size: qfn 16, sot-23, 0603";
 /// Frames a submit waits for the engine's answer before the sheet is
 /// usable again (the app may drop an operation while a file is busy).
 const ANSWER_FRAMES: u64 = 3;
@@ -773,7 +775,7 @@ impl GeneratorGallery {
                             if let Some(status) = &status {
                                 kit::search_message(ui, status, false);
                             } else if open.rows.is_empty() {
-                                kit::search_message(ui, "No generator makes this", false);
+                                kit::search_message(ui, NO_MATCH, false);
                             } else {
                                 kit::search_heading(ui, "Generators", open.rows.len());
                                 egui::ScrollArea::vertical()

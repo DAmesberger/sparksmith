@@ -787,7 +787,7 @@ pub(crate) fn protect_connections(
     use crate::diagnostics::{Error, ObjectRef};
     let refuse = |names: String| {
         Error::Conflict(format!(
-            "board.carry: cannot keep connected copper on {names}; change the routing or release the part dimensions before editing the board"
+            "board.carry: cannot keep connected copper on {names}; change the routing, or delete the part dimensions that move it, before editing the board"
         ))
     };
     if !rerouted.unrouted.is_empty() {

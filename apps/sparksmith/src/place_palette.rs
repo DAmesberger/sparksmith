@@ -57,6 +57,9 @@ use std::collections::BTreeMap;
 
 /// Rows one search asks for.
 const ROWS: usize = 40;
+/// A search that found nothing: a bare value names no part until a package
+/// or a type joins it.
+const NO_MATCH: &str = "No component or generated part matches; add a package or type: 10k 0603";
 /// Key names are spelled out: the bundled fonts have no ⏎ or ⇧ glyphs.
 const KEYS: &str = "↑↓ move   Enter place   Shift+Enter place & keep open   click pick   Cmd+D favourite   Esc close";
 /// The footer on a library folder row: a click places it like Enter, and
@@ -1310,7 +1313,7 @@ impl PlacePalette {
             } else if self.query.trim().is_empty() {
                 "Type to find a component or a part a generator makes"
             } else {
-                "No component or generated part matches"
+                NO_MATCH
             },
             "In this project",
         );
@@ -3476,12 +3479,7 @@ mod tests {
             shown.iter().any(|t| t.starts_with("SHIPPED PARTS")),
             "{shown:?}"
         );
-        assert!(
-            !shown
-                .iter()
-                .any(|t| t == "No component or generated part matches"),
-            "{shown:?}"
-        );
+        assert!(!shown.iter().any(|t| t == NO_MATCH), "{shown:?}");
         let (action, _) = run(&mut palette, enter());
         assert_eq!(action, Some(PaletteAction::Close));
         assert!(!palette.is_open());
