@@ -823,7 +823,7 @@ impl Request {
             entry!(
                 Save,
                 "Save the project atomically to a .sparksmith file, by default its current path.",
-                "Atomically save to a .sparksmith file (defaults to the current path). Not undoable.",
+                "Atomically save to a .sparksmith file (defaults to the current path). Not undoable. The first save identifies the project and names an Untitled one after the file, its own undo step: continue at the reply's revision.",
             ),
             entry!(
                 PreviewUpdate,
@@ -1205,8 +1205,9 @@ pub enum FileChange {
     },
     /// `project.new`: a new project at `revision`, which no file holds.
     New { revision: u64 },
-    /// `project.save`: the document at `revision` is in this file (on a
-    /// conflict, the new file that kept it).
+    /// `project.save`: the document at `revision` (after the name a first
+    /// save gave it) is in this file (on a conflict, the new file that
+    /// kept it).
     Saved {
         path: PathBuf,
         identity: sparksmith_io::DiskIdentity,
@@ -1657,15 +1658,6 @@ impl Session {
                         )
                     })?,
                 };
-                // A project first saved takes its identity, which every
-                // manufacturing file then states. No nonce: a script saved
-                // under the same file name reproduces it. The copy written
-                // takes it; the engine takes it once a file holds it, so a
-                // failed write leaves the project as it was (review
-                // finding 16).
-                let mut document = self.engine.document().clone();
-                let identified =
-                    sparksmith_core::identify_by_file(&mut document.project, &path, "");
                 // The session's own file, under any spelling, is replaced
                 // only while it holds what this session opened or saved;
                 // another file the request names is replaced whatever it
@@ -1679,43 +1671,42 @@ impl Session {
                 } else {
                     None
                 };
-                let revision = self.engine.revision();
-                let written = sparksmith_io::save_project(
-                    &path,
-                    &sparksmith_core::format::EditorFile::from_document(&document),
-                    expected,
-                );
-                if matches!(written, Ok(_) | Err(sparksmith_io::Error::Conflict(_)))
-                    && let Some(id) = identified
-                {
-                    self.engine.adopt_project_id(id)?;
-                }
-                let identity = match written {
-                    Ok(identity) => identity,
-                    Err(sparksmith_io::Error::Conflict(conflict)) => {
-                        // Both versions are kept; this session's document
-                        // is in the new file, which is its file from now
-                        // on, so a later save never replaces the other.
-                        self.path = Some(conflict.kept.clone());
-                        self.disk = Some(conflict.identity);
-                        self.host_changed(FileChange::Saved {
-                            path: conflict.kept.clone(),
-                            identity: conflict.identity,
-                            revision,
-                        });
-                        return Err(sparksmith_io::Error::Conflict(conflict).into());
-                    }
-                    Err(error) => return Err(error.into()),
-                };
-                let saved = path.display().to_string();
+                // A first save names and identifies the project
+                // (`sparksmith_core::first_save`). No nonce: a script saved
+                // under the same file name reproduces both.
+                let saved =
+                    match sparksmith_io::save_document(&path, self.engine.document(), expected, "")
+                    {
+                        Ok(saved) => saved,
+                        Err(sparksmith_io::Error::Conflict(conflict)) => {
+                            // Both versions are kept; this session's document
+                            // is in the new file, which is its file from now
+                            // on, so a later save never replaces the other.
+                            self.path = Some(conflict.kept.clone());
+                            self.disk = Some(conflict.identity);
+                            self.host_changed(FileChange::Saved {
+                                path: conflict.kept.clone(),
+                                identity: conflict.identity,
+                                revision: self.engine.revision(),
+                            });
+                            return Err(sparksmith_io::Error::Conflict(conflict).into());
+                        }
+                        Err(error) => return Err(error.into()),
+                    };
+                let saved_path = path.display().to_string();
                 self.path = Some(path.clone());
-                self.disk = Some(identity);
+                self.disk = Some(saved.identity);
+                // The file holds the document the engine has now, name and
+                // identity included.
+                let adopted = self.engine.adopt_first_save(&saved.first);
+                let revision = self.engine.revision();
                 self.host_changed(FileChange::Saved {
                     path,
-                    identity,
+                    identity: saved.identity,
                     revision,
                 });
-                return Ok(json!({"revision": revision, "saved_path": saved}));
+                adopted?;
+                return Ok(json!({"revision": revision, "saved_path": saved_path}));
             }
             Request::PreviewUpdate(params) => {
                 return Ok(serde_json::to_value(

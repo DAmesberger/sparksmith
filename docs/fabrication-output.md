@@ -58,7 +58,7 @@ A check whose limit is the fab profile's own rule (not an override's, a net clas
 
 ## Files
 
-`STEM` is the base name (the project file's stem in the CLI). In the desktop it is the project's name, which an Untitled project takes from its file on the first save. Until then an Untitled project's files take the name that save would give it: the KiCad board it was imported from (or the file a recovered session came from). A new project that is neither saved nor named has no name to give its files: Export is disabled with "Save or name the project first: the files take its name", rather than writing `Untitled-…` files.
+`STEM` is the base name (the project file's stem in the CLI). In the desktop it is the project's name. An Untitled project takes its file's name on the first save, in every host. Until then an Untitled project's files take the name that save would give it: the KiCad board it was imported from (or the file a recovered session came from). A new project that is neither saved nor named has no name to give its files: Export is disabled with "Save or name the project first: the files take its name", rather than writing `Untitled-…` files.
 
 | File | Content |
 | --- | --- |
@@ -107,7 +107,7 @@ A check whose limit is the fab profile's own rule (not an override's, a net clas
 Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job file (`GeneralSpecs.ProjectId`) and both drawings' title blocks (Release, Project id) state one identity:
 
 - **Name:** the project's name (`project.rename`).
-- **GUID:** the project's own identity, `Project.production.project_id`, saved with the project. A project takes it when it is first saved: a digest of the file's name, the whole document at that moment and, in the desktop, random bytes, so two boards of one name are two projects. A session (CLI, MCP) adds no random bytes, so a replay saved under the same file name reproduces it byte for byte. It is kept through renames, edits, undo and redo, and a copy saved elsewhere keeps it. A project never saved has none; its files use the release digest in its place.
+- **GUID:** the project's own identity, `Project.production.project_id`, saved with the project. A project takes it when it is first saved, after the name an Untitled project takes from its file (`sparksmith_core::first_save`, the one path of the desktop, CLI and MCP): a digest of the file's name, the whole document at that moment and, in the desktop, random bytes, so two boards of one name are two projects. A session (CLI, MCP) adds no random bytes, so a replay saved under the same file name reproduces it byte for byte. It is kept through renames, edits, undo and redo, and a copy saved elsewhere keeps it. A project never saved has none; its files use the release digest in its place.
 - **Revision:** the release, 16 hex digits of the SHA-256 of everything delivered, written without an identity (the creation date left out): every file of the set and, when the drawings are written, everything they print (`fabrication::drawing::DrawingData`, as canonical JSON, which the PDFs are laid out from). The same files give the same revision; any change to what a file or a drawing says changes it (a waiver's reason or a profile name only the drawing prints), and an edit that changes nothing delivered (a construction line) does not. A drawings-only export identifies its drawings. The CSV files carry no identity: their formats have no place for one.
 
 ### Excellon conventions

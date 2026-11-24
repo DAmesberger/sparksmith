@@ -949,32 +949,63 @@ fn renaming_the_project_is_one_undo_step() -> Result<()> {
 #[test]
 fn a_first_save_names_an_untitled_project_after_its_file() {
     use std::path::Path;
-    let mut project = std::sync::Arc::new(crate::Project::default());
+    let mut document = crate::Document::default();
     let file = Path::new("/boards/usb-led-e2e.sparksmith");
-    assert_eq!(
-        crate::name_by_file(&mut project, file).as_deref(),
-        Some("usb-led-e2e")
-    );
-    assert_eq!(project.name, "usb-led-e2e");
+    let given = crate::first_save(&mut document, file, "");
+    assert!(!given.is_empty());
+    assert_eq!(document.project.name, "usb-led-e2e");
     // Now a name: a later save under another file keeps it.
-    assert_eq!(
-        crate::name_by_file(&mut project, Path::new("other.sparksmith")),
-        None
-    );
-    assert_eq!(project.name, "usb-led-e2e");
+    let named = document.clone();
+    let again = crate::first_save(&mut document, Path::new("other.sparksmith"), "");
+    assert!(again.is_empty());
+    assert_eq!(document, named);
     for kept in [
         "Untitled.sparksmith",
         " .sparksmith",
         &format!("{}.sparksmith", "x".repeat(257)),
     ] {
-        let mut project = std::sync::Arc::new(crate::Project::default());
-        assert_eq!(
-            crate::name_by_file(&mut project, Path::new(kept)),
-            None,
-            "{kept}"
-        );
-        assert_eq!(project.name, crate::UNTITLED);
+        let mut document = crate::Document::default();
+        crate::first_save(&mut document, Path::new(kept), "");
+        assert_eq!(document.project.name, crate::UNTITLED, "{kept}");
+        assert!(document.project.production.project_id.is_some(), "{kept}");
     }
+}
+
+/// The engine takes what a first save gave its copy: the name is one undo
+/// step, the identity none. A name the project took while the file was
+/// written stays.
+#[test]
+fn the_engine_takes_what_a_first_save_gave() -> Result<()> {
+    use std::path::Path;
+    let mut engine = Engine::demo()?;
+    assert_eq!(engine.project().name, crate::UNTITLED);
+    let mut written = engine.document().clone();
+    let given = crate::first_save(&mut written, Path::new("one.sparksmith"), "");
+    let (revision, before) = (engine.revision(), engine.document().clone());
+    engine.adopt_first_save(&given)?;
+    assert_eq!(engine.document(), &written);
+    assert_eq!(engine.revision(), revision + 1);
+    engine.undo()?;
+    assert_eq!(engine.project().name, crate::UNTITLED);
+    assert_eq!(
+        engine.project().production.project_id,
+        written.project.production.project_id
+    );
+
+    let mut engine = Engine::demo()?;
+    assert_eq!(engine.document(), &before);
+    engine.apply(
+        engine.revision(),
+        Operation::Schematic(C::RenameProject {
+            name: "Chosen meanwhile".into(),
+        }),
+    )?;
+    let revision = engine.revision();
+    engine.adopt_first_save(&given)?;
+    assert_eq!(engine.project().name, "Chosen meanwhile");
+    assert_eq!(engine.revision(), revision);
+    assert!(engine.project().production.project_id.is_some());
+    Ok(())
 }
 
 #[test]

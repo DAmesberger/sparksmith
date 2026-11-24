@@ -229,16 +229,12 @@ fn publish_part(pair: &mut Pair) -> Fallible<PartRef> {
         .session
         .dispatch(json!({"command": "project.save", "params": {"path": path}}));
     assert_eq!(saved["ok"], true, "{saved}");
-    // The first save gives the project its identity; the twin takes it.
-    let id = pair
-        .session
-        .engine()
-        .project()
-        .production
-        .project_id
-        .clone()
-        .ok_or("the save gave no identity")?;
-    pair.engine.adopt_project_id(id)?;
+    // The first save gives the project its name and identity; the twin
+    // takes them.
+    let mut copy = pair.engine.document().clone();
+    let given = sparksmith_core::first_save(&mut copy, Path::new(&path), "");
+    pair.engine.adopt_first_save(&given)?;
+    assert_eq!(pair.engine.revision(), pair.session.engine().revision());
     let mut reopened = Session::default();
     let opened = reopened.dispatch(json!({"command": "project.open", "params": {"expected_revision": reopened.engine().revision(), "path": path}}));
     assert_eq!(opened["ok"], true, "{opened}");
