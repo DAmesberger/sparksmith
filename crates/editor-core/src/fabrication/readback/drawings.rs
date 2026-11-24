@@ -246,22 +246,27 @@ fn tables(r: &mut Reading<'_, '_>, data: &DrawingData, name: &str, pages: &[Page
     }
 }
 
+/// The scale a sheet states: "Viewed from the top. Scale 1:2.5. All …".
+fn scale_of(text: &str) -> Option<f64> {
+    let stated = text.split_once("Scale ")?.1.split_once(". ")?.0;
+    let (a, b) = stated.split_once(':')?;
+    let scale = a.parse::<f64>().ok()? / b.parse::<f64>().ok()?;
+    // Stated to two decimals: the one scale that is not exact, 3:4, reads
+    // 1:1.33.
+    Some(if (scale - 0.75).abs() < 0.004 {
+        0.75
+    } else {
+        scale
+    })
+}
+
 /// Every hole on the first sheet, at its place and size by the sheet's scale.
 fn holes(r: &mut Reading<'_, '_>, data: &DrawingData, name: &str, pages: &[Page]) {
     let Some(page) = pages.first() else {
         r.say(name, None, "no sheet", "a sheet");
         return;
     };
-    // "Viewed from the top. Scale 1:2.5. All dimensions in mm."
-    let scale = page.texts.iter().find_map(|(t, _)| {
-        let (a, b) = t
-            .split_once("Scale ")?
-            .1
-            .split_once(". ")?
-            .0
-            .split_once(':')?;
-        Some(a.parse::<f64>().ok()? / b.parse::<f64>().ok()?)
-    });
+    let scale = page.texts.iter().find_map(|(t, _)| scale_of(t));
     let Some(scale) = scale.filter(|s| *s > 0.0) else {
         r.say(name, None, "no scale", "a scale");
         return;
@@ -398,5 +403,36 @@ fn parts(r: &mut Reading<'_, '_>, data: &DrawingData, name: &str, pages: &[Page]
             let design = format!("“{text}” on the {word} side");
             r.say(name, at, "no such text", &design);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scale_of;
+
+    #[test]
+    fn every_scale_a_sheet_states_is_read() {
+        for (text, scale) in [
+            ("Viewed from the top. Scale 5:1. All dimensions in mm.", 5.0),
+            (
+                "Viewed from the top. Scale 2.5:1. All dimensions in mm.",
+                2.5,
+            ),
+            (
+                "Viewed from the top. Scale 1:1.33. All dimensions in mm.",
+                0.75,
+            ),
+            (
+                "Viewed from the top. Scale 1:2.5. All dimensions in mm.",
+                0.4,
+            ),
+            (
+                "Viewed from the top. Scale 1:20. All dimensions in mm.",
+                0.05,
+            ),
+        ] {
+            assert_eq!(scale_of(text), Some(scale), "{text}");
+        }
+        assert_eq!(scale_of("Notes"), None);
     }
 }

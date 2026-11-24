@@ -323,6 +323,8 @@ fn map(
     let mut drawn = Pieces::default();
     for object in &file.objects {
         match &object.kind {
+            // Nothing is drawn by a line that ends where it starts.
+            Kind::Draw { from, to } if distance(*from, *to) < 1e-9 => {}
             Kind::Draw { from, to } if object.dark => drawn.put(Piece::Line(*from, *to)),
             Kind::Arc {
                 from, to, center, ..
