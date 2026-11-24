@@ -91,6 +91,7 @@ fn board_of(size: Point, parameters: Vec<FootprintParam>) -> Result<BoardSketch>
         next_feature: 1,
         solve: Default::default(),
         solved: SolvedBoard::rectangle(size),
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),

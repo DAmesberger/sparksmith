@@ -94,7 +94,7 @@ fn the_rectangle_sketch_solves_to_the_plain_rectangle() -> Fallible<()> {
     assert_eq!(board.solved.bounds(), plain.bounds());
     // Re-evaluating the stored result changes nothing.
     let again = EV.evaluate(&board)?;
-    assert_eq!(again.solved, board.solved);
+    assert_eq!(again.solved.as_ref(), Some(&board.solved));
     assert_eq!(again.solve, board.solve);
     Ok(())
 }

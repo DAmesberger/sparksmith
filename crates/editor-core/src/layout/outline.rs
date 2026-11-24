@@ -71,15 +71,16 @@ pub fn refuses(code: &str) -> bool {
 /// What a board evaluation produced.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct BoardEvaluation {
-    /// The shape and the parameter values of this solve; not read with a
-    /// [`Self::fault`].
-    pub solved: SolvedBoard,
+    /// The shape and the parameter values of this solve, when it gave a
+    /// valid outline (a stray open line beside it is a [`Self::fault`] all
+    /// the same); `None`: it gave none, and the board keeps its last valid
+    /// solve whole.
+    pub solved: Option<SolvedBoard>,
     pub solve: SolveSummary,
     /// Design problems (unsolved, over-constrained). Codes that
     /// [`refuses`] names refuse the edit.
     pub findings: Vec<Finding>,
-    /// Why the curves are not a board; the board then keeps its last valid
-    /// solve.
+    /// What is wrong with the curves; always there without [`Self::solved`].
     #[serde(default)]
     pub fault: Option<ShapeFault>,
     /// The sketch with its stored positions moved to the solve, so the
@@ -752,11 +753,10 @@ fn retire(sketch: &mut BoardSketch, deleted: &BTreeSet<SketchRef>) -> Result<()>
 /// evaluator matched to a role (by its curves, or by a curve it shares
 /// with the role's loop as the loop's curves change) keeps the role's id
 /// and the role takes the loop's curves now; a new loop gets a new id as
-/// a plain cutout. A role whose loop is gone goes with it. Only a shape
-/// without a fault is identified; a faulty one keeps the last valid shape
-/// and its roles.
+/// a plain cutout. A role whose loop is gone goes with it. Only a current
+/// solve is identified; an earlier one keeps its ids, and the roles stay.
 fn identify_cutouts(sketch: &mut BoardSketch) -> Result<()> {
-    if sketch.fault.is_some() {
+    if !sketch.current {
         return Ok(());
     }
     let mut roles: Vec<CutoutRole> = Vec::with_capacity(sketch.solved.cutouts.len());
@@ -795,9 +795,9 @@ fn identify_cutouts(sketch: &mut BoardSketch) -> Result<()> {
 
 /// Solve a candidate sketch (with its free-form curves fitted within the
 /// project's `board.outline_fit`) and store it with its solve; refuses a
-/// shape that does not solve. Curves that are not a board are stored with their
-/// [`ShapeFault`], the last valid solve kept whole. Every inner loop keeps (or gets)
-/// its stable id ([`identify_cutouts`]).
+/// shape that does not solve. Curves that make no valid outline are stored with
+/// their [`ShapeFault`], the last valid solve kept whole. Every inner loop keeps
+/// (or gets) its stable id ([`identify_cutouts`]).
 pub(crate) fn commit(
     project: &mut Project,
     mut sketch: BoardSketch,
@@ -820,8 +820,9 @@ pub(crate) fn commit(
     sketch.solve = evaluation.solve;
     sketch.fault = evaluation.fault.map(bounded);
     sketch.idle = evaluation.idle;
-    if sketch.fault.is_none() {
-        sketch.solved = evaluation.solved;
+    sketch.current = evaluation.solved.is_some();
+    if let Some(solved) = evaluation.solved {
+        sketch.solved = solved;
     }
     check_values(&sketch)?;
     let size = sketch_size(&sketch.solved)?;
@@ -975,8 +976,8 @@ fn near_mm(a: f64, b: f64) -> bool {
 }
 
 /// The solved board's parameter values: each name once and finite; of a
-/// valid solve exactly one per board parameter, of its kind. While the
-/// outline is invalid they are the last valid solve's, whose parameters the
+/// current solve exactly one per board parameter, of its kind. Else they are
+/// the last valid solve's, whose parameters the
 /// person may have renamed, removed or changed since.
 fn check_values(sketch: &BoardSketch) -> Result<()> {
     let refuse = |what: String| Err(Error::Invalid(format!("board.param_value: {what}")));
@@ -998,7 +999,7 @@ fn check_values(sketch: &BoardSketch) -> Result<()> {
             ));
         }
     }
-    if sketch.invalid().is_some() {
+    if !sketch.current {
         return Ok(());
     }
     for p in &sketch.parameters {
@@ -1058,16 +1059,26 @@ fn validate_sketch(sketch: &BoardSketch) -> Result<()> {
             }
         }
     }
-    // Every inner loop of a valid shape has its stable id, a role's. While
-    // the outline is invalid the shape is an earlier one, whose cutouts the
+    let unsolved = matches!(
+        sketch.solve.status,
+        SolveStatus::OverConstrained | SolveStatus::Failed
+    );
+    if sketch.current && unsolved {
+        return bad("a sketch that does not solve has no current solved board");
+    }
+    if !sketch.current && !unsolved && sketch.fault.is_none() {
+        return bad("a sketch without a fault has a current solved board");
+    }
+    // Every inner loop of a current shape has its stable id, a role's. Else
+    // the shape is an earlier one, whose cutouts the
     // person may have deleted since.
     let roles: BTreeSet<BoardFeatureId> = sketch.cutouts.iter().map(|c| c.id).collect();
     for c in &sketch.solved.cutouts {
         match c.id {
-            Some(id) if sketch.fault.is_none() && !roles.contains(&id) => {
+            Some(id) if sketch.current && !roles.contains(&id) => {
                 return bad("a cutout's id names no role");
             }
-            None if sketch.fault.is_none() => return bad("every cutout has its id"),
+            None if sketch.current => return bad("every cutout has its id"),
             _ => {}
         }
     }

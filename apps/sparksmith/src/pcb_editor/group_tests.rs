@@ -780,6 +780,7 @@ fn picking_a_washer_inspects_the_board_hole_in_both_views() -> Fallible {
         next_feature: 18,
         solve: Default::default(),
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: vec![],

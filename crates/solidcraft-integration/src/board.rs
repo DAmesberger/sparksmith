@@ -163,6 +163,7 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
             next_feature: 1,
             solve: SolveSummary::default(),
             solved: SolvedBoard::rectangle(size),
+            current: true,
             outline_fit,
             fault: None,
             idle: Vec::new(),
@@ -172,7 +173,9 @@ impl BoardShapeEvaluator for SketchBoardEvaluator {
             return Err(Error::Invalid(format!("{}: {}", f.code, f.message)));
         }
         board.solve = evaluation.solve;
-        board.solved = evaluation.solved;
+        board.solved = evaluation
+            .solved
+            .ok_or_else(|| problem(OUTLINE, "the rectangle makes no outline"))?;
         if let Some(s) = evaluation.sketch_out {
             board.sketch = s;
         }
@@ -406,7 +409,7 @@ fn unsolved(board: &BoardSketch, p: Problem) -> BoardEvaluation {
         FindingCode::BoardShapeUnsolved
     };
     BoardEvaluation {
-        solved: board.solved.clone(),
+        solved: None,
         solve: SolveSummary {
             evaluator: evaluator_ref(),
             status,
@@ -878,25 +881,22 @@ fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
             "the solved sketch leaves the coordinate range",
         ));
     }
-    // Curves that are not one board keep the last valid shape; open ends
-    // are such curves too, named even when the closed ones make a board.
+    // Curves that are not one board give no solve; open ends are named even
+    // when the closed curves make a board.
     let shaped = match region(&sk) {
         Ok(region) => shape(board, &sk, &values, evaluated, &region)?,
         Err(fault) => Err(fault),
     };
     let (solved, fault) = match shaped {
-        Ok(solved) => match open_ends(&sk) {
-            None => (solved, None),
-            open => (board.solved.clone(), open),
-        },
-        Err(fault) => (board.solved.clone(), Some(open_ends(&sk).unwrap_or(fault))),
+        Ok(solved) => (Some(solved), open_ends(&sk)),
+        Err(fault) => (None, Some(open_ends(&sk).unwrap_or(fault))),
     };
     let idle = if fault.is_none() {
         idle(board, &sk)
     } else {
         Vec::new()
     };
-    let bytes = serde_json::to_vec(&solved)
+    let bytes = serde_json::to_vec(solved.as_ref().unwrap_or(&board.solved))
         .map_err(|e| problem(FindingCode::BoardInternal, e.to_string()))?;
     let dof = u32::try_from(dof).unwrap_or(u32::MAX);
     Ok(BoardEvaluation {

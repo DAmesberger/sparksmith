@@ -8,7 +8,7 @@ use crate::geometry::{Bounds, Point};
 use crate::ids::Id;
 use crate::library::footprint_source::{
     EvaluatorRef, Expr, FootprintParam, ParamName, ParamValue, SketchBlob, SketchCurveId,
-    SketchPointId, SolveStatus, SolveSummary,
+    SketchPointId, SolveSummary,
 };
 use crate::library::{Outline, Segment};
 use schemars::JsonSchema;
@@ -112,9 +112,9 @@ pub struct SolvedBoard {
     /// Every named edge's solved segment.
     pub edges: Vec<SolvedEdge>,
     /// Each board parameter's value in this solve, as the host evaluated it
-    /// (the core reads no expression). Exactly one per parameter while the
-    /// sketch is valid ([`BoardSketch::invalid`]); parameters edited since,
-    /// while it is not, keep the value this shape was solved with. Empty for
+    /// (the core reads no expression). Exactly one per parameter of a
+    /// current solve ([`BoardSketch::current`]); an earlier one keeps the
+    /// values its shape was solved with. Empty for
     /// a plain rectangle.
     pub values: Vec<ParameterValue>,
 }
@@ -365,17 +365,22 @@ pub struct BoardSketch {
     /// The last valid solve, its shape and its parameter values;
     /// `Project::board_size` holds its bounding box.
     pub solved: SolvedBoard,
+    /// Whether `solved` is of the last attempt, so of the sketch and
+    /// parameters as they are now; `false` while the last attempt gave no
+    /// valid outline and `solved` is an earlier one, whole.
+    pub current: bool,
     /// The arc-fit tolerance of the last attempt, mm: the effective
     /// `board.outline_fit` rule (`layout::outline::validate` keeps the two
     /// equal; changing the rule re-solves the board).
     pub outline_fit: f64,
-    /// Why the last attempt gave no board (open ends, a crossing, a touching
-    /// hole); `solved` is then of an earlier one.
+    /// What is wrong with the curves of the last attempt (open ends, a
+    /// crossing, a touching hole). With [`Self::current`] it is a stray open
+    /// line beside a closed outline; else the attempt gave no outline.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fault: Option<ShapeFault>,
     /// Board parameters that drive sketch dimensions but move no outline
     /// curve or mounting hole (`board.param_idle`), as the last attempt
-    /// found them; none are looked for while the outline is invalid.
+    /// found them; none are looked for with a fault.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub idle: Vec<ParamName>,
 }
@@ -385,14 +390,10 @@ impl BoardSketch {
     /// then not what the sketch and parameters say, and nothing is published
     /// or exported of the board until it is. `None` for a valid outline.
     pub fn invalid(&self) -> Option<&str> {
-        match &self.fault {
-            Some(fault) => Some(&fault.message),
-            None => matches!(
-                self.solve.status,
-                SolveStatus::OverConstrained | SolveStatus::Failed
-            )
-            .then_some("The board sketch does not solve."),
-        }
+        (!self.current).then(|| match &self.fault {
+            Some(fault) => fault.message.as_str(),
+            None => "The board sketch does not solve.",
+        })
     }
 }
 

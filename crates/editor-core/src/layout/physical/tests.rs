@@ -153,6 +153,7 @@ pub(crate) fn gate_board_with(with: &[&str]) -> Result<(Engine, Gate)> {
         next_feature: 2,
         solve: Default::default(),
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),

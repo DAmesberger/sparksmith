@@ -131,6 +131,7 @@ fn sketched() -> Fallible<Engine> {
                 value: ParamValue::Length(60.0),
             }],
         },
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
@@ -163,6 +164,7 @@ fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
             param("tab_x", "(width - 12 mm) / 2"),
         ];
         sketch.solved.values = values;
+        sketch.current = fault.is_none();
         sketch.fault = fault;
         let mut engine = Engine::from_file(file)?;
         for name in ["width", "tab_x"] {
@@ -266,6 +268,7 @@ fn an_invalid_outline_keeps_the_values_of_its_shape() -> Fallible {
             return Err("a sketched board".into());
         };
         sketch.fault = Some(open_outline());
+        sketch.current = false;
         sketch.solved.values = values;
         Ok(Engine::from_file(file))
     };
@@ -301,7 +304,15 @@ fn an_invalid_outline_blocks_publishing() -> Fallible {
     let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
         return Err("a sketched board".into());
     };
+    // Beside a current solve the fault blocks nothing here.
     sketch.fault = Some(open_outline());
+    let stray = Engine::from_file(file.clone())?;
+    assert!(list(&stray)?.blocked.is_empty());
+    assert!(assembly_link::check_publish(stray.project()).is_ok());
+    let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
+        return Err("a sketched board".into());
+    };
+    sketch.current = false;
     if let Some(p) = sketch.parameters.first_mut() {
         p.expr = Expr("75".into());
     }

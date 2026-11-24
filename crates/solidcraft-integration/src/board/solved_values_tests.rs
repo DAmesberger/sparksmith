@@ -4,7 +4,7 @@
 
 use super::tests::{Fallible, apply, close, created_curves_of, edit, set, sketch, sketched};
 use sparksmith_core::interface::{DatumGeometry, ExportTarget, InterfaceCommand};
-use sparksmith_core::layout::outline::BoardEdit;
+use sparksmith_core::layout::outline::{BoardEdit, SHAPE_OPEN};
 use sparksmith_core::library::footprint_source::{ParamName, ParamValue, SketchEdit, SketchRef};
 use sparksmith_core::{Engine, Operation, Query, QueryResult, format};
 
@@ -98,6 +98,13 @@ fn stored(engine: &Engine) -> Fallible<Vec<(String, f64)>> {
             other => Err(format!("{other:?}").into()),
         })
         .collect()
+}
+
+fn preflight(engine: &Engine) -> Fallible<sparksmith_core::fabrication::PreflightReport> {
+    match engine.query(Query::Preflight { profile: None })? {
+        QueryResult::Preflight(report) => Ok(*report),
+        _ => Err("preflight".into()),
+    }
 }
 
 fn pairs(values: &[(&str, f64)]) -> Vec<(String, f64)> {
@@ -217,12 +224,12 @@ fn an_invalid_outline_keeps_the_solved_board_whole() -> Fallible<()> {
     Ok(())
 }
 
-/// A stray open line makes the outline invalid although the rest still
-/// closes; the board keeps its last valid solve until it is gone.
+/// A stray open line beside a closed outline is reported and blocks
+/// fabrication output until waived, as before; the solve is current, its
+/// shape and values replaced together, and publishing goes ahead.
 #[test]
-fn a_stray_open_line_keeps_the_solved_board_too() -> Fallible<()> {
+fn a_stray_open_line_keeps_the_solve_current() -> Fallible<()> {
     let mut engine = sketched()?;
-    let valid = engine.project().board().into_owned();
     let stray = created_curves_of(edit(
         &mut engine,
         vec![BoardEdit::Sketch {
@@ -234,8 +241,48 @@ fn a_stray_open_line_keeps_the_solved_board_too() -> Fallible<()> {
         }],
     )?);
     edit(&mut engine, vec![set("width", "75 mm")])?;
-    assert!(sketch(&engine)?.invalid().is_some());
+    let now = sketch(&engine)?;
+    assert!(now.current && now.fault.is_some() && now.invalid().is_none());
+    assert_eq!(engine.project().board_size, [75.0, 40.0]);
+    assert_eq!(
+        stored(&engine)?,
+        pairs(&[("width", 75.0), ("height", 40.0)])
+    );
+    // A cutout drawn beside the stray gets its stable id.
+    edit(
+        &mut engine,
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::AddCircle {
+                center: [50.0, 10.0],
+                radius: 2.0,
+                construction: false,
+            },
+        }],
+    )?;
+    assert!(engine.project().board().cutouts[0].id.is_some());
+    let blocked = |engine: &Engine| -> Fallible<Vec<String>> {
+        let QueryResult::InterfaceList(list) = engine.query(Query::InterfaceList {})? else {
+            return Err("the interface".into());
+        };
+        Ok(list.blocked)
+    };
+    assert!(blocked(&engine)?.is_empty());
+    let report = preflight(&engine)?;
+    assert!(
+        report
+            .items
+            .iter()
+            .any(|i| i.code == SHAPE_OPEN && i.blocks())
+    );
+    // With the outline open too, the solve is the last valid one, whole.
+    let valid = engine.project().board().into_owned();
+    open_outline(&mut engine)?;
+    edit(&mut engine, vec![set("width", "80 mm")])?;
+    assert!(!sketch(&engine)?.current);
+    assert_eq!(blocked(&engine)?.len(), 1);
     assert_eq!(engine.project().board().into_owned(), valid);
+    engine.undo()?;
+    engine.undo()?;
     edit(
         &mut engine,
         vec![BoardEdit::Sketch {
@@ -283,38 +330,14 @@ fn a_cutout_is_deleted_while_the_outline_is_open() -> Fallible<()> {
     Ok(())
 }
 
-/// Fabrication output of a board whose outline is invalid is refused, and
-/// no waiver lifts it; the native export is refused, writing nothing.
+/// The native export of a board whose outline is invalid is refused,
+/// writing nothing.
 #[test]
 fn an_invalid_outline_is_not_exported() -> Fallible<()> {
     use crate::export::{Unfit, Watch, board};
-    use sparksmith_core::fabrication::preflight::{FabricationCommand, can_waive};
-    use sparksmith_core::layout::outline::{SHAPE_INVALID, SHAPE_OPEN, SHAPE_UNSOLVED};
     use sparksmith_core::model::interface::Tier;
     let mut engine = sketched()?;
     open_outline(&mut engine)?;
-    for code in [SHAPE_OPEN, SHAPE_INVALID, SHAPE_UNSOLVED] {
-        assert!(!can_waive(code), "{code}");
-    }
-    let QueryResult::Preflight(report) = engine.query(Query::Preflight { profile: None })? else {
-        return Err("preflight".into());
-    };
-    let item = report.items.iter().find(|i| i.code == SHAPE_OPEN);
-    let item = item.ok_or("open")?;
-    assert!(item.blocks() && !item.offers_waiver());
-    let waived = apply(
-        &mut engine,
-        Operation::Fabrication(FabricationCommand::Waive {
-            keys: vec![item.key.clone()],
-            reason: String::new(),
-        }),
-    );
-    let refused = waived.err().ok_or("waived")?.to_string();
-    assert!(
-        refused.contains("make the board outline valid"),
-        "{refused}"
-    );
-
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("board.solidcraft");
     let path = path.to_string_lossy().into_owned();

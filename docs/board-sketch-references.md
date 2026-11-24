@@ -115,7 +115,7 @@ The `outline` curve list is dropped. After the board solve, the evaluator runs `
 - its outer loop does not cross itself;
 - every hole lies strictly inside the outer loop, apart from the others.
 
-The outer loop is the outline. Each hole is a cutout, unless a `CutoutRole` keyed by its curve ids makes it a slot. Otherwise (open ends beside a closed board too) the last valid `SolvedBoard`, its shape and its parameter values, is kept whole, and the board reports one of:
+The outer loop is the outline. Each hole is a cutout, unless a `CutoutRole` keyed by its curve ids makes it a slot. Otherwise the last valid `SolvedBoard`, its shape and its parameter values, is kept whole, and the board reports one of (open ends beside a closed outline are reported too, and that outline is taken):
 
 - `board.shape_open`, with the open ends from `loose_ends`. It is advisory in Board shape mode and an error everywhere else.
 - `board.shape_invalid`, naming the crossing or the touching hole.
@@ -439,7 +439,7 @@ C0 is the contract for S1 and S2. Every path that needs either slice refuses wit
 - **Types.** `model::dimension` (new): `PartDimension`, `PartDimensionSpec`, `PartRelation`, `BoardRef`, `FeatureRef`, `PadPoint`, `BoxSide`, `PartAxis`, `End`, `ModelFaceRef`, `ModelEdgeRef`, the name newtypes, `FollowedFaceId` and `ReferenceStatus`. `Project::part_dimensions` sits beside `edge_constraints`. `DimValue::Expr(Expr)` is added; footprint and board-sketch dimensions refuse it.
 - **Commands.** `board.edit` has `SetCutoutKind`, `AddSpline`, `AddEllipse` and `AddConic`; the free-form ones reach `BoardShapeEvaluator::add_curve` with a `FreeFormCurve`. The new `Operation::Dimension` family has `layout.dimension_add`, `layout.dimension_edit` and `layout.dimension_delete`, with `Outcome::DimensionAdded`. `layout.dimension_order` (added with the list system) stores the Dimensions list's order, as set by a drag or ⌥↑/⌥↓: document data, one undo step, with no geometry change. There is no new query: `board.shape` and `project.issues` cover S1 and S2.
 - **Solve seam.** `BoardShapeEvaluator::solve_parts(&PartsRequest) -> PartsSolution` (`layout::dimensions`). The engine calls `layout::dimensions::follow` right after `layout::outline::follow`. `dimensions::validate` and `dimensions::checks` are wired into `layout::validate` and `layout::checks`.
-- **Findings.** `board.shape_open` and `board.shape_invalid` (`layout::outline`), and `board.reference_lost` and `board.reference_inexact` (`layout::dimensions`). All four are classified as errors with group titles and fixes, and pre-flight blocks on them. `fabrication::preflight::NO_WAIVER` keeps all four from being waived; `fabrication.waive` refuses them.
+- **Findings.** `board.shape_open` and `board.shape_invalid` (`layout::outline`), and `board.reference_lost` and `board.reference_inexact` (`layout::dimensions`). All four are classified as errors with group titles and fixes, and pre-flight blocks on them. `fabrication::preflight::NO_WAIVER` already keeps the two reference codes from being waived; `fabrication.waive` refuses them.
 - **Edge constraints moved, unchanged.** All edge-constraint code is in `layout/outline/edge_constraints.rs`, re-exported from `layout::outline` under the same names. The integration crate's evaluation of edge-constraint expressions is in `board/parts.rs` (`edge_constraint_values`).
 - **Test skeletons.** `#[ignore = "slice S1"]` / `#[ignore = "slice S2"]` tests state the expected behaviour. Each slice removes its ignores and must not weaken the expected values.
 

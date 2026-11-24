@@ -1069,3 +1069,24 @@ fn generated_parts_keep_the_source_schematics_nets() -> Fallible {
     }
     Ok(())
 }
+
+/// An outline that closes beside a stray segment is imported all the same:
+/// the board is the drawn one, not the starting rectangle, and the stray is
+/// reported.
+#[test]
+fn an_outline_with_a_stray_segment_is_imported() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let stray = r#"(gr_line (start 60 20) (end 70 20) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#;
+    let imported = import(dir.path(), "stray", &board("stray", stray))?;
+    let project = imported.engine.project();
+    let sparksmith_core::BoardShape::Sketch(sketch) = &project.board_shape else {
+        return Err("a board sketch".into());
+    };
+    assert!(sketch.fault.is_some(), "the stray is reported");
+    assert!(sketch.current);
+    assert_eq!(project.board_size, [120.0, 40.0]);
+    assert_eq!(project.board().outer.segments.len(), 4);
+    assert!(sketch.parameters.is_empty() && sketch.solved.values.is_empty());
+    assert_eq!(imported.report.count(Case::OutlineNotClosed), 1);
+    Ok(())
+}

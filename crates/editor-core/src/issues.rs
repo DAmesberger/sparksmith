@@ -223,10 +223,6 @@ pub const NO_WAIVER: &[&str] = &[
     crate::diagnostics::FindingCode::BoardCheckLimit.as_str(),
     "board.unrouted",
     "board.unplaced",
-    // The board shown and written would be an earlier one than drawn.
-    layout::outline::SHAPE_UNSOLVED,
-    layout::outline::SHAPE_OPEN,
-    layout::outline::SHAPE_INVALID,
     layout::dimensions::REFERENCE_LOST,
     layout::dimensions::REFERENCE_INEXACT,
     crate::interface::findings::ASSEMBLY_CYCLE,
