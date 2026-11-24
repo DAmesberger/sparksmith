@@ -142,7 +142,10 @@ impl Session {
         expected: Option<u64>,
     ) -> Result<(Request, Option<u64>, Option<u64>), Box<Error>> {
         let current = self.engine.revision();
-        let Some(from) = expected.filter(|r| agent && *r < current) else {
+        // Only fill copper stored since: the same document, nothing to rebase.
+        let engine = &self.engine;
+        let moved_on = |r: &u64| *r < current && !engine.still_at(*r);
+        let Some(from) = expected.filter(|r| agent && moved_on(r)) else {
             return Ok((request, expected, None));
         };
         if !matches!(request, Request::Apply(_) | Request::ApplyAll(_)) {

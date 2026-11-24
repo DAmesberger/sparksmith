@@ -882,13 +882,17 @@ pub struct ReportKey {
 pub struct Engine {
     document: Document,
     revision: u64,
+    /// The revision of the last change other than fill copper stored without
+    /// an undo step ([`Engine::still_at`]).
+    content_revision: u64,
     /// The documents before each step, with what the step did.
     undo: VecDeque<(Document, Step)>,
     /// The documents after each undone step, with what it did.
     redo: Vec<(Document, Step)>,
-    /// The revision the latest undo step was applied at, until an undo,
+    /// The revisions the latest undo step was applied at (its document's, with
+    /// the fill copper stored since it), until an undo,
     /// redo or new document ([`Engine::join_last_step`]).
-    last_step: Option<u64>,
+    last_step: Option<(u64, u64)>,
     /// Which state of the history this is: a fresh value from
     /// [`next_history`] whenever a step is made, undone, redone or joined,
     /// or the history is cleared. An undo group joins only the step it
@@ -931,6 +935,7 @@ pub struct Engine {
 /// A validated sheet placement from a worker. Only the engine can construct
 /// it, and the receiving engine checks the original document and revision.
 pub struct PreparedSheet {
+    opening: u64,
     base: Document,
     revision: u64,
     next: Document,
@@ -1056,6 +1061,7 @@ impl Engine {
         Self {
             document,
             revision: 0,
+            content_revision: 0,
             undo: VecDeque::new(),
             redo: Vec::new(),
             last_step: None,
@@ -1805,6 +1811,7 @@ impl Engine {
         let mut scratch = Engine {
             document: self.document.clone(),
             revision: self.revision,
+            content_revision: self.content_revision,
             waiver_reason_required: self.waiver_reason_required,
             check_settings: self.check_settings,
             copper: self.copper.clone(),
@@ -1875,6 +1882,7 @@ impl Engine {
         Engine {
             document: self.document.clone(),
             revision: self.revision,
+            content_revision: self.content_revision,
             undo: self.undo.clone(),
             redo: self.redo.clone(),
             last_step: self.last_step,
@@ -1907,6 +1915,7 @@ impl Engine {
         ) {
             return Err(Error::Invalid("Select a child sheet to place.".into()));
         }
+        let opening = self.opening;
         let base = self.document.clone();
         let revision = self.revision;
         let operation = Operation::Schematic(command);
@@ -1914,6 +1923,7 @@ impl Engine {
         self.sheet_cancel = Some(cancel.clone());
         self.apply_hosted(revision, operation, evaluators)?;
         Ok(PreparedSheet {
+            opening,
             base,
             revision,
             next: self.document,
@@ -1927,7 +1937,11 @@ impl Engine {
         if prepared.cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return Err(Error::Conflict("Sheet expansion was cancelled.".into()));
         }
-        if !Arc::ptr_eq(&self.document.project, &prepared.base.project)
+        // Fill copper stored meanwhile is no change (it is stored again for the
+        // new sheet); a first save's name and identity are, at no revision.
+        let saved = |p: &Project| (p.name.clone(), p.production.project_id.clone());
+        if self.opening != prepared.opening
+            || saved(&self.document.project) != saved(&prepared.base.project)
             || !Arc::ptr_eq(&self.document.drafts, &prepared.base.drafts)
         {
             return Err(Error::Conflict(
@@ -2255,7 +2269,10 @@ impl Engine {
                     None => Outcome::None,
                 }
             }
-            Operation::Update(update) => {
+            Operation::Update(mut update) => {
+                if self.still_at(update.expected_revision) {
+                    update.expected_revision = self.revision;
+                }
                 candidate.project = Arc::new(updates::candidate(
                     &self.document.project,
                     &self.copper_graph(),
@@ -2753,7 +2770,7 @@ impl Engine {
     /// Store fill copper a host computed off the UI thread
     /// (`layout::fill::compute_stale`) without an undo step: the copper is
     /// derivable, so it belongs to the revision it was computed for, not
-    /// to the history. Refused when `expected_revision` is not current;
+    /// to the history. Refused when `expected_revision` is stale;
     /// results whose key no longer matches their fill are skipped.
     /// Returns how many fills were stored.
     pub fn store_fills(
@@ -2786,7 +2803,9 @@ impl Engine {
         layout::fill::validate(&project)?;
         let revision = self.next_revision()?;
         self.document.project = Arc::new(project);
+        let content = self.content_revision;
         self.set_revision(revision);
+        self.content_revision = content;
         Ok(fresh.len())
     }
 
@@ -2805,11 +2824,26 @@ impl Engine {
         self.store_fills(self.revision, copper)
     }
 
-    /// Refused as stale unless `expected_revision` is the current one.
+    /// The revision of the last change a person or caller made: the current
+    /// one, less the fill copper stored since ([`Self::store_fills`]).
+    pub fn content_revision(&self) -> u64 {
+        self.content_revision
+    }
+
+    /// Whether the document at `revision` is this one, but for fill copper
+    /// computed and stored since: a background store changes nothing a
+    /// person or a caller decided on, so it makes no edit, undo or preview
+    /// of theirs stale.
+    pub fn still_at(&self, revision: u64) -> bool {
+        (self.content_revision..=self.revision).contains(&revision)
+    }
+
+    /// Refused as stale unless the document still is the one at
+    /// `expected_revision` ([`Self::still_at`]).
     /// Every document change, undo and redo included, is checked here, so a
     /// caller never changes a document that moved since it last looked.
     pub fn check_revision(&self, expected_revision: u64) -> Result<()> {
-        if expected_revision != self.revision {
+        if !self.still_at(expected_revision) {
             return Err(Error::Stale {
                 expected: expected_revision,
                 actual: self.revision,
@@ -2928,7 +2962,10 @@ impl Engine {
     /// with nothing changed, after an undo or redo, when another step came
     /// between, or with fewer than two steps.
     pub fn join_last_step(&mut self, at: u64) -> Result<()> {
-        if self.last_step != Some(at) || self.undo.len() < 2 {
+        let follows = self
+            .last_step
+            .is_some_and(|(from, to)| (from..=to).contains(&at));
+        if !follows || self.undo.len() < 2 {
             return Err(Error::History(
                 "the latest step does not follow the one before".into(),
             ));
@@ -3038,6 +3075,7 @@ impl Engine {
     /// Move to `revision`: every derived result of the old one is dropped.
     fn set_revision(&mut self, revision: u64) {
         self.revision = revision;
+        self.content_revision = revision;
         self.copper = std::sync::OnceLock::new();
     }
 
@@ -3079,7 +3117,7 @@ impl Engine {
                 earlier.label = step.label;
                 self.document = candidate;
                 self.redo.clear();
-                self.last_step = Some(self.revision);
+                self.last_step = Some((self.content_revision, self.revision));
                 self.history = history;
                 self.set_revision(revision);
                 return Ok(());
@@ -3091,7 +3129,7 @@ impl Engine {
         self.undo
             .push_back((std::mem::replace(&mut self.document, candidate), step));
         self.redo.clear();
-        self.last_step = Some(self.revision);
+        self.last_step = Some((self.content_revision, self.revision));
         self.history = history;
         self.set_revision(revision);
         Ok(())

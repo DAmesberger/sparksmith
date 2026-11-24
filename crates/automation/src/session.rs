@@ -1416,7 +1416,7 @@ impl Session {
                 "The window is opening, saving or asking about a file; try again once it is done.",
             );
         }
-        if replaces && hosting.kept != Some(self.engine.revision()) {
+        if replaces && hosting.kept.is_none_or(|kept| !self.engine.still_at(kept)) {
             return refuse(
                 "The open project has unsaved changes, which opening or starting another project would lose. Save it first (project.save), or ask the person to do it.",
             );

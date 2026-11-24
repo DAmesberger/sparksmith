@@ -22,7 +22,8 @@ use std::path::{Path, PathBuf};
 type Linked = (PathBuf, ContentHash);
 
 /// The token binding a publish to its preview (review findings 12 and
-/// 18): the board revision, the tier, the candidate the preview showed
+/// 18): the board revision (fill copper stored since is none; a Full
+/// publish binds the copper itself), the tier, the candidate the preview showed
 /// (its datum table's hash), where it is published (the destination,
 /// resolved) and that destination's design and sidecar bytes, and the
 /// linked design file's identity and bytes. Anything else about the
@@ -173,7 +174,7 @@ impl Session {
         };
         preview.token = Some(publish_token(
             &project,
-            self.engine.revision(),
+            self.engine.content_revision(),
             preview.tier,
             preview.hash,
             Path::new(destination),
@@ -242,7 +243,7 @@ impl Session {
         let candidate = publish::candidate(project, params.tier, source)?;
         let now = publish_token(
             project,
-            self.engine.revision(),
+            self.engine.content_revision(),
             params.tier,
             candidate.hash,
             Path::new(&params.path),
