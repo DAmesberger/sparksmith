@@ -41,8 +41,8 @@
 //!     …}}}
 //! ```
 use super::{
-    DesignRules, MAX_PROFILE_NOTES, MAX_PROFILE_TEXT, RuleKey, RuleOverride, RuleValue,
-    connection_from_name, connection_name, formula,
+    Charge, DesignRules, DrillRule, MAX_PROFILE_NOTES, MAX_PROFILE_TEXT, RuleKey, RuleOverride,
+    RuleValue, connection_from_name, connection_name, formula,
 };
 use crate::diagnostics::{Error, Result};
 use schemars::JsonSchema;

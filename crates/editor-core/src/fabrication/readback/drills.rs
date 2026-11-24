@@ -118,14 +118,14 @@ fn order(r: &mut Reading<'_, '_>, holes: &[DesignHole]) {
         let on_board = when.copper_layers.is_empty()
             || when.copper_layers.iter().any(|n| *n as usize == layers);
         let on_via = project.vias.iter().any(|v| {
-            !when.fill.is_some_and(|f| f != v.fill)
-                && !when.drill_below_mm.is_some_and(|mm| v.drill >= mm - 1e-9)
-                && !when
+            when.fill.is_none_or(|f| f == v.fill)
+                && when.drill_below_mm.is_none_or(|mm| v.drill < mm - 1e-9)
+                && when
                     .diameter_below_mm
-                    .is_some_and(|mm| v.diameter >= mm - 1e-9)
-                && !when
+                    .is_none_or(|mm| v.diameter < mm - 1e-9)
+                && when
                     .diameter_at_most_mm
-                    .is_some_and(|mm| v.diameter > mm + 1e-9)
+                    .is_none_or(|mm| v.diameter <= mm + 1e-9)
         });
         if on_board && on_via && !charges.contains(&charge.text.as_str()) {
             charges.push(&charge.text);
