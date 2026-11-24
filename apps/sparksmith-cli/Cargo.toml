@@ -20,6 +20,8 @@ sparksmith-io.workspace = true
 sparksmith-generators.workspace = true
 sparksmith-assist.workspace = true
 serde_json.workspace = true
+# Ctrl-C ends a model run like the app's Stop (`interrupt.rs`).
+tokio = { workspace = true, features = ["rt", "signal"] }
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -4,8 +4,8 @@
 //! a check sends a step back with the refusal, the run is one undo step,
 //! and a replay of another workflow version is refused.
 use super::*;
-use crate::model::Budget;
 use crate::model::record::{Replay, WorkflowMark};
+use crate::model::{Budget, ModelReply, ModelRequest, Part, StopReason};
 use crate::workflow::control::{ControlAnswer, ControlCard, Gauge};
 use crate::workflow::event::{RunEnd, WorkflowEvent};
 use crate::workflow::runner::{self, Person, WorkflowOutcome, WorkflowRun};
@@ -717,7 +717,7 @@ fn stop_ends_a_looping_run_without_limits() -> Fallible {
 #[test]
 fn the_datasheet_workflow_reads_long_replies_whole() -> Fallible {
     let loaded = shipped()?;
-    let config = local_config(131_072)?;
+    let config = local_config(262_144)?;
     let profile = config.harness_for(loaded.workflow.harness_profile.as_deref(), None)?;
     assert_eq!(
         (profile.name.as_str(), profile.policy().reply_chars),
@@ -873,6 +873,147 @@ fn a_long_datasheet_reaches_the_model_as_an_outline_and_the_pages_it_reads() -> 
     Ok(())
 }
 
+/// Each request's prompt tokens and the sizes of its tool replies.
+type Seen = Vec<(u64, Vec<usize>)>;
+
+/// A model on a server that gives it `context` tokens, counting the request
+/// as it is sent (system prompt, tools and messages) at 2.5 bytes a token,
+/// denser than any prompt measured on a real server, and refusing a request
+/// whose prompt leaves no room to answer.
+struct Served {
+    context: u64,
+    replies: std::collections::VecDeque<Vec<Part>>,
+    /// Each request's prompt tokens and its tool replies' sizes.
+    seen: Seen,
+}
+
+impl ModelBackend for Served {
+    fn label(&self) -> String {
+        "served".into()
+    }
+
+    fn count_prompt_tokens(&mut self, _: &ModelRequest<'_>) -> Result<Option<u64>> {
+        Ok(None)
+    }
+
+    fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply> {
+        let prompt = request.prompt_bytes()? as u64 * 2 / 5;
+        let last = request.messages.last().map(|m| m.content.as_slice());
+        self.seen.push((
+            prompt,
+            last.into_iter()
+                .flatten()
+                .filter_map(|part| match part {
+                    Part::ToolResult { text, .. } => Some(text.len()),
+                    _ => None,
+                })
+                .collect(),
+        ));
+        if prompt + crate::run::MIN_OUTPUT_ROOM > self.context {
+            return Err(Error::Protocol(format!(
+                "a prompt of {prompt} tokens leaves no room to answer in {}",
+                self.context
+            )));
+        }
+        Ok(ModelReply {
+            model: "served".into(),
+            content: self.replies.pop_front().unwrap_or_default(),
+            stop: StopReason::ToolCalls,
+            usage: crate::usage::Usage {
+                input_tokens: prompt,
+                output_tokens: 300,
+                ..Default::default()
+            },
+            usage_estimated: false,
+        })
+    }
+}
+
+/// The Package step reads, round by round, each round's page ranges in
+/// parallel, then the steps are answered.
+fn run_reading(context: u64, harness: &str, rounds: &[&[&str]]) -> Fallible<(RunEnd, Seen)> {
+    let query = |id: String, input: Value| Part::ToolCall {
+        id,
+        name: "query".into(),
+        input,
+        malformed: None,
+        replay: None,
+    };
+    let mut replies = std::collections::VecDeque::new();
+    for (n, round) in rounds.iter().enumerate() {
+        replies.push_back(
+            round
+                .iter()
+                .map(|pages| {
+                    query(
+                        format!("r{n}-{pages}"),
+                        json!({"name": "assist.document_text",
+                            "params": {"document": "exr22.pdf", "pages": pages}}),
+                    )
+                })
+                .collect(),
+        );
+    }
+    for (step, result) in crate::fixtures::exr22_answers() {
+        replies.push_back(vec![query(
+            step.into(),
+            json!({"name": "assist.step_result", "params": {"step": step, "result": result}}),
+        )]);
+    }
+    let mut loaded = shipped()?;
+    loaded.workflow.harness_profile = Some(harness.into());
+    let dir = tempfile::tempdir()?;
+    let mut backend = Served {
+        context,
+        replies,
+        seen: Vec::new(),
+    };
+    let mut person = Scripted {
+        answers: vec![apply_import()],
+        ..Scripted::default()
+    };
+    let outcome = start(
+        &loaded,
+        &local_config(context)?,
+        long_inputs(&dir)?,
+        &mut backend,
+        &mut profiled_session(),
+        &mut person,
+    )?;
+    Ok((outcome.end, backend.seen))
+}
+
+/// The datasheet profile's replies scale with the context: one large read
+/// and several, in one round and over rounds, leave room to answer.
+#[test]
+fn large_reads_leave_room_to_answer_in_every_context() -> Fallible {
+    let one: &[&[&str]] = &[&["1-41"]];
+    let several: &[&[&str]] = &[
+        &["1-10", "11-20", "21-30", "31-41"],
+        &["1-41", "1-5", "6-10", "11-15", "16-20", "21-25"],
+        &["1", "2", "3", "4", "5", "6", "7", "8"],
+        &["1-41"],
+        &["1-3", "1-6", "1-9", "1-12", "1-15", "1-18"],
+    ];
+    for context in [32_768, 65_536, 131_072, 262_144] {
+        for rounds in [one, several] {
+            let (end, seen) = run_reading(context, "datasheet", rounds)?;
+            assert_eq!(end, RunEnd::Done, "{context}: {seen:?}");
+        }
+    }
+    // The workflow's own prompt fills most of 16 384 tokens: the run ends
+    // before a request, or is done; no reply ever overruns it.
+    for rounds in [one, several] {
+        let (end, seen) = run_reading(16_384, "datasheet", rounds)?;
+        assert!(
+            matches!(&end, RunEnd::Done)
+                || matches!(&end, RunEnd::Limit { why } if why.contains("leaves no room")),
+            "{end:?}: {seen:?}"
+        );
+    }
+    Ok(())
+}
+
 #[test]
 fn a_run_stopped_by_its_limit_names_what_it_kept_with_undo() -> Fallible {
     let loaded = shipped()?;
@@ -895,6 +1036,11 @@ fn a_run_stopped_by_its_limit_names_what_it_kept_with_undo() -> Fallible {
         matches!(outcome.end, RunEnd::Limit { .. }),
         "{:?}",
         outcome.end
+    );
+    // The step it had answered is kept for the review.
+    assert_eq!(
+        outcome.facts.unfinished.answers.keys().collect::<Vec<_>>(),
+        ["plan"]
     );
     // The drafts it made stay, named on an unfinished result card that
     // offers Undo run, before the run's end.

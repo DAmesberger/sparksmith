@@ -7,6 +7,7 @@ mod fab;
 mod fab_profile;
 mod firmware;
 mod import_kicad;
+mod interrupt;
 mod part;
 mod pinout;
 mod plugin;

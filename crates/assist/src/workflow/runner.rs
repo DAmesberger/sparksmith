@@ -107,7 +107,8 @@ impl WorkflowOutcome {
     /// The run as a datasheet run's outcome, for the review written beside
     /// a saved project: the review report a model step answered (once the
     /// run is done, so the review check accepted it), and the drafts, pins
-    /// and findings in `session`.
+    /// and findings in `session`; of a run that ended early, also the steps
+    /// answered and the working pinouts.
     pub fn review(&self, session: &sparksmith_automation::Session) -> crate::Outcome {
         let report = match self.end {
             RunEnd::Done => self.results.values().find_map(|value| {
@@ -125,6 +126,9 @@ impl WorkflowOutcome {
         let mut facts = self.facts.clone();
         facts.stop = stop.to_string();
         report::session_facts(&mut facts, session);
+        if self.end != RunEnd::Done {
+            facts.unfinished.pinouts = session.working_pinouts();
+        }
         crate::Outcome {
             report,
             stop,
@@ -281,6 +285,14 @@ pub fn run_workflow(
     facts.documents = context.facts;
     report::tally_facts(&mut facts, &tally);
     facts.stop = describe(&end);
+    if end != RunEnd::Done {
+        facts.unfinished.answers = workflow
+            .steps
+            .iter()
+            .filter(|step| step.kind == StepKind::Model)
+            .filter_map(|step| Some((step.id.clone(), results.get(&step.id)?.clone())))
+            .collect();
+    }
     Ok(WorkflowOutcome {
         end,
         results,

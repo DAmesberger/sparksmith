@@ -6,7 +6,8 @@
 //! applied without asking and the model's generator choice stands. The
 //! result is saved as a new project of drafts (component, symbol, package,
 //! footprint, binding, generated 3D model), with the review report beside
-//! it as `.review.json` and `.review.md`. Nothing is published. `--record`
+//! it as `.review.json` and `.review.md`, however the run ended; Ctrl-C ends
+//! it like the app's Stop. Nothing is published. `--record`
 //! writes a recording that names the workflow; `--replay` runs one against
 //! the same workflow version only; a recording that names no workflow (the
 //! reference conversations in `examples/`) replays as the conversation it
@@ -16,7 +17,7 @@
 //! A key comes from a named environment variable or the system keychain, is
 //! never printed or written, and is refused over plain HTTP to another
 //! computer. `llm-key` stores one in the keychain for one endpoint.
-use super::Result;
+use super::{Result, interrupt};
 use serde_json::Value;
 use sparksmith_assist::model::profile::ANTHROPIC_BASE_URL;
 use sparksmith_assist::model::record::{Recording, Replay};
@@ -34,7 +35,6 @@ use sparksmith_automation::Session;
 use sparksmith_core::product::SHORT_NAME as CLI;
 use std::io::Read as _;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 pub const USAGE: &str = "design-part --datasheet PDF|URL [--datasheet …] --name NAME --out NEW.sparksmith
@@ -530,7 +530,7 @@ pub fn run(args: &[String]) -> Result<()> {
     let mut session = super::user_session(sparksmith_io::new_project::profiled_engine(
         &super::context()?,
     )?);
-    let cancel = AtomicBool::new(false);
+    let cancel = interrupt::stop_on_ctrl_c()?;
     let run = WorkflowRun {
         loaded: &loaded,
         inputs: inputs(&args),
@@ -541,6 +541,9 @@ pub fn run(args: &[String]) -> Result<()> {
     let outcome = runner::run_workflow(run, backend.as_mut(), &mut session, &mut console, &cancel)?;
     let review = outcome.review(&session);
     let saved = save(&mut session, &args, &review);
+    if let Some(path) = &args.record {
+        eprintln!("recording: {}", path.display());
+    }
     let total = started.elapsed().as_secs_f64();
     let model = console.model_seconds;
     let local = (total - key_seconds - model).max(0.0);
@@ -570,7 +573,7 @@ fn replay_conversation(args: &Args, mut replay: Replay) -> Result<()> {
         &mut replay,
         &mut session,
         &mut print_event,
-        &AtomicBool::new(false),
+        &interrupt::stop_on_ctrl_c()?,
     )?;
     save(&mut session, args, &outcome)
 }

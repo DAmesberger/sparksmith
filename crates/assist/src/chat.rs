@@ -493,8 +493,10 @@ pub fn turn(
                 End::Answered
             };
         }
-        let mut results = Vec::with_capacity(calls.len());
+        let mut results: Vec<Part> = Vec::with_capacity(calls.len());
+        let mut left = calls.len();
         for (call, (id, name, mut input, malformed)) in (0u32..).zip(calls) {
+            left -= 1;
             let row = |state| Event::Call {
                 request: n,
                 call,
@@ -540,9 +542,18 @@ pub fn turn(
                 answer["error"].clone()
             };
             crate::run::integers_as_text(&mut body);
-            let text = config
-                .reply_strategy
-                .render(&name, &input, body, policy.reply_chars);
+            let used = estimate(history)
+                .saturating_add(crate::usage::estimated_tokens(
+                    crate::model::appended_chars(&results),
+                ))
+                .saturating_add(crate::run::ESTIMATE_MARGIN)
+                .saturating_add(Policy::notes_tokens(left));
+            let text = config.reply_strategy.render(
+                &name,
+                &input,
+                body,
+                policy.reply_limit(context, used),
+            );
             events(row(if ok {
                 CallState::Done {
                     reply: text.clone(),

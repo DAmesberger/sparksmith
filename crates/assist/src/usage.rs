@@ -9,6 +9,11 @@ pub fn estimated_tokens(bytes: u64) -> u64 {
     bytes.div_ceil(3)
 }
 
+/// The UTF-8 bytes [`estimated_tokens`] counts as `tokens`.
+pub fn estimated_bytes(tokens: u64) -> u64 {
+    tokens.saturating_mul(3)
+}
+
 /// Estimated output includes thinking text and tool arguments as generated.
 pub fn estimated_output_tokens(parts: &[crate::model::Part]) -> u64 {
     use crate::model::Part;

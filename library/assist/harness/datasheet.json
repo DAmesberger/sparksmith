@@ -2,7 +2,11 @@
   "format": 1,
   "name": "datasheet",
   "surface_view": {"strategy": "input", "full_on_request": true},
-  "reply_shape": {"strategy": "shorten", "reply_chars": 120000},
+  "reply_shape": {
+    "strategy": "shorten",
+    "reply_chars": 120000,
+    "context": {"answer_share": 0.25, "reply_share": 0.33, "least_chars": 4000}
+  },
   "condense": {
     "strategy": "stubs-then-summary",
     "keep_rounds": 2,
