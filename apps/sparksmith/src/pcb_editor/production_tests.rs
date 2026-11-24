@@ -1114,19 +1114,7 @@ fn what_cannot_be_waived_says_what_to_do_instead() -> TestResult {
         let item = item(code, fix);
         assert!(!item.offers_waiver() && !waivable(&item), "{code}");
         assert_eq!(row_tip(&item), format!("{fix}\nCannot be waived"), "{code}");
-        assert_eq!(
-            unwaivable(&of(vec![item.clone(), item])),
-            format!("{fix} first; this cannot be waived"),
-            "{code}"
-        );
     }
-    assert_eq!(
-        unwaivable(&of(vec![
-            item("fill.stale", "Refill the fill"),
-            item("board.shape_open", "Join the open ends in Board shape"),
-        ])),
-        "Fix the 2 errors first; they cannot be waived"
-    );
     // Beside one that can be waived, Export counts the ones that cannot.
     let mut editor = open(&engine)?;
     let tmp = tempfile::tempdir()?;
@@ -1143,7 +1131,7 @@ fn what_cannot_be_waived_says_what_to_do_instead() -> TestResult {
     let only = of(vec![item("fill.stale", "Refill the fill")]);
     assert_eq!(
         export_blocked(d, Some(&Ok(only)), true, d.output("x").as_ref()).as_deref(),
-        Some("Refill the fill first; this cannot be waived")
+        Some("Fix the error first; it cannot be waived")
     );
     Ok(())
 }

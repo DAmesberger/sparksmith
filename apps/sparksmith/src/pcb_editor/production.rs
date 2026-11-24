@@ -658,7 +658,20 @@ pub(super) fn export_blocked(
                     .filter(|i| i.blocks())
                     .all(|i| !i.offers_waiver()) =>
         {
-            return Some(unwaivable(report));
+            let blocking = || report.items.iter().filter(|i| i.blocks());
+            // Only a finding with needs is resolved by another profile.
+            return Some(if blocking().any(|i| i.code == "rules.no_fab_profile") {
+                "Choose a fab profile first".into()
+            } else if blocking().any(|i| i.needs.is_some()) {
+                "Fix the design or switch to a fab profile that allows it first".into()
+            } else if report.blocking == 1 {
+                "Fix the error first; it cannot be waived".into()
+            } else {
+                format!(
+                    "Fix the {} errors first; they cannot be waived",
+                    report.blocking
+                )
+            });
         }
         Some(Ok(report)) if report.blocking == 1 => {
             return Some("Fix or waive the error first".into());
@@ -684,28 +697,6 @@ pub(super) fn export_blocked(
         return Some("Choose where to save the files".into());
     }
     None
-}
-
-/// Why Export waits for errors that cannot be waived: what resolves them,
-/// when one thing does; a profile that allows the board only when the
-/// board's fab profile is what it asks more of.
-fn unwaivable(report: &PreflightReport) -> String {
-    let blocking = || report.items.iter().filter(|i| i.blocks());
-    if blocking().any(|i| i.needs.is_some()) {
-        return "Fix the design or switch to a fab profile that allows it first".into();
-    }
-    let mut fixes: Vec<&str> = blocking().filter_map(|i| i.fix.as_deref()).collect();
-    fixes.sort_unstable();
-    fixes.dedup();
-    match fixes.as_slice() {
-        [one] if blocking().all(|i| i.fix.is_some()) => {
-            format!("{one} first; this cannot be waived")
-        }
-        _ => format!(
-            "Fix the {} errors first; they cannot be waived",
-            report.blocking
-        ),
-    }
 }
 
 impl PcbEditor {
