@@ -77,6 +77,9 @@ pub enum Case {
     PadWithoutCopper,
     /// G8: a paste-only pad, imported as a paste window of the pad under it.
     PasteWindow,
+    /// G8: a paste-only pad that, with the pad under it, needs an opening no
+    /// paste window holds (one with a hole in it).
+    PasteWindowShape,
     /// A footprint with no electrical pad (a fiducial, a mounting hole):
     /// a part without terminals.
     NoTerminals,
@@ -375,6 +378,11 @@ impl Case {
                 "G8",
                 Refused,
                 "pads without copper over no other pad's copper",
+            ),
+            Self::PasteWindowShape => (
+                "G8",
+                Refused,
+                "paste-only pads whose opening no paste window holds (it has a hole)",
             ),
             Self::PasteWindow => (
                 "G8",

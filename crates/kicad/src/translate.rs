@@ -28,8 +28,8 @@ use i_overlay::mesh::float::style::{LineJoin, OutlineStyle};
 use sparksmith_core::Layer;
 use sparksmith_core::geometry::{Bounds, Point, Transform2};
 use sparksmith_core::library::{
-    ApertureId, CornerMask, Hole, HoleShape, MAX_OUTLINE_SEGMENTS, MaskRule, Outline, Pad, PadKind,
-    PadShape, PadSide, PasteRule, PasteWindow, Segment, ShapeNm,
+    ApertureId, CornerMask, Hole, HoleShape, MAX_OUTLINE_SEGMENTS, MaskRule, OffsetPiece, Outline,
+    Pad, PadKind, PadShape, PadSide, PasteRule, PasteWindow, Segment, ShapeNm,
 };
 use sparksmith_core::units::{Angle, Nm};
 use sparksmith_core::{PackageTerminalId, PadId};
@@ -923,18 +923,36 @@ pub fn terminal_id(k: usize) -> PackageTerminalId {
     PackageTerminalId(u32::try_from(k + 1).unwrap_or(u32::MAX))
 }
 
+/// Why a paste-only pad did not become a paste window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoWindow {
+    /// No pad with paste lies under its centre.
+    NoPad,
+    /// An opening, its own or the pad's under it, that paste windows cannot
+    /// hold: one with a hole in it, or past the coordinate range. Nothing
+    /// is changed.
+    Shape,
+}
+
 /// Add a paste-only pad's opening as a paste window of the pad under its
 /// centre on the same side (keeping that pad's own paste opening as a
-/// window). Returns false when no pad lies under it.
-pub fn add_paste_window(pads: &mut [Pad], window: &Pad) -> bool {
+/// window): every piece of both, or nothing.
+pub fn add_paste_window(pads: &mut [Pad], window: &Pad) -> Result<(), NoWindow> {
     let reduction = match window.paste {
         PasteRule::Reduction(r) => r.to_mm_f64(),
         _ => 0.0,
     };
     // Every piece a reduction leaves is a window of its own.
     let openings = window.shape.offset_pieces(-reduction, CHORD_MM);
-    if openings.is_empty() || openings.iter().any(|p| !p.holes.is_empty()) {
-        return false;
+    // A piece as a window's shape; a window is one outline, without holes.
+    let whole = |piece: &OffsetPiece, to: &Transform2| -> Result<ShapeNm, NoWindow> {
+        if !piece.holes.is_empty() {
+            return Err(NoWindow::Shape);
+        }
+        ShapeNm::from_mm_rounded(&piece.outer.transformed(to)).map_err(|_| NoWindow::Shape)
+    };
+    if openings.is_empty() {
+        return Err(NoWindow::Shape);
     }
     let frame = |p: &Pad| Transform2 {
         translate: p.position(),
@@ -949,7 +967,7 @@ pub fn add_paste_window(pads: &mut [Pad], window: &Pad) -> bool {
                 frame(p).inverse().apply(window.position()),
             )
     }) else {
-        return false;
+        return Err(NoWindow::NoPad);
     };
     let into_target = frame(window).then(&frame(target).inverse());
     let mut windows = match &target.paste {
@@ -958,19 +976,18 @@ pub fn add_paste_window(pads: &mut [Pad], window: &Pad) -> bool {
             .shape
             .offset_pieces(-r.to_mm_f64(), CHORD_MM)
             .iter()
-            .filter_map(|p| ShapeNm::from_mm_rounded(&p.outer).ok())
             .zip(1..)
-            .map(|(shape, id)| PasteWindow {
-                id: ApertureId(id),
-                shape,
+            .map(|(piece, id)| {
+                Ok(PasteWindow {
+                    id: ApertureId(id),
+                    shape: whole(piece, &Transform2::IDENTITY)?,
+                })
             })
-            .collect(),
+            .collect::<Result<Vec<_>, NoWindow>>()?,
         PasteRule::None | PasteRule::Inherit => Vec::new(),
     };
     for opening in &openings {
-        let Ok(shape) = ShapeNm::from_mm_rounded(&opening.outer.transformed(&into_target)) else {
-            return false;
-        };
+        let shape = whole(opening, &into_target)?;
         let next = windows.iter().map(|w| w.id.0).max().unwrap_or(0) + 1;
         windows.push(PasteWindow {
             id: ApertureId(next),
@@ -978,7 +995,7 @@ pub fn add_paste_window(pads: &mut [Pad], window: &Pad) -> bool {
         });
     }
     target.paste = PasteRule::Windows(windows);
-    true
+    Ok(())
 }
 
 /// Most growth (mm, either way) a footprint polygon may give its pad's
@@ -1336,7 +1353,7 @@ mod tests {
         };
         window.paste = PasteRule::Reduction(sparksmith_core::units::Nm::from_mm_f64_rounded(0.08)?);
         let mut pads = vec![land];
-        assert!(add_paste_window(&mut pads, &window));
+        assert_eq!(add_paste_window(&mut pads, &window), Ok(()));
         let Some(PasteRule::Windows(windows)) = pads.first().map(|p| &p.paste) else {
             return Err(sparksmith_core::Error::Invalid("no windows".into()));
         };
@@ -1349,6 +1366,70 @@ mod tests {
             assert!((size[1] - 0.84).abs() < 1e-3, "{size:?}");
             assert!(size[0] > 0.84 - 1e-3 && size[0] < 0.87, "{size:?}");
         }
+        Ok(())
+    }
+
+    /// A pad with a cavity (1 mm square, open by a gap 0.06 mm wide) whose
+    /// paste grows by 0.05 mm: the gap closes and the cavity stays without
+    /// paste, which no paste window holds. Nothing is made of it, rather
+    /// than a window over the cavity.
+    #[test]
+    fn an_opening_with_a_hole_is_no_window() -> sparksmith_core::diagnostics::Result<()> {
+        let points = [
+            [-1.5, -1.0],
+            [1.5, -1.0],
+            [1.5, 1.0],
+            [0.03, 1.0],
+            [0.03, 0.5],
+            [0.5, 0.5],
+            [0.5, -0.5],
+            [-0.5, -0.5],
+            [-0.5, 0.5],
+            [-0.03, 0.5],
+            [-0.03, 1.0],
+            [-1.5, 1.0],
+        ];
+        let cavity = PadShape::Custom {
+            outline: Outline {
+                start: points[0],
+                segments: points[1..]
+                    .iter()
+                    .chain(&points[..1])
+                    .map(|p| Segment::Line { to: *p })
+                    .collect(),
+            },
+        };
+        let pad = |at: Point, size: Point| {
+            Pad::smd_rect_mm(
+                sparksmith_core::PadId(1),
+                PackageTerminalId(1),
+                "1",
+                at,
+                size,
+            )
+        };
+        let grown = PasteRule::Reduction(sparksmith_core::units::Nm::from_mm_f64_rounded(-0.05)?);
+        // The pad under the window has the cavity.
+        let mut land = pad([0.0, 0.0], [1.0, 1.0])?;
+        land.shape = cavity.clone();
+        land.paste = grown.clone();
+        let mut window = pad([1.0, 0.0], [0.3, 0.3])?;
+        window.paste = PasteRule::None;
+        let mut pads = vec![land.clone()];
+        assert_eq!(add_paste_window(&mut pads, &window), Err(NoWindow::Shape));
+        assert_eq!(pads, vec![land]);
+        // The window itself has it.
+        let plain = pad([0.0, 0.0], [4.0, 3.0])?;
+        let mut window = pad([0.0, 0.0], [1.0, 1.0])?;
+        window.shape = cavity;
+        window.paste = grown;
+        let mut pads = vec![plain.clone()];
+        assert_eq!(add_paste_window(&mut pads, &window), Err(NoWindow::Shape));
+        assert_eq!(pads, vec![plain.clone()]);
+        // And one over no pad.
+        let mut far = pad([9.0, 0.0], [0.3, 0.3])?;
+        far.paste = PasteRule::None;
+        assert_eq!(add_paste_window(&mut [plain], &far), Err(NoWindow::NoPad));
         Ok(())
     }
 }
