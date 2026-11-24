@@ -360,9 +360,6 @@ pub struct BoardSketch {
     /// for the last solve, so what reads a parameter without the host (an
     /// exported board parameter, `interface::list`) has it, of an
     /// expression over other parameters too.
-    /// A board saved before a solve stored them has none until the next one,
-    /// and its exported parameters are lost until then.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub values: Vec<ParameterValue>,
 }
 
