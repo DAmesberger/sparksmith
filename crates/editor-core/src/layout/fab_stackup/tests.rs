@@ -246,7 +246,8 @@ fn a_bare_core_between_prepregs_is_one_bonded_dielectric() -> Fallible<()> {
 
 #[test]
 fn a_bad_value_is_refused_naming_its_field() {
-    let cases: Vec<(&str, Box<dyn Fn(&mut FabStackup)>)> = vec![
+    type Break = Box<dyn Fn(&mut FabStackup)>;
+    let cases: Vec<(&str, Break)> = vec![
         (
             "layers[1].thickness_mm",
             Box::new(|s| s.layers[1].thickness_mm = 0.0),
@@ -323,10 +324,8 @@ fn taking_one_is_one_step_that_names_every_change_and_keeps_the_planes() -> Fall
         "Inner 1 copper 35 µm becomes 15.2 µm",
         "Top to Inner 1: prepreg 2116, 0.2 mm, no Dk entered becomes prepreg 2116, 0.2 mm, Dk 4.2",
         "Inner 1 to Inner 2: core",
-        "Board 1.6 mm becomes 1.6",
+        "Board 1.6 mm becomes 1.6004 mm",
     ] {
-        // The board's own thickness differs by the thinner inner foils and
-        // the thicker core: 1.6 mm becomes 1.6004 mm.
         assert!(
             pick.changes.iter().any(|c| c.starts_with(part)),
             "{part}: {:?}",

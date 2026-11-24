@@ -3,8 +3,9 @@
 //! fab profile and net classes say of it. Nothing is applied here.
 use super::{FabDielectric, FabStackup};
 use crate::diagnostics::{Error, Result};
+use crate::layout::limits::{mm, mm_against};
 use crate::layout::restack::{self, LayerMove, StackupDraft, StackupEdit};
-use crate::layout::{limits::mm, profile_fit, via_class};
+use crate::layout::{profile_fit, via_class};
 use crate::model::{CopperLayer, Dielectric, DielectricKind, Project, Stackup};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -358,7 +359,11 @@ fn changes(project: &Project, draft: &StackupDraft, edit: &StackupEdit) -> Vec<S
     }
     let (was, is) = (old.thickness_mm(), new.thickness_mm());
     if (was - is).abs() > 1e-6 {
-        out.push(format!("Board {} mm becomes {} mm", mm(was), mm(is)));
+        out.push(format!(
+            "Board {} mm becomes {} mm",
+            mm(was),
+            mm_against(is, was)
+        ));
     }
     if old.mask_um != new.mask_um || old.mask_laminate_nm != new.mask_laminate_nm {
         out.push(format!(
