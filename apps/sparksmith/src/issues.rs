@@ -704,6 +704,21 @@ impl Surface {
         }
     }
 
+    /// Another document was opened: only how the person shows the card is
+    /// kept; a waive being typed and the rows opened were the old one's.
+    pub fn document_opened(&mut self) {
+        let old = std::mem::take(self);
+        *self = Self {
+            expanded: old.expanded,
+            scope: old.scope,
+            filter: old.filter,
+            reports: old.reports,
+            // Kept per check state, which names the document.
+            suggestions: old.suggestions,
+            ..Self::default()
+        };
+    }
+
     /// The newest report of every area ([`crate::issue_reports`]).
     fn whole(&self, engine: &Engine) -> Option<Answer> {
         self.reports.latest(engine)

@@ -433,12 +433,26 @@ impl PartEditor {
         self.pad_drag = None;
     }
 
-    /// A different project owns the window. Drop its predecessor's generator
-    /// choices and pending workers, including the start page's create action.
-    pub fn discard_generator_requests(&mut self) {
-        self.gallery = Default::default();
-        self.gallery.set_shelf(&self.shelf);
-        self.start = Default::default();
+    /// A different project owns the window: the editor is back at its start
+    /// page. Only what is named here is kept: how the person views and
+    /// draws, and the shipped generators. Everything else, a field added
+    /// later too, is the old project's (the open component, uncommitted
+    /// edits, pending publishes, dialogs and workers) and goes with it.
+    pub fn document_opened(&mut self) {
+        let old = std::mem::take(self);
+        *self = Self {
+            footprint_layers: old.footprint_layers,
+            snap: old.snap,
+            show_grid: old.show_grid,
+            stroke_width: old.stroke_width,
+            fill: old.fill,
+            trackpad: old.trackpad,
+            ..Self::default()
+        };
+        self.identity.epoch = old.identity.epoch.wrapping_add(1);
+        self.set_shelf(&old.shelf);
+        // The window's one report follows the open document itself.
+        self.share_reports(old.parts.reports);
     }
 
     /// The operation committing a finished edit, if any. Call once per frame

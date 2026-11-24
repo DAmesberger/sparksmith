@@ -216,6 +216,12 @@ fn with_inbox<R>(ctx: &egui::Context, f: impl FnOnce(&mut Inbox) -> R) -> R {
     ctx.data_mut(|d| f(d.get_temp_mut_or_default::<Inbox>(inbox_id())))
 }
 
+/// Another document was opened: a refusal not yet handed back is the old
+/// one's.
+pub(crate) fn forget(ctx: &egui::Context) {
+    with_inbox(ctx, |inbox| *inbox = Inbox::default());
+}
+
 /// Declare where the operation an editor returns this frame comes from, so
 /// a refusal of it is handed back there. Without a mark, the call site's
 /// default origin applies.

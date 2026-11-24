@@ -702,14 +702,6 @@ impl PcbEditor {
         }
     }
 
-    /// Another project was opened: the Production dialog's check, folder
-    /// and written files were the previous project's, so it closes.
-    pub fn document_opened(&mut self) {
-        self.ask_profile = false;
-        self.production = None;
-        self.chosen_production_folder = None;
-    }
-
     /// Whether the Production dialog is open.
     #[cfg(test)]
     pub(crate) fn production_open(&self) -> bool {

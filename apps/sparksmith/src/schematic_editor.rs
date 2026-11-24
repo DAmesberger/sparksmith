@@ -48,6 +48,7 @@ mod path_edit;
 mod sheet_card;
 mod sheet_ui;
 mod wire_tool;
+pub(crate) use marking_row::forget as forget_marking_text;
 pub use menu::Request as MenuRequest;
 use sheet_ui::{DrawTool, Item, LabelTool};
 pub use wire_tool::WIRE_KEYS;

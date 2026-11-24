@@ -114,6 +114,11 @@ fn store(ctx: &egui::Context, state: State) {
     ctx.data_mut(|d| d.insert_temp(panel_id(), state));
 }
 
+/// Another document was opened: the panel closes and drops its staging.
+pub fn forget(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove::<State>(panel_id()));
+}
+
 /// Open the panel for `instance`, with `terminal` as its focus pin. The
 /// instance must be the selected subject by the next frame.
 pub fn reveal(ctx: &egui::Context, instance: Id, terminal: Option<TerminalId>) {

@@ -437,6 +437,37 @@ fn live_mcp_asks_before_adding_a_library_source() -> Fallible {
     Ok(())
 }
 
+/// An export the person was asked about for one project is refused once
+/// another is open: it never writes the other one's files.
+#[test]
+fn a_held_export_ends_with_the_project_it_was_asked_for() -> Fallible {
+    let mut h = Harness::new()?;
+    let dir = tempfile::tempdir_in(std::env::temp_dir())?;
+    let output = dir.path().join("fab");
+    let export = json!({"entry": "project.export_fabrication",
+        "params": {"output": output.display().to_string()}});
+    let mut client = h.client()?;
+    let asked = std::thread::spawn(move || client.call(live::CALL, export));
+    for _ in 0..5000 {
+        if h.app.live_held().is_some() {
+            break;
+        }
+        h.frame(Vec::new());
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(h.app.live_held(), Some("project.export_fabrication"));
+    h.app
+        .replace(Engine::showcase()?.to_file(), None, None, false);
+    h.frame(Vec::new());
+    assert_eq!(h.app.live_held(), None);
+    // Allow, had it been pressed, finds nothing to run.
+    h.app.live_answer(true);
+    let refused = asked.join().map_err(|_| "client thread")??;
+    assert_eq!(code(&refused), "live.stale_approval", "{refused}");
+    assert!(!output.exists());
+    Ok(())
+}
+
 /// I-A2: a read that names a path asks the person and, on Allow, runs: it
 /// is not refused for a revision it has no field for.
 #[test]
