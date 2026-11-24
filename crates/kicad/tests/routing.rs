@@ -269,7 +269,11 @@ fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
     );
     let refused = refused.err().ok_or("the short was waived")?;
     // The sentence people see leaves the rule code out.
-    assert_eq!(refused.rule(), Some("fabrication.not_waivable"), "{refused}");
+    assert_eq!(
+        refused.rule(),
+        Some("fabrication.not_waivable"),
+        "{refused}"
+    );
     assert_eq!(engine.revision(), revision);
     // Every finding waived in a file: those that may be are, the shorts not.
     let mut file = engine.to_file();
