@@ -1152,7 +1152,7 @@ fn generate(request: &Request, estimate_lands: bool) -> Result<Generation, Vec<P
                 center: [
                     first.at[0]
                         - div_round(width, 2).unwrap_or(0)
-                        - d.mask_expansion
+                        - d.mask_expansion.max(0)
                         - land::SILK_PAD_CLEARANCE_NM
                         - 2 * PIN_ONE_DOT_RADIUS_NM,
                     first.at[1],

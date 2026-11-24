@@ -188,11 +188,10 @@ pub fn apply(
     }
     // The outline broken round the new lands; the generator's other
     // silkscreen kept where all of its ink (stroke and solid fill) clears
-    // every land's effective mask opening by the silkscreen clearance.
+    // every land and its mask opening by the silkscreen clearance.
     let keep_outs: Vec<Box2> = pads
         .iter()
-        .filter_map(|p| land::opening_box(p, mask_expansion))
-        .map(|opening| opening.inflated(land::SILK_PAD_CLEARANCE_NM))
+        .map(|p| land::silk_box(p, mask_expansion).inflated(land::SILK_PAD_CLEARANCE_NM))
         .collect();
     let mut silk: Vec<_> = footprint
         .silk
