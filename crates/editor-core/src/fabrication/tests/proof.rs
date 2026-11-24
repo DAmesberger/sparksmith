@@ -1617,6 +1617,143 @@ fn retained_copper_keeps_one_pads_and_the_rules_fill_clearance() -> Fallible<()>
     Ok(())
 }
 
+/// The review's five steps: a person waives a pour's staleness and the gap
+/// to one via (0.35 mm where a raised drill rule asks for 1 mm), then the
+/// via is moved into the pour. The short is another thing than the gap that
+/// was accepted, so it must block.
+#[test]
+#[ignore = "waits for the founder's waiver decision"]
+fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
+    use crate::diagnostics::ObjectRef;
+    use crate::layout::LayoutCommand;
+    use crate::model::production::{Waiver, waiver_key};
+    let mut engine = Engine::showcase()?;
+    // 1. The drill rule is raised: the pours are stale.
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(crate::rules::RulesCommand::SetOverride {
+            key: RuleKey::Clearance {
+                a: CopperObject::Fill,
+                b: CopperObject::ViaHole,
+            }
+            .normalized(),
+            value: RuleValue::Length(1.0),
+        }),
+    )?;
+    // 2. Held by the document, whatever the command accepts: each pour's
+    // staleness, and its gap to every via.
+    let mut file = engine.to_file();
+    let project = &mut file.project;
+    let mut keys = Vec::new();
+    for fill in &project.fills {
+        let me = ObjectRef::Fill { id: fill.id };
+        keys.push(waiver_key("fill.stale", &[me]));
+        for via in &project.vias {
+            keys.push(waiver_key(
+                "fill.clearance",
+                &[me, ObjectRef::Via { id: via.id }],
+            ));
+        }
+    }
+    keys.sort();
+    keys.dedup();
+    project.production.waivers = keys
+        .into_iter()
+        .map(|key| Waiver {
+            key,
+            reason: "accepted".into(),
+        })
+        .collect();
+    let mut engine = Engine::from_file(file)?;
+    // 3. A via of another net goes where the pour is solid: 0.8 mm from its
+    // edge, and 1.5 mm from all other copper, holes and the board's edge.
+    let project = engine.project().clone();
+    let holes = oracle::holes(&project)?;
+    let outer = oracle::Area::of_outline(&project.board().outer);
+    let copper: Vec<oracle::Prim> = project
+        .stackup
+        .layers()
+        .into_iter()
+        .flat_map(|layer| oracle::copper_but_fills(&project, layer))
+        .collect();
+    let free = |p: Point, moved: Point| {
+        -outer.signed(p) > 1.5
+            && copper
+                .iter()
+                .all(|c| near(c.frame.to_board([0.0; 2]), moved) || c.excess(p) > 1.5)
+            && holes.iter().all(|h| {
+                near(h.from, moved)
+                    || oracle::Area::capsule(h.from, h.to, h.width / 2.0).signed(p) > 1.5
+            })
+    };
+    let bounds = project.board().bounds();
+    let mut target = None;
+    'search: for fill in project.fills.iter().filter(|f| f.net.is_some()) {
+        let Some(via) = project
+            .vias
+            .iter()
+            .find(|v| !v.locked && Some(v.net) != fill.net)
+        else {
+            continue;
+        };
+        let mut solid = Vec::new();
+        for region in fill.computed.iter().flat_map(|c| &c.regions) {
+            let mut area = oracle::Area::of_ring(&region.outer);
+            for hole in &region.holes {
+                area.edges.extend(oracle::Area::of_ring(hole).edges);
+            }
+            solid.push(area.filed());
+        }
+        // Solid all round, 0.8 mm out.
+        let poured = |p: Point| {
+            solid.iter().any(|a| {
+                a.inside(p)
+                    && (0..16).all(|k| {
+                        let (s, c) = (f64::from(k) * std::f64::consts::TAU / 16.0).sin_cos();
+                        a.inside([p[0] + 0.8 * c, p[1] + 0.8 * s])
+                    })
+            })
+        };
+        for i in 0..400 {
+            for j in 0..400 {
+                let p = [
+                    bounds.min[0] + 0.25 * f64::from(i),
+                    bounds.min[1] + 0.25 * f64::from(j),
+                ];
+                if p[0] > bounds.max[0] || p[1] > bounds.max[1] {
+                    break;
+                }
+                if poured(p) && free(p, via.position) {
+                    target = Some((fill.id, via.id, p));
+                    break 'search;
+                }
+            }
+        }
+    }
+    let (fill, via, position) = target.ok_or("a place in a pour for a via")?;
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::MoveVia { id: via, position }),
+    )?;
+    // 4. and 5. The files would short the two nets; the export must not be
+    // free to write them.
+    let report = fabrication::preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?;
+    let names = [ObjectRef::Fill { id: fill }, ObjectRef::Via { id: via }];
+    let short: Vec<_> = report
+        .items
+        .iter()
+        .filter(|i| names.iter().all(|n| i.objects.contains(n)))
+        .map(|i| (&i.code, &i.title, i.blocks()))
+        .collect();
+    assert!(short.iter().any(|(_, _, blocks)| *blocks), "{short:?}");
+    Ok(())
+}
+
 /// The review's probe: the fill-to-via-hole minimum raised to 1 mm after
 /// the pour was computed, and its staleness waived. The stored copper is
 /// what would be made, so its gap to the drill blocks the export, naming
