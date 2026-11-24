@@ -105,6 +105,19 @@ impl SourceView {
         }
     }
 
+    /// Why the source cannot be searched, for its row of Library sources: a
+    /// missing folder and one without its manifest read alike on disk, so
+    /// the row names both and what to do.
+    fn not_searchable(&self) -> String {
+        match &self.status {
+            Status::Disabled(Disabled::PathMissing) => format!(
+                "Not searchable: the folder or its {} is missing; restore it or use Remove",
+                sparksmith_io::library_folder::MANIFEST_FILE
+            ),
+            _ => format!("Not searchable: {}", self.secondary()),
+        }
+    }
+
     /// [`Self::secondary`] short enough for a Browser row; the full reason
     /// is the row's tip and the sources card's status.
     pub fn short(&self) -> String {
@@ -1846,10 +1859,7 @@ impl LibrarySources {
                                     kit::value_row(ui, "Status", "loading…");
                                 }
                                 _ => {
-                                    kit::warning_row(
-                                        ui,
-                                        &format!("Not searchable: {}", source.secondary()),
-                                    );
+                                    kit::warning_row(ui, &source.not_searchable());
                                 }
                             }
                             let mut enabled = source.setting.enabled;
@@ -2100,6 +2110,15 @@ mod tests {
         ));
         assert_eq!(missing.name, "gone");
         assert_eq!(missing.secondary(), "path missing");
+        // A folder without its manifest says the same, and what to do.
+        let bare = dir.path().join("bare");
+        std::fs::create_dir(&bare)?;
+        for source in [&missing, &load(&setting(bare, true), Some(&cache))] {
+            assert_eq!(
+                source.not_searchable(),
+                "Not searchable: the folder or its sparksmith-library.json is missing; restore it or use Remove"
+            );
+        }
 
         let corrupt = dir.path().join("corrupt");
         write(&corrupt, "{ not json")?;

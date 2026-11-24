@@ -8,9 +8,10 @@
 //! opens the part the project holds, or makes it with its generator
 //! (`library.generate`, off the UI thread) and opens that, with no form.
 use super::PartEditor;
-use super::identity::Subject;
+use super::Request;
 #[cfg(test)]
-use super::{Request, Template};
+use super::Template;
+use super::identity::Subject;
 use crate::generator_gallery;
 use crate::generators::{self, MakeRequest, Making};
 use crate::kit;
@@ -111,7 +112,7 @@ impl PartEditor {
                         let found = self.start_search(ui, engine);
                         let recent = self.start_recents(ui, engine).map(Chosen::Subject);
                         ui.add_space(t.space_16);
-                        let new = start_new(ui, &mut self.datasheet_requested);
+                        let new = start_new(ui, &mut self.datasheet_requested, &mut self.request);
                         // The page scrolls clear of the canvas's floating
                         // navigation bar, so its last row is never under it.
                         ui.add_space(crate::navigation::bar_band());
@@ -429,16 +430,22 @@ impl PartEditor {
 }
 
 /// New from generator… (the one searchable gallery of every generator's
-/// presets and values), Create from datasheet… (opens the assistant's chat
-/// on the datasheet workflow's card: `datasheet` is set), and Import
-/// pinout….
-fn start_new(ui: &mut Ui, datasheet: &mut bool) -> bool {
-    kit::search_heading(ui, "New", 1);
+/// presets and values), Blank component (empty drafts, which open:
+/// `request` is set), Create from datasheet… (opens the assistant's chat on
+/// the datasheet workflow's card: `datasheet` is set), and Import pinout….
+fn start_new(ui: &mut Ui, datasheet: &mut bool, request: &mut Option<Request>) -> bool {
+    kit::search_heading(ui, "New", 4);
     let mut chosen = false;
     ui.horizontal_wrapped(|ui| {
         chosen = ui_kit::button(ui, "New from generator…", Button::Normal)
             .on_hover_text("Make a part with a generator: chip, SOIC, QFN, SOT, BGA, header, module…")
             .clicked();
+        if ui_kit::button(ui, "Blank component", Button::Normal)
+            .on_hover_text("Start without a generator: add terminals, then draw the symbol and footprint")
+            .clicked()
+        {
+            *request = Some(Request::Blank);
+        }
         if ui_kit::button(ui, "Create from datasheet…", Button::Normal)
             .on_hover_text("Draft a part from its datasheets in the assistant, with the model set up in Settings › AI")
             .clicked()
@@ -595,6 +602,49 @@ mod generic_tests {
         again.choose_generic(&screen.ctx, &engine, &found);
         assert!(again.start.making.is_none(), "nothing to make");
         assert_eq!(again.lineage, Some(component));
+        Ok(())
+    }
+
+    /// Blank component on the start page asks for one, with nothing made by
+    /// the page itself.
+    #[test]
+    fn the_start_page_offers_a_blank_component() -> TestResult {
+        let engine = Engine::default();
+        let mut editor = PartEditor::default();
+        let screen = Screen::new(vec2(1000.0, 700.0));
+        fn label(shape: &egui::Shape, out: &mut Option<egui::Pos2>) {
+            match shape {
+                egui::Shape::Text(t) if t.galley.text() == "Blank component" => {
+                    *out = Some(t.pos + t.galley.size() * 0.5);
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| label(s, out)),
+                _ => {}
+            }
+        }
+        let mut at = None;
+        // The first frame only measures the page.
+        for _ in 0..2 {
+            let drawn = screen.run(vec![], |ui| {
+                editor.canvas(ui, &engine);
+            });
+            for shape in &drawn.shapes {
+                label(&shape.shape, &mut at);
+            }
+        }
+        let at = at.ok_or("the button")?;
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        screen.run(
+            vec![egui::Event::PointerMoved(at), button(true), button(false)],
+            |ui| {
+                editor.canvas(ui, &engine);
+            },
+        );
+        assert_eq!(editor.take_request(), Some(Request::Blank));
         Ok(())
     }
 

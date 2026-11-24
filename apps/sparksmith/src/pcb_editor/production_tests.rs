@@ -288,6 +288,11 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
             Some("Fix or waive the error first")
         );
     }
+    // Readable without hovering Export (GUI check 1, item F6).
+    assert!(
+        shown.iter().any(|t| t == "Fix or waive the error first"),
+        "{shown:?}"
+    );
     // Export is disabled: clicking it starts nothing.
     click(&mut editor, &engine, &ctx, "Export")?;
     assert!(!dialog(&mut editor)?.busy());
@@ -951,6 +956,33 @@ fn showcase_on(profile: RuleProfile) -> Result<Engine, Box<dyn std::error::Error
     Ok(engine)
 }
 
+/// A check under the shipped default, which is no fabricator's, says to
+/// choose one before ordering, and blocks nothing; under a fabricator's own
+/// profile it says nothing.
+#[test]
+fn a_check_under_the_shipped_default_says_to_choose_a_fabricator() -> TestResult {
+    let shipped = sparksmith_io::rule_profiles::shipped_from_env()?;
+    let said = "Checked against Standard; choose your fabricator's profile before ordering";
+    for (id, says) in [("standard", true), ("jlcpcb-4-layer", false)] {
+        let profile = shipped.iter().find(|p| p.id == id).ok_or(id)?.clone();
+        let engine = showcase_on(profile)?;
+        let mut editor = open(&engine)?;
+        let ctx = context();
+        let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+        let shown = texts(&output);
+        assert_eq!(shown.iter().any(|t| t == said), says, "{id}: {shown:?}");
+        let clean = PreflightReport {
+            blocking: 0,
+            items: Vec::new(),
+            ..report_with_error(&engine)
+        };
+        let out = PathBuf::from("out");
+        let blocked = export_blocked(dialog(&mut editor)?, Some(&Ok(clean)), true, Some(&out));
+        assert_eq!(blocked, None, "{id}");
+    }
+    Ok(())
+}
+
 /// A finding the board needs more of its fab profile for states what it
 /// needs, offers no Waive…, and "Switch to …" sends the one rules edit the
 /// production check resolved the suggested profile with; Export says to
@@ -1016,8 +1048,29 @@ fn a_profile_limited_finding_says_what_it_needs_and_switches_instead_of_waiving(
         only.blocking = only.items.iter().filter(|i| i.blocks()).count();
         assert!(only.blocking > 0);
         assert_eq!(
-            export_blocked(d, Some(&Ok(only)), true, d.output("x").as_ref()).as_deref(),
+            export_blocked(d, Some(&Ok(only.clone())), true, d.output("x").as_ref()).as_deref(),
             Some("Fix the design or switch to a fab profile that allows it first")
+        );
+        // An error neither a waiver nor another profile resolves offers
+        // neither; a missing profile asks for one (GUI check 1, U11).
+        only.items.truncate(1);
+        only.items[0].needs = None;
+        only.items[0].code = "fabrication.slot_unroutable.3".into();
+        only.blocking = 1;
+        assert_eq!(
+            export_blocked(d, Some(&Ok(only.clone())), true, None).as_deref(),
+            Some("Fix the error first; it cannot be waived")
+        );
+        only.items.push(only.items[0].clone());
+        only.blocking = 2;
+        assert_eq!(
+            export_blocked(d, Some(&Ok(only.clone())), true, None).as_deref(),
+            Some("Fix the 2 errors first; they cannot be waived")
+        );
+        only.items[0].code = "rules.no_fab_profile".into();
+        assert_eq!(
+            export_blocked(d, Some(&Ok(only)), true, None).as_deref(),
+            Some("Choose a fab profile first")
         );
     }
     // Hovering the finding offers no Waive….

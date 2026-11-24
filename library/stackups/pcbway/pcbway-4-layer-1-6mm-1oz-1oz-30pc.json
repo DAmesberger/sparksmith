@@ -1,0 +1,111 @@
+{
+  "format": 1,
+  "fab_stackup": {
+    "id": "pcbway-4-layer-1-6mm-1oz-1oz-30pc",
+    "name": "4-layers PCB 1.6MM, outer 1OZ, inner 1OZ, residual copper ratio 30%",
+    "fabricator": "pcbway",
+    "fab_profiles": [
+      "pcbway-4-layer"
+    ],
+    "copper_layers": 4,
+    "outer_copper_oz": 1,
+    "inner_copper_oz": 1,
+    "source": {
+      "publisher": "PCBWay",
+      "document": "Multi-layer laminated structure, \"PCB standard stackup\" table, 4 Layers (the page lists 298 stackups; filter data attributes Layers, Thickness, Inner Copper, Outer Copper, Inner layer Residual copper ratio)",
+      "url": "https://www.pcbway.com/multi-layer-laminated-structure.html",
+      "date": "2026-11-24",
+      "notes": "Rows are the page's own HTML table for the stackup, read once (the page serves every stackup in one document; no login, generic client name). Only 4-layer stackups the page labels \"Regular\", 1OZ finished outer copper, 1OZ inner copper, at 0.8, 1.0, 1.2 and 1.6 MM are written; the page lists 112 four-layer stackups in all (other thicknesses, 1.5OZ and 2OZ inner copper, 2OZ outer copper, and rows with no label are not written). PCBWay gives these stackups no names: the name here is built from the page's own labels. The page's \"Thickness (mm)\" column is before lamination and \"Thickness after lamination(mm)\" after; both are kept as the page gives them. Outer copper is the page's \"Outer Base Copper 0.5OZ\" (0.0175 mm) \"Plating to 1OZ\"; the page states no plated thickness. The page says: \"This is a through-hole board stack-up, not applicable for blind and buried vias.\" Re-read before ordering: PCBWay changes these tables."
+    },
+    "nominal": {
+      "board_mm": 1.6,
+      "basis": "The page's \"Thickness:\" label and filter value (data-BoardThickness), 1.6MM for example"
+    },
+    "stated_after_lamination": {
+      "value_mm": 1.48,
+      "tolerance": "±10%",
+      "text": "Thickness after lamination: 1.48mm, tolerance: ±10%."
+    },
+    "stated_finished": {
+      "value_mm": 1.58,
+      "tolerance": "±10%",
+      "text": "Finished PCB Thickness: 1.58mm, tolerance: ±10%."
+    },
+    "inner_layer_residual_copper_ratio_pct": 30,
+    "layers": [
+      {
+        "role": "copper",
+        "name": "L1",
+        "thickness_mm": 0.0175,
+        "foil_text": "Outer Base Copper 0.5OZ",
+        "after_lamination_mm": 0.0175,
+        "plated_to_oz": 1,
+        "plated_thickness_mm": null,
+        "source": "stackup \"4-layers PCB 1.6MM, outer 1OZ, inner 1OZ, residual copper ratio 30%\", table row 1 of 7, L1-CU \"Outer Base Copper 0.5OZ\": Thickness 0.0175, after lamination \"0.0175 | (Plating to 1OZ)\""
+      },
+      {
+        "role": "prepreg",
+        "glass": "7628",
+        "material": "7628 RC46%",
+        "thickness_mm": 0.196,
+        "after_lamination_mm": 0.1715,
+        "dk": 4.74,
+        "source": "stackup \"4-layers PCB 1.6MM, outer 1OZ, inner 1OZ, residual copper ratio 30%\", table row 2 of 7, PP \"7628 RC46% DK:4.74\": Thickness 0.1960, after lamination 0.1715"
+      },
+      {
+        "role": "copper",
+        "name": "L2",
+        "thickness_mm": 0.035,
+        "foil_text": "Inner Copper 1OZ",
+        "source": "stackup \"4-layers PCB 1.6MM, outer 1OZ, inner 1OZ, residual copper ratio 30%\", table row 3 of 7, L2-CU \"Inner Copper 1OZ\": Thickness 0.0350, after lamination \"1.1 | (Core with Cu)\""
+      },
+      {
+        "role": "core",
+        "name": "L2/L3",
+        "material": "Core",
+        "thickness_mm": 1.03,
+        "dk": 4.6,
+        "listed_with_copper_mm": 1.1,
+        "listed_with_copper_text": "Core with Cu",
+        "source": "stackup \"4-layers PCB 1.6MM, outer 1OZ, inner 1OZ, residual copper ratio 30%\", table row 4 of 7, CORE \"Core DK:4.6\": Thickness 1.0300; the first inner-copper row's after-lamination cell reads \"1.1 (Core with Cu)\""
+      },
+      {
+        "role": "copper",
+        "name": "L3",
+        "thickness_mm": 0.035,
+        "foil_text": "Inner Copper 1OZ",
+        "source": "stackup \"4-layers PCB 1.6MM, outer 1OZ, inner 1OZ, residual copper ratio 30%\", table row 5 of 7, L3-CU \"Inner Copper 1OZ\": Thickness 0.0350"
+      },
+      {
+        "role": "prepreg",
+        "glass": "7628",
+        "material": "7628 RC46%",
+        "thickness_mm": 0.196,
+        "after_lamination_mm": 0.1715,
+        "dk": 4.74,
+        "source": "stackup \"4-layers PCB 1.6MM, outer 1OZ, inner 1OZ, residual copper ratio 30%\", table row 6 of 7, PP \"7628 RC46% DK:4.74\": Thickness 0.1960, after lamination 0.1715"
+      },
+      {
+        "role": "copper",
+        "name": "L4",
+        "thickness_mm": 0.0175,
+        "foil_text": "Outer Base Copper 0.5OZ",
+        "after_lamination_mm": 0.0175,
+        "plated_to_oz": 1,
+        "plated_thickness_mm": null,
+        "source": "stackup \"4-layers PCB 1.6MM, outer 1OZ, inner 1OZ, residual copper ratio 30%\", table row 7 of 7, L4-CU \"Outer Base Copper 0.5OZ\": Thickness 0.0175, after lamination \"0.0175 | (Plating to 1OZ)\""
+      }
+    ],
+    "layers_sum_mm": 1.527,
+    "layers_sum_basis": "Every row's \"Thickness (mm)\" (before lamination; outer copper is the 0.5OZ base foil) added, with the inner foils: the core row lists the core without them.",
+    "layers_sum_minus_nominal_mm": -0.073,
+    "layers_sum_after_lamination_mm": 1.478,
+    "layers_sum_after_lamination_basis": "The outer base foils and each prepreg's \"Thickness after lamination\" plus the \"Core with Cu\" cell (the core and its two inner foils), as the page lists them.",
+    "layers_sum_after_lamination_minus_stated_mm": -0.002,
+    "symmetric": true,
+    "disagreements": [
+      "PCBWay's older table (blog post \"The newest version of PCBWay Multi-layer laminated structure\", https://www.pcbway.com/blog/Engineering_Technical/stackup___pcbway.html, which marks it \"Old version 2019\" and points to the page used here), \"1.6mm±10%1oz\": Dielectric 1-2 0.11 mm dielectric constant 4.29; Dielectric 2-3 1.13 mm dielectric constant 3.96; Dielectric 3-4 0.11 mm dielectric constant 4.29. The newer page is used.",
+      "PCBWay lists 7628 prepreg Dk 4.74 and core Dk 4.6; JLCPCB lists 7628 4.4 and each core 3.99 to 4.56 (library/stackups/jlcpcb). Different fabricators, different laminate: not a conflict, but the values are not interchangeable."
+    ]
+  }
+}

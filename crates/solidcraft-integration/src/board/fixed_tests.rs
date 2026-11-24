@@ -971,3 +971,101 @@ fn loops_are_kept_while_the_outline_is_invalid() -> Fallible<()> {
     assert_eq!(loops(&engine)?, [outline_id]);
     Ok(())
 }
+
+/// Removing a followed face removes its own line and nothing drawn after it.
+#[test]
+fn removing_a_followed_face_keeps_what_was_drawn_after_it() -> Fallible<()> {
+    let (mut engine, _) = followed(Vec::new())?;
+    edit(
+        &mut engine,
+        vec![BoardEdit::Sketch {
+            edit: SketchEdit::AddCircle {
+                center: [30.0, 20.0],
+                radius: 2.0,
+                construction: false,
+            },
+        }],
+    )?;
+    let cutouts = engine.project().board().cutouts.clone();
+    assert_eq!(cutouts.len(), 1);
+    apply(
+        &mut engine,
+        Operation::Assembly(AssemblyCommand::RemoveReference {
+            id: FollowedFaceId(1),
+        }),
+    )?;
+    assert_eq!(engine.project().board().cutouts, cutouts);
+    Ok(())
+}
+
+/// Two followed faces, each with a loop: one is removed while the outline is
+/// invalid, and its loop with it; the other's is kept.
+#[test]
+fn a_followed_face_is_removed_while_the_outline_is_invalid() -> Fallible<()> {
+    let engine = sketched()?;
+    let [width, height] = engine.project().board_size;
+    let outline = uses(&engine, DatumRole::BoardOutline, "Far wall")?;
+    let datum = outline.datum;
+    let (mut engine, _) = followed(vec![outline.clone()])?;
+    // A second wall the right edge's width gives way to.
+    apply(
+        &mut engine,
+        Operation::Assembly(AssemblyCommand::RecordReference {
+            reference: NewReference {
+                body: BodyName("Side wall".into()),
+                face: FaceName("F1:side:e2".into()),
+                pick: [width + 1.0, 0.0, 0.0],
+                name: "Side wall · face".into(),
+                geometry: FeatureGeometry::Line {
+                    a: [width + 1.0, -5.0],
+                    b: [width + 1.0, height + 5.0],
+                },
+                built_on: vec![outline],
+            },
+        }),
+    )?;
+    let side = engine
+        .project()
+        .assembly_link
+        .as_deref()
+        .and_then(|l| l.references.last())
+        .ok_or("the second reference")?
+        .clone();
+    let SketchRef::Curve(wall) = side.sketch.clone() else {
+        return Err("a line".into());
+    };
+    let width_k = find(&engine, "constraints", |k| k["param"] == "width")?;
+    let corner = find(&engine, "points", |p| {
+        p["pos"][0].as_f64() == Some(width) && p["pos"][1].as_f64() == Some(0.0)
+    })?;
+    edit(
+        &mut engine,
+        vec![
+            BoardEdit::Sketch {
+                edit: SketchEdit::Delete {
+                    ids: vec![SketchRef::Constraint(SketchConstraintId(width_k))],
+                },
+            },
+            BoardEdit::Sketch {
+                edit: SketchEdit::AddDimension {
+                    kind: DimKind::Distance,
+                    refs: vec![
+                        SketchRef::Point(SketchPointId(corner)),
+                        SketchRef::Curve(wall),
+                    ],
+                    value: DimValue::Fixed(1.0),
+                },
+            },
+        ],
+    )?;
+    assert_eq!(loops(&engine)?, [datum, datum]);
+    invalidate(&mut engine)?;
+    assert_eq!(loops(&engine)?, [datum, datum]);
+    apply(
+        &mut engine,
+        Operation::Assembly(AssemblyCommand::RemoveReference { id: side.id }),
+    )?;
+    assert!(engine.project().board_shape.invalid().is_some());
+    assert_eq!(loops(&engine)?, [datum]);
+    Ok(())
+}

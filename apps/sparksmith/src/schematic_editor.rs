@@ -3064,6 +3064,7 @@ fn segment_distance(p: Pos2, a: Pos2, b: Pos2) -> f32 {
 /// The one-line canvas hint for the current tool and selection, if any.
 /// The card never repeats it.
 fn canvas_hint(editor: &SchematicEditor, project: &Project) -> Option<String> {
+    use crate::keys::COMMAND_KEY;
     if editor.update.is_open() || editor.palette.is_open() || editor.resolve.is_open() {
         return None;
     }
@@ -3089,14 +3090,14 @@ fn canvas_hint(editor: &SchematicEditor, project: &Project) -> Option<String> {
         }
         Tool::Draw(_) => "Click to start · Esc ends".to_owned(),
         Tool::Select if !editor.group.is_empty() => {
-            "Drag to move · Cmd+R rotates · Shift+X mirrors · Delete removes".to_owned()
+            format!("Drag to move · {COMMAND_KEY}+R rotates · Shift+X mirrors · Delete removes")
         }
         Tool::Select if editor.edited_path(project).is_some() => {
             "Drag reshapes · double-click adds or drops a corner · ⇧Delete splits".to_owned()
         }
         Tool::Select if editor.item.is_some() => "Drag to move · Delete removes".to_owned(),
         Tool::Select if editor.selected.is_some() => {
-            "Drag to move · Cmd+R rotates · Shift+X mirrors".to_owned()
+            format!("Drag to move · {COMMAND_KEY}+R rotates · Shift+X mirrors")
         }
         Tool::Select => "Click to select · drag to move · P places".to_owned(),
     })

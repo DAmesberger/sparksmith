@@ -1,4 +1,4 @@
-//! Lean parts (docs/part-templates.md §11): cold and cached cost of the
+//! Lean parts (docs/part-files.md): cold and cached cost of the
 //! shipped ESP32-S31-WROOM-3 part file and of inserting it into a board.
 //! Measured in a release build:
 //!

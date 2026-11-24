@@ -723,3 +723,100 @@ fn a_turn_undoes_as_one_step_with_its_label() -> Fallible {
     assert_eq!(session.engine().revision(), revision);
     Ok(())
 }
+
+/// A board without a fab profile refuses every entry that works at its
+/// widths and clearances, queries included, with the desktop's sentence and
+/// rule, and names the command an agent chooses a profile with. Taking
+/// copper away needs none; a profile in the same batch lets the rest run.
+#[test]
+fn without_a_profile_what_needs_rules_is_refused_by_name() -> Fallible {
+    let mut engine = Engine::demo()?;
+    let net = engine.project().nets.first().map_or(0, |n| n.id);
+    for y in [30.0, 32.0] {
+        engine.apply(
+            engine.revision(),
+            serde_json::from_value(json!({"editor": "Layout", "operation": {
+                "command": "layout.route", "params": {"request": {
+                    "net": net, "start": [20.0, y], "end": [30.0, y], "width": 0.3,
+                    "layer": "Top"}}}}))?,
+        )?;
+    }
+    let mut file = engine.to_file();
+    let rules = std::mem::take(&mut file.project.rules);
+    let tracks: Vec<_> = file.project.tracks.iter().map(|t| t.id).collect();
+    let [track, spare] = tracks[..] else {
+        return Err(format!("two tracks: {tracks:?}").into());
+    };
+    let mut session = Session::new(Engine::from_file(file)?);
+    let wanted = sparksmith_core::rules::ProjectRules::default()
+        .require()
+        .err()
+        .ok_or("refused")?
+        .diagnostic();
+    assert_eq!(wanted.rule.as_deref(), Some("rules.no_fab_profile"));
+    let (from, to) = ([20.0, 25.0], [30.0, 25.0]);
+    let route = json!({"net": net, "start": from, "end": to, "width": 0.0, "layer": "Top"});
+    let step = json!({"net": net, "head": from, "to": to, "width": 0.0, "layer": "Top"});
+    let drag = json!({"track": track, "offset": 0.5});
+    let before = session.engine().to_file();
+    let revision = session.engine().revision();
+    for (entry, params) in [
+        ("layout.route", json!({"request": route})),
+        (
+            "layout.route_apply",
+            json!({"edits": {"add": [route], "replace": [], "remove": []}}),
+        ),
+        ("layout.route_step", json!({"request": step})),
+        ("layout.add_via", via_params(&session)),
+        ("layout.track_set", json!({"id": track, "width": 0.4})),
+        ("layout.track_drag", json!({"request": drag})),
+        (
+            "fill.add",
+            json!({"fill": {"net": net, "layer": "Bottom", "region": "board"}}),
+        ),
+        ("layout.route_preview", json!({"request": step})),
+        ("layout.track_drag_preview", json!({"request": drag})),
+    ] {
+        let expected = (!entry.ends_with("_preview")).then_some(revision);
+        let refused = run(
+            &mut session,
+            Principal::Operator,
+            call(entry, params, expected),
+        );
+        let Err(error) = refused else {
+            return Err(format!("{entry} ran without a profile").into());
+        };
+        assert_eq!(error.rule, wanted.rule, "{entry}: {error:?}");
+        assert_eq!(error.message, wanted.message, "{entry}");
+        let instead = error.instead.unwrap_or_default();
+        assert!(
+            instead.contains("rules.set_fab_profile"),
+            "{entry}: {instead}"
+        );
+        assert_eq!(session.engine().to_file(), before, "{entry}");
+    }
+    for (entry, params) in [
+        ("layout.track_delete", json!({"id": spare})),
+        (
+            "layout.route_apply",
+            json!({"edits": {"add": [], "replace": [], "remove": [track]}}),
+        ),
+    ] {
+        let revision = session.engine().revision();
+        run(
+            &mut session,
+            Principal::Operator,
+            call(entry, params, Some(revision)),
+        )
+        .map_err(failed)?;
+    }
+    assert!(session.engine().project().tracks.is_empty());
+    let batch = session.dispatch(json!({"command": "project.apply_all", "params": {
+        "expected_revision": session.engine().revision(), "operations": [
+            {"editor": "Rules", "operation": {"command": "rules.set_fab_profile",
+                "params": {"profile": rules.profile}}},
+            {"editor": "Layout", "operation": {"command": "layout.add_via",
+                "params": via_params(&session)}}]}}));
+    assert_eq!(batch["ok"], true, "{batch}");
+    Ok(())
+}

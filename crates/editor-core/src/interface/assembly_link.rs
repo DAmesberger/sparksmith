@@ -1966,7 +1966,7 @@ fn followers(
 /// built on a datum are probed, and only when the board, its parts, its
 /// datums or the link changed; without the host's sketch evaluator, or
 /// while the outline is invalid (no part follows it then), the last loops
-/// are kept.
+/// of the references there are are kept.
 pub fn follow_cycles(
     before: &Project,
     project: &mut Project,
@@ -2000,7 +2000,15 @@ pub fn follow_cycles(
     let Some(evaluator) = board else {
         return Ok(());
     };
-    if unchanged || project.board_shape.invalid().is_some() {
+    if unchanged {
+        return Ok(());
+    }
+    if project.board_shape.invalid().is_some() {
+        if let Some(link) = project.assembly_link.as_deref_mut() {
+            let references = &link.references;
+            link.cycles
+                .retain(|c| references.iter().any(|r| r.id == c.reference));
+        }
         return Ok(());
     }
     let geometry = datum_geometry(project)?;

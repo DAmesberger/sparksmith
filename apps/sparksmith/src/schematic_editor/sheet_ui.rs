@@ -126,6 +126,9 @@ pub(super) const SHEET_SYMBOL_MM: Point = [30.0, 20.0];
 #[derive(Clone, Debug, Default)]
 pub(super) struct SceneCache {
     pub revision: u64,
+    /// The title block's project name: a first save gives one without a
+    /// revision.
+    pub name: String,
     pub sheet: SheetId,
     pub frame: Drawing,
     /// The page, x ∈ [0, w], y ∈ [−h, 0].
@@ -351,11 +354,9 @@ impl SchematicEditor {
         if project.sheet(self.sheet).is_none() {
             self.sheet = project.sheets.first();
         }
-        if self
-            .scene
-            .as_ref()
-            .is_some_and(|s| s.revision == engine.revision() && s.sheet == self.sheet)
-        {
+        if self.scene.as_ref().is_some_and(|s| {
+            s.revision == engine.revision() && s.sheet == self.sheet && s.name == project.name
+        }) {
             return;
         }
         let sheet = self.sheet;
@@ -379,6 +380,7 @@ impl SchematicEditor {
         });
         self.scene = Some(SceneCache {
             revision: engine.revision(),
+            name: project.name.clone(),
             sheet,
             frame: scene::frame_in(project, sheet, self.path.as_ref()),
             page,

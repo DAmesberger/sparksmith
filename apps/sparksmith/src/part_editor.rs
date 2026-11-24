@@ -92,7 +92,7 @@ use sparksmith_ui::ui_kit::type_face;
 use std::sync::Arc;
 #[cfg(test)]
 pub use working_set::Template;
-pub use working_set::WorkingSet;
+pub use working_set::{WorkingSet, create_blank};
 
 /// One selected object of the Symbol view: a pin by its terminal or a
 /// graphic by its stable ID.
@@ -150,6 +150,8 @@ pub enum Request {
     /// set (people use the generator gallery).
     #[cfg(test)]
     Create(Template),
+    /// Start a component without a generator.
+    Blank,
     /// Draft the lineages of a published component revision.
     Draft(ComponentRef),
 }
@@ -259,7 +261,7 @@ pub struct PartEditor {
     /// D3: the model chooser sheet and import wizard.
     model_chooser: crate::model_library::ModelChooser,
     model_import: model_import::ModelImport,
-    /// M5: the part-file chooser and the Model section's part-file form.
+    /// The part-file chooser and the Model section's part-file form.
     part_chooser: crate::part_chooser::PartChooser,
     part_file: model_part::PartFileCard,
     /// D6: the 3D tab's Marking section.
@@ -2042,6 +2044,7 @@ pub fn run(engine: &mut Engine, request: Request) -> sparksmith_core::Result<Opt
     match request {
         #[cfg(test)]
         Request::Create(template) => working_set::create(engine, template).map(|_| None),
+        Request::Blank => working_set::create_blank(engine).map(|_| None),
         Request::Draft(component) => {
             let created = working_set::draft_closure(engine, component)?;
             let name = engine
@@ -2840,6 +2843,40 @@ mod draft_tests {
             engine.apply(engine.revision(), operation)?;
         }
         assert_eq!(engine.project().library.components.len(), 1);
+        Ok(())
+    }
+
+    /// GUI check 1, U5: a component without a generator. Its five empty
+    /// drafts are one undo step, they open as one working set with the
+    /// footprint's sketch tools, and Terminal adds the first terminal.
+    #[test]
+    fn a_blank_component_opens_empty_and_takes_its_first_terminal() -> sparksmith_core::Result<()> {
+        let ctx = egui::Context::default();
+        let mut engine = Engine::default();
+        let mut editor = PartEditor::default();
+        let component = create_blank(&mut engine)?;
+        assert_eq!(engine.drafts().items.len(), 5);
+        editor.open(component, &engine);
+        assert!(editor.commit(&ctx, &engine).is_none(), "nothing to commit");
+        let set = editor.draft.as_ref();
+        assert_eq!(set.map(|s| s.ids.component), Some(component));
+        assert_eq!(set.map(|s| s.component.terminals.len()), Some(0));
+        assert!(editor.footprint_sketching());
+
+        editor.on_tool("terminal", &engine);
+        if let Some(operation) = editor.commit(&ctx, &engine) {
+            engine.apply(engine.revision(), operation)?;
+        }
+        let set = WorkingSet::of(engine.drafts(), component);
+        let set = set.as_ref();
+        assert_eq!(set.map(|s| s.component.terminals.len()), Some(1));
+        assert_eq!(set.map(|s| s.symbol.units.len()), Some(1));
+        assert_eq!(set.map(|s| s.footprint.pads.len()), Some(1));
+
+        engine.undo()?;
+        engine.undo()?;
+        assert!(engine.drafts().items.is_empty(), "one undo step");
+        assert!(!engine.can_undo());
         Ok(())
     }
 

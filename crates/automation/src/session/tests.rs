@@ -82,8 +82,10 @@ fn save_and_open_are_file_effects_outside_undo_history() -> TestResult {
     let revision = session.engine().revision();
 
     let saved = session.dispatch(json!({"command": "project.save", "params": {"path": path_text}}));
-    // The first save gives the project its identity, and nothing else.
+    // The first save gives the project its identity and its file's name,
+    // and nothing else.
     let mut before = before;
+    before.project.name = "session".into();
     before.project.production.project_id = session.engine().project().production.project_id.clone();
     assert!(before.project.production.project_id.is_some());
     assert_eq!(session.engine().to_file(), before);
@@ -205,6 +207,9 @@ fn refused_open_preserves_document_history_and_save_path() -> TestResult {
         mine.project.production.project_id,
         theirs.project.production.project_id
     );
+    assert_eq!(mine.project.name, "original");
+    assert_eq!(theirs.project.name, "incoming");
+    mine.project.name.clone_from(&theirs.project.name);
     mine.project.production.project_id = None;
     theirs.project.production.project_id = None;
     assert_eq!(mine, theirs);
@@ -512,7 +517,7 @@ fn parts_session() -> std::result::Result<Session, Box<dyn std::error::Error>> {
             24,
             &sparksmith_core::NewBoard::fixture(),
         )?,
-        drafts: Drafts::default(),
+        drafts: Default::default(),
     };
     Ok(Session::new(Engine::from_file(file)?))
 }

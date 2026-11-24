@@ -148,7 +148,8 @@ pub struct UserSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub projects: Vec<PathBuf>,
     /// The fab profile library id a new board starts with when none is
-    /// chosen (Settings); `None`: every new board asks.
+    /// chosen (Settings); `None`: the shipped default
+    /// (`defaults/new-project.json`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_rule_profile: Option<String>,
     /// How far routed impedance may stray from a net class's target, in

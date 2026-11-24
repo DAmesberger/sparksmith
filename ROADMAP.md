@@ -79,6 +79,8 @@ All scenarios require the common UI/automation, transactional, offline and nativ
 Candidates, not yet scheduled:
 
 - **ODB++ export** (user decision, 23 November 2026), from the same production snapshot as the Gerber set. Professional users name its absence as a reason to rule a tool out (comments on Hackaday's KiCad 9 review, 2025).
+- **Mechanical parts as a generator.** The nut, spacer and heatsink are shipped part files with land rules in their sidecars (`library/parts/*.part.json`); a `mechanical` generator would compute the lands in the module and retire the sidecar rules. `layout.place_part_file` with a person's own file and explicit lands stays as it is.
+- **The envelope as a part file.** A shipped one-box part file would replace `PackageModel::Envelope`.
 
 ## Current hardening sequence
 

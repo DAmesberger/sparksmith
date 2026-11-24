@@ -18,7 +18,7 @@
 //!
 //! `use` is `mechanical` (placed on the board), `package_body` (a
 //! package's 3D model) or `component` (a whole shipped component whose
-//! package uses this part file as its body, part-generation job I); a land
+//! package uses this part file as its body); a land
 //! is `annulus` (a round copper land around a non-plated hole at the
 //! origin) or `hole` (a bare non-plated hole), each diameter `scale ×
 //! value(param) + add_mm` over a length parameter of the part (its value
@@ -79,7 +79,7 @@ fn one() -> f64 {
 }
 
 /// A built-in part's land rule: shipped data over the part's parameters
-/// (the part file never supplies lands, M1.4).
+/// (the part file never supplies lands).
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum LandRule {

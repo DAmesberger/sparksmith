@@ -92,7 +92,12 @@ pub(super) fn add(project: &mut Project, request: ViaRequest) -> Result<Id> {
 
 pub(super) fn insert(project: &mut Project, request: ViaRequest) -> Result<Id> {
     let id = project.allocate()?;
-    project.vias.push(Via {
+    project.vias.push(via_of(id, request));
+    Ok(id)
+}
+
+fn via_of(id: Id, request: ViaRequest) -> Via {
+    Via {
         id,
         net: request.net,
         position: request.position,
@@ -101,8 +106,17 @@ pub(super) fn insert(project: &mut Project, request: ViaRequest) -> Result<Id> {
         span: request.span,
         tented: request.tented,
         locked: false,
-    });
-    Ok(id)
+    }
+}
+
+/// Whether the document can hold the via `request` asks for, whatever the
+/// rules say of it.
+pub(super) fn check_held(
+    project: &Project,
+    request: &ViaRequest,
+    nets: &BTreeSet<Id>,
+) -> Result<()> {
+    check_shape(project, &via_of(0, *request), nets)
 }
 
 fn unlocked(project: &mut Project, id: Id) -> Result<&mut Via> {
@@ -888,31 +902,38 @@ pub(super) fn validate(project: &Project, nets: &BTreeSet<Id>) -> Result<()> {
         if via.id == 0 || via.id >= project.next_id || !ids.insert(via.id) {
             return invalid("invalid or duplicate via identity");
         }
-        if !nets.contains(&via.net) {
-            return invalid("via references an unknown net");
-        }
-        if !point_valid(via.position)
-            || !via.drill.is_finite()
-            || !via.diameter.is_finite()
-            || via.drill <= 0.0
-            || via.diameter > MAX_DIAMETER_MM
-            || via.diameter <= via.drill + EPS
-        {
-            return invalid(&format!(
-                "via drill must be positive and smaller than its pad, at most {MAX_DIAMETER_MM} mm"
-            ));
-        }
-        let r = via.diameter / 2.0;
-        let [w, h] = project.board_size;
-        let [x, y] = via.position;
-        if x - r < -EPS || y - r < -EPS || x + r > w + EPS || y + r > h + EPS {
-            return invalid("via copper must lie inside the board outline");
-        }
-        if let ViaSpan::Between { .. } = via.span {
-            return Err(Error::Unsupported(
-                "blind and buried vias are not supported yet; use a through via".into(),
-            ));
-        }
+        check_shape(project, via, nets)?;
+    }
+    Ok(())
+}
+
+/// What every stored via keeps: a net of the board, a ring round its drill,
+/// its copper on the board and a through span.
+fn check_shape(project: &Project, via: &Via, nets: &BTreeSet<Id>) -> Result<()> {
+    if !nets.contains(&via.net) {
+        return invalid("via references an unknown net");
+    }
+    if !point_valid(via.position)
+        || !via.drill.is_finite()
+        || !via.diameter.is_finite()
+        || via.drill <= 0.0
+        || via.diameter > MAX_DIAMETER_MM
+        || via.diameter <= via.drill + EPS
+    {
+        return invalid(&format!(
+            "via drill must be positive and smaller than its pad, at most {MAX_DIAMETER_MM} mm"
+        ));
+    }
+    let r = via.diameter / 2.0;
+    let [w, h] = project.board_size;
+    let [x, y] = via.position;
+    if x - r < -EPS || y - r < -EPS || x + r > w + EPS || y + r > h + EPS {
+        return invalid("via copper must lie inside the board outline");
+    }
+    if let ViaSpan::Between { .. } = via.span {
+        return Err(Error::Unsupported(
+            "blind and buried vias are not supported yet; use a through via".into(),
+        ));
     }
     Ok(())
 }

@@ -1,4 +1,4 @@
-//! The part-file chooser (docs/mechanical-parts.md M5): one Solidcraft-
+//! The part-file chooser (docs/mechanical-parts.md): one Solidcraft-
 //! styled sheet for every place that picks a SolidCraft part file. The
 //! source list on the left offers the shipped part files
 //! (the shipped library's, `part_files::builtin_parts`), the project's Models of format `solidcraft`, the
@@ -59,10 +59,7 @@ pub enum PartSource {
 /// from exactly what was checked, and the evaluation is cached).
 #[derive(Clone, Debug)]
 pub struct ChooserPick {
-    #[allow(
-        dead_code,
-        reason = "Place 3D part (PCB Layout) reuses the chooser; M5"
-    )]
+    #[allow(dead_code, reason = "Place 3D part (PCB Layout) reuses the chooser")]
     pub source: PartSource,
     pub values: PartValues,
     pub file: Arc<PartFileBytes>,

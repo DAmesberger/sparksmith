@@ -8,11 +8,13 @@
 //! bytes without spaces, so a name that is not one is spelled anew (and
 //! listed); the copper graph then carries the board's connectivity.
 //!
-//! **Copper.** Tracks and vias are added with `layout.route_apply` in
-//! batches, checked by the engine like routed copper. A batch the checks
-//! refuse is split until the refused items are found; those are listed
-//! and the rest is imported. The refused track pieces are recorded in the
-//! project (`layout.set_refused_import_tracks`), so copper left ending
+//! **Copper.** Tracks and vias come in as the file has them
+//! (`sparksmith_core::layout::import_copper`): none is left out for breaking
+//! a rule or for touching another net's copper, which the board checks
+//! report. What a document cannot hold (copper off the board, a via without
+//! a ring or not through, a size out of range) is listed, and its track
+//! pieces are recorded in the project
+//! (`layout.set_refused_import_tracks`), so copper left ending
 //! where one ran says why in its finding. Arc tracks become chords within
 //! [`ARC_CHORD_MM`].
 use crate::board::{Board, Nm, PointNm};
@@ -22,7 +24,7 @@ use crate::report::{Case, RefusedCopper, Report};
 use crate::translate::board_point;
 use sparksmith_core::geometry::{Point, distance};
 use sparksmith_core::layout::posture::MIN_SEGMENT_MM;
-use sparksmith_core::layout::{LayoutCommand, RouteEditSet, RouteRequest, ViaRequest};
+use sparksmith_core::layout::{LayoutCommand, RouteRequest, ViaRequest};
 use sparksmith_core::model::LabelKind;
 use sparksmith_core::model::import_review::{
     DisagreementKind, MAX_DISAGREEMENTS, MAX_REFUSED_TRACKS, MAX_TERMINALS, NetDisagreement,
@@ -36,8 +38,6 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const ARC_CHORD_MM: f64 = 0.000_25;
 /// Most chords one arc track becomes.
 const MAX_ARC_CHORDS: usize = 512;
-/// Tracks or vias one `layout.route_apply` adds.
-const ROUTE_BATCH: usize = 128;
 
 fn mm(nm: Nm) -> f64 {
     nm as f64 / 1e6
@@ -412,11 +412,7 @@ pub(crate) fn copper(
             tented: via.tenting.map_or(tented, |(front, back)| front && back),
         });
     }
-    let mut refused = Vec::new();
-    let added = add(session, tracks, Vec::new(), report, &mut refused)?;
-    report.counts.tracks = added;
-    let added = add(session, Vec::new(), vias, report, &mut refused)?;
-    report.counts.vias = added;
+    let refused = add(session, tracks, vias, report)?;
     if !refused.is_empty() {
         session.apply(
             "layout.set_refused_import_tracks",
@@ -520,97 +516,65 @@ pub(crate) fn clean_tiny(tracks: &mut Vec<RouteRequest>, vias: &[(Id, Point)]) -
     removed
 }
 
-/// Add tracks and vias in batches; a refused batch is halved until each
-/// refused item is found and counted, and each refused track piece is
-/// pushed to `refused` (at most [`MAX_REFUSED_TRACKS`]). Returns how many
-/// were added.
+/// Add tracks and vias as the file has them, in one step. What the document
+/// cannot hold is counted and listed; the refused track pieces are returned
+/// (at most [`MAX_REFUSED_TRACKS`]).
 fn add(
     session: &mut Session<'_>,
     tracks: Vec<RouteRequest>,
     vias: Vec<ViaRequest>,
     report: &mut Report,
-    refused: &mut Vec<RefusedTrack>,
-) -> Result<usize, ImportError> {
-    let mut added = 0;
-    let mut pending: Vec<(Vec<RouteRequest>, Vec<ViaRequest>)> = Vec::new();
-    for chunk in tracks.chunks(ROUTE_BATCH) {
-        pending.push((chunk.to_vec(), Vec::new()));
-    }
-    for chunk in vias.chunks(ROUTE_BATCH) {
-        pending.push((Vec::new(), chunk.to_vec()));
-    }
-    pending.reverse();
-    while let Some((tracks, vias)) = pending.pop() {
-        let n = tracks.len() + vias.len();
-        if n == 0 {
-            continue;
-        }
-        let edits = RouteEditSet {
-            add: tracks.clone(),
-            vias: vias.clone(),
-            ..RouteEditSet::default()
-        };
-        match session.apply(
-            "layout.route_apply",
-            Operation::Layout(LayoutCommand::ApplyRoute { edits }),
-        ) {
-            Ok(_) => added += n,
-            Err(ImportError::Refused { reason, .. }) if n == 1 => {
-                let kind = reason_kind(&reason);
-                let project = session.engine.project();
-                match tracks.first() {
-                    None => {
-                        if let Some(via) = vias.first() {
-                            report.refused_copper(RefusedCopper::via(
-                                project.net_name(via.net),
-                                via.position,
-                                &reason,
-                            ));
-                        }
-                    }
-                    Some(track) => {
-                        report.refused_copper(RefusedCopper::track(
-                            project.net_name(track.net),
-                            &track.layer.name(),
-                            track.start,
-                            track.end,
-                            &reason,
-                        ));
-                        if refused.len() < MAX_REFUSED_TRACKS
-                            && let (Ok(start), Ok(end)) = (
-                                sparksmith_core::units::PointNm::from_mm_f64_rounded(track.start),
-                                sparksmith_core::units::PointNm::from_mm_f64_rounded(track.end),
-                            )
-                        {
-                            refused.push(RefusedTrack {
-                                net: track.net,
-                                layer: track.layer,
-                                start,
-                                end,
-                                reason: kind,
-                            });
-                        }
-                    }
-                }
-            }
-            Err(ImportError::Refused { .. }) => {
-                // Halve and try each half; the first half first.
-                let (t1, t2) = tracks.split_at(tracks.len() / 2);
-                let (v1, v2) = vias.split_at(vias.len() / 2);
-                pending.push((t2.to_vec(), v2.to_vec()));
-                pending.push((t1.to_vec(), v1.to_vec()));
-            }
-            Err(other) => return Err(other),
+) -> Result<Vec<RefusedTrack>, ImportError> {
+    let failed = |e: sparksmith_core::Error| ImportError::Refused {
+        step: "tracks and vias",
+        reason: e.to_string(),
+    };
+    let _context = session.engine.enter_context();
+    let mut file = session.engine.to_file();
+    let added =
+        sparksmith_core::layout::import_copper(&mut file.project, tracks, vias).map_err(failed)?;
+    session.engine.replace_document(file).map_err(failed)?;
+    report.counts.tracks = added.tracks;
+    report.counts.vias = added.vias;
+    let project = session.engine.project();
+    let mut refused = Vec::new();
+    for (track, why) in &added.refused_tracks {
+        let why = why.to_string();
+        report.refused_copper(RefusedCopper::track(
+            project.net_name(track.net),
+            &track.layer.name(),
+            track.start,
+            track.end,
+            &why,
+        ));
+        if refused.len() < MAX_REFUSED_TRACKS
+            && let (Ok(start), Ok(end)) = (
+                sparksmith_core::units::PointNm::from_mm_f64_rounded(track.start),
+                sparksmith_core::units::PointNm::from_mm_f64_rounded(track.end),
+            )
+        {
+            refused.push(RefusedTrack {
+                net: track.net,
+                layer: track.layer,
+                start,
+                end,
+                reason: reason_kind(&why),
+            });
         }
     }
-    Ok(added)
+    for (via, why) in &added.refused_vias {
+        report.refused_copper(RefusedCopper::via(
+            project.net_name(via.net),
+            via.position,
+            &why.to_string(),
+        ));
+    }
+    Ok(refused)
 }
 
 /// The kind of a refusal, without the names the core's message may carry.
 fn reason_kind(reason: &str) -> TrackRefusal {
-    if reason.contains("Too close") {
-        TrackRefusal::Clearance
-    } else if reason.contains("inside the board") {
+    if reason.contains("inside the board") {
         TrackRefusal::OutsideBoard
     } else if reason.contains("width") {
         TrackRefusal::Width

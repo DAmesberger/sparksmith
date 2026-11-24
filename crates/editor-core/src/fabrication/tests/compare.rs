@@ -731,6 +731,50 @@ fn layers_carry_their_file_aperture_and_object_attributes() -> Fallible<()> {
     Ok(())
 }
 
+/// XNC specification 2021.11, p. 18: `; #@! TA.AperFunction,ViaDrill`
+/// before the tool's definition (the Gerber specification, p. 153, puts
+/// the function first too). Our files state exactly that, plated and
+/// non-plated; a reference that states the plating first is read only as
+/// a reference.
+#[test]
+fn a_drill_tool_states_its_function_as_specified() -> Fallible<()> {
+    let sets = [showcase()?, sketched()?]
+        .iter()
+        .map(|p| {
+            Ok(fabrication::generate(
+                &fabrication::ProductionSnapshot::resolve(p, None)?,
+                &FabricationOptions::default(),
+                &Default::default(),
+            )?)
+        })
+        .collect::<Fallible<Vec<_>>>()?;
+    let specified = [
+        "; #@! TA.AperFunction,ViaDrill",
+        "; #@! TA.AperFunction,ComponentDrill",
+        "; #@! TA.AperFunction,MechanicalDrill",
+    ];
+    let mut lines = Vec::new();
+    let files = sets
+        .iter()
+        .flat_map(|s| ["-plated.drl", "-non-plated.drl"].map(|x| (s, x)));
+    for (set, suffix) in files.filter(|(set, suffix)| has(set, suffix)) {
+        let source = text(set, suffix)?;
+        let file = excellon_reader::parse(source)?;
+        assert_eq!(file.tool_functions.len(), file.tools.len(), "{suffix}");
+        lines.extend(source.lines().filter(|l| l.contains("AperFunction")));
+    }
+    assert!(lines.contains(&specified[0]) && lines.contains(&specified[2]));
+    assert!(lines.iter().all(|l| specified.contains(l)), "{lines:?}");
+
+    let old = "M48\n; #@! TA.AperFunction,Plated,PTH,ViaDrill\nMETRIC\nT1C0.3\n%\nM30\n";
+    assert!(excellon_reader::parse(old).is_err());
+    assert_eq!(
+        excellon_reader::parse_reference(old)?.tool_functions[&1],
+        ["ViaDrill"]
+    );
+    Ok(())
+}
+
 #[test]
 fn the_same_design_gives_the_same_bytes_and_a_date_only_when_asked() -> Fallible<()> {
     let project = sketched()?;

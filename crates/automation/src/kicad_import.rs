@@ -92,6 +92,15 @@ pub struct ImportCatalog(crate::kicad_models::presets::Presets);
 
 impl ImportCatalog {
     pub fn import(&mut self, source: &Path, profile: Option<&str>) -> Result<KicadImport, String> {
+        self.import_on(source, &profile_for(profile)?)
+    }
+
+    /// [`Self::import`] on `profile`.
+    pub fn import_on(
+        &mut self,
+        source: &Path,
+        profile: &sparksmith_core::rules::RuleProfile,
+    ) -> Result<KicadImport, String> {
         import_with(
             source,
             profile,
@@ -99,6 +108,11 @@ impl ImportCatalog {
             &mut self.0,
         )
     }
+}
+
+/// The fab profile `id` names, else the one a new board takes.
+fn profile_for(id: Option<&str>) -> Result<sparksmith_core::rules::RuleProfile, String> {
+    sparksmith_io::rule_profiles::for_new_board_from_env(id).map_err(|e| e.to_string())
 }
 
 /// The generator runtime an import's models are made with, for its deadline.
@@ -114,7 +128,7 @@ pub(crate) type Runtime = fn(
 pub fn import_in_fixture_pool(source: &Path, profile: Option<&str>) -> Result<KicadImport, String> {
     import_with(
         source,
-        profile,
+        &profile_for(profile)?,
         Some(crate::session::generators::fixture_batch_runtime),
         &mut Default::default(),
     )
@@ -125,12 +139,12 @@ pub fn import_in_fixture_pool(source: &Path, profile: Option<&str>) -> Result<Ki
 /// copper with.
 #[cfg(test)]
 pub(crate) fn import_source_lands(source: &Path) -> Result<KicadImport, String> {
-    import_with(source, None, None, &mut Default::default())
+    import_with(source, &profile_for(None)?, None, &mut Default::default())
 }
 
 fn import_with(
     source: &Path,
-    profile: Option<&str>,
+    profile: &sparksmith_core::rules::RuleProfile,
     runtime: Option<Runtime>,
     presets: &mut crate::kicad_models::presets::Presets,
 ) -> Result<KicadImport, String> {
@@ -159,8 +173,6 @@ fn import_with(
         .transpose()
         .map_err(|e| e.to_string())?;
     let defaults = sparksmith_io::new_project::shipped().map_err(|e| e.to_string())?;
-    let profile =
-        sparksmith_io::rule_profiles::for_new_board_from_env(profile).map_err(|e| e.to_string())?;
     let mut models = runtime
         .map(|runtime| crate::kicad_models::Models::new(folder, runtime, presets))
         .transpose()?;
@@ -169,7 +181,7 @@ fn import_with(
         &sparksmith_kicad::Setup {
             board: &defaults.board,
             presets: &defaults.presets,
-            profile: Some(&profile),
+            profile: Some(profile),
             evaluators: crate::session::hosted(),
             project_file: project.as_deref(),
             schematic: schematic

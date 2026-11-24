@@ -10,7 +10,7 @@ use serde_json::json;
 use sparksmith_automation::Session;
 use sparksmith_automation::kicad_import::{self, KicadImport};
 use sparksmith_core::product::SHORT_NAME as CLI;
-use sparksmith_io::persistence::{StagedNew, check_project_path};
+use sparksmith_io::persistence::{NewSet, atomic_create, check_project_path};
 use std::path::Path;
 
 /// The usage line(s).
@@ -31,9 +31,17 @@ pub fn run(args: &[String]) -> Result<()> {
     };
     let target = Path::new(target);
     check_project_path(target)?;
-    let project_stage = StagedNew::new(target)?;
     let detail = target.with_extension("kicad-import.json");
-    let report_stage = StagedNew::new(&detail)?;
+    for output in [target, &detail] {
+        if output.symlink_metadata().is_ok() {
+            return Err(format!("{} exists; choose a new output name", output.display()).into());
+        }
+    }
+    // Staged under their own file names: the project is named and
+    // identified by its file's (`sparksmith_core::first_save`).
+    let mut set = NewSet::beside(target)?;
+    let staged_report = set.stage(&detail)?;
+    let staged_project = set.stage(target)?;
     // The one import, the desktop app's too.
     let KicadImport { engine, report, .. } = kicad_import::import(Path::new(source), choice)?;
     let mut session = Session::new(engine);
@@ -41,14 +49,13 @@ pub fn run(args: &[String]) -> Result<()> {
     // the IO publication step may claim the user's new destination.
     let mut saved = execute(
         &mut session,
-        json!({"command": "project.save", "params": {"path": project_stage.path()}}),
+        json!({"command": "project.save", "params": {"path": staged_project}}),
     )?;
-    std::fs::write(
-        report_stage.path(),
-        serde_json::to_vec_pretty(&report.to_json())?,
+    atomic_create(
+        &staged_report,
+        &serde_json::to_vec_pretty(&report.to_json())?,
     )?;
-    project_stage.persist()?;
-    report_stage.persist()?;
+    set.publish()?;
     saved["saved_path"] = json!(target);
     print(&json!({
         "saved": saved,

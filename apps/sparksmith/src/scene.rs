@@ -77,7 +77,7 @@ pub fn library_asset(
 ) -> Result<Option<LibraryAsset>, String> {
     let model_ref = match &package.model {
         PackageModel::Library(use_) => use_.model,
-        // A part file is a Model of format `solidcraft` (docs/part-templates.md §11).
+        // A part file is a Model of format `solidcraft` (docs/part-files.md).
         PackageModel::PartFile(part) => part.model,
         _ => return Ok(None),
     };

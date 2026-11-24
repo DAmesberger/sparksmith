@@ -1,4 +1,4 @@
-//! Lean parts (docs/part-templates.md §11 L4): `library.check_part_file`
+//! Lean parts (docs/part-files.md): `library.check_part_file`
 //! evaluates a Solidcraft part file at literal values and reports the
 //! convention check; `library.use_part_file` makes a package draft use one
 //! (the file packed as a Model of format `solidcraft` with
@@ -10,7 +10,7 @@
 //! The operation builders ([`use_part_file_operation`],
 //! [`set_part_values_operation`]) only read the engine; the Session and the
 //! desktop apply what they return through their own engine path, so UI,
-//! CLI and MCP issue the same typed command (docs/mechanical-parts.md M4).
+//! CLI and MCP issue the same typed command (docs/mechanical-parts.md).
 use super::Session;
 use crate::Result;
 use schemars::JsonSchema;

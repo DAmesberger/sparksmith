@@ -857,3 +857,31 @@ fn cross_probing_a_repeated_footprint_draws_its_own_designator() -> TestResult {
     assert!(!texts(&shapes).iter().any(|t| t == "R10"));
     Ok(())
 }
+
+/// A first save names the project without a revision; the title block on
+/// the canvas shows the name at once.
+#[test]
+fn the_title_block_shows_a_first_saves_name() -> TestResult {
+    let mut engine = Engine::demo()?;
+    let ctx = egui::Context::default();
+    fonts::setup_bundled_fonts(&ctx);
+    let mut editor = SchematicEditor::default();
+    let titled = |editor: &SchematicEditor, name: &str| {
+        editor
+            .scene
+            .as_ref()
+            .is_some_and(|s| s.frame.texts.iter().any(|t| t.text == name))
+    };
+    canvas_frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(titled(&editor, sparksmith_core::UNTITLED));
+    let mut copy = engine.document().clone();
+    let file = std::path::Path::new("titled.sparksmith");
+    let given = sparksmith_core::first_save(&mut copy, file, "");
+    let revision = engine.revision();
+    engine.adopt_first_save(&given);
+    assert_eq!(engine.revision(), revision);
+    canvas_frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(titled(&editor, "titled"));
+    assert!(!titled(&editor, sparksmith_core::UNTITLED));
+    Ok(())
+}

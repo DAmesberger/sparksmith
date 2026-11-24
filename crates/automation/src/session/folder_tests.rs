@@ -418,7 +418,7 @@ fn install_place_publish_update_delete_and_reopen_offline() -> TestResult {
             6,
             &sparksmith_core::NewBoard::fixture(),
         )?,
-        drafts: Drafts::default(),
+        drafts: Default::default(),
     })?);
     let sample = publish_library(&mut author, &folder_text, "Team library")?;
     let library = sample["library"].clone();
@@ -906,7 +906,7 @@ fn a_package_model_round_trips_through_a_folder() -> TestResult {
     Ok(())
 }
 
-/// The shipped USB-C receptacle (part-generation job I) is a whole
+/// The shipped USB-C receptacle is a whole
 /// component: `library.part_files` lists it with the ids
 /// `library.place_from_folder` takes, which imports its records (the GCT
 /// Part as the root, the part file packed) and places J1 with the Part

@@ -75,7 +75,7 @@ fabrication output ([markings](docs/component-model.md#markings-on-any-surface-d
 **Parts are parametric Solidcraft designs.** Package bodies are generated per package revision,
 imported from STEP, GLB or `.solidcraft`, or — new — authored as ordinary parametric `.solidcraft`
 part files: the ESP32-S31-WROOM-3 body is one, 110 bodies and 24 parameters, matching the earlier
-generated model body for body ([lean parts](docs/part-templates.md#l5-as-built-3-november-2026)).
+generated model body for body ([part files](docs/part-files.md)).
 The whole board exports as a native, parametric `.solidcraft` model that plain Solidcraft reopens.
 
 ## Tour

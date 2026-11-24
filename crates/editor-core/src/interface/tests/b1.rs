@@ -247,12 +247,9 @@ fn a_valid_solve_has_exactly_one_value_per_parameter() -> Fallible {
         sketch.solved.values = values;
         let error = Engine::from_file(file)
             .err()
-            .ok_or_else(|| format!("{what} values accepted"))?
-            .to_string();
-        assert!(
-            error.contains("board.param_value") && error.contains(named),
-            "{what}: {error}"
-        );
+            .ok_or_else(|| format!("{what} values accepted"))?;
+        assert_eq!(error.rule(), Some("board.param_value"), "{what}: {error}");
+        assert!(error.to_string().contains(named), "{what}: {error}");
     }
     Ok(())
 }
@@ -326,12 +323,9 @@ fn an_invalid_outline_blocks_publishing() -> Fallible {
     assert_eq!(preview.blocked, shown.blocked);
     let refused = assembly_link::check_publish(faulty.project())
         .err()
-        .ok_or("published")?
-        .to_string();
-    assert!(
-        refused.contains("interface.outline_invalid") && refused.contains(why.as_str()),
-        "{refused}"
-    );
+        .ok_or("published")?;
+    assert_eq!(refused.rule(), Some("interface.outline_invalid"));
+    assert!(refused.to_string().contains(why.as_str()), "{refused}");
     let row = shown
         .datums
         .iter()

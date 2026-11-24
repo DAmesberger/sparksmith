@@ -1335,7 +1335,7 @@ fn the_fabrication_files_read_back_as_the_board() -> Fallible {
     // and capped; a via has no such attribute to state.
     assert_eq!(
         drill.tool_functions.get(&1).map(Vec::as_slice),
-        Some(&["Plated".to_owned(), "PTH".to_owned(), "ViaDrill".to_owned()][..])
+        Some(&["ViaDrill".to_owned()][..])
     );
     let holes: Vec<[f64; 2]> = drill
         .hits

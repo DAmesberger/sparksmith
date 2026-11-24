@@ -379,15 +379,16 @@ fn fixed_geometry(
         }
         FixedEdit::Remove { owned } => {
             let points = owned_points(&sk, owned)?;
+            // By id: removing the line shifts the points after it.
+            let ids: Vec<String> = points
+                .iter()
+                .filter_map(|&i| sk.points.get(i).map(|p| p.id.clone()))
+                .collect();
             if let SketchRef::Curve(c) = owned
                 && let Some(i) = sk.curve_index(&c.0)
             {
                 sk.remove_curves(&[i]);
             }
-            let ids: Vec<String> = points
-                .iter()
-                .filter_map(|&i| sk.points.get(i).map(|p| p.id.clone()))
-                .collect();
             let points: Vec<usize> = ids.iter().filter_map(|id| sk.point_index(id)).collect();
             sk.remove_points(&points);
         }
@@ -882,13 +883,25 @@ fn run(board: &BoardSketch, stored: &Sketch) -> Outcome<BoardEvaluation> {
         ));
     }
     // Curves that are not one board give no solve; open ends are named even
-    // when the closed curves make a board.
+    // when the closed curves make a board. With the outline open, a cutout of
+    // the board is the one region left: that is no board either.
+    let mut cutout_alone = false;
     let shaped = match region(&sk) {
-        Ok(region) => shape(board, &sk, &values, evaluated, &region)?,
+        Ok(region) => {
+            cutout_alone = board.cutouts.iter().any(|role| {
+                let mut outer = region.outer.iter();
+                outer.all(|c| role.curves.iter().any(|k| k.0 == *c))
+            });
+            shape(board, &sk, &values, evaluated, &region)?
+        }
         Err(fault) => Err(fault),
     };
     let (solved, fault) = match shaped {
-        Ok(solved) => (Some(solved), open_ends(&sk)),
+        Ok(solved) => {
+            let open = open_ends(&sk);
+            let board_open = cutout_alone && open.is_some();
+            ((!board_open).then_some(solved), open)
+        }
         Err(fault) => (None, Some(open_ends(&sk).unwrap_or(fault))),
     };
     let idle = if fault.is_none() {

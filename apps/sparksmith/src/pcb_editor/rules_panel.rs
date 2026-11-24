@@ -17,10 +17,10 @@
 //! recommended or minimum values) show under its source; choosing another
 //! choice is reviewed the same way (`rules.preview_fab_options`) and Use
 //! commits `rules.set_fab_options`, keeping the overrides.
-//! A new project without a profile opens the panel at "Choose a fab
-//! profile" ([`PcbEditor::ask_for_profile`]): the shipped library's
-//! default profile is preselected, and Use profile sets it in one undo
-//! step.
+//! A new board has a profile (the person's default, else the shipped one).
+//! On a project whose profile is missing, a tool that needs one opens the
+//! panel with the engine's refusal above the picker
+//! ([`PcbEditor::needs_profile`]).
 //!
 //! The user profile library (`sparksmith_io::rule_profiles`) is file
 //! effects, not document edits: saving, renaming, deleting, importing and
@@ -153,9 +153,6 @@ fn rename_id() -> egui::Id {
 fn delete_id() -> egui::Id {
     egui::Id::unique("pcb-rules-delete")
 }
-fn choose_id() -> egui::Id {
-    egui::Id::unique("pcb-rules-choose")
-}
 
 /// The impact review of switching to `profile`.
 struct Preview {
@@ -198,13 +195,6 @@ struct SaveForm {
 
 enum Mode {
     Table,
-    /// A new board's profile: the chosen id, the revision Use profile was
-    /// sent at, and the engine's refusal of it.
-    Choose {
-        id: String,
-        sent: Option<u64>,
-        refusal: Option<String>,
-    },
     Preview(Box<Preview>),
     Save(Box<SaveForm>),
     Rename {
@@ -249,6 +239,9 @@ pub(super) struct RulesPanel {
     /// A field had keyboard focus last frame (Esc reverts it rather than
     /// closing the panel).
     typing: bool,
+    /// What was refused because the board has no profile, shown until it
+    /// has one.
+    refused: Option<String>,
 }
 
 impl RulesPanel {
@@ -266,6 +259,7 @@ impl RulesPanel {
             job: None,
             all_profiles: false,
             typing: false,
+            refused: None,
         };
         panel.refresh();
         panel
@@ -372,12 +366,6 @@ impl RulesPanel {
         {
             preview.refusal = Some(text);
             preview.sent = None;
-        }
-        if let Some(text) = refusal::claim(ctx, Origin::Dialog(choose_id()))
-            && let Mode::Choose { sent, refusal, .. } = &mut self.mode
-        {
-            *refusal = Some(text);
-            *sent = None;
         }
         if let Some(text) = refusal::claim(ctx, Origin::Dialog(save_id())) {
             toast::post(
@@ -757,40 +745,25 @@ impl PcbEditor {
         }
     }
 
-    /// Ask for a new project's fab profile the next time the board's
-    /// subject slot is drawn, if it has none then.
-    pub fn ask_for_profile(&mut self) {
-        self.ask_profile = true;
-    }
-
-    /// Open the panel at "Choose a fab profile" with the shipped library's
-    /// default preselected (the user's own copy when it has that id).
-    pub(super) fn choose_profile(&mut self) {
+    /// Whether a tool that makes copper may start: the board has a fab
+    /// profile. Without one (a file whose profile is missing) no width, via
+    /// size or clearance has a value, so the tool is refused before anything
+    /// is drawn: the panel opens and says what was refused ("Can't
+    /// route: …") in the words of [`ProjectRules::require`], as an outline
+    /// sketch is refused, above the picker that chooses one.
+    pub(super) fn needs_profile(&mut self, rules: &ProjectRules, what: &str) -> bool {
+        let Err(error) = rules.require() else {
+            return true;
+        };
+        self.end_route();
         if self.rules.is_none() {
             self.open_rules(None);
         }
-        let Some(panel) = &mut self.rules else {
-            return;
-        };
-        let choices = panel.choices();
-        let default = match &panel.library {
-            Some(library) => library.default_id().ok(),
-            None => sparksmith_io::new_project::shipped()
-                .ok()
-                .map(|d| d.fab_profile),
-        };
-        let id = choices
-            .iter()
-            .find(|p| Some(&p.id) == default.as_ref())
-            .or(choices.first())
-            .map(|p| p.id.clone())
-            .or(default)
-            .unwrap_or_default();
-        panel.mode = Mode::Choose {
-            id,
-            sent: None,
-            refusal: None,
-        };
+        if let Some(panel) = &mut self.rules {
+            panel.mode = Mode::Table;
+            panel.refused = Some(format!("{what}: {}", refusal::shown_error(&error)));
+        }
+        false
     }
 
     /// An Issues row's "Show rule": the panel, at that rule.
@@ -828,23 +801,12 @@ impl PcbEditor {
             panel.mode = Mode::Table;
         }
         let mut close = false;
-        // A new board's choice: done once the board has a profile (the
-        // engine took Use profile, or another file opened with one).
-        if let Mode::Choose { sent, .. } = &panel.mode
-            && let Some(profile) = &engine.project().rules.profile
-        {
-            if sent.is_some_and(|sent| sent != engine.revision()) {
-                toast::post(
-                    ui.ctx(),
-                    Level::Ok,
-                    format!("Using {}", profile.name),
-                    vec![ToastAction::Undo],
-                );
-            }
+        // What a missing profile refused can start now: the panel has done
+        // what it was opened for.
+        if engine.project().rules.profile.is_some() && panel.refused.take().is_some() {
             return CardResponse::output(None);
         }
         let response = match &mut panel.mode {
-            Mode::Choose { .. } => CardResponse::output(choose_slot(&mut panel, ui, &mut close)),
             Mode::Preview(_) => CardResponse::output(preview_slot(&mut panel, ui, engine)),
             Mode::Save(_) => CardResponse::output(save_slot(&mut panel, ui, engine)),
             Mode::Rename { .. } => {
@@ -1030,6 +992,9 @@ fn body(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> (Option<Operati
                 }
             }
             None => {
+                if let Some(refused) = &panel.refused {
+                    kit::refusal_wrapped(ui, refused);
+                }
                 kit::hint(
                     ui,
                     "This board has no fab profile, so nothing is checked",
@@ -1093,7 +1058,14 @@ fn body(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> (Option<Operati
     }
     let report = rules::report(rules);
     let mut focused = false;
-    for (group, title) in GROUPS {
+    // Without a profile no rule has a value (every limit is unset), so no
+    // table of zeros shows: the hint above says to choose one.
+    let groups: &[(RuleGroup, &str)] = if rules.profile.is_some() {
+        &GROUPS
+    } else {
+        &[]
+    };
+    for &(group, title) in groups {
         let rows: Vec<&RuleRow> = report.rows.iter().filter(|r| r.group == group).collect();
         if rows.is_empty() {
             continue;
@@ -1805,56 +1777,6 @@ fn save_slot(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> Option<Ope
                     None
                 }
             }
-        }
-    }
-}
-
-/// The docked "Fab profile" dialog of a new board: one choice,
-/// preselected; Use profile commits `rules.set_fab_profile`, Later closes
-/// the panel and leaves the board without rules.
-fn choose_slot(panel: &mut RulesPanel, ui: &mut Ui, close: &mut bool) -> Option<Operation> {
-    let choices = panel.choices();
-    let Mode::Choose { id, sent, refusal } = &mut panel.mode else {
-        return None;
-    };
-    let options: Vec<(String, String)> = choices
-        .iter()
-        .map(|p| (p.id.clone(), p.name.clone()))
-        .collect();
-    let chosen = choices.iter().find(|p| p.id == *id).cloned();
-    let mut dialog = DialogPanel::new(choose_id(), "constraint", "Fab profile", "Use profile");
-    dialog.kind = "Rules";
-    dialog.body_rows = 4.0;
-    dialog.refusal = refusal.as_deref();
-    dialog.primary_disabled = if sent.is_some() {
-        Some("Setting the profile…")
-    } else if chosen.is_none() {
-        Some("Choose a profile")
-    } else {
-        None
-    };
-    let action = dialog.show(ui, |ui| {
-        kit::hint(
-            ui,
-            "A board's design rules come from its fabricator's profile",
-            "Change it later in Board › Rules.",
-        );
-        kit::choice_row(ui, "Fab profile", id, &options);
-        if let Some(profile) = &chosen {
-            kit::hint(ui, &source_line(&profile.source), &profile.source.notes);
-        }
-    });
-    match action? {
-        DialogAction::Cancel => {
-            *close = true;
-            None
-        }
-        DialogAction::Primary => {
-            let profile = chosen?;
-            *refusal = None;
-            *sent = Some(panel.revision.unwrap_or_default());
-            refusal::mark(ui.ctx(), Origin::Dialog(choose_id()));
-            Some(Operation::Rules(RulesCommand::set_profile(profile, false)))
         }
     }
 }

@@ -188,10 +188,6 @@ pub struct App {
     /// the error when the newer model failed. It is drawn after the issues
     /// badge, beside it.
     updating: Option<(egui::Rect, Option<String>)>,
-    /// A launch without a file starts a new project, whose fab profile is
-    /// asked for once the launch has settled: not while a file opens or
-    /// an earlier session is offered for recovery.
-    launch_profile: bool,
 }
 
 impl App {
@@ -216,7 +212,7 @@ impl App {
         fonts::setup_bundled_fonts(&cc.egui_ctx);
         fonts::load_system_fonts_in_background(&cc.egui_ctx);
         let render_state = cc.wgpu_render_state.as_ref().ok_or("wgpu is required")?;
-        let mut engine = file_ui::new_project()?;
+        let (mut engine, said) = file_ui::new_project()?;
         let mut files = FileUi::new(cc, &engine);
         // `sparksmith FILE.sparksmith` opens that project through the file
         // workflow; a KiCad project or board file is imported.
@@ -237,6 +233,11 @@ impl App {
         // A keymap conflict is a defect (the registry tests forbid one);
         // report it instead of failing silently.
         let mut messages = Messages::default();
+        // The person's default fab profile is gone or damaged: the board
+        // started on the shipped one.
+        if let Some(said) = said {
+            messages.push(Level::Warning, &said, 0.0);
+        }
         for problem in &keymap_problems {
             messages.push(
                 Level::Warning,
@@ -302,7 +303,7 @@ impl App {
                 0.0,
             );
         }
-        let mut app = Self::with_parts(
+        Ok(Self::with_parts(
             &cc.egui_ctx,
             viewport::Viewport::new(render_state, &cc.egui_ctx),
             Parts {
@@ -316,11 +317,7 @@ impl App {
                 #[cfg(target_os = "macos")]
                 native_menu,
             },
-        );
-        // A launch without a file is a new project: ask for its profile
-        // once no file opens and no session is recovered instead.
-        app.launch_profile = true;
-        Ok(app)
+        ))
     }
 
     /// The app around what [`Self::new`] set up (a window's; a test's has
@@ -415,7 +412,6 @@ impl App {
             recent: Default::default(),
             recent_seen: None,
             updating: None,
-            launch_profile: false,
         }
     }
 
@@ -493,8 +489,10 @@ impl App {
             return;
         }
         // An explicit refill computes on the fill worker; its copper comes
-        // back as one undoable `fill.store_all` (`refill_fills`).
+        // back as one undoable `fill.store_all` (`refill_fills`). Without a
+        // fab profile the engine refuses it before anything is computed.
         if let Operation::Fill(FillCommand::Refill { target }) = &operation
+            && self.engine.project().rules.profile.is_some()
             && self.fills.available()
             && !matches!(target, RefillTarget::One(id) if self.engine.project().fill(*id).is_none())
         {
@@ -869,7 +867,8 @@ impl App {
     }
 
     /// Component workspace requests the app runs on the engine (drafting a
-    /// published component: one `library.draft_closure`).
+    /// published component: one `library.draft_closure`; a blank component,
+    /// which then opens).
     fn part_requests(&mut self) {
         let Some(request) = self.part.take_request() else {
             return;
@@ -878,7 +877,15 @@ impl App {
             self.say(Level::Info, "Wait for the file operation to finish");
             return;
         }
-        let result = part_editor::run(&mut self.engine, request);
+        let result = match request {
+            part_editor::Request::Blank => {
+                part_editor::create_blank(&mut self.engine).map(|component| {
+                    self.part.open(component, &self.engine);
+                    Some("Started a blank component: Terminal adds its first terminal".to_owned())
+                })
+            }
+            request => part_editor::run(&mut self.engine, request),
+        };
         match result {
             Ok(None) => self.clear_error(),
             Ok(Some(created)) => self.say(Level::Ok, created),
@@ -1314,10 +1321,6 @@ impl App {
             return;
         }
         self.document_replaced();
-        if path.is_none() && !recovered {
-            // File › New: ask for the new project's fab profile.
-            self.pcb.ask_for_profile();
-        }
         match self.files.adopt(&self.engine, path, identity, recovered) {
             Ok(()) if recovered => {
                 self.say(Level::Info, format!("Recovered {name}; save it to keep it"));
@@ -1366,7 +1369,6 @@ impl App {
             pending_import,
             after_commit,
             updating,
-            launch_profile,
             #[cfg(target_os = "macos")]
             menu_runs,
             ctx,
@@ -1426,8 +1428,6 @@ impl App {
         *updating = None;
         #[cfg(target_os = "macos")]
         menu_runs.clear();
-        // Opened, recovered, new or imported: the launch's project is gone.
-        *launch_profile = false;
         import_report.clear();
         forget_in_memory(ctx);
     }
@@ -1508,18 +1508,9 @@ impl App {
                     source,
                     report,
                 } => self.imported(*document, source, *report),
-                Effect::Identify { id, saved } => match self.engine.adopt_project_id(id) {
-                    Ok(()) => self.files.identified(&self.engine, saved),
-                    Err(error) => self.say(Level::Error, format!("Save failed: {error}")),
-                },
-                Effect::Rename { name, saved } => {
-                    let rename = Operation::Schematic(
-                        sparksmith_core::schematic::SchematicCommand::RenameProject { name },
-                    );
-                    match self.engine.apply(self.engine.revision(), rename) {
-                        Ok(_) => self.files.renamed(&self.engine, saved),
-                        Err(error) => self.say(Level::Error, format!("Rename failed: {error}")),
-                    }
+                Effect::FirstSave { given, saved } => {
+                    self.engine.adopt_first_save(&given);
+                    self.files.first_saved(&self.engine, saved);
                 }
                 Effect::Close => {
                     self.closing = true;
@@ -1531,23 +1522,6 @@ impl App {
             self.say(level, status);
         }
         self.opened_documents();
-        self.launch_profile_prompt();
-    }
-
-    /// Ask for the launch's new project's fab profile once the launch has
-    /// settled with it: the earlier sessions are listed and none is
-    /// offered, and no file is opening or waiting to open (E2E run 6,
-    /// finding 8).
-    fn launch_profile_prompt(&mut self) {
-        if self.launch_profile
-            && self.files.started()
-            && !self.files.busy()
-            && !self.files.prompting()
-            && !crate::open_documents::pending()
-        {
-            self.launch_profile = false;
-            self.pcb.ask_for_profile();
-        }
     }
 
     /// Files opened from Finder or the Dock go through File › Open's path,

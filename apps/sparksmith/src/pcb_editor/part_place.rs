@@ -1,4 +1,4 @@
-//! Mechanical parts in Layout (docs/mechanical-parts.md M5): Place 3D part
+//! Mechanical parts in Layout (docs/mechanical-parts.md): Place 3D part
 //! (`pcb.place-part`, M) opens the part-file chooser in Place mode and
 //! places the pick at the view centre on the side being viewed, with the
 //! core `layout.place_part` built by the automation builder; the placed

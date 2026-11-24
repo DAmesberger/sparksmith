@@ -57,6 +57,17 @@ pub fn apply(engine: &mut Engine, operation: Operation) -> Result<Outcome> {
     engine.apply(engine.revision(), operation)
 }
 
+/// The test prototype profile, for a test that routes on an engine made
+/// without one.
+pub fn choose_profile(engine: &mut Engine) -> Result<()> {
+    let profile = crate::rules::fixtures::prototype()?;
+    apply(
+        engine,
+        Operation::Rules(crate::rules::RulesCommand::set_profile(profile, false)),
+    )?;
+    Ok(())
+}
+
 /// Update PCB, then move each part it staged beside the board onto the
 /// board, 8 mm apart in rows from (8, 8), for tests that route between
 /// them.

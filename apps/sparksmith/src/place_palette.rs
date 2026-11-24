@@ -57,12 +57,22 @@ use std::collections::BTreeMap;
 
 /// Rows one search asks for.
 const ROWS: usize = 40;
+/// A search that found nothing: a bare value names no part until a package
+/// or a type joins it.
+const NO_MATCH: &str = "No component or generated part matches; add a package or type: 10k 0603";
 /// Key names are spelled out: the bundled fonts have no ⏎ or ⇧ glyphs.
-const KEYS: &str = "↑↓ move   Enter place   Shift+Enter place & keep open   click pick   Cmd+D favourite   Esc close";
+const KEYS: &str = if cfg!(target_os = "macos") {
+    "↑↓ move   Enter place   Shift+Enter place & keep open   click pick   Cmd+D favourite   Esc close"
+} else {
+    "↑↓ move   Enter place   Shift+Enter place & keep open   click pick   Ctrl+D favourite   Esc close"
+};
 /// The footer on a library folder row: a click places it like Enter, and
 /// a folder Part places its component with the Part assigned.
-const KEYS_FOLDER: &str =
-    "↑↓ move   Enter place   Shift+Enter place & keep open   Cmd+D favourite   Esc close";
+const KEYS_FOLDER: &str = if cfg!(target_os = "macos") {
+    "↑↓ move   Enter place   Shift+Enter place & keep open   Cmd+D favourite   Esc close"
+} else {
+    "↑↓ move   Enter place   Shift+Enter place & keep open   Ctrl+D favourite   Esc close"
+};
 /// The footer on a template row.
 const KEYS_TEMPLATE: &str = "↑↓ move   Enter create and place   click pick   Esc close";
 /// The footer on a generic part that is not yet created, and on one that is.
@@ -1310,7 +1320,7 @@ impl PlacePalette {
             } else if self.query.trim().is_empty() {
                 "Type to find a component or a part a generator makes"
             } else {
-                "No component or generated part matches"
+                NO_MATCH
             },
             "In this project",
         );
@@ -3054,6 +3064,17 @@ mod tests {
         })
     }
 
+    /// GUI run 1, F19: the footers name this platform's command key.
+    #[test]
+    fn the_footers_name_this_platforms_command_key() {
+        let key = if cfg!(target_os = "macos") {
+            "Cmd+D"
+        } else {
+            "Ctrl+D"
+        };
+        assert!(KEYS.contains(key) && KEYS_FOLDER.contains(key));
+    }
+
     /// The project's parts, then the generic parts it could make, then the
     /// template rows, and library folders last, whatever the search ranked.
     #[test]
@@ -3476,12 +3497,7 @@ mod tests {
             shown.iter().any(|t| t.starts_with("SHIPPED PARTS")),
             "{shown:?}"
         );
-        assert!(
-            !shown
-                .iter()
-                .any(|t| t == "No component or generated part matches"),
-            "{shown:?}"
-        );
+        assert!(!shown.iter().any(|t| t == NO_MATCH), "{shown:?}");
         let (action, _) = run(&mut palette, enter());
         assert_eq!(action, Some(PaletteAction::Close));
         assert!(!palette.is_open());

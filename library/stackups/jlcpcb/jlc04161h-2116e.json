@@ -1,0 +1,129 @@
+{
+  "format": 1,
+  "fab_stackup": {
+    "id": "jlc04161h-2116e",
+    "name": "JLC04161H-2116E",
+    "fabricator": "jlcpcb",
+    "fab_profiles": [
+      "jlcpcb-4-layer"
+    ],
+    "copper_layers": 4,
+    "outer_copper_oz": 1,
+    "inner_copper_oz": 0.5,
+    "source": {
+      "publisher": "JLCPCB",
+      "document": "Impedance calculator stackup data (the template list of https://jlcpcb.com/pcb-impedance-calculator, read from its public data request; the https://jlcpcb.com/impedance page shows the same list for 1.6 mm); impedance page text; User Guide to the JLCPCB Impedance Calculator",
+      "url": "https://jlcpcb.com/impedance",
+      "date": "2026-11-24",
+      "notes": "Values are the calculator data rows (POST https://jlcpcb.com/api/jlcTools/impedance/selectPageImpedanceDefaultTemplate, the page's own public request, body fields plateLayerNumber and plateThickness; read once per layer count and thickness with a generic client name, no login). Where the impedance page's text and the data disagree the data is used and the page's value is listed under disagreements. Row text is quoted as the data gives it; Chinese labels are kept, with the English the impedance page uses for the same rows in brackets (the bracketed English is the page's, the readings of 成品板厚 and the other Chinese labels are this file's own translation). Re-read before ordering: JLCPCB changes these tables."
+    },
+    "nominal": {
+      "board_mm": 1.6,
+      "basis": "The board thickness option (plateThickness 1.6) the stackup is listed under in the calculator data; the calculator page names it \"Finished Thickness\""
+    },
+    "stated_finished": {
+      "value_mm": 1.45,
+      "tolerance": "±10%",
+      "text": "JLC04161H-2116E(特殊/成品板厚1.45mm±10%)",
+      "reading": "成品板厚 read as \"finished board thickness\" (this file's translation; the calculator page asks for \"Finished Thickness: Thickness of the finished PCB, including soldermask\")"
+    },
+    "layers": [
+      {
+        "role": "copper",
+        "name": "L1",
+        "thickness_mm": 0.035,
+        "foil_text": "1oz",
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 1 of 7, layerName L1, 铜箔 (copper foil) 1oz: topConductorThick 0.035"
+      },
+      {
+        "role": "prepreg",
+        "glass": "2116",
+        "material": "2116  RC54% 4.9mil",
+        "thickness_mm": 0.124,
+        "dk": 4.16,
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 2 of 7, PP \"2116  RC54% 4.9mil\": dielectricThick 0.124, dielectricConstant 4.16, brand NP-155F"
+      },
+      {
+        "role": "prepreg",
+        "glass": "2116",
+        "material": "2116  RC54% 4.9mil",
+        "thickness_mm": 0.1164,
+        "dk": 4.16,
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 3 of 7, PP \"2116  RC54% 4.9mil\": dielectricThick 0.1164, dielectricConstant 4.16, brand NP-155F"
+      },
+      {
+        "role": "copper",
+        "name": "L2",
+        "thickness_mm": 0.0152,
+        "foil_text": "inner copper of the core row (H/HOZ = half ounce)",
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 4 of 7, layerName L2/L3, core \"0.9mm H/HOZ 含铜\": topConductorThick 0.0152"
+      },
+      {
+        "role": "core",
+        "name": "L2/L3",
+        "material": "0.9mm H/HOZ 含铜",
+        "material_english": "0.9mm H/HOZ [with copper]",
+        "thickness_mm": 0.865,
+        "dk": 4.55,
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 4 of 7, 芯板 \"0.9mm H/HOZ 含铜\": dielectricThick 0.865, dielectricConstant 4.55, brand NP-155F"
+      },
+      {
+        "role": "copper",
+        "name": "L3",
+        "thickness_mm": 0.0152,
+        "foil_text": "inner copper of the core row (H/HOZ = half ounce)",
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 4 of 7, layerName L2/L3, core \"0.9mm H/HOZ 含铜\": botConductorThick 0.0152"
+      },
+      {
+        "role": "prepreg",
+        "glass": "2116",
+        "material": "2116  RC54% 4.9mil",
+        "thickness_mm": 0.1164,
+        "dk": 4.16,
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 5 of 7, PP \"2116  RC54% 4.9mil\": dielectricThick 0.1164, dielectricConstant 4.16, brand NP-155F"
+      },
+      {
+        "role": "prepreg",
+        "glass": "2116",
+        "material": "2116  RC54% 4.9mil",
+        "thickness_mm": 0.124,
+        "dk": 4.16,
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 6 of 7, PP \"2116  RC54% 4.9mil\": dielectricThick 0.124, dielectricConstant 4.16, brand NP-155F"
+      },
+      {
+        "role": "copper",
+        "name": "L4",
+        "thickness_mm": 0.035,
+        "foil_text": "1oz",
+        "source": "calculator data \"JLC04161H-2116E\" (display \"JLC04161H-2116E(特殊/成品板厚1.45mm±10%)\"), basicDataList row 7 of 7, layerName L4, 铜箔 (copper foil) 1oz: topConductorThick 0.035"
+      }
+    ],
+    "layers_sum_mm": 1.4462,
+    "layers_sum_minus_nominal_mm": -0.1538,
+    "layers_sum_minus_stated_finished_mm": -0.0038,
+    "layers_sum_basis": "Copper foils and dielectrics exactly as listed, added; soldermask and outer plating are not in the data. The core rows list the dielectric between the core's own copper foils (the core's nominal size in its name includes that copper where it says with copper).",
+    "symmetric": true,
+    "mask": {
+      "source": "impedance page, \"2.Solder mask Parameters\" (read 2026-11-24); the same four values in the User Guide to the JLCPCB Impedance Calculator, \"Calculation Parameters Used\" (base soldermask 1.2 mil, copper-surface soldermask 0.6 mil, soldermask between traces 1.2 mil, soldermask dielectric constant 3.8; read 2026-11-24)",
+      "above_substrate_mil": 1.2,
+      "above_trace_mil": 0.6,
+      "between_traces_mil": 1.2,
+      "dk": 3.8
+    },
+    "flags": {
+      "reception_default": 1,
+      "use_purpose": 0,
+      "lamination_type": 2,
+      "urgent_state": 2,
+      "default_flag": 0,
+      "display_name": "JLC04161H-2116E(特殊/成品板厚1.45mm±10%)",
+      "note": "Flags as the data gives them; JLCPCB does not document them on the pages read. laminationType 1 is the stackup the display name marks 通用 (general) or 免费 (free), 2 the 特殊 (special) or unmarked others."
+    },
+    "disagreements": [
+      "The 2116 prepreg's name says 4.9mil (0.12446 mm) while its thickness is 0.1164 mm; the thickness is used.",
+      "Core L2/L3 Dk 4.55 in the calculator data; the impedance page's \"Core dielectric constant\" says 4.6 for every core.",
+      "External 1 oz copper is 0.035 mm in the calculator data; the User Guide to the JLCPCB Impedance Calculator lists \"External copper thickness (1 oz) 1.6 mil\" (0.0406 mm). The data is used."
+    ],
+    "on_impedance_page": true
+  }
+}

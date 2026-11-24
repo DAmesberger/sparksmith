@@ -5,7 +5,7 @@
 //! package using the part file, footprint from Sparksmith lands, binding and,
 //! when new, the part file's Model), published as revision 1 through the
 //! ordinary publish rules. The core never evaluates the part file: the host
-//! sends what it evaluated (`PartDerived`) and the lands (M3).
+//! sends what it evaluated (`PartDerived`) and the lands.
 use super::ApertureId;
 use super::bundle::{AssetBytes, asset_hash, validate_assets};
 use super::drafts::{self, Drafts};
