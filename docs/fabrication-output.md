@@ -147,6 +147,8 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
 
 `oracle` decides point by point what must be made, from the document's primitives alone: exact distances to lines and arcs, with no polygon library and none of the production geometry (pad growth, slot reading, placement, fill computation). `expected` paints it, and `compare` reads every written layer back, takes the XOR against it at 10 µm and allows no difference two pixels thick. Both boards below are compared.
 
+`second` is a second opinion by another method, without the point oracle: every object of every file measured on its own and paired one to one with an object of the document whose area is a formula (a land, its grown or shrunk opening, a via, a track), the stored fill areas, the profile's contours and length, and the holes by size and plating. `layers` holds a four-layer board with two pours a layer drawn past its edge, the legend of both sides, the drill map and table against the drill files, and the job file against the files. Both have seeded faults.
+
 `proof` holds one board with everything the files can hold to the oracle: each layer's image at points 3 to 60 µm either side of every edge, a two-way inventory of every file, hole, slot, contour and copper object, and the spacing of fill copper measured in the Gerber and Excellon files (`fabcheck::spacing`) against the rules' numbers. Every kind of output fault is seeded in the files, and each must be reported. What still shares code with production: the footprint a part resolves to, the effective rule values, the stored fill regions (their position and spacing are checked on their own), and the polygon library under `fabcheck::spacing`.
 
 | Board | Layers | Largest XOR |

@@ -348,3 +348,66 @@ pub fn fill_spacings(
     }
     Ok(out)
 }
+
+/// The least gap, mm, between a layer's fill copper and the board's edges
+/// (the profile's contours): negative where copper lies outside the
+/// outline or in a cutout, `None` without fill copper. Distances are exact
+/// from the copper's corners to the contours; from the contours to the
+/// copper they are taken at points 0.05 mm apart.
+pub fn edge_gap(layer: &GerberFile, profile: &[crate::outline::Contour]) -> Fallible<Option<f64>> {
+    let image = polygons::render(layer, is_fill)?;
+    if image.is_empty() || profile.is_empty() {
+        return Ok(None);
+    }
+    // The contours as chords, to tell inside from outside.
+    let rings: Vec<Vec<Point>> = profile
+        .iter()
+        .map(|c| {
+            c.edges
+                .iter()
+                .flat_map(|e| {
+                    let n = match e {
+                        crate::outline::Edge::Line { .. } => 1,
+                        crate::outline::Edge::Arc { .. } => {
+                            (e.length() / 0.01).ceil().clamp(8.0, 4096.0) as usize
+                        }
+                    };
+                    (0..n).map(move |k| e.at(k as f64 / n as f64))
+                })
+                .collect()
+        })
+        .collect();
+    let within = |p: Point, rings: &[Vec<Point>]| {
+        rings.iter().fold(false, |odd, r| {
+            (0..r.len()).fold(odd, |odd, k| {
+                let (a, b) = (r[k], r[(k + 1) % r.len()]);
+                odd ^ ((a[1] > p[1]) != (b[1] > p[1])
+                    && p[0] < a[0] + (p[1] - a[1]) / (b[1] - a[1]) * (b[0] - a[0]))
+            })
+        })
+    };
+    let corners: Vec<Point> = image.iter().flatten().flat_map(mm).collect();
+    let mut least = f64::INFINITY;
+    for p in &corners {
+        let d = profile
+            .iter()
+            .map(|c| c.distance(*p))
+            .fold(f64::INFINITY, f64::min);
+        least = least.min(if within(*p, &rings) { d } else { -d });
+    }
+    let index = Edges::of(&image, 0.5);
+    let copper: Vec<Vec<Point>> = image.iter().flatten().map(mm).collect();
+    for edge in profile.iter().flat_map(|c| &c.edges) {
+        let n = (edge.length() / 0.05).ceil().clamp(1.0, 8192.0) as usize;
+        for k in 0..n {
+            let p = edge.at(k as f64 / n as f64);
+            let d = index
+                .near(p, p, 1.0)
+                .map(|(a, b)| point_segment(p, *a, *b))
+                .fold(f64::INFINITY, f64::min);
+            // A contour inside the copper: none of its corners says so.
+            least = least.min(if within(p, &copper) { -d.min(1.0) } else { d });
+        }
+    }
+    Ok(Some(least))
+}
