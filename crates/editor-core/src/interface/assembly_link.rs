@@ -1289,8 +1289,8 @@ fn two_way(project: &Project, link: &AssemblyLink) -> Vec<Finding> {
     out
 }
 
-/// Why publishing to linked designs waits: an invalid board outline, then
-/// [`broken_references`]. Empty when publishing may go ahead.
+/// Why publishing to linked designs waits: an invalid board outline, then each
+/// broken reference. Empty when publishing may go ahead.
 pub fn publish_blockers(project: &Project) -> Vec<String> {
     let mut out: Vec<String> = project
         .board_shape

@@ -24,7 +24,8 @@ use crate::library::footprint_source::{
 };
 use crate::model::board::{
     BoardFeatureId, BoardSketch, CutoutKind, CutoutRole, EdgeName, MAX_FAULT_POINTS,
-    MAX_FAULT_TEXT, MAX_NAMED_EDGES, MountingHoleRole, NamedEdge, ParameterValue, ShapeFault, ShapeFaultKind,
+    MAX_FAULT_TEXT, MAX_NAMED_EDGES, MountingHoleRole, NamedEdge, ParameterValue, ShapeFault,
+    ShapeFaultKind,
 };
 use crate::model::{BoardShape, Project, SolvedBoard};
 use schemars::JsonSchema;

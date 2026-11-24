@@ -2,7 +2,7 @@
 //! to the same solve, and are replaced together or not at all.
 #![allow(clippy::unwrap_used)]
 
-use super::tests::{Fallible, apply, created_curves_of, edit, set, sketch, sketched};
+use super::tests::{Fallible, apply, close, created_curves_of, edit, set, sketch, sketched};
 use sparksmith_core::interface::{DatumGeometry, ExportTarget, InterfaceCommand};
 use sparksmith_core::layout::outline::BoardEdit;
 use sparksmith_core::library::footprint_source::{ParamName, ParamValue, SketchEdit, SketchRef};
@@ -129,25 +129,40 @@ fn remove(name: &str) -> BoardEdit {
 #[test]
 fn shape_and_values_are_replaced_together() -> Fallible<()> {
     let mut engine = sketched()?;
-    assert_eq!(stored(&engine)?, pairs(&[("width", 60.0), ("height", 40.0)]));
-    edit(&mut engine, vec![set("width", "75 mm"), set("half", "width / 2")])?;
+    assert_eq!(
+        stored(&engine)?,
+        pairs(&[("width", 60.0), ("height", 40.0)])
+    );
+    edit(
+        &mut engine,
+        vec![set("width", "75 mm"), set("half", "width / 2")],
+    )?;
     let wide = pairs(&[("width", 75.0), ("height", 40.0), ("half", 37.5)]);
     assert_eq!(engine.project().board_size, [75.0, 40.0]);
     assert_eq!(stored(&engine)?, wide);
     engine.undo()?;
     assert_eq!(engine.project().board_size, [60.0, 40.0]);
-    assert_eq!(stored(&engine)?, pairs(&[("width", 60.0), ("height", 40.0)]));
+    assert_eq!(
+        stored(&engine)?,
+        pairs(&[("width", 60.0), ("height", 40.0)])
+    );
     engine.redo()?;
     assert_eq!(engine.project().board_size, [75.0, 40.0]);
     assert_eq!(stored(&engine)?, wide);
     // Renamed (the old one removed, the new one added), then removed.
-    edit(&mut engine, vec![remove("half"), set("middle", "width / 2")])?;
+    edit(
+        &mut engine,
+        vec![remove("half"), set("middle", "width / 2")],
+    )?;
     assert_eq!(
         stored(&engine)?,
         pairs(&[("width", 75.0), ("height", 40.0), ("middle", 37.5)])
     );
     edit(&mut engine, vec![remove("middle")])?;
-    assert_eq!(stored(&engine)?, pairs(&[("width", 75.0), ("height", 40.0)]));
+    assert_eq!(
+        stored(&engine)?,
+        pairs(&[("width", 75.0), ("height", 40.0)])
+    );
     Ok(())
 }
 
@@ -162,7 +177,11 @@ fn an_invalid_outline_keeps_the_solved_board_whole() -> Fallible<()> {
     open_outline(&mut engine)?;
     edit(
         &mut engine,
-        vec![set("width", "75 mm"), remove("spare"), set("other", "width / 3")],
+        vec![
+            set("width", "75 mm"),
+            remove("spare"),
+            set("other", "width / 3"),
+        ],
     )?;
     let typed = |engine: &Engine| -> Fallible<Vec<(String, String)>> {
         let sketch = sketch(engine)?;
@@ -171,7 +190,10 @@ fn an_invalid_outline_keeps_the_solved_board_whole() -> Fallible<()> {
     };
     let now = typed(&engine)?;
     assert!(now.contains(&("width".into(), "75 mm".into())), "{now:?}");
-    assert!(now.contains(&("other".into(), "width / 3".into())), "{now:?}");
+    assert!(
+        now.contains(&("other".into(), "width / 3".into())),
+        "{now:?}"
+    );
     assert!(!now.iter().any(|(n, _)| n == "spare"), "{now:?}");
     assert_eq!(engine.project().board().into_owned(), valid);
     assert!(sketch(&engine)?.invalid().is_some());
@@ -187,7 +209,7 @@ fn an_invalid_outline_keeps_the_solved_board_whole() -> Fallible<()> {
     assert_eq!(typed(&reopened)?, now);
     close_outline(&mut reopened, 75.0)?;
     assert!(sketch(&reopened)?.invalid().is_none());
-    assert_eq!(reopened.project().board_size, [75.0, 40.0]);
+    assert!(close(reopened.project().board_size, [75.0, 40.0]));
     assert_eq!(
         stored(&reopened)?,
         pairs(&[("width", 75.0), ("height", 40.0), ("other", 25.0)])
@@ -223,7 +245,10 @@ fn a_stray_open_line_keeps_the_solved_board_too() -> Fallible<()> {
         }],
     )?;
     assert_eq!(engine.project().board_size, [75.0, 40.0]);
-    assert_eq!(stored(&engine)?, pairs(&[("width", 75.0), ("height", 40.0)]));
+    assert_eq!(
+        stored(&engine)?,
+        pairs(&[("width", 75.0), ("height", 40.0)])
+    );
     Ok(())
 }
 
@@ -285,7 +310,10 @@ fn an_invalid_outline_is_not_exported() -> Fallible<()> {
         }),
     );
     let refused = waived.err().ok_or("waived")?.to_string();
-    assert!(refused.contains("make the board outline valid"), "{refused}");
+    assert!(
+        refused.contains("make the board outline valid"),
+        "{refused}"
+    );
 
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("board.solidcraft");

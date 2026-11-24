@@ -928,8 +928,12 @@ fn solved_values(
         .parameters
         .iter()
         .map(|p| {
-            let rounded = |v: f64| q(v).map_err(|_| format!("`{}` = {v} is out of range", p.name.0));
-            let value = match values.of(p).map_err(|why| format!("`{}`: {why}", p.name.0))? {
+            let rounded =
+                |v: f64| q(v).map_err(|_| format!("`{}` = {v} is out of range", p.name.0));
+            let value = match values
+                .of(p)
+                .map_err(|why| format!("`{}`: {why}", p.name.0))?
+            {
                 ParamValue::Length(mm) => ParamValue::Length(rounded(mm)?),
                 ParamValue::Angle(deg) => ParamValue::Angle(rounded(deg)?),
                 count => count,
@@ -1562,12 +1566,12 @@ pub fn laminate(project: &sparksmith_core::Project) -> Result<Option<Laminate>> 
 #[cfg(test)]
 mod closed_loop_tests;
 #[cfg(test)]
-mod solved_values_tests;
-#[cfg(test)]
 mod fixed_tests;
 pub mod model_refs;
 #[cfg(test)]
 pub(crate) mod package_datum_tests;
 mod parts;
+#[cfg(test)]
+mod solved_values_tests;
 #[cfg(test)]
 pub(crate) mod tests;

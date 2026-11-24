@@ -972,7 +972,7 @@ fn an_invalid_outline_waits_to_be_published() -> TestResult {
     use sparksmith_core::interface::{DatumGeometry, ExportTarget, InterfaceCommand};
     use sparksmith_core::layout::outline::{BoardCommand, BoardEdit};
     use sparksmith_core::library::footprint_source::{
-        Expr, FootprintParam, ParamName, ParamUnit, SketchEdit,
+        Expr, FootprintParam, ParamName, ParamUnit, SketchEdit, SketchRef,
     };
     let dir = tempfile::tempdir()?;
     let design = dir.path().join("board.solidcraft");
@@ -1040,8 +1040,11 @@ fn an_invalid_outline_waits_to_be_published() -> TestResult {
             ],
         }),
     )?;
-    let circle: Vec<sparksmith_core::library::footprint_source::SketchRef> =
-        serde_json::from_value(outcome["outcome"]["created"].clone())?;
+    let circle: Vec<SketchRef> = serde_json::from_value(outcome["outcome"]["created"].clone())?;
+    let circle: Vec<_> = circle
+        .into_iter()
+        .filter(|r| matches!(r, SketchRef::Curve(_)))
+        .collect();
     let revision = session.engine().revision();
     let list = ok(
         &mut session,

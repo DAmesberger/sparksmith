@@ -864,7 +864,7 @@ impl Request {
             entry!(
                 ExportNative,
                 "Export the board as a native parametric .solidcraft 3D model to a new file.",
-                "Write the board plan as a native parametric .solidcraft model to a new file (refused if it exists or the board outline is invalid): tier mechanical (default: laminate, pads, parts) or full (adds every track, via and fill). Each flat body's faces are checked against the plan's outline, holes and heights first; an unfit model is refused (export_unfit, naming each body, nothing written) unless write_anyway. Returns the tier, bodies, check and build/check/save ms. Not a document change.",
+                "Write the board plan as a native parametric .solidcraft model to a new file (refused if it exists): tier mechanical (default: laminate, pads, parts) or full (adds every track, via and fill). Each flat body's faces are checked against the plan's outline, holes and heights first; an unfit model is refused (export_unfit, naming each body, nothing written) unless write_anyway. Returns the tier, bodies, check and build/check/save ms. Not a document change.",
             ),
             entry!(
                 ExportFabrication,
@@ -1048,7 +1048,7 @@ impl Request {
             entry!(
                 InterfacePublish,
                 "Publish the board interface: write the .solidcraft design an assembly links and its sidecar, atomically.",
-                "Write the board interface at path: a .solidcraft design whose slots carry every exported datum as named reference bodies with stable face names (plus laminate, pads and parts for tier mechanical, the default; all copper for full) and its sidecar <name>.interface.json, both atomically. Records the publish (revision, hash, per-datum hashes) at expected_revision; no undo step, like a save. A stale revision, another board's files there, an invalid board outline or a broken reference writes nothing. The revision grows only when datums changed. For mechanical and full, published.check is project.export_native's plan check.",
+                "Write the board interface at path: a .solidcraft design whose slots carry every exported datum as named reference bodies with stable face names (plus laminate, pads and parts for tier mechanical, the default; all copper for full) and its sidecar <name>.interface.json, both atomically. Records the publish (revision, hash, per-datum hashes) at expected_revision; no undo step, like a save. A stale revision, another board's files there or a broken reference writes nothing. The revision grows only when datums changed. For mechanical and full, published.check is project.export_native's plan check.",
             ),
             entry!(
                 AssemblyFollow,
