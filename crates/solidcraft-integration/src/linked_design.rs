@@ -368,6 +368,8 @@ struct Slots<'a> {
     by_digest: BTreeMap<String, &'a str>,
     /// The outline datum's token: every face of the slab is its slot's.
     slab: Option<&'a str>,
+    /// The board top's and bottom's tokens.
+    caps: BTreeSet<&'a str>,
     linked: BTreeSet<&'a str>,
 }
 
@@ -389,6 +391,12 @@ impl<'a> Slots<'a> {
                 .iter()
                 .find(|d| d.role == "board.outline")
                 .map(|d| d.token.as_str()),
+            caps: sidecar
+                .datums
+                .iter()
+                .filter(|d| d.role == "board.top" || d.role == "board.bottom")
+                .map(|d| d.token.as_str())
+                .collect(),
             linked: link.bodies.iter().map(String::as_str).collect(),
         }
     }
@@ -403,12 +411,16 @@ impl<'a> Slots<'a> {
 
     /// What a sketch link to `body` references: its face by name, or, for
     /// an edge, a datum one of the edge's two faces is of (a hole's rim is
-    /// its wall's), else the body as a whole.
+    /// its wall's before it is the board's top or bottom), else the body as
+    /// a whole.
     fn carried_by(&self, body: &str, link: &solidcraft_engine::sketch::Link) -> Carried<'a> {
-        let edge_face = link
-            .edge_name
-            .as_deref()
-            .and_then(|edge| edge.split('|').find(|face| self.by_face(face).is_some()));
+        let edge_face = link.edge_name.as_deref().and_then(|edge| {
+            let faces = || edge.split('|').filter_map(|f| Some((f, self.by_face(f)?)));
+            faces()
+                .find(|(_, token)| !self.caps.contains(token))
+                .or_else(|| faces().next())
+                .map(|(face, _)| face)
+        });
         self.carried(body, link.face_name.as_deref().or(edge_face))
     }
 
