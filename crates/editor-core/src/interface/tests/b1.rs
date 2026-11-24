@@ -206,6 +206,49 @@ fn a_board_parameter_is_exported_with_its_evaluated_value() -> Fallible {
     Ok(())
 }
 
+/// The sketched board's stored values: part of its solved result.
+fn stored_values(sketch: &mut BoardSketch) -> &mut Vec<ParameterValue> {
+    &mut sketch.values
+}
+
+/// Opening a file whose valid solve does not hold exactly one finite value
+/// of its own kind for each board parameter is refused, naming the parameter.
+#[test]
+fn a_valid_solve_has_exactly_one_value_per_parameter() -> Fallible {
+    let value = |name: &str, value: ParamValue| ParameterValue {
+        name: ParamName(name.into()),
+        value,
+    };
+    let width = || value("width", ParamValue::Length(60.0));
+    let depth = || value("depth", ParamValue::Length(1.0));
+    let only = |v: ParamValue| vec![value("width", v)];
+    let cases = [
+        ("empty", Vec::new(), "width"),
+        ("another's", vec![depth()], "width"),
+        ("duplicate", vec![width(), width()], "width"),
+        ("an angle", only(ParamValue::Angle(60.0)), "width"),
+        ("a count", only(ParamValue::Count(60)), "width"),
+        ("not finite", only(ParamValue::Length(f64::NAN)), "width"),
+        ("unknown", vec![width(), depth()], "depth"),
+    ];
+    for (what, values, named) in cases {
+        let mut file = sketched()?.to_file();
+        let BoardShape::Sketch(sketch) = &mut file.project.board_shape else {
+            return Err("a sketched board".into());
+        };
+        *stored_values(sketch) = values;
+        let error = Engine::from_file(file)
+            .err()
+            .ok_or_else(|| format!("{what} values accepted"))?
+            .to_string();
+        assert!(
+            error.contains("board.param_value") && error.contains(named),
+            "{what}: {error}"
+        );
+    }
+    Ok(())
+}
+
 /// Save and reopen through the document format.
 fn reopened(engine: &Engine) -> Fallible<Engine> {
     let bytes = format::encode(&engine.to_file())?;

@@ -1552,6 +1552,8 @@ pub fn laminate(project: &sparksmith_core::Project) -> Result<Option<Laminate>> 
 #[cfg(test)]
 mod closed_loop_tests;
 #[cfg(test)]
+mod solved_values_tests;
+#[cfg(test)]
 mod fixed_tests;
 pub mod model_refs;
 #[cfg(test)]
