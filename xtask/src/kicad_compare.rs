@@ -190,7 +190,7 @@ fn compare_board(board: &Path, dir: &Path) -> Result<(String, bool)> {
         .collect();
     let diff = compare_sets(&ours, &theirs, Scope::Filled, &judge)?;
     let (mut text, ok, rows) = summarize(&imported.report, &diff, &judge, &pads);
-    let (line, outline_ok) = outline_line(&imported, &theirs, judge.shift_nm)?;
+    let (line, outline_ok) = outline_line(&imported, &ours, &theirs, judge.shift_nm)?;
     text.push_str(&line);
     text.push_str(&findings_line(imported.engine.project()));
     let ok = ok && outline_ok;
@@ -257,116 +257,59 @@ fn evaluators() -> sparksmith_core::Evaluators<'static> {
     sparksmith_core::Evaluators::default()
 }
 
-/// Most points the outline check samples on one reference curve.
-const MAX_SAMPLES: usize = 4096;
-/// Sample spacing on the reference outline, mm.
-const SAMPLE_MM: f64 = 0.05;
-
-/// The board outline against KiCad's `Edge.Cuts` plot: our solved outline
-/// (outer and cutouts) and the widest distance of KiCad's drawn centre
-/// lines from it, with both lengths, and whether it is within the
-/// tolerance. Aggregate numbers only.
+/// The board outline against KiCad's `Edge.Cuts` plot: the contours both
+/// profile layers draw (the outline, each cutout and slot), paired one to
+/// one and compared both ways (`sparksmith_fabcheck::outline`), with both
+/// lengths. A contour only one of them draws, and a missing plot of either,
+/// fail. Aggregate numbers only.
 fn outline_line(
     imported: &sparksmith_kicad::Imported,
+    ours: &[File],
     theirs: &[File],
     shift: [i64; 2],
 ) -> Result<(String, bool)> {
-    use sparksmith_fabcheck::gerber::{self, Kind};
-    let board = imported.engine.project().board().into_owned();
-    let tol = 1e-4;
-    let mut rings = vec![board.outer.flatten(tol)];
-    rings.extend(board.cutouts.iter().map(|c| c.outline.flatten(tol)));
-    let ours_len: f64 = rings
-        .iter()
-        .map(|r| {
-            (0..r.len())
-                .map(|k| sparksmith_core::geometry::distance(r[k], r[(k + 1) % r.len()]))
-                .sum::<f64>()
-        })
-        .sum();
-    let near = |p: [f64; 2]| {
-        rings
-            .iter()
-            .flat_map(|r| {
-                (0..r.len()).map(move |k| {
-                    sparksmith_core::geometry::segment_distance(p, r[k], r[(k + 1) % r.len()])
-                })
-            })
-            .fold(f64::INFINITY, f64::min)
-    };
-    let Some(file) = theirs.iter().find_map(|f| {
-        let parsed = gerber::parse(std::str::from_utf8(&f.bytes).ok()?).ok()?;
-        let function = parsed.file_attribute(".FileFunction")?;
-        (function.first().map(String::as_str) == Some("Profile")).then_some(parsed)
-    }) else {
-        return Ok(("  outline          no KiCad Edge.Cuts plot\n".into(), true));
-    };
-    let d = [shift[0] as f64 / 1e6, shift[1] as f64 / 1e6];
-    let moved = |p: [f64; 2]| [p[0] + d[0], p[1] + d[1]];
-    let (mut worst, mut theirs_len, mut samples) = (0.0f64, 0.0, 0usize);
-    for object in &file.objects {
-        let points: Vec<[f64; 2]> = match &object.kind {
-            Kind::Draw { from, to } => {
-                let (a, b) = (moved(*from), moved(*to));
-                let len = sparksmith_core::geometry::distance(a, b);
-                theirs_len += len;
-                let n = ((len / SAMPLE_MM).ceil() as usize).clamp(1, MAX_SAMPLES);
-                (0..=n)
-                    .map(|k| {
-                        let t = k as f64 / n as f64;
-                        [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
-                    })
-                    .collect()
+    use sparksmith_fabcheck::outline::{self, Contour};
+    let profile = |files: &[File]| -> Result<Option<Vec<Contour>>> {
+        for file in files.iter().filter(|f| f.name.ends_with(".gbr")) {
+            let parsed = sparksmith_fabcheck::gerber::parse(std::str::from_utf8(&file.bytes)?)?;
+            let function = parsed.file_attribute(".FileFunction");
+            if function.and_then(|f| f.first()).map(String::as_str) == Some("Profile") {
+                return Ok(Some(outline::contours(&parsed)?));
             }
-            Kind::Arc {
-                from,
-                to,
-                center,
-                clockwise,
-            } => {
-                let (a, b, c) = (moved(*from), moved(*to), moved(*center));
-                let r = sparksmith_core::geometry::distance(a, c);
-                let a0 = (a[1] - c[1]).atan2(a[0] - c[0]);
-                let a1 = (b[1] - c[1]).atan2(b[0] - c[0]);
-                let tau = std::f64::consts::TAU;
-                let mut sweep = if *clockwise {
-                    -(a0 - a1).rem_euclid(tau)
-                } else {
-                    (a1 - a0).rem_euclid(tau)
-                };
-                if sweep.abs() < 1e-12 {
-                    sweep = if *clockwise { -tau } else { tau };
-                }
-                theirs_len += r * sweep.abs();
-                let n = ((r * sweep.abs() / SAMPLE_MM).ceil() as usize).clamp(1, MAX_SAMPLES);
-                (0..=n)
-                    .map(|k| {
-                        let t = a0 + sweep * k as f64 / n as f64;
-                        [c[0] + r * t.cos(), c[1] + r * t.sin()]
-                    })
-                    .collect()
-            }
-            _ => Vec::new(),
-        };
-        samples += points.len();
-        for p in points {
-            worst = worst.max(near(p));
         }
-    }
+        Ok(None)
+    };
+    let Some(theirs) = profile(theirs)? else {
+        return Ok((
+            "  outline          FAIL: no KiCad Edge.Cuts plot\n".into(),
+            false,
+        ));
+    };
+    let Some(ours) = profile(ours)? else {
+        return Ok((
+            "  outline          FAIL: no profile written\n".into(),
+            false,
+        ));
+    };
+    let by = [shift[0] as f64 / 1e6, shift[1] as f64 / 1e6];
+    let theirs: Vec<Contour> = theirs.iter().map(|c| c.translated(by)).collect();
+    let diff = outline::compare(&ours, &theirs, f64::from(TOLERANCE_NM) / 1e6);
+    let length = |c: &[Contour]| c.iter().map(Contour::length).sum::<f64>();
     let sketch = matches!(
         imported.engine.project().board_shape,
         sparksmith_core::model::board::BoardShape::Sketch(_)
     );
-    let ok = worst * 1e6 <= f64::from(TOLERANCE_NM);
+    let ok = diff.passes();
     let text = format!(
-        "  outline          {} {} | {} cutouts | ours {:.3} mm long, kicad {:.3} mm | {} samples, worst {:.3} µm\n",
+        "  outline          {} {} | {} contours, ours only {}, kicad only {} | ours {:.3} mm long, kicad {:.3} mm | worst {:.3} µm\n",
         if ok { "pass" } else { "FAIL" },
         if sketch { "sketch" } else { "rectangle" },
-        board.cutouts.len(),
-        ours_len,
-        theirs_len,
-        samples,
-        worst * 1000.0
+        diff.matched,
+        diff.only_a.len(),
+        diff.only_b.len(),
+        length(&ours),
+        length(&theirs),
+        diff.worst_mm * 1000.0
     );
     Ok((text, ok))
 }
@@ -496,6 +439,168 @@ mod tests {
         ] {
             assert!(!summary.contains(secret), "{secret} in {summary}");
         }
+        Ok(())
+    }
+
+    const BARE: &[u8] = b"(kicad_pcb (version 20240108) (generator \"bare\") \
+        (layers (0 \"F.Cu\" signal) (31 \"B.Cu\" signal)))";
+
+    /// What the check prints for `ours` against `theirs`, and whether it
+    /// passes; a plot it refuses to read is a failure.
+    fn outline(ours: &[File], theirs: &[File]) -> Result<(String, bool)> {
+        let imported = import(BARE, None, None)?;
+        Ok(outline_line(&imported, ours, theirs, [0, 0])
+            .unwrap_or_else(|error| (error.to_string(), false)))
+    }
+
+    /// A profile plot of closed polylines and circles (centre, radius), mm.
+    fn plot(rings: &[&[[f64; 2]]], circles: &[([f64; 2], f64)]) -> File {
+        let nm = |mm: f64| (mm * 1e6).round() as i64;
+        let mut text = String::from(
+            "%FSLAX46Y46*%\n%MOMM*%\n%TF.FileFunction,Profile,NP*%\n%ADD10C,0.05*%\nD10*\nG01*\n",
+        );
+        for ring in rings {
+            for (k, p) in ring.iter().chain(ring.first()).enumerate() {
+                let code = if k == 0 { "D02" } else { "D01" };
+                let _ = writeln!(text, "X{}Y{}{code}*", nm(p[0]), nm(p[1]));
+            }
+        }
+        for (c, r) in circles {
+            let (x, y) = (nm(c[0] + r), nm(c[1]));
+            let _ = writeln!(
+                text,
+                "X{x}Y{y}D02*\nG75*\nG03*\nX{x}Y{y}I{}J0D01*\nG01*",
+                nm(-r)
+            );
+        }
+        text.push_str("M02*\n");
+        File {
+            name: "profile.gbr".into(),
+            bytes: text.into_bytes(),
+        }
+    }
+
+    fn rect(min: [f64; 2], max: [f64; 2]) -> [[f64; 2]; 4] {
+        [min, [max[0], min[1]], max, [min[0], max[1]]]
+    }
+
+    #[test]
+    fn the_outline_check_fails_on_every_seeded_fault() -> Result<()> {
+        let outer = rect([0.0, 0.0], [50.0, 30.0]);
+        let cutout = rect([10.0, 10.0], [14.0, 12.0]);
+        let hole = [([40.0, 15.0], 3.0)];
+        let good = plot(&[&outer, &cutout], &hole);
+        let (text, ok) = outline(std::slice::from_ref(&good), std::slice::from_ref(&good))?;
+        assert!(ok, "{text}");
+        // Half a micrometre is within the tolerance, the other way round too.
+        let close = rect([0.0, 0.0], [50.0005, 30.0]);
+        let close = plot(&[&close, &cutout], &hole);
+        assert!(outline(std::slice::from_ref(&close), std::slice::from_ref(&good))?.1);
+        assert!(outline(std::slice::from_ref(&good), &[close])?.1);
+
+        let far = rect([30.0, 25.0], [32.0, 26.0]);
+        let shifted = rect([0.0, 0.0], [50.01, 30.0]);
+        let moved = [([40.0, 15.01], 3.0)];
+        let mut not_a_line = good.clone();
+        not_a_line.bytes = String::from_utf8(not_a_line.bytes)?
+            .replace("M02*", "X1000000Y1000000D03*\nM02*")
+            .into_bytes();
+        let faults: [(&str, File); 7] = [
+            ("an extra cutout", plot(&[&outer, &cutout, &far], &hole)),
+            ("a missing cutout", plot(&[&outer], &hole)),
+            ("a missing round cutout", plot(&[&outer, &cutout], &[])),
+            ("a shifted edge", plot(&[&shifted, &cutout], &hole)),
+            ("a shifted round cutout", plot(&[&outer, &cutout], &moved)),
+            ("an empty profile", plot(&[], &[])),
+            ("a flash in the profile", not_a_line),
+        ];
+        for (name, bad) in &faults {
+            // Seeded in ours, then in the reference.
+            let (text, ok) = outline(std::slice::from_ref(bad), std::slice::from_ref(&good))?;
+            assert!(!ok, "{name} of ours: {text}");
+            let (text, ok) = outline(std::slice::from_ref(&good), std::slice::from_ref(bad))?;
+            assert!(!ok, "{name} of kicad: {text}");
+        }
+        // A missing profile, or one that cannot be read.
+        let mut unread = good.clone();
+        unread.bytes = b"%FSLAX46Y46*%\nnot a gerber".to_vec();
+        for (name, files) in [
+            ("no profile", Vec::new()),
+            ("an unreadable profile", vec![unread]),
+        ] {
+            let (text, ok) = outline(&files, std::slice::from_ref(&good))?;
+            assert!(!ok, "{name} of ours: {text}");
+            let (text, ok) = outline(std::slice::from_ref(&good), &files)?;
+            assert!(!ok, "{name} of kicad: {text}");
+        }
+        Ok(())
+    }
+
+    /// A plated slot is compared as a drill hit, and a cutout of KiCad's
+    /// that we plate fails both comparisons.
+    #[test]
+    fn plated_slots_are_compared() -> Result<()> {
+        let drills = |slots: &[([f64; 2], [f64; 2])]| {
+            let mut text = String::from(
+                "M48\n; #@! TF.FileFunction,Plated,1,2,PTH\nMETRIC\nT1C1.000\n%\nT1\n",
+            );
+            for (a, b) in slots {
+                let _ = writeln!(text, "X{:.3}Y{:.3}G85X{:.3}Y{:.3}", a[0], a[1], b[0], b[1]);
+            }
+            text.push_str("M30\n");
+            File {
+                name: "plated.drl".into(),
+                bytes: text.into_bytes(),
+            }
+        };
+        let slot = ([10.5, 10.0], [13.5, 10.0]);
+        let judge = Judge::exact(TOLERANCE_NM);
+        let passes = |ours: &[File], theirs: &[File]| -> Result<bool> {
+            let diff = compare_sets(ours, theirs, Scope::Filled, &judge)?;
+            Ok(diff.drills.iter().all(|d| d.diff.passes()))
+        };
+        let good = drills(&[slot]);
+        assert!(passes(std::slice::from_ref(&good), std::slice::from_ref(&good))?);
+        let moved = drills(&[([10.51, 10.0], [13.51, 10.0])]);
+        let shorter = drills(&[([10.5, 10.0], [13.4, 10.0])]);
+        let none = drills(&[]);
+        for bad in [moved, shorter, none.clone()] {
+            assert!(!passes(std::slice::from_ref(&bad), std::slice::from_ref(&good))?);
+            assert!(!passes(std::slice::from_ref(&good), &[bad])?);
+        }
+        assert!(!passes(&[], std::slice::from_ref(&good))?);
+        assert!(!passes(std::slice::from_ref(&good), &[])?);
+
+        // KiCad mills the slot (a rectangle stands in for it) and we plate it.
+        let outer = rect([0.0, 0.0], [50.0, 30.0]);
+        let milled = rect([10.0, 9.5], [14.0, 10.5]);
+        let ours = [plot(&[&outer], &[]), good];
+        let theirs = [plot(&[&outer, &milled], &[]), none];
+        let (text, ok) = outline(&ours, &theirs)?;
+        assert!(!ok, "{text}");
+        assert!(!passes(&ours, &theirs)?);
+        Ok(())
+    }
+
+    /// What we emit for an imported board is a profile the check can read.
+    #[test]
+    fn our_own_profile_is_usable() -> Result<()> {
+        let imported = import(BARE, None, None)?;
+        let set = fabrication::generate(
+            &fabrication::ProductionSnapshot::resolve(imported.engine.project(), None)?,
+            &FabricationOptions::default(),
+            &Default::default(),
+        )?;
+        let ours: Vec<File> = set
+            .files
+            .iter()
+            .map(|f| File {
+                name: f.name.clone(),
+                bytes: f.bytes.clone(),
+            })
+            .collect();
+        let (text, ok) = outline(&ours, &ours)?;
+        assert!(ok, "{text}");
         Ok(())
     }
 }
