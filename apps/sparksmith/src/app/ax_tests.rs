@@ -621,8 +621,7 @@ fn waivable_board_row(engine: &Engine) -> Fallible<sparksmith_core::issues::Issu
         .find(|r| {
             r.severity != Severity::Info
                 && r.blocks().is_none()
-                && !sparksmith_core::fabrication::preflight::NO_WAIVER
-                    .contains(&r.finding.code.as_str())
+                && sparksmith_core::fabrication::preflight::can_waive(&r.finding.code)
         })
         .ok_or_else(|| "the demo board has no waivable issue".into())
 }
@@ -637,7 +636,8 @@ fn an_issue_is_waived_inline_with_a_reason_and_one_undo_restores_it() -> Fallibl
     let mut ax = Ax::new(Workspace::Pcb)?;
     ax.app.engine.require_waiver_reason(true);
     // The demo's own findings are unrouted connections, which cannot be
-    // waived: put R2 over R1 for pad clearance findings that can.
+    // waived: put R2 0.1 mm above R1 (their lands are 1.4 mm high) for pad
+    // clearance findings that can.
     let placements = ax.app.engine.project().placements.clone();
     let (first, second) = (
         placements.first().ok_or("no first part")?,
@@ -647,7 +647,7 @@ fn an_issue_is_waived_inline_with_a_reason_and_one_undo_restores_it() -> Fallibl
         ax.app.engine.revision(),
         sparksmith_core::Operation::Layout(sparksmith_core::layout::LayoutCommand::Move {
             instance: second.instance,
-            position: first.position,
+            position: [first.position[0], first.position[1] + 1.5],
             rotation_deg: first.rotation_deg,
             layer: first.layer,
         }),

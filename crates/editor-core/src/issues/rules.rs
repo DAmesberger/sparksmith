@@ -158,6 +158,10 @@ pub(super) fn title(names: &Names<'_>, findings: &[&Finding]) -> String {
                 .map_or(message, |(pair, _)| pair);
             format!("{} too close", pair.replace(" / ", " ↔ "))
         }
+        "board.overlap" => {
+            let objects = names_of(names, findings, |_| true);
+            format!("{} touch", objects.join(" ↔ "))
+        }
         "board.clearance" => {
             let pads = names_of(names, findings, is_pad);
             match parties(names, findings).as_slice() {

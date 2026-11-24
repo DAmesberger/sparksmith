@@ -1954,7 +1954,10 @@ pub fn check_families(
             && project.instances.iter().any(|i| !i.ties.is_empty())
         {
             findings.retain(|f| {
-                !matches!(f.code.as_str(), "board.clearance" | "fill.clearance")
+                !matches!(
+                    f.code.as_str(),
+                    "board.clearance" | "board.overlap" | "fill.clearance" | "fill.overlap"
+                )
                     || !graph.get().accounts_for(&f.objects)
             });
         }

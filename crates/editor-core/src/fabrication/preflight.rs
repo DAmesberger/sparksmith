@@ -240,7 +240,16 @@ fn instead(code: &str) -> &'static str {
             "place the part (Update PCB); to leave it unassembled, mark it Not fitted in a variant"
         }
         "rules.no_fab_profile" => "choose a fab profile",
-        crate::layout::fill::CLEARANCE_UNLISTED => "refill the fill",
+        crate::layout::fill::CLEARANCE_UNLISTED | "fill.stale" | "fabrication.fill_unfilled" => {
+            "refill the fill"
+        }
+        "fill.overlap" => "refill the fill, or move the copper apart",
+        "board.overlap" => "move the copper apart",
+        "board.shape_unsolved" | "board.shape_open" | "board.shape_invalid" => {
+            "finish the board outline"
+        }
+        "fabrication.no_footprint" => "choose a footprint for the part",
+        "instance.check_failed" => "repair the part",
         c if c.starts_with(SLOT_UNROUTABLE) => {
             "draw the plated slot as a straight slot with round ends, or make it unplated"
         }

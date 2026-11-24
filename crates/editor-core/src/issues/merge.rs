@@ -271,7 +271,9 @@ pub(super) fn board(findings: Vec<Finding>) -> Vec<Vec<Finding>> {
             _ => None,
         });
         Some(match (f.code.as_str(), parties.as_slice(), net) {
-            ("board.clearance", [a, b], _) => (f.code.as_str(), Key::Parties([*a, *b])),
+            ("board.clearance" | "board.overlap", [a, b], _) => {
+                (f.code.as_str(), Key::Parties([*a, *b]))
+            }
             ("board.unrouted", _, Some(net)) => (f.code.as_str(), Key::Net(net)),
             _ => (f.code.as_str(), Key::Same(same(f))),
         })

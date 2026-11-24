@@ -126,6 +126,8 @@ const TOPICS: &[(&str, RuleTopic)] = &[
     ("board.courtyard_overlap", RuleTopic::Courtyard),
     ("board.courtyard_clearance", RuleTopic::Courtyard),
     ("fill.clearance", RuleTopic::Clearance),
+    ("fill.overlap", RuleTopic::Clearance),
+    ("board.overlap", RuleTopic::Clearance),
 ];
 
 /// The rule behind a finding code, for the Issues row's "Show rule".

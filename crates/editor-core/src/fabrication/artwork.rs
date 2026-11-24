@@ -319,9 +319,9 @@ fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) 
             for hole in &region.holes {
                 polygon_region(&mut w, None, hole)?;
             }
-            // Nets whose pours overlap (a violation the check reports, which
-            // may be waived) keep their copper in each other's holes: what
-            // the holes just cleared of a larger pour is drawn again.
+            // Nets whose pours overlap (which the check never lets out) keep
+            // their copper in each other's holes: what the holes just
+            // cleared of a larger pour is drawn again.
             for (_, other, under) in regions.iter().take(k).filter(|r| r.1 != net) {
                 let lost = layout::fill::copper_in_holes(under, region);
                 if lost.is_empty() {

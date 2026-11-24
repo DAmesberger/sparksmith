@@ -233,6 +233,19 @@ pub const NO_WAIVER: &[&str] = &[
     // The files cannot hold the design: no drill file routes the slot, and
     // milled on the profile it would be unplated.
     SLOT_UNROUTABLE,
+    // Copper of two nets that touches is a short, not a gap to accept.
+    crate::diagnostics::FindingCode::BoardOverlap.as_str(),
+    crate::diagnostics::FindingCode::FillOverlap.as_str(),
+    // The files would hold something else than the design: copper computed
+    // for another board or none, the last outline that was one board, a
+    // part without its lands.
+    crate::diagnostics::FindingCode::FillStale.as_str(),
+    "fabrication.fill_unfilled",
+    layout::outline::SHAPE_UNSOLVED,
+    layout::outline::SHAPE_OPEN,
+    layout::outline::SHAPE_INVALID,
+    "fabrication.no_footprint",
+    crate::diagnostics::FindingCode::InstanceCheckFailed.as_str(),
 ];
 
 /// A plated board slot the drill file cannot route (not a straight slot

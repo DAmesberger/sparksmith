@@ -8,9 +8,8 @@
 //! `fill.stale` finding and is reported only where it overlaps other
 //! copper, a hole, a keepout or leaves the board. Gaps that merely miss a
 //! changed clearance (a profile switch, a class edit) are what the refill
-//! fixes, so they are not listed one by one. Once a production waiver
-//! accepts a fill's staleness no refill is coming and its stored copper is
-//! what gets made, so it is audited like fresh copper.
+//! fixes, so they are not listed one by one: staleness cannot be waived, so
+//! no such copper is made.
 //!
 //! Only fresh copper joins board copper ([`fresh`], read by the copper
 //! graph, which joins its islands by the one joining rule): an airwire
@@ -128,9 +127,9 @@ pub const AUDIT_SLACK_MM: f64 = FILL_CHORD_MM + 0.001;
 ///   does not own (a via's drill on every layer it passes), on its layer. A
 ///   fresh fill's copper keeps the clearance rule of each pair (measured,
 ///   within [`AUDIT_SLACK_MM`]); stale copper is reported only where it
-///   overlaps, since its refill cuts the gaps the rules now ask for. A
-///   stale fill whose `fill.stale` is waived is measured like a fresh one:
-///   it is plotted as it is.
+///   overlaps, since its refill cuts the gaps the rules now ask for.
+/// - `fill.overlap`: copper that touches copper, or the plated hole, of
+///   another net: a short, which no waiver accepts.
 /// - [`BOARD_EDGE`]: copper outside the board outline or in a cutout or
 ///   slot; for fresh copper also closer to an edge than the board-edge
 ///   rule.
@@ -187,8 +186,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             ));
         }
         if let Some(audit) = &audit {
-            let refills = stale && !stale_accepted(project, fill.id);
-            audit.fill(&mut ctx, fill, &label, stale, refills, &mut out);
+            audit.fill(&mut ctx, fill, &label, stale, &mut out);
         }
         if !stale {
             spokes_removed(&ctx, fill, copper, &label, &mut out);
@@ -196,19 +194,6 @@ pub fn findings(project: &Project) -> Vec<Finding> {
     }
     keepouts(&ctx, &mut out);
     out
-}
-
-/// Whether a production waiver accepts that `fill` is stale: its stored
-/// copper is then plotted as it is.
-fn stale_accepted(project: &Project, fill: Id) -> bool {
-    if project.production.waivers.is_empty() {
-        return false;
-    }
-    let key = crate::model::production::waiver_key(
-        FindingCode::FillStale.as_str(),
-        &[ObjectRef::Fill { id: fill }],
-    );
-    project.production.waiver(&key).is_some()
 }
 
 /// Where one audited object has copper.
@@ -557,14 +542,13 @@ impl<'a> Audit<'a> {
     }
 
     /// The audit of `fill`'s stored copper ([`findings`]): overlap alone
-    /// when it `refills` (it is stale and no waiver accepts that).
+    /// when it is `stale`.
     fn fill(
         &self,
         ctx: &mut Ctx<'_>,
         fill: &Fill,
         label: &str,
         stale: bool,
-        refills: bool,
         out: &mut Vec<Finding>,
     ) {
         let project = ctx.project;
@@ -623,7 +607,7 @@ impl<'a> Audit<'a> {
         let layers = project.stackup.layers();
         let mut near = Vec::new();
         self.grid.near(&stored.bounds, self.reach, &mut near);
-        let mut short: Vec<(ObjectRef, Vec<Short>)> = Vec::new();
+        let mut short: Vec<(ObjectRef, FindingCode, Vec<Short>)> = Vec::new();
         let mut at_object = std::collections::HashMap::new();
         for o in near.iter().filter_map(|k| self.obstacles.get(*k)) {
             let on = match o.on {
@@ -640,7 +624,7 @@ impl<'a> Audit<'a> {
                 continue;
             }
             let need = self.need(fill, o.kind, &o.nets, o.own);
-            let Some(gap) = stored.meets(&o.ring, need.mm, refills) else {
+            let Some(gap) = stored.meets(&o.ring, need.mm, stale) else {
                 continue;
             };
             let them = describe(project, &o.object);
@@ -649,18 +633,23 @@ impl<'a> Audit<'a> {
                 (ObjectRef::Instance { .. }, _) => format!("the net tie bridge of {them}"),
                 _ => them,
             };
-            let at = *at_object.entry(o.object).or_insert(short.len());
+            // Copper of two nets that touches is a short, a finding of its
+            // own beside any gap to the same object.
+            let shorts =
+                gap <= 0.0 && !o.nets.is_empty() && fill.net.is_some_and(|n| !o.nets.contains(&n));
+            let code = if shorts {
+                FindingCode::FillOverlap
+            } else {
+                FindingCode::FillClearance
+            };
+            let at = *at_object.entry((o.object, shorts)).or_insert(short.len());
             match short.get_mut(at) {
-                Some((_, hits)) => hits.push((gap, need, them)),
-                None => short.push((o.object, vec![(gap, need, them)])),
+                Some((_, _, hits)) => hits.push((gap, need, them)),
+                None => short.push((o.object, code, vec![(gap, need, them)])),
             }
         }
-        for (object, hits) in &short {
-            report(Finding::new(
-                FindingCode::FillClearance,
-                words(hits),
-                vec![me, *object],
-            ));
+        for (object, code, hits) in &short {
+            report(Finding::new(*code, words(hits), vec![me, *object]));
         }
         // Other fills on the layer, each pair once (from the lower id).
         for (k, theirs) in project.fills.iter().enumerate() {
@@ -676,12 +665,11 @@ impl<'a> Audit<'a> {
             if !stored.bounds.inflated(self.reach).intersects(&them.bounds) {
                 continue;
             }
-            let fresh_pair = !refills
-                && (stale_accepted(project, theirs.id)
-                    || theirs
-                        .computed
-                        .as_ref()
-                        .is_some_and(|c| ctx.key(theirs.id).ok().as_ref() == Some(&c.key)));
+            let fresh_pair = !stale
+                && theirs
+                    .computed
+                    .as_ref()
+                    .is_some_and(|c| ctx.key(theirs.id).ok().as_ref() == Some(&c.key));
             // The lower ranking fill kept away from the other's copper.
             let (low, high) = if super::compute::outranks(fill, theirs) {
                 (theirs, fill)
@@ -705,8 +693,13 @@ impl<'a> Audit<'a> {
                 f64::INFINITY
             };
             if gap.is_finite() {
+                let shorts = gap <= 0.0 && fill.net.is_some() && theirs.net.is_some();
                 report(Finding::new(
-                    FindingCode::FillClearance,
+                    if shorts {
+                        FindingCode::FillOverlap
+                    } else {
+                        FindingCode::FillClearance
+                    },
                     words(&[(gap, need, fill_label(project, theirs))]),
                     vec![me, ObjectRef::Fill { id: theirs.id }],
                 ));
@@ -734,7 +727,7 @@ impl<'a> Audit<'a> {
                     ),
                     vec![me, ObjectRef::Board],
                 ));
-            } else if !refills
+            } else if !stale
                 && edge_limit > 0.0
                 && let Some(gap) = stored.distance(&self.outer, edge_limit)
             {
@@ -750,7 +743,7 @@ impl<'a> Audit<'a> {
             }
         }
         for (ring, object) in &self.cutouts {
-            if let Some(gap) = stored.meets(ring, edge.mm, refills) {
+            if let Some(gap) = stored.meets(ring, edge.mm, stale) {
                 report(Finding::new(
                     FindingCode::FillBoardEdge,
                     if gap <= 0.0 {

@@ -173,7 +173,7 @@ fn every_deliberate_violation_names_its_object_and_blocks_production() -> Fallib
         ("washer, net B", "board.clearance", track(gate.washer_b)),
         (
             "fill over another net",
-            "fill.clearance",
+            "fill.overlap",
             ObjectRef::Fill { id: gate.fill },
         ),
         ("undersize track", "board.track_width", track(gate.thin)),

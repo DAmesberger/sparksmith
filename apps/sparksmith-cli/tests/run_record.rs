@@ -587,7 +587,7 @@ fn refused_gate_requests_are_recorded_and_named() -> Fallible {
         ("library.publish", json!({"drafts": [1]})),
         (
             "fabrication.waive",
-            json!({"keys": ["fill.stale []"], "reason": "prototype"}),
+            json!({"keys": ["board.clearance []"], "reason": "prototype"}),
         ),
     ] {
         let call = json!({"name": name, "params": params, "expected_revision": client.revision});

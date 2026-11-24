@@ -247,6 +247,7 @@ fn a_routed_pair_runs_coupled_at_the_derived_gap() -> Result<()> {
     for code in [
         "board.unrouted",
         "board.clearance",
+        "board.overlap",
         "pair.gap",
         "pair.skew",
         "pair.uncoupled",
@@ -460,6 +461,7 @@ fn skew_is_found_and_a_meander_removes_it() -> Result<()> {
     let codes = board_codes(&usb.engine);
     assert!(!codes.contains(&"pair.skew".to_owned()), "{codes:?}");
     assert!(!codes.contains(&"board.clearance".to_owned()), "{codes:?}");
+    assert!(!codes.contains(&"board.overlap".to_owned()), "{codes:?}");
     Ok(())
 }
 
@@ -517,6 +519,7 @@ fn a_meander_adds_the_exact_length_and_keeps_clearance() -> Result<()> {
         // Leg spacing: track width plus at least the track clearance.
         let codes = board_codes(&engine);
         assert!(!codes.contains(&"board.clearance".to_owned()), "{codes:?}");
+        assert!(!codes.contains(&"board.overlap".to_owned()), "{codes:?}");
     }
     Ok(())
 }

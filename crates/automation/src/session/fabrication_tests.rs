@@ -217,13 +217,24 @@ fn the_production_check_takes_a_whole_profile() -> Fallible<()> {
 #[test]
 fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible<()> {
     let dir = tempfile::tempdir()?;
-    let mut session = Session::new(showcase(
+    let mut engine = showcase(
         sparksmith_core::library::standards::Context::fixture()?,
         &sparksmith_core::StackupPresets::fixture()?,
         sparksmith_core::rules::fixtures::prototype()?,
-    )?);
+    )?;
+    // Every track is narrower than the board's own minimum: design rule
+    // errors a person may accept.
+    engine.apply(
+        engine.revision(),
+        sparksmith_core::Operation::Rules(sparksmith_core::rules::RulesCommand::SetOverride {
+            key: sparksmith_core::rules::RuleKey::TrackWidthMin,
+            value: sparksmith_core::rules::RuleValue::Length(0.4),
+        }),
+    )?;
+    let mut session = Session::new(engine);
     // Switched to a finer profile, the fills were computed under other
-    // rules: they are stale, an error that blocks production.
+    // rules: they are stale, an error that blocks production and cannot be
+    // waived.
     let revision = session.engine().revision();
     ok(
         &mut session,
@@ -242,6 +253,40 @@ fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible
         "{refused}"
     );
     assert!(!out.exists(), "nothing is written");
+    let preflight = json!({"command": "project.query", "params": {
+        "query": "fabrication.preflight",
+        "params": {},
+    }});
+    let stale = ok(&mut session, preflight)?;
+    let stale: Vec<String> = stale["result"]["items"]
+        .as_array()
+        .ok_or("items")?
+        .iter()
+        .filter(|i| i["code"] == "fill.stale")
+        .filter_map(|i| i["key"].as_str().map(str::to_string))
+        .collect();
+    assert!(!stale.is_empty());
+    let revision = session.engine().revision();
+    let refused = session.dispatch(json!({"command": "project.apply", "params": {
+        "expected_revision": revision,
+        "operation": {"editor": "Fabrication", "operation": {
+            "command": "fabrication.waive", "params": {"keys": stale, "reason": "prototype"}}},
+    }}));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert!(
+        refused["error"]
+            .to_string()
+            .contains("fabrication.not_waivable"),
+        "{refused}"
+    );
+    ok(
+        &mut session,
+        json!({"command": "project.apply", "params": {
+            "expected_revision": revision,
+            "operation": {"editor": "Fill", "operation": {
+                "command": "fill.refill", "params": {"target": {"fills": "all"}}}},
+        }}),
+    )?;
     let report = ok(
         &mut session,
         json!({"command": "project.query", "params": {
@@ -305,7 +350,7 @@ fn unwaived_errors_block_export_and_waivers_are_saved_and_undoable() -> Fallible
             "expected_revision": revision,
             "operation": {"editor": "Fabrication", "operation": {
                 "command": "fabrication.waive",
-                "params": {"keys": blocking, "reason": "fabricator refills planes"}}},
+                "params": {"keys": blocking, "reason": "fabricator takes the width"}}},
         }}),
     )?;
     let result = ok(&mut session, export(&out, false, None))?;
@@ -354,7 +399,7 @@ fn a_required_reason_refuses_a_waiver_without_one() -> Fallible<()> {
         json!({"command": "project.apply", "params": {
             "expected_revision": revision,
             "operation": {"editor": "Fabrication", "operation": {
-                "command": "fabrication.waive", "params": {"keys": ["fill.stale []"], "reason": reason}}},
+                "command": "fabrication.waive", "params": {"keys": ["board.clearance []"], "reason": reason}}},
         }})
     };
     let revision = session.engine().revision();

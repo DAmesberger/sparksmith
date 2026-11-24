@@ -24,7 +24,10 @@ fn waive(engine: &mut Engine, key: String) -> Fallible<()> {
     Ok(())
 }
 
-fn overlapping_parts() -> Fallible<Engine> {
+/// The second part 1.5 mm above the first: their 1.0 by 1.4 mm lands are
+/// 0.1 mm apart, pad 1 from pad 1 and pad 2 from pad 2, under the 0.2 mm
+/// rule, and touch nowhere.
+fn close_parts() -> Fallible<Engine> {
     let mut file = Engine::demo()?.to_file();
     let at = file
         .project
@@ -36,14 +39,13 @@ fn overlapping_parts() -> Fallible<Engine> {
         .placements
         .get_mut(1)
         .ok_or("second placement")?
-        .position = at;
+        .position = [at[0], at[1] + 1.5];
     Ok(Engine::from_file(file)?)
 }
 
 #[test]
 fn each_clearance_pair_blocks_until_its_own_waiver() -> Fallible<()> {
-    let mut engine = overlapping_parts()?;
-    // The two two-pad parts coincide: pad 1 crosses pad 1, pad 2 crosses pad 2.
+    let mut engine = close_parts()?;
     let before = report(&engine)?;
     let pairs: Vec<_> = before
         .items
@@ -80,7 +82,7 @@ fn each_clearance_pair_blocks_until_its_own_waiver() -> Fallible<()> {
 
 #[test]
 fn waiving_a_primary_clearance_keeps_the_other_pair_in_issues() -> Fallible<()> {
-    let mut engine = overlapping_parts()?;
+    let mut engine = close_parts()?;
     let before = issues::report(
         engine.project(),
         engine.drafts(),
@@ -181,8 +183,10 @@ fn legend_keys_roundtrip_and_waivers_survive_reopening() -> Fallible<()> {
     Ok(())
 }
 
+/// Each pour that was never filled is its own finding, and none can be
+/// waived: the files would lack its copper.
 #[test]
-fn each_unfilled_fill_has_its_own_waiver_identity() -> Fallible<()> {
+fn an_unfilled_fill_cannot_be_waived() -> Fallible<()> {
     let mut file = Engine::showcase()?.to_file();
     assert!(
         file.project.fills.len() >= 2,
@@ -209,17 +213,124 @@ fn each_unfilled_fill_has_its_own_waiver_identity() -> Fallible<()> {
                 .any(|item| item.objects == [ObjectRef::Fill { id: fill.id }])
         );
     }
-    let other = fills[1].key.clone();
-    waive(&mut engine, fills[0].key.clone())?;
-    let after = report(&engine)?;
-    assert_eq!(after.blocking + 1, before.blocking);
-    assert!(
-        after
+    let keys: Vec<String> = before
+        .items
+        .iter()
+        .filter(|i| i.code == "fabrication.fill_unfilled" || i.code == "fill.stale")
+        .map(|i| i.key.clone())
+        .collect();
+    assert_eq!(keys.len(), 4);
+    cannot_be_waived(&mut engine, &keys, "refill the fill")
+}
+
+/// The waive command refuses `keys`, saying `instead`, and changes nothing;
+/// saved in a file they are ignored: each still blocks the export.
+fn cannot_be_waived(engine: &mut Engine, keys: &[String], instead: &str) -> Fallible<()> {
+    let before = report(engine)?;
+    for key in keys {
+        let item = before
             .items
             .iter()
-            .any(|item| item.key == other && item.blocks())
-    );
+            .find(|i| i.key == *key)
+            .ok_or_else(|| format!("no {key}"))?;
+        assert!(item.blocks() && !item.offers_waiver(), "{key}");
+        let revision = engine.revision();
+        let refused = waive(engine, key.clone())
+            .err()
+            .ok_or_else(|| format!("{key} was waived"))?
+            .to_string();
+        assert!(refused.contains(instead), "{refused}");
+        assert_eq!(engine.revision(), revision);
+    }
+    let mut file = engine.to_file();
+    let mut sorted = keys.to_vec();
+    sorted.sort();
+    file.project.production.waivers = sorted
+        .into_iter()
+        .map(|key| crate::model::production::Waiver {
+            key,
+            reason: "Reviewed".into(),
+        })
+        .collect();
+    let held = Engine::from_file(file)?;
+    let after = report(&held)?;
+    assert_eq!((after.blocking, after.waived), (before.blocking, 0));
+    for key in keys {
+        assert!(after.items.iter().any(|i| i.key == *key && i.blocks()));
+    }
     Ok(())
+}
+
+/// Copper of two nets that touches is a short: two crossing tracks cannot be
+/// waived.
+#[test]
+fn copper_of_two_nets_that_touches_cannot_be_waived() -> Fallible<()> {
+    let mut file = Engine::showcase()?.to_file();
+    let project = &mut file.project;
+    let [a, b, ..] = project.nets.iter().map(|n| n.id).collect::<Vec<_>>()[..] else {
+        return Err("two nets".into());
+    };
+    // Two crossing tracks, clear of the board's other copper or not: what
+    // they touch besides is found as well.
+    for (net, start, end) in [
+        (a, [10.0, 10.0], [12.0, 12.0]),
+        (b, [10.0, 12.0], [12.0, 10.0]),
+    ] {
+        let id = project.allocate()?;
+        project.tracks.push(crate::model::Track {
+            id,
+            net,
+            start,
+            end,
+            width: 0.3,
+            layer: crate::model::CopperLayer::Top,
+            locked: false,
+        });
+    }
+    let ids: Vec<_> = project.tracks.iter().rev().take(2).map(|t| t.id).collect();
+    let mut engine = Engine::from_file(file)?;
+    let keys: Vec<String> = report(&engine)?
+        .items
+        .iter()
+        .filter(|i| {
+            i.code == "board.overlap"
+                && ids
+                    .iter()
+                    .all(|id| i.objects.contains(&ObjectRef::Track { id: *id }))
+        })
+        .map(|i| i.key.clone())
+        .collect();
+    assert_eq!(keys.len(), 1, "the crossing tracks");
+    cannot_be_waived(&mut engine, &keys, "move the copper apart")
+}
+
+/// Every finding whose files would not be the design, or whose copper
+/// would short two nets, refuses a waiver; a design rule keeps its own.
+#[test]
+fn fidelity_findings_and_shorts_are_the_ones_that_cannot_be_waived() {
+    for code in [
+        "fill.stale",
+        "fill.overlap",
+        "board.overlap",
+        "fabrication.fill_unfilled",
+        "fabrication.no_footprint",
+        "fabrication.slot_unroutable.3",
+        "board.shape_unsolved",
+        "board.shape_open",
+        "board.shape_invalid",
+        "instance.check_failed",
+    ] {
+        assert!(!issues::can_waive(code), "{code}");
+    }
+    for code in [
+        "fill.clearance",
+        "fill.board_edge",
+        "board.clearance",
+        "board.track_width",
+        "fabrication.legend_outside",
+    ] {
+        assert!(issues::can_waive(code), "{code}");
+    }
 }
 
 /// An unrouted connection cannot be waived (e2e run 13, finding 37): the

@@ -645,7 +645,7 @@ fn a_route_through_a_keepout_is_refused_at_commit() -> Result<()> {
 #[test]
 fn stored_fill_copper_over_another_net_is_a_clearance_finding() -> Result<()> {
     let (engine, gate) = gate_board_with(&["fill"])?;
-    let found = findings(&engine, "fill.clearance");
+    let found = findings(&engine, "fill.overlap");
     let fill = ObjectRef::Fill { id: gate.fill };
     let track = ObjectRef::Track {
         id: gate.under_fill,
@@ -673,8 +673,12 @@ fn engine_computed_fill_copper_raises_no_clearance_finding() -> Result<()> {
     )?;
     let found = findings(&engine, "fill.clearance");
     assert!(found.is_empty(), "{found:?}");
+    let found = findings(&engine, "fill.overlap");
+    assert!(found.is_empty(), "{found:?}");
     let showcase = Engine::showcase()?;
     let found = findings(&showcase, "fill.clearance");
+    assert!(found.is_empty(), "{found:?}");
+    let found = findings(&showcase, "fill.overlap");
     assert!(found.is_empty(), "{found:?}");
     Ok(())
 }

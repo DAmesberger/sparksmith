@@ -110,10 +110,16 @@ fn stored_fill_copper_short_of_its_gap_names_the_fill_the_track_and_the_gap() ->
             vec![[46.0, y], [54.0, y], [54.0, 37.0], [46.0, 37.0]],
         )?;
         let found = crate::layout::fill::findings(engine.project());
+        // Contact with another net is a short, not a gap.
+        let code = if gap > 0.0 {
+            "fill.clearance"
+        } else {
+            "fill.overlap"
+        };
         let hits: Vec<&Finding> = found
             .iter()
             .filter(|f| {
-                f.code == "fill.clearance"
+                (f.code == "fill.clearance" || f.code == "fill.overlap")
                     && f.objects.contains(&fill)
                     && f.objects.contains(&track)
             })
@@ -124,15 +130,17 @@ fn stored_fill_copper_short_of_its_gap_names_the_fill_the_track_and_the_gap() ->
                     return Err(Error::Invalid(format!("gap {gap}: {found:#?}")));
                 };
                 assert!(hit.message.contains(words), "gap {gap}: {}", hit.message);
+                assert_eq!(hit.code, code, "gap {gap}");
+                assert_eq!(preflight::can_waive(&hit.code), gap > 0.0);
                 if gap > 0.0 {
                     assert!(hit.message.contains("needs 0.2 mm"), "{}", hit.message);
                 }
                 // It blocks the release.
                 let pf = report(&engine)?;
                 assert!(
-                    pf.items.iter().any(|i| i.code == "fill.clearance"
-                        && i.objects.contains(&track)
-                        && i.blocks()),
+                    pf.items
+                        .iter()
+                        .any(|i| i.code == code && i.objects.contains(&track) && i.blocks()),
                     "gap {gap}: {:#?}",
                     pf.items
                 );
@@ -289,7 +297,7 @@ fn two_fills_of_other_nets_keep_the_fill_to_fill_gap() -> Result<()> {
         found
             .iter()
             .filter(|f| {
-                f.code == "fill.clearance"
+                (f.code == "fill.clearance" || f.code == "fill.overlap")
                     && f.objects.contains(&ObjectRef::Fill { id: gate.fill })
                     && f.objects.contains(&ObjectRef::Fill { id: other })
             })
@@ -313,6 +321,7 @@ fn two_fills_of_other_nets_keep_the_fill_to_fill_gap() -> Result<()> {
                     return Err(Error::Invalid(format!("{top}: {found:#?}")));
                 };
                 assert!(hit.message.contains(words), "{}", hit.message);
+                assert_eq!(hit.code == "fill.overlap", words.starts_with("Overlap"));
             }
             None => assert!(found.is_empty(), "{found:#?}"),
         }
@@ -343,7 +352,7 @@ fn the_fill_audit_counts_every_violation_beyond_its_rows() -> Result<()> {
     }
     let engine = Engine::from_file(file)?;
     let found = crate::layout::fill::findings(engine.project());
-    let rows = coded(&found, "fill.clearance");
+    let rows = coded(&found, "fill.overlap");
     assert_eq!(rows.len(), crate::layout::fill::MAX_FILL_ROWS);
     let [more] = coded(&found, crate::layout::fill::CLEARANCE_UNLISTED)[..] else {
         return Err(Error::Invalid(format!("{found:#?}")));

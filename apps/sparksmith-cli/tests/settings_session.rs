@@ -36,7 +36,7 @@ fn waive(reason: &str) -> Value {
         "expected_revision": 0,
         "operation": {"editor": "Fabrication", "operation": {
             "command": "fabrication.waive",
-            "params": {"keys": ["fill.stale []"], "reason": reason}}},
+            "params": {"keys": ["board.clearance []"], "reason": reason}}},
     }})
 }
 
