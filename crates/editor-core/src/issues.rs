@@ -210,7 +210,11 @@ pub fn report_on(
     report_in(project, drafts, scope, graph, settings)
 }
 
-/// Finding codes that block export and cannot be waived: an unrouted
+/// Finding codes that block export and cannot be waived (a waiver accepts a
+/// design rule that is not kept, never a short nor files that would not be
+/// the design; founder decision, 24 November 2026): copper of two nets that
+/// touches, stale or unfilled fills, an outline that is not a valid one, a
+/// part without a footprint or that does not resolve, an unrouted
 /// connection or a part not on the board (a waiver would make an
 /// unfinished board look finished and export it as if complete: route it,
 /// place it; a part to leave unassembled is placed and Not fitted in a
@@ -233,6 +237,19 @@ pub const NO_WAIVER: &[&str] = &[
     // The files cannot hold the design: no drill file routes the slot, and
     // milled on the profile it would be unplated.
     SLOT_UNROUTABLE,
+    // Copper of two nets that touches is a short, not a gap to accept.
+    crate::diagnostics::FindingCode::BoardOverlap.as_str(),
+    crate::diagnostics::FindingCode::FillOverlap.as_str(),
+    // The files would hold something else than the design: copper computed
+    // for another board or none, the last outline that was one board, a
+    // part without its lands.
+    crate::diagnostics::FindingCode::FillStale.as_str(),
+    "fabrication.fill_unfilled",
+    layout::outline::SHAPE_UNSOLVED,
+    layout::outline::SHAPE_OPEN,
+    layout::outline::SHAPE_INVALID,
+    "fabrication.no_footprint",
+    crate::diagnostics::FindingCode::InstanceCheckFailed.as_str(),
 ];
 
 /// A plated board slot the drill file cannot route (not a straight slot

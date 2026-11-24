@@ -90,9 +90,23 @@ fn every_file_of_an_export_follows_the_chosen_profile() -> Fallible<()> {
     let other = other()?;
     let checks = Default::default();
     // The showcase's fills were computed under its own rules, so under the
-    // other profile they are stale: waive what blocks, so the export runs.
+    // other profile they are stale, which cannot be waived: for that export
+    // they are computed under it, as a board switched to it refills them.
+    let mut poured = project.clone();
+    let under = sparksmith_core::fabrication::ProductionSnapshot::resolve(&project, Some(&other))?
+        .project()
+        .clone();
+    for (id, copper) in sparksmith_core::layout::fill::refill(
+        &under,
+        sparksmith_core::layout::fill::RefillTarget::All,
+    )? {
+        if let Some(fill) = poured.fills.iter_mut().find(|f| f.id == id) {
+            fill.computed = Some(copper);
+        }
+    }
+    // What else blocks under it is waived, so the export runs.
     let blocking: Vec<String> =
-        preflight::report(&project, &Default::default(), Some(&other), &checks)?
+        preflight::report(&poured, &Default::default(), Some(&other), &checks)?
             .items
             .into_iter()
             .filter(|i| i.blocks())
@@ -100,7 +114,7 @@ fn every_file_of_an_export_follows_the_chosen_profile() -> Fallible<()> {
             .collect();
     if !blocking.is_empty() {
         preflight::apply(
-            &mut project.production,
+            &mut poured.production,
             FabricationCommand::Waive {
                 keys: blocking,
                 reason: "test".into(),
@@ -112,7 +126,7 @@ fn every_file_of_an_export_follows_the_chosen_profile() -> Fallible<()> {
     let run = |profile: Option<RuleProfile>, out: &str| -> Fallible<std::path::PathBuf> {
         let output = dir.path().join(out);
         let report = export(
-            &project,
+            if profile.is_some() { &poured } else { &project },
             &Default::default(),
             &ExportRequest {
                 output: output.clone(),

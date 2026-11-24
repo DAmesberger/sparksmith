@@ -660,6 +660,21 @@
     }
   },
   {
+    "id": "finding/board.overlap",
+    "title": "Copper of different nets touches",
+    "summary": "Copper of different nets touches",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Copper of different nets touches",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
     "id": "finding/board.pad_hole_clearance",
     "title": "Pad holes too close to copper",
     "summary": "Pad holes too close to copper",
@@ -1824,6 +1839,21 @@
       "severity": "warning",
       "blocks": null,
       "group": "Fills on missing nets",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
+    "id": "finding/fill.overlap",
+    "title": "Fill copper on another net",
+    "summary": "Fill copper on another net",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "error",
+      "blocks": null,
+      "group": "Fill copper on another net",
       "fix": "",
       "fixed_by": [],
       "checks": null

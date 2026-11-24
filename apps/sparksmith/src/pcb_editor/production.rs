@@ -677,7 +677,16 @@ pub(super) fn export_blocked(
             return Some("Fix or waive the error first".into());
         }
         Some(Ok(report)) if report.blocking > 1 => {
-            return Some(format!("Fix or waive the {} errors first", report.blocking));
+            let fixed_only = report
+                .items
+                .iter()
+                .filter(|i| i.blocks() && !i.offers_waiver())
+                .count();
+            let words = format!("Fix or waive the {} errors first", report.blocking);
+            return Some(match fixed_only {
+                0 => words,
+                n => format!("{words}; {n} cannot be waived"),
+            });
         }
         Some(Ok(_)) => {}
     }
@@ -1034,8 +1043,9 @@ impl Waiving {
 }
 
 /// A finding that can be waived now: an error or warning nobody waived,
-/// of a kind core offers a waiver for (never an unrouted connection, never
-/// a finding the board needs more of its fab profile for).
+/// of a kind core offers a waiver for (never an unrouted connection, copper
+/// of two nets that touches or files that would not be the design, never a
+/// finding the board needs more of its fab profile for).
 fn waivable(item: &PreflightItem) -> bool {
     item.waiver.is_none()
         && matches!(item.severity, Severity::Error | Severity::Warning)
@@ -1422,6 +1432,9 @@ fn row_tip(item: &PreflightItem) -> String {
     }
     if let Some(fix) = &item.fix {
         tip.push(fix.clone());
+    }
+    if item.blocks() && item.needs.is_none() && !item.offers_waiver() {
+        tip.push("Cannot be waived".to_owned());
     }
     tip.join("\n")
 }

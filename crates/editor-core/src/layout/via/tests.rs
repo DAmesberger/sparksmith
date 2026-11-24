@@ -316,7 +316,12 @@ fn via_checks_report_ring_drill_and_hole_spacing() -> Result<()> {
     ] {
         assert!(codes.iter().any(|c| c == code), "{code} in {codes:?}");
     }
-    assert!(!codes.iter().any(|c| c == "board.clearance"), "{codes:?}");
+    assert!(
+        !codes
+            .iter()
+            .any(|c| c == "board.clearance" || c == "board.overlap"),
+        "{codes:?}"
+    );
     Ok(())
 }
 
@@ -653,7 +658,8 @@ fn ten_thousand_vias_are_all_checked_within_a_budget() -> Result<()> {
             .iter()
             .any(|f| f.code == code && f.objects.contains(&ObjectRef::Via { id }))
     };
-    assert!(names("board.clearance", first) && names("board.clearance", last));
+    let close = |id| names("board.clearance", id) || names("board.overlap", id);
+    assert!(close(first) && close(last));
     assert!(names("board.via_hole_spacing", first) && names("board.via_hole_spacing", last));
     // Only the planted pair breaks a rule among the vias.
     let broken: Vec<&Finding> = findings
@@ -661,7 +667,10 @@ fn ten_thousand_vias_are_all_checked_within_a_budget() -> Result<()> {
         .filter(|f| {
             matches!(
                 f.code.as_str(),
-                "board.clearance" | "board.via_hole_spacing" | "board.via_drill_clearance"
+                "board.clearance"
+                    | "board.overlap"
+                    | "board.via_hole_spacing"
+                    | "board.via_drill_clearance"
             ) && f.objects.iter().any(|o| matches!(o, ObjectRef::Via { .. }))
         })
         .collect();

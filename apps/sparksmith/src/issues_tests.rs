@@ -1018,6 +1018,31 @@ fn key(key: egui::Key) -> Event {
     }
 }
 
+/// A waiver a project saved before its finding could not be waived counts
+/// for nothing, so Issues does not list it as waived; the others stay.
+#[test]
+fn a_saved_waiver_of_what_cannot_be_waived_is_not_listed() -> Fallible<()> {
+    let mut file = Engine::demo()?.to_file();
+    let keys = [
+        "board.clearance []",
+        "board.overlap []",
+        "board.shape_invalid []",
+        "fabrication.slot_unroutable.3 []",
+        "fill.stale []",
+    ];
+    file.project.production.waivers = keys
+        .iter()
+        .map(|key| sparksmith_core::model::production::Waiver {
+            key: (*key).into(),
+            reason: String::new(),
+        })
+        .collect();
+    let engine = Engine::from_file(file)?;
+    assert_eq!(engine.project().production.waivers.len(), keys.len());
+    assert_eq!(waived_rows(&engine).keys, [keys[0]]);
+    Ok(())
+}
+
 /// Inline waive in the card: Waive… opens a reason field under the row,
 /// Enter asks for one `fabrication.waive` with the key of every finding
 /// the row merges; applied, the row leaves the open list for Waived, whose

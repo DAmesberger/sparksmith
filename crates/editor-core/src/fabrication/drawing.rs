@@ -763,7 +763,8 @@ mod tests {
             !before.iter().any(|n| n.starts_with("Waived")),
             "{before:?}"
         );
-        // A track of one net laid over a track of another: a finding.
+        // A track of one net laid 0.05 mm beside a track of another: a
+        // finding, and no contact.
         let over = project
             .tracks
             .first()
@@ -776,14 +777,24 @@ mod tests {
             .find(|n| *n != over.net)
             .ok_or(crate::Error::Invalid("no net".into()))?;
         let id = project.allocate()?;
+        let d = [over.end[0] - over.start[0], over.end[1] - over.start[1]];
+        let l = d[0].hypot(d[1]).max(1e-9);
+        let by = over.width + 0.05;
+        let beside = |p: Point| [p[0] - d[1] / l * by, p[1] + d[0] / l * by];
+        let pair = [
+            crate::diagnostics::ObjectRef::Track { id: over.id },
+            crate::diagnostics::ObjectRef::Track { id },
+        ];
         project.tracks.push(crate::model::Track {
             id,
             net: other,
+            start: beside(over.start),
+            end: beside(over.end),
             ..over
         });
         let finding = layout::checks(&project, &Default::default())
             .into_iter()
-            .find(|f| f.code == "board.clearance")
+            .find(|f| f.code == "board.clearance" && pair.iter().all(|o| f.objects.contains(o)))
             .ok_or(crate::Error::Invalid("no clearance finding".into()))?;
         project.production.waivers = vec![
             Waiver {

@@ -1102,7 +1102,7 @@ fn a_parameter_change_carries_the_routed_connectors() -> Fallible {
     assert!(
         codes
             .iter()
-            .all(|c| c == "fill.clearance" || c == "fill.board_edge"),
+            .all(|c| ["fill.clearance", "fill.overlap", "fill.board_edge"].contains(&c.as_str())),
         "{codes:?}"
     );
     board.apply("Fill", "fill.refill", json!({"target": {"fills": "all"}}))?;

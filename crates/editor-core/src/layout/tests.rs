@@ -702,7 +702,7 @@ fn clearance_measures_a_round_pad_not_its_extent() -> Result<()> {
     assert!(
         !checks(&round_board, &Default::default())
             .iter()
-            .any(|f| f.code == "board.clearance"),
+            .any(|f| f.code == "board.clearance" || f.code == "board.overlap"),
         "{:?}",
         checks(&round_board, &Default::default())
     );

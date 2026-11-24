@@ -86,6 +86,7 @@ fn violations(p: &Project) -> Vec<String> {
             matches!(
                 f.code.as_str(),
                 "board.clearance"
+                    | "board.overlap"
                     | "board.outside_outline"
                     | "board.edge_clearance"
                     | "keepout.track"

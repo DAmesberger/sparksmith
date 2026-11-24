@@ -1355,11 +1355,11 @@ fn unroutable(outline: Outline) -> Fallible<()> {
 }
 
 /// The audit's probe on the showcase: the fill-to-via-hole rule raised to
-/// 1 mm, both stale findings waived through the command and saved. The
-/// export stays blocked by the copper that would be made; a refill makes
-/// the gap, read back from the files.
+/// 1 mm, so both pours are stale. That cannot be waived, by the command or
+/// by a waiver the document holds; a refill makes the gap, read back from
+/// the files.
 #[test]
-fn waiving_the_showcases_stale_fills_does_not_clear_a_raised_drill_rule() -> Fallible<()> {
+fn the_showcases_stale_fills_cannot_be_waived() -> Fallible<()> {
     use crate::layout::fill::{FillCommand, RefillTarget};
     let mut engine = Engine::showcase()?;
     let blocking = |engine: &Engine| -> Fallible<Vec<(String, String)>> {
@@ -1428,28 +1428,37 @@ fn waiving_the_showcases_stale_fills_does_not_clear_a_raised_drill_rule() -> Fal
         .map(|(_, key)| key)
         .collect();
     assert_eq!(stale.len(), 2);
-    engine.apply(
+    let refused = engine.apply(
         engine.revision(),
         Operation::Fabrication(fabrication::FabricationCommand::Waive {
             keys: stale.clone(),
             reason: "accepted".into(),
         }),
-    )?;
-    // Held by the document, as a saved file holds it.
-    assert_eq!(engine.project().production.waivers.len(), 2);
-    let short = blocking(&engine)?;
-    assert!(
-        short.iter().any(|(code, _)| code == "fill.clearance"),
-        "{short:?}"
     );
+    assert!(
+        refused.is_err() && format!("{refused:?}").contains("fabrication.not_waivable"),
+        "{refused:?}"
+    );
+    // Held by the document, as a file written before the rule holds them.
+    let mut file = engine.to_file();
+    let mut keys = stale.clone();
+    keys.sort();
+    file.project.production.waivers = keys
+        .into_iter()
+        .map(|key| crate::model::production::Waiver {
+            key,
+            reason: "accepted".into(),
+        })
+        .collect();
+    let mut engine = Engine::from_file(file)?;
+    let still = blocking(&engine)?;
+    assert!(
+        stale.iter().all(|key| still.iter().any(|(_, k)| k == key)),
+        "{still:?}"
+    );
+    // What an export would have written.
     let gap = least(&engine)?;
     assert!((gap - 0.35).abs() < 0.01, "{gap}");
-    for key in stale {
-        engine.apply(
-            engine.revision(),
-            Operation::Fabrication(fabrication::FabricationCommand::Unwaive { key }),
-        )?;
-    }
     engine.apply(
         engine.revision(),
         Operation::Fill(FillCommand::Refill {
@@ -1623,7 +1632,6 @@ fn retained_copper_keeps_one_pads_and_the_rules_fill_clearance() -> Fallible<()>
 /// via is moved into the pour. The short is another thing than the gap that
 /// was accepted, so it must block.
 #[test]
-#[ignore = "waits for the founder's waiver decision"]
 fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
     use crate::diagnostics::ObjectRef;
     use crate::layout::LayoutCommand;
@@ -1752,17 +1760,40 @@ fn accepting_a_gap_never_accepts_a_later_short() -> Fallible<()> {
         .map(|i| (&i.code, &i.title, i.blocks()))
         .collect();
     assert!(short.iter().any(|(_, _, blocks)| *blocks), "{short:?}");
+    // It is a short by its own code, and no waiver of it counts.
+    assert!(
+        short
+            .iter()
+            .any(|(code, _, blocks)| *code == "fill.overlap" && *blocks),
+        "{short:?}"
+    );
+    let mut file = engine.to_file();
+    let waivers = &mut file.project.production.waivers;
+    waivers.push(Waiver {
+        key: waiver_key("fill.overlap", &names),
+        reason: "accepted".into(),
+    });
+    waivers.sort_by(|a, b| a.key.cmp(&b.key));
+    let engine = Engine::from_file(file)?;
+    let report = fabrication::preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?;
+    assert!(report.items.iter().any(|i| i.code == "fill.overlap"
+        && i.blocks()
+        && names.iter().all(|n| i.objects.contains(n))));
     Ok(())
 }
 
-/// The review's probe: the fill-to-via-hole minimum raised to 1 mm after
-/// the pour was computed, and its staleness waived. The stored copper is
-/// what would be made, so its gap to the drill blocks the export, naming
-/// the via; a drill rule no ring covers is measured on fresh copper too.
+/// The fill-to-via-hole minimum raised to 1 mm after the pour was computed:
+/// its copper is stale, and stale copper is never made. Copper under a
+/// current key that is not what the rules make is measured to the drill, a
+/// rule no ring covers, naming the via.
 #[test]
 fn a_via_drill_closer_to_a_pour_than_its_rule_blocks() -> Fallible<()> {
     use crate::diagnostics::ObjectRef;
-    use crate::model::production::{Waiver, waiver_key};
     let mut project = board()?;
     let net = project.nets.get(1).ok_or("a net")?.id;
     let via = project
@@ -1793,11 +1824,12 @@ fn a_via_drill_closer_to_a_pour_than_its_rule_blocks() -> Fallible<()> {
     }
     // Stale: its refill makes the gap, so only overlap is listed.
     assert!(names(&project).is_empty(), "{:?}", names(&project));
-    let stale = waiver_key("fill.stale", &[ObjectRef::Fill { id: fill }]);
-    project.production.waivers.push(Waiver {
-        key: stale,
-        reason: "accepted".into(),
-    });
+    let current = crate::layout::fill::inputs_key(&project, fill)?;
+    for f in project.fills.iter_mut().filter(|f| f.id == fill) {
+        if let Some(c) = &mut f.computed {
+            c.key = current.clone();
+        }
+    }
     let found = names(&project);
     let [message] = found.as_slice() else {
         return Err(format!("{found:?}").into());
@@ -1817,21 +1849,11 @@ fn a_via_drill_closer_to_a_pour_than_its_rule_blocks() -> Fallible<()> {
         .ok_or("a spacing")?
         .gap_mm;
     assert!((gap - 0.45).abs() < 0.01, "{gap}");
-    // Fresh copper whose key is current but whose regions are not what the
-    // rules make: the drill is measured there too.
-    project.production.waivers.clear();
-    let current = crate::layout::fill::inputs_key(&project, fill)?;
-    for f in project.fills.iter_mut().filter(|f| f.id == fill) {
-        if let Some(c) = &mut f.computed {
-            c.key = current.clone();
-        }
-    }
-    assert_eq!(names(&project).len(), 1);
     Ok(())
 }
 
-/// Two pours that overlap (a violation a person may waive): each keeps its
-/// copper in the other's holes, so the files show the design.
+/// Two pours that overlap (no export writes them, but the writer may not
+/// depend on that): each keeps its copper in the other's holes.
 #[test]
 fn overlapping_pours_erase_nothing_of_each_other() -> Fallible<()> {
     let mut project = board()?;

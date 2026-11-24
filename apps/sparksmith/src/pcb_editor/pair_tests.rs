@@ -282,7 +282,12 @@ fn a_pad_of_a_pair_routes_both_halves_coupled_to_the_far_pads() -> TestResult {
     // No clearance or pair gap finding on the routed pair.
     let codes: Vec<String> = layout::checks(engine.project(), engine.check_settings())
         .into_iter()
-        .filter(|f| matches!(f.code.as_str(), "board.clearance" | "pair.gap"))
+        .filter(|f| {
+            matches!(
+                f.code.as_str(),
+                "board.clearance" | "board.overlap" | "pair.gap"
+            )
+        })
         .map(|f| f.message)
         .collect();
     assert!(codes.is_empty(), "{codes:?}");
@@ -480,7 +485,9 @@ fn the_tune_tool_meanders_to_the_partner_length() -> TestResult {
     assert!(
         !layout::checks(engine.project(), engine.check_settings())
             .iter()
-            .any(|f| f.code == "pair.skew" || f.code == "board.clearance")
+            .any(|f| f.code == "pair.skew"
+                || f.code == "board.clearance"
+                || f.code == "board.overlap")
     );
     Ok(())
 }

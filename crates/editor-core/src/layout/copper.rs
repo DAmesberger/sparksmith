@@ -866,6 +866,16 @@ impl<'a> ClearanceCx<'a> {
             if let Some(need) = &isolation {
                 gap = need.mm;
             }
+            // Copper of two nets that touches is no gap to accept: a short,
+            // with a code of its own that cannot be waived.
+            if a.net().is_some() && b.net().is_some() && a.ring.gap(b.ring, 2.0 * EPS) <= EPS {
+                issues.push(Finding::new(
+                    FindingCode::BoardOverlap,
+                    format!("Overlap: {} / {}", self.label(a), self.label(b)),
+                    vec![a.object, b.object],
+                ));
+                continue;
+            }
             if a.ring.closer_than(b.ring, gap) {
                 let need =
                     isolation.unwrap_or_else(|| limits.clearance_need(a.kind, an, b.kind, bn));

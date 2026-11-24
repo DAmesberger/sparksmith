@@ -702,7 +702,7 @@ fn stale_copper_is_checked_for_clearance() -> Fallible<()> {
     assert!(
         findings
             .iter()
-            .any(|f| f.code == "fill.clearance" && f.objects.contains(&ObjectRef::Track { id: t })),
+            .any(|f| f.code == "fill.overlap" && f.objects.contains(&ObjectRef::Track { id: t })),
         "{findings:#?}"
     );
     Ok(())

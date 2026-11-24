@@ -365,12 +365,13 @@ fn clearance_between_two_placements_is_one_issue() -> Fallible<()> {
     let mut engine = Engine::demo()?;
     let r1 = by_designator(&engine, "R1")?;
     let r2 = by_designator(&engine, "R2")?;
-    for (instance, x) in [(r1, 0.0), (r2, 0.1)] {
+    // Their 1.4 mm high lands 0.1 mm apart, touching nowhere.
+    for (instance, y) in [(r1, 0.0), (r2, 1.5)] {
         apply(
             &mut engine,
             Operation::Layout(LayoutCommand::Move {
                 instance,
-                position: [x, 0.0],
+                position: [0.0, y],
                 rotation_deg: 0.0,
                 layer: Layer::Top,
             }),
