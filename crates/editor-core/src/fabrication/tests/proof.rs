@@ -181,6 +181,7 @@ pub(super) fn sketch(solved: SolvedBoard) -> BoardShape {
             result_hash: String::new(),
         },
         solved,
+        current: true,
         outline_fit: 0.01,
         fault: None,
         idle: Vec::new(),
