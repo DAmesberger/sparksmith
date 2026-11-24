@@ -18,6 +18,7 @@ mod inventory;
 mod layers;
 mod preflight;
 mod proof;
+mod random;
 mod readback;
 mod second;
 mod suggest;
