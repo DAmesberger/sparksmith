@@ -871,7 +871,8 @@ impl App {
     }
 
     /// Component workspace requests the app runs on the engine (drafting a
-    /// published component: one `library.draft_closure`).
+    /// published component: one `library.draft_closure`; a blank component,
+    /// which then opens).
     fn part_requests(&mut self) {
         let Some(request) = self.part.take_request() else {
             return;
@@ -880,7 +881,15 @@ impl App {
             self.say(Level::Info, "Wait for the file operation to finish");
             return;
         }
-        let result = part_editor::run(&mut self.engine, request);
+        let result = match request {
+            part_editor::Request::Blank => {
+                part_editor::create_blank(&mut self.engine).map(|component| {
+                    self.part.open(component, &self.engine);
+                    Some("Started a blank component: Terminal adds its first terminal".to_owned())
+                })
+            }
+            request => part_editor::run(&mut self.engine, request),
+        };
         match result {
             Ok(None) => self.clear_error(),
             Ok(Some(created)) => self.say(Level::Ok, created),
