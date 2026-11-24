@@ -161,7 +161,7 @@ The allowlist (`xtask/src/no_builtin_data.rs`) names a source file and an includ
 - interface assets: the IBM Plex fonts and the blur shader (`crates/ui`);
 - the MCP skill prompt (`crates/automation/src/mcp/prompts.rs`).
 
-The starter package rows went with part generation D2: the generator modules replaced them.
+The generator modules replace the starter package rows.
 
 An entry that matches nothing fails the gate, so each is removed with the data it allowed.
 

@@ -138,7 +138,7 @@ fn check_module_size(bytes: usize, limit: usize) -> Result<(), Failure> {
 /// start function, and only the deterministic integer feature set that
 /// rustc emits for `wasm32-unknown-unknown` with floats left out: a plugin
 /// whose results are hashed (effect `none`) may contain no float
-/// instruction (part-generation slice B3). SIMD is not compiled into this
+/// instruction. SIMD is not compiled into this
 /// wasmi; threads, memory64 and GC are not supported by it either.
 pub fn config() -> Config {
     let mut config = Config::default();

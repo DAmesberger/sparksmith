@@ -4,7 +4,7 @@ Design, 14 November 2026, against Sparksmith `main` at f18c0658 and the Solidcra
 
 Read beside it: `design-critique.md`, `file-format-plan.md` and `extension-abi-draft-critique.md` (an earlier draft on this same question; section 4.9 lists what is used from it and where this design differs).
 
-Founder decisions kept as given: one typed command engine; programmatic calls never open dialogs; a failed mutation changes nothing; MCP `2026-07-28` only; `apply` keeps a plain `op` string; LLM-first with small local models; generators are sandboxed, deterministic WASM loaded as data, identified by hash and versioned; no library data in code; **one plugin ABI and one kind of plugin** (as recorded in the part-generation plan, section 3); clean room.
+Founder decisions kept as given: one typed command engine; programmatic calls never open dialogs; a failed mutation changes nothing; MCP `2026-07-28` only; `apply` keeps a plain `op` string; LLM-first with small local models; generators are sandboxed, deterministic WASM loaded as data, identified by hash and versioned; no library data in code; **one plugin ABI and one kind of plugin**; clean room.
 
 ## Summary
 
@@ -18,7 +18,7 @@ The design:
 4. **One plugin ABI, one kind of plugin.** Every plugin has the same exports, the same three optional imports, one description format, one host and one permission model. Each capability a plugin offers declares its effect: `none`, `read` or `edit`. A generator is a plugin whose `generate-part` capability has effect `none`: during that call the host answers nothing, so the result is a pure function of the request and is hashed. A capability with effect `read` or `edit` runs against a fork of the document, and the host applies what it did as one reviewed undo step. Approval is by bundle hash. I looked for a real reason to keep two kinds and found none (2.6).
 5. **Deleted:** the old MCP server, `NOT_TOOLS`, the 64 KiB budget test, the assistant's hand-written tool list, the five metadata name lists, `Request::paths` and `NAMING_PATHS`, the `project.apply`/`query`/`schema` wrapper requests, `WINDOW_ONLY`.
 
-About 83–124 hours for the surface, the cut-over, the window and the agent (S0–S7, S10), and 28–42 hours for the plugin ABI (S8, with the part-generation work) and for making its `read` and `edit` effects answer (S9), which should wait until the surface has been measured with agents.
+About 83–124 hours for the surface, the cut-over, the window and the agent (S0–S7, S10), and 28–42 hours for the plugin ABI (S8) and for making its `read` and `edit` effects answer (S9), which should wait until the surface has been measured with agents.
 
 ---
 
@@ -112,7 +112,7 @@ Sparksmith's typed enums and compiler-enforced classes are stronger than Solidcr
 | `layout` | `layout.*`, `fill.*`, `keepout.*`, `board.*`, `diff_pair.*`, dimensions | board-shape evaluator |
 | `rules` | `rules.*`, `net_class.*`, `impedance.*`, fab profiles | shipped library |
 | `library` | definitions, drafts, publish, folders, updates, pinout import, markings | shipped library, files for folders |
-| `generators` | list, describe (with the compact line form), preview, generate, regenerate, detach; plugin install and approval (Never). This is GP7's surface | plugin runtime |
+| `generators` | list, describe (with the compact line form), preview, generate, regenerate, detach; plugin install and approval (Never). This is the generators surface | plugin runtime |
 | `checks` | issues, ERC, production check, waivers | — |
 | `fab` | fabrication output, schematic PDF, firmware export | files |
 | `model3d` | exact export, board interface, assembly link, part files | Solidcraft engine, files |
@@ -211,7 +211,7 @@ Grant { mode, folders, modules: {module → highest class}, limits: {changes per
 - A changed bundle is another hash and asks again, showing what changed against the approved plugin of the same id (version, needs added or dropped).
 - Shipped plugins are approved by the build: `library/plugins/` committed with each module's SHA-256 in its manifest, which `cargo xtask` checks against a clean build of the source, as shipped generator modules are.
 - Approvals, revocation and the grant itself are Never-class: no agent and no plugin can raise its own permissions or another's.
-- A plugin with only effect-`none` capabilities cannot do anything but compute, so approving it is about trusting its *output*: its grant is empty. A project's embedded plugin is checked on open under the existing rules, and a mismatch refuses the project as today; GP9 adds that an unapproved third-party bundle is not run on open.
+- A plugin with only effect-`none` capabilities cannot do anything but compute, so approving it is about trusting its *output*: its grant is empty. A project's embedded plugin is checked on open under the existing rules, and a mismatch refuses the project as today; an unapproved third-party bundle is not run on open.
 - Signatures are not part of this design. The file-format plan defines the digest a detached signature would cover; add signing when an online library exists.
 
 ### 2.4 Semantics
@@ -361,9 +361,9 @@ No WASI, clock, random numbers, files, network or threads. A plugin cannot name 
 
 Every invoke is therefore a function of (plugin, parameters, document at R), with no R for effect `none`. It can be recorded, replayed and tested with goldens. There is no reentrancy.
 
-**A plugin is a bundle.** The unit that is identified, approved and embedded is the bundle of the part-generation plan: a manifest (`generator.json` today), the module, and the `.solidcraft` part files it may name by hash. The bundle hash covers all three. The module only names asset hashes fixed at build, so naming a part file is not an effect.
+**A plugin is a bundle.** The unit that is identified, approved and embedded is the generator bundle: a manifest (`generator.json` today), the module, and the `.solidcraft` part files it may name by hash. The bundle hash covers all three. The module only names asset hashes fixed at build, so naming a part file is not an effect.
 
-**Identity** (part-generation B4, as agreed with that planner): a part's key is (plugin id, params hash), with the scope inside the hash and the hash taken over the parameters as recorded, so a parameter a newer version adds does not change the key. The plugin's version distinguishes revisions of that one lineage: the same parameters on the same version change nothing, and a newer version regenerates the part as a newer revision through the ordinary reviewed update. The result hash is the integrity check. The bundle hash is provenance and what a person approves.
+**Identity:** a part's key is (plugin id, params hash), with the scope inside the hash and the hash taken over the parameters as recorded, so a parameter a newer version adds does not change the key. The plugin's version distinguishes revisions of that one lineage: the same parameters on the same version change nothing, and a newer version regenerates the part as a newer revision through the ordinary reviewed update. The result hash is the integrity check. The bundle hash is provenance and what a person approves.
 
 **Resource limits**, one table by effect. The `none` column is today's measured setting; the other is a target to be set from measurement in S9.
 
@@ -378,9 +378,9 @@ Every invoke is therefore a function of (plugin, parameters, document at R), wit
 | Artifacts | — | 64 MiB in total |
 
 **Determinism rules.**
-- Hashed results are canonical JSON: keys sorted by UTF-8 bytes, no whitespace, integers only, NFC, absent optionals omitted; lengths in nanometres, angles in millidegrees. One codec, in the ABI crate, which the file format also uses for its hashes (file lines themselves are plain JSON in declared field order, file-format plan 8.5). The crate is moved or renamed only when part-generation B re-locks every module, or with a check that the rebuilt shipped module is byte-identical (the file-format planner's caveat: today a part key is the module hash).
-- `generate-part` output is final integer geometry; the host does no floating-point expansion (part-generation B3).
-- A plugin that offers any hashed capability declares `deterministic: true`, and the host validates it under the strict feature set. I recommend that this set refuse float opcodes (wasmi `Config::floats(false)`, present in the pinned 2.0.0). WebAssembly float arithmetic is deterministic except for NaN bit patterns, so the risk today is small; the refusal makes it structural. It costs more than B3 alone: the chip module uses floats today, so it and the SDK would be ported to fixed point (decision 4). GP9's "nondeterministic modules rejected" is this validation plus running each golden case twice.
+- Hashed results are canonical JSON: keys sorted by UTF-8 bytes, no whitespace, integers only, NFC, absent optionals omitted; lengths in nanometres, angles in millidegrees. One codec, in the ABI crate, which the file format also uses for its hashes (file lines themselves are plain JSON in declared field order, file-format plan 8.5). The crate is moved or renamed only with a check that the rebuilt shipped modules are byte-identical.
+- `generate-part` output is final integer geometry; the host does no floating-point expansion.
+- A plugin that offers any hashed capability declares `deterministic: true`, and the host validates it under the strict feature set. I recommend that this set refuse float opcodes (wasmi `Config::floats(false)`, present in the pinned 2.0.0). WebAssembly float arithmetic is deterministic except for NaN bit patterns, so the risk today is small; the refusal makes it structural. It costs more: the chip module uses floats today, so it and the SDK would be ported to fixed point (decision 4). Rejecting nondeterministic modules is this validation plus running each golden case twice.
 - `read` and `edit` invokes exchange the command wire form (2.8). They are not hashed, and stay reproducible because every input is a reply on a frozen fork. Only `pure` and `revision` entries are callable.
 
 **Versioning.**
@@ -433,7 +433,7 @@ One small addition: the length text accepts `nm`, so a plugin can send exact int
 | `Policy`, `Caller` | `Grant`, `Principal` |
 | `apps/sparksmith/src/commands.rs` actions `AppCommand`, `PcbView`, `View3d`, `PcbLayer` | `view.*` and `files.*` entries. The registry keeps what is the UI's alone (chords, contexts, icons, in-gesture keys), keyed by entry name |
 | Generator ABI's own description and refusal shape | The one plugin description (a `generate-part` capability with effect `none`) and the one error shape |
-| The Rhai pad script (`library.generate_pads`) | Deleted by the part-generation plan. Rhai stays an expression language only, so there is one sandbox for code: WASM |
+| The Rhai pad script (`library.generate_pads`) | Deleted. Rhai stays an expression language only, so there is one sandbox for code: WASM |
 | Process-wide standards, looks, starter data, materials | An explicit `Context` owned by the surface's session (critique §1). Required before several projects in one process can differ |
 
 ---
@@ -758,28 +758,20 @@ At most five agents at once. Nothing runs the desktop app on the host (VM only).
 | **S5** | The window | `WindowHost`; `view.context`, `view.select`, `view.open` (workspace, sheet, 2D/3D), `view.layers`, `view.camera`, `view.screenshot`; `files.new`/`open`/`save` through the window's prompts; the UI's own view commands call the same functions; `show` verb | In the VM, over the live channel: select R5 by id and the inspector shows R5; frame a net in 3D; none of these changes the revision, adds an undo step or rebuilds geometry (asserted by counters). Refused during a drag. Headless: `host.unavailable`. The palette and the agent run `view.open` through one function | 12–18 | S2 |
 | **S6** | Built-in agent on the surface | `crates/assist` calls `Surface::call` with the verb definitions; `assist.*` entries; profiles as data; leniency in the verb reader; the tool list deleted | Tool definitions equal MCP's bytes (test). The 16 recordings and the TLV replays reach the same grades. A profile test shows the datasheet run cannot reach publish, files or settings. `assist/tools.rs` has no `definitions` | 10–16 | S3 |
 | **S7** | CLI | `sparksmith call`, `find`, `describe`; `stdio` takes the envelope and verb lines and emits event lines; old subcommands become aliases or go | `sparksmith call fab.export '{"output": …}'` writes the same files as `sparksmith fab`. `sparksmith describe layout` prints the module's lines. The shell completions come from the catalog | 4–6 | S2 |
-| **S8** | One plugin ABI | One description format with capabilities, effects and `needs`; the four exports renamed; the null host for effect `none`; the one error shape; `Principal::Plugin`; approve by bundle hash, revoke, per-user store (the store GP9's UI uses); the chip generator is the first plugin | Done inside the part-generation plan's B slices, so modules re-lock once. A module that calls `call` during `generate-part` gets `plugin.pure` and gives one result hash natively, under wasmi and under the probe. A plugin declaring only effect `none` with any import is refused. A changed bundle asks again and shows what changed. A plugin needing `layout 2` on `layout 1` is refused before it runs, naming both. The chip goldens change only by the planned B changes | 8–12 | S1; with B1–B4 |
+| **S8** | One plugin ABI | One description format with capabilities, effects and `needs`; the four exports renamed; the null host for effect `none`; the one error shape; `Principal::Plugin`; approve by bundle hash, revoke, per-user store (the store the approval UI uses); the chip generator is the first plugin | A module that calls `call` during `generate-part` gets `plugin.pure` and gives one result hash natively, under wasmi and under the probe. A plugin declaring only effect `none` with any import is refused. A changed bundle asks again and shows what changed. A plugin needing `layout 2` on `layout 1` is refused before it runs, naming both. | 8–12 | S1 |
 | **S9a** | Effect `read` | The `call` import answered on a frozen fork; `pure` and `revision` queries only; artifacts saved through Ask; SDK; one shipped example (a BOM format) | Runs within fuel, memory and wall limits. Same module, parameters and revision give the same result natively, under wasmi and under the wasm32 probe. A call to a `world` entry or outside the grant is refused and the run ends cleanly. Limits set from measurement and recorded | 10–14 | S8, S2 |
 | **S9b** | Effect `edit` | Operations on the fork; impact preview; one apply at R; stale handling; palette and form from the description; one shipped example (via stitching) | One undo step named after the command. A trap, fuel exhaustion and Stop each leave the document byte-identical. An edit during the run makes it stale and changes nothing. A recorded run replays to the same operations | 10–16 | S9a, S4 |
 | **S10** | Evidence | Token and byte budgets per module as tests; a small local model and Claude Code each complete a scripted task through the verbs including one `show`; property tests and a fuzzer on the envelope decoder and the plugin host; generated per-module reference | A measured table in the repository replaces every "target" in this document. The founder's small-model requirement is met or the gap is named | 5–8 | S3–S6 |
 
-**Totals.** S0–S7 and S10: about 82–124 hours, plus S2c at 6–10. S8–S9: about 28–42 (S8 is 8–12 of it and belongs with part-generation B; porting the chip module to fixed point, if decision 4 is yes, is extra). The MCP follow-ups that stay as designed in mcp-surface, now built on the new server: P3 results and links, P4 catalog resources, skills and prompts, P5 elicitation, P11 completions, P12 review views: about 22–32 by that document's estimates. P6–P8 are covered by S4.
+**Totals.** S0–S7 and S10: about 82–124 hours, plus S2c at 6–10. S8–S9: about 28–42 (S8 is 8–12 of it; porting the chip module to fixed point, if decision 4 is yes, is extra). The MCP follow-ups that stay as designed in mcp-surface, now built on the new server: P3 results and links, P4 catalog resources, skills and prompts, P5 elicitation, P11 completions, P12 review views: about 22–32 by that document's estimates. P6–P8 are covered by S4.
 
-### 5.2 Order, with the other plans
-
-| Round | This plan | Part generation | File format | Notes |
-|---|---|---|---|---|
-| 1 | **S0** | A1, A2 + A3 (GP2 redirected to part files), merge the regen branch | F0 version discipline | Contract first. Three or four agents |
-| 2 | **S1**, **S2b** | B1–B4 (close the ABI), with **S8** riding B4 | F1 contract | S1 touches the command enums' declarations only; B touches the ABI crate and `generated`. The ABI crate is shared by S0/S8 and B: one agent owns it per round |
-| 3 | **S2**, then **S3** and **S5** side by side, **S7** | — | F2 onward, between B and C as that plan asks | The cut-over lands here. It unblocks D3 (GP7) |
-| 4 | **S4**, **S6**; P3–P5 | C: the families (GP3, GP4), five wide for three rounds | — | C wants all five agents with nothing else on library code. S4 and S6 do not touch library code, but the five-agent limit holds: either they finish before C starts, or C runs four wide |
-| 5 | **S10** | D1, D2 (GP5: the host switch, calling `generators.*`; in-code templates deleted), D3 (GP7), GP6 (the `module` authoring start and the authored USB connector part) | — | GP7 becomes entries, not tools: list, describe, preview, generate, regenerate and detach are `generators.*` entries after S3, and its "compact describe for small models" is the line form of 2.2 |
-| 6 | **S9a**, **S9b** | GP8 (expansions in a cache), GP9 (third-party plugins: check and test CLI, author guide, approve-by-hash UI on S8's store, no run on open until approved, nondeterministic modules rejected) | — | S9 only after S10's evidence. GP9 and S9 share the approval dialog and the author guide: one guide for one ABI. Nothing is announced before B is closed |
+### 5.2 Order
+The slices run in the order of 5.1; S9 comes after S10's evidence.
 
 **Interactions to hold to:**
 - **Units (U3).** Independent. The command wire keeps mm and unit text; S1's line vocabulary says `len`. Add `nm` as a length unit in S0.
 - **File format.** Nothing here changes a stored byte except through S8's provenance fields (plugin id, version, bundle and module hash, ABI number), which belong to B and bump the file version under F0's rule. Approvals, grants and caches are per-user and outside the tree.
-- **The canonical codec stays in the ABI crate** and is not moved, so module bytes change only when B re-locks them.
+- **The canonical codec stays in the ABI crate** and is not moved, so module bytes do not change.
 - **Check on open:** refusing a project on a mismatch stays, as the founder decided. This design does not need open-with-flag.
 
 ---
@@ -793,13 +785,13 @@ At most five agents at once. Nothing runs the desktop app on the host (VM only).
 | **The cut-over lands late and blocks the rest** | S0, S1, S2b, S5's host trait and S8 do not depend on it. S3 is scoped to "serve the verbs and delete", with elicitation, links and skills as follow-ups |
 | **The window moving under the person's hands** | Busy refusal, the person's input always wins, a preference for remote agents, no raw input |
 | **Plugins as an attack surface** | Three imports; no paths, clock, network or window; approval per hash; grants per user; nothing but generators runs from a project; fuel, memory, wall time and call counts; the host fuzzed in S10 |
-| **Freezing an ABI too early** | Every break is visible in `surface.lock` and the major; the plugin slices come last; nothing is announced before the part-generation plan's B is closed and S9b has a second real example |
+| **Freezing an ABI too early** | Every break is visible in `surface.lock` and the major; the plugin slices come last; nothing is announced before the ABI is closed and S9b has a second real example |
 | **Fork cost on large boards**, paid by every dry run and plugin run | `fork()` shares sections (code). Measure on the dense benchmark board in S9a. The per-operation whole-document followers (critique §1) are the real cost and are not this plan's to fix |
 | **Renaming 260 wire names by accident** | S1 assigns modules without renaming; a rename is a major bump that the gate forces to be deliberate. Recordings carry the catalog digest and are refused clearly against another |
 | **Velocity and overlap with other agents** (more than thirty active in this session against a limit of five) | S0 is a contract slice; the ABI crate and `session.rs` each have one owner per round |
 | **`rmcp` and protocol churn** | The surface does not depend on MCP; only S3's carrier does, pinned exactly |
 
-**Not verified.** I did not build or run anything. The count of UI commands (about 50) is from a `grep`. The definitions of GP6 to GP9 used here are the lead's, from the original generator plan; they are not in the repository. `Config::floats` exists in the pinned wasmi 2.0.0 (read in its source); that every module the SDK builds stays free of float opcodes once the SDK avoids them is not checked. The entries `layout.track` and `project.issues {new_since}` and the parameter shapes in section 3's examples are illustrative, not read from the enums.
+**Not verified.** I did not build or run anything. The count of UI commands (about 50) is from a `grep`. `Config::floats` exists in the pinned wasmi 2.0.0 (read in its source); that every module the SDK builds stays free of float opcodes once the SDK avoids them is not checked. The entries `layout.track` and `project.issues {new_since}` and the parameter shapes in section 3's examples are illustrative, not read from the enums.
 
 ---
 
@@ -810,7 +802,7 @@ Each with my recommendation.
 1. **A sixth verb, `show`, for the window.** *Recommendation: yes.* Selection and camera are neither reads, edits nor file actions, and a verb per class keeps every tool's annotations true. The alternative is to steer the window through `act` and explain the exception in its description.
 2. **The built-in agent calls the surface in process, not through an MCP loopback.** This changes the approved mcp-surface §4 for the endpoint loop only. *Recommendation: yes*, with a test that its tool definitions are MCP's bytes. ACP agents still connect over MCP.
 3. **One plugin ABI, with purity as a capability's declared effect (`none`, `read`, `edit`) enforced by the host per call.** *Recommendation: yes, and no second kind.* I found no need that requires one (2.6). A generator is a plugin whose `generate-part` has effect `none`; one plugin may offer a part and a command.
-4. **Refuse float opcodes in plugins that offer hashed results.** *Recommendation: yes, beside the part-generation plan's B3*, knowing it costs more than B3's 6–10 hours: the chip module and the SDK are ported to fixed point (my guess is 6–10 hours more; not measured). If that proves costly, keep floats and rely on integer-only output; the ABI is the same either way.
+4. **Refuse float opcodes in plugins that offer hashed results.** *Recommendation: yes*, knowing it ports the chip module and the SDK to fixed point (my guess is 6–10 hours; not measured). If that proves costly, keep floats and rely on integer-only output; the ABI is the same either way.
 5. **A capability with effect `edit` works on a fork; the host applies** as one undo step. *Recommendation: yes.* The cost is that a plugin cannot interleave with the person.
 6. **When to make the `call` import answer (S8 with B, then S9).** *Recommendation: S8 now with B, because it settles the one description format and the exports while modules re-lock anyway, so the ABI is never two things; S9, which only makes the `read` and `edit` effects answer, after S10 shows the surface works for agents.* An agent already covers much of what a command plugin does, with no ABI to maintain.
 7. **Custom JSON ABI on wasmi, not the component model.** *Recommendation: yes*, with a generated WIT file later if authors ask. Solidcraft's planned `run(command, args)` import has the same shape, so the two can converge.
@@ -820,4 +812,4 @@ Each with my recommendation.
 11. **Where approvals and installed plugins live.** *Recommendation: per user, outside any project; generators embedded in projects as today; no other plugin ever runs from a project.*
 12. **Module versions start at `1.0` at the cut-over, with `surface.lock` enforced.** *Recommendation: yes.* Breaking stays free until the first release, but every break is numbered.
 13. **Update the hard rule in AGENTS.md** from "one typed command engine shared by UI, CLI and MCP" to name the built-in agent and plugins, and add `cargo xtask surface` to the gates, in the slice that builds each (S1, S2, S6, S8).
-14. **Later, its own decision: mount Solidcraft's command catalog as a module** (`solidcraft.*`, discovered at run time from its registry) so an agent can author a part file through the same verbs. The part-generation plan raises the same route (its decision 6). *Recommendation: after D, 6–10 hours, only with Solidcraft unchanged.*
+14. **Later, its own decision: mount Solidcraft's command catalog as a module** (`solidcraft.*`, discovered at run time from its registry) so an agent can author a part file through the same verbs. *Recommendation: after D, 6–10 hours, only with Solidcraft unchanged.*

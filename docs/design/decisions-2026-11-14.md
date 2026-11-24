@@ -1,6 +1,6 @@
 # Founder decisions, 14 November 2026
 
-These decisions apply to the three plans in this folder: [file formats](file-format-plan.md), part generation and [extension ABI](extension-abi-design.md). Where a plan's text differs, this page wins.
+These decisions apply to the plans in this folder, [file formats](file-format-plan.md) and [extension ABI](extension-abi-design.md), and to part generation ([generator plugins](../generator-plugins.md)). Where a plan's text differs, this page wins.
 
 ## File formats
 - **Container:** a project is a folder named `<name>.sparksmith`, registered as a macOS package. "Share as single file" writes a ZIP of the same tree with the same extension.
@@ -18,7 +18,7 @@ These decisions apply to the three plans in this folder: [file formats](file-for
 - A generated part that fails its check makes the project refuse to open.
 
 ## Part generation
-- The plan is approved: one mechanism per job.
+- One mechanism per job.
   - WASM generators make whole parts.
   - A 3D body is always a `.solidcraft` part file with values. A generator bundle (manifest, module, part files) is identified by one hash.
   - Footprints drawn by hand use sketch footprints.

@@ -1,5 +1,4 @@
-//! The shipped generators for the window (slice D1 of the part-generation
-//! plan): what `library.generators` describes, read once off the UI thread,
+//! The shipped generators for the window: what `library.generators` describes, read once off the UI thread,
 //! and parts made with `library.generate_part`'s own code, also off the UI
 //! thread. The catalog rows, the template gallery, the Place palette's
 //! generic parts and the part editor's package panel all read the same

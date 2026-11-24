@@ -482,7 +482,7 @@ impl GenericFamily {
 pub struct FamilyPatterns {
     pub family: GenericFamily,
     /// The generator that makes this family's parts: its description's
-    /// `id` (slice D1 of the part-generation plan).
+    /// `id`.
     pub generator: String,
     /// The category path (`categories.json`) a part of the family is
     /// filed under.

@@ -4,8 +4,7 @@
 //! [`remap`] replaces with the lineages a project reserves, and its 3D
 //! model, a generator's part file at values with what the host evaluated
 //! them to. The part file's bytes come from the shipped generator bundles
-//! by hash. Made once from the retired in-code templates through the
-//! format 5 converter (part-generation slice D2); the host reads the file
+//! by hash. The host reads the file
 //! into its context.
 use super::model3d::ModelDefinition;
 use super::package_model::{PartDerived, PartValue};

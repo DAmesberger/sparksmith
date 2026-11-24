@@ -1,6 +1,5 @@
 //! Package rows: revisioned library lineages of kind `PackageRow`, each a
-//! cited, searchable set of values for one generator (format 5,
-//! part-generation slice D2). A row names its generator by the module's
+//! cited, searchable set of values for one generator (format 5). A row names its generator by the module's
 //! description id and gives parameter values as the generator ABI carries
 //! them (lengths in nanometres, angles in millidegrees, counts, choice keys
 //! and switches); `library.generate` makes the part from them. Aliases are

@@ -166,7 +166,7 @@ pub struct PartDerived {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub datums: Vec<super::datum::PackageDatum>,
     /// The part file's lead bodies and the package terminal each belongs
-    /// to (part-generation slice B2): a body of a lead material is bound to
+    /// to: a body of a lead material is bound to
     /// the terminal whose lead contact (a generated package's contact, or
     /// the centre of a pad of the package's footprint) lies under it, so
     /// it highlights and picks with that terminal's net. Found by the host

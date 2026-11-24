@@ -974,7 +974,7 @@ impl Request {
                 CheckPartFile,
                 "Evaluate a SolidCraft part file at given parameter values and report its convention check.",
                 concat!(
-                    "Evaluate a SolidCraft part file (path to a .solidcraft design, or builtin: a listed name) at literal values for some of its user parameters ({\"can_height\": {\"mm\": 2.465}}; units mm, deg, count, number) and report the convention check (docs/part-templates.md §11): parameters and values, bodies with the ",
+                    "Evaluate a SolidCraft part file (path to a .solidcraft design, or builtin: a listed name) at literal values for some of its user parameters ({\"can_height\": {\"mm\": 2.465}}; units mm, deg, count, number) and report the convention check (docs/part-files.md): parameters and values, bodies with the ",
                     sparksmith_core::product_name!(),
                     " material each appearance names, marking surfaces (marking-<name> planes sized by marking_<name>_u/_v), package datums (opening-<name> planes sized by <datum>_u/_v, optional <datum>_r, _depth, _clearance, normal pointing out along the plug's way in; axis-<name> axes, optional <datum>_d), pin1, bounds, timing and part_file.* findings (read, structure, value, feature, seating, material, marking, datum block; origin, no_marking, import, slow advise). Lists the material appearance names. Not a document change."
                 ),
