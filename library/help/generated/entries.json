@@ -569,7 +569,7 @@
       "module": "checks",
       "class": "ask",
       "entry_kind": "action",
-      "schema_digest": "6426510821e7b240",
+      "schema_digest": "5b7d6a06dcc1e386",
       "examples": []
     }
   },
@@ -2927,7 +2927,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "b8069a404da8f09c",
+      "schema_digest": "57a806c81edf04ea",
       "examples": []
     }
   },
@@ -2941,7 +2941,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "327a67068d3ad2a1",
+      "schema_digest": "7cd52e3ee4dc4c28",
       "examples": []
     }
   },
