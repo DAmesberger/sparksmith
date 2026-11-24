@@ -54,7 +54,6 @@ impl Operator {
         profile.output.per_request = self.max_output_per_request;
         profile.output.after_cut = self.max_output_per_request;
         profile.capabilities.server_fallback = false;
-        profile.request_timeout = Duration::from_secs(self.seconds);
         profile.check()?;
         let endpoint = Endpoint::parse(model::profile::ANTHROPIC_BASE_URL)?;
         let key = KeySource::Env("ANTHROPIC_API_KEY".into()).resolve(&endpoint)?;
@@ -148,7 +147,7 @@ impl Wire for ReceiptWire {
         path: &str,
         headers: &[(&str, &str)],
         body: &Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
     ) -> sparksmith_assist::Result<Value> {
         if path != "/v1/messages" || body.get("fallbacks").is_some() || body["model"] != self.model
         {
@@ -168,7 +167,7 @@ impl Wire for ReceiptWire {
         _: &str,
         _: &[(&str, &str)],
         _: &Value,
-        _: Duration,
+        _: Option<Duration>,
         _: &mut dyn FnMut(SseEvent) -> sparksmith_assist::Result<bool>,
     ) -> sparksmith_assist::Result<Streamed> {
         Err(Error::Config(
@@ -305,7 +304,7 @@ mod tests {
             tools: &[],
             messages: &[],
             max_output_tokens: 3,
-            timeout: Duration::from_secs(2),
+            timeout: None,
         };
         assert!(paid.send(&request).is_err());
         observe.join().map_err(|_| "loopback peer failed")??;

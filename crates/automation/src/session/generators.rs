@@ -619,7 +619,6 @@ pub fn window_runtime(wake: impl Fn() + Send + Sync + 'static) -> Arc<Deferred> 
     ))
 }
 
-pub use sparksmith_generators::cancel::Cancel;
 pub use sparksmith_generators::deferred::Deferred;
 
 /// The generator runtime of a session whose engine has none

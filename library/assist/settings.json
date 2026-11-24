@@ -20,8 +20,7 @@
         "name": "Anthropic",
         "provider": "anthropic",
         "base_url": "https://api.anthropic.com",
-        "model": "",
-        "timeout_minutes": 30
+        "model": ""
       }
     },
     {
@@ -31,7 +30,6 @@
         "provider": "openai",
         "base_url": "https://api.openai.com/v1",
         "model": "",
-        "timeout_minutes": 30,
         "capabilities": {
           "tool_calling": true,
           "vision": false,
@@ -47,7 +45,6 @@
         "provider": "openai",
         "base_url": "http://localhost:11434/v1",
         "model": "",
-        "timeout_minutes": 90,
         "capabilities": {
           "tool_calling": true,
           "vision": false,
@@ -66,7 +63,7 @@
   "sources": {
     "permissions": "The founder's defaults for agents (docs/design/extension-abi-design.md): edits run inside the reviewable turn, which undoes as one step; files and publishing to a library ask; the built-in chat moves the view without asking (founder, 14 November: view steering is on for the built-in agent). Publishing a part into the open project never asks (founder, 16 November). Each ask offers Allow once, Allow for this session, Always allow and Deny.",
     "limits_start": "Limits are unset by default and the shipped workflows declare no budget, so a run goes on until it is done (founder, 16, 22 and 24 November). These are only the values the limits start from when the person turns them on: docs/assistant-panel.md §6.3, 40 model requests, 200 000 output tokens and 4 000 000 tokens as approved on 9 November, 45 minutes as approved in Q7. There are no per-turn caps on edits or calls.",
-    "endpoint_presets": "The choices of Settings › AI › Connection, in this order, titled in plain words (founder, 16 November: no jargon on the first screen). Anthropic's API base URL; OpenAI's API base URL, https://api.openai.com/v1 (OpenAI's API reference); Ollama's OpenAI-compatible endpoint on its default port 11434 (the person changes it for LM Studio, llama-server or another server under Advanced). OpenAI names no model here: its model ids change often, so the person types the one they use. The context is a starting value the person corrects to what their server gives the model; tool calling is declared on, vision and PDF reading off until the person declares them. Timeouts: 30 minutes for a hosted model; 90 for a local one, which at 17 tokens a second takes 31 minutes for 32 000 output tokens.",
+    "endpoint_presets": "The choices of Settings › AI › Connection, in this order, titled in plain words (founder, 16 November: no jargon on the first screen). Anthropic's API base URL; OpenAI's API base URL, https://api.openai.com/v1 (OpenAI's API reference); Ollama's OpenAI-compatible endpoint on its default port 11434 (the person changes it for LM Studio, llama-server or another server under Advanced). OpenAI names no model here: its model ids change often, so the person types the one they use. The context is a starting value the person corrects to what their server gives the model; tool calling is declared on, vision and PDF reading off until the person declares them.",
     "agent_presets": "The ACP launch commands each agent documents: claude-agent-acp, codex-acp, gemini --acp, opencode acp. Titles name the agent only; the command shows under Advanced."
   }
 }

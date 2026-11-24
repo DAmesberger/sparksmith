@@ -47,11 +47,6 @@ impl Allowance {
             u32::try_from(left).map_or(limit, |left| limit.min(left))
         })
     }
-
-    /// `timeout`, or the time left when that is less.
-    pub fn timeout_within(&self, timeout: Duration) -> Duration {
-        self.duration.map_or(timeout, |left| timeout.min(left))
-    }
 }
 
 pub(crate) struct Received {
@@ -177,7 +172,7 @@ impl Driver<'_> {
             tools: request.tools,
             messages: request.messages,
             max_output_tokens: request.max_output_tokens,
-            timeout: allowance.timeout_within(request.timeout),
+            timeout: allowance.duration,
         };
         let n = self.tally.requests.saturating_add(1);
         (self.events)(Event::Request {
@@ -293,7 +288,7 @@ mod tests {
         }
         fn send(&mut self, request: &ModelRequest<'_>) -> crate::Result<ModelReply> {
             self.calls += 1;
-            assert!(request.timeout <= Duration::from_secs(2));
+            assert!(request.timeout.is_some_and(|t| t <= Duration::from_secs(2)));
             if self.fail {
                 return Err(crate::Error::Protocol("scripted failure".into()));
             }
@@ -337,7 +332,7 @@ mod tests {
                 tools: &[],
                 messages: &[],
                 max_output_tokens: 100,
-                timeout: Duration::from_secs(60),
+                timeout: None,
             };
             assert_eq!(driver.send(&request, 10, false).is_err(), fail);
             assert!(matches!(
@@ -387,7 +382,7 @@ mod tests {
                 tools: &[],
                 messages: &[],
                 max_output_tokens: 10,
-                timeout: Duration::from_secs(2),
+                timeout: None,
             };
             assert!(driver.send(&request, 10, false).is_err());
             assert_eq!(model.calls, 0);

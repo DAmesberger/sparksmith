@@ -25,9 +25,10 @@ use sparksmith_assist::model::{Endpoint, KeySource, Secret, keys};
 use sparksmith_assist::profile as run_profile;
 use sparksmith_assist::settings::{
     self as stored, AgentSetting, AssistSettings, CONTEXT_RANGE, EndpointSetting, OUTPUT_RANGE,
-    ProfileEntry, ProfileSource, Rule, Shipped, TIMEOUT_RANGE, Wire,
+    ProfileEntry, ProfileSource, Rule, Shipped, Wire,
 };
 use sparksmith_assist::workflow::{self, HostCatalog, Listed, Source, load};
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_ui::{ui_kit, ui_kit::Button};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -158,7 +159,7 @@ enum Choice {
 /// Test connection's state.
 enum Check {
     Idle,
-    Running(std::sync::mpsc::Receiver<Result<String, String>>),
+    Running(std::sync::mpsc::Receiver<Result<String, String>>, Cancel),
     Passed(String),
     Failed(String),
 }
@@ -277,7 +278,6 @@ impl Quick {
                 provider: Wire::Anthropic,
                 base_url: String::new(),
                 model: String::new(),
-                timeout_minutes: *TIMEOUT_RANGE.start(),
                 capabilities: None,
             });
         Self {
@@ -819,9 +819,10 @@ fn model_choice(
             .connection
             .as_deref()
             .is_none_or(|c| c == quick.draft.name);
-    let running = matches!(quick.check, Check::Running(_));
+    let running = matches!(quick.check, Check::Running(..));
     let mut save = false;
     let mut test = false;
+    let mut stop = false;
     let mut keep = false;
     kit::actions(ui, |ui| {
         let response = kit::primary(ui, "Save", missing.is_none() && !active);
@@ -836,6 +837,9 @@ fn model_choice(
         )
         .on_hover_text(TEST_TIP);
         test = response.clicked();
+        if running && ui_kit::button(ui, "Stop", Button::Normal).clicked() {
+            stop = true;
+        }
         if quick.replacing && ui_kit::button(ui, "Keep the stored key", Button::Normal).clicked() {
             keep = true;
         }
@@ -850,10 +854,14 @@ fn model_choice(
         quick.key.clear();
         quick.show = false;
     }
+    if stop && let Check::Running(_, cancel) = &quick.check {
+        cancel.set();
+        quick.check = Check::Idle;
+    }
     if test {
         quick.check = start_check(ui.ctx(), checker, &quick.draft, &quick.key);
     }
-    if let Check::Running(rx) = &quick.check {
+    if let Check::Running(rx, _) = &quick.check {
         match rx.try_recv() {
             Ok(Ok(model)) => quick.check = Check::Passed(model),
             Ok(Err(why)) => quick.check = Check::Failed(why),
@@ -865,8 +873,8 @@ fn model_choice(
     }
     match &quick.check {
         Check::Idle => {}
-        Check::Running(_) => {
-            kit::note(ui, "Testing…");
+        Check::Running(..) => {
+            kit::note(ui, "Waiting for the model's answer…");
         }
         Check::Passed(model) => {
             kit::status(
@@ -960,13 +968,15 @@ fn start_check(ctx: &egui::Context, checker: Checker, draft: &EndpointSetting, k
     let setting = draft.clone();
     let key = Secret::new(key);
     let wake = ctx.clone();
+    let cancel = Cancel::default();
+    let call = cancel.clone();
     match std::thread::Builder::new()
         .name("settings-ai-check".into())
         .spawn(move || {
-            let _ = tx.send(checker(&setting, key));
+            let _ = tx.send(call.scope(|| checker(&setting, key)));
             wake.request_repaint();
         }) {
-        Ok(_) => Check::Running(rx),
+        Ok(_) => Check::Running(rx, cancel),
         Err(why) => Check::Failed(why.to_string()),
     }
 }
@@ -1217,13 +1227,6 @@ fn endpoint_form(
     {
         d.harness_profile = (!harness.is_empty()).then_some(harness);
     }
-    number_u32(
-        ui,
-        "Wait for a reply",
-        &mut d.timeout_minutes,
-        "min",
-        (*TIMEOUT_RANGE.start(), *TIMEOUT_RANGE.end()),
-    );
     if let Some(c) = &mut d.capabilities {
         number_u64(
             ui,

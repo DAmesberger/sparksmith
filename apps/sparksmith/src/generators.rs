@@ -12,9 +12,10 @@
 //! every other command.
 use crate::document_version::DocumentVersion;
 use sparksmith_automation::Session;
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_automation::session::generators::v1;
 use sparksmith_automation::session::generators::{
-    Cancel, GeneratePartParams, GeneratorSummary, is_transient,
+    GeneratePartParams, GeneratorSummary, is_transient,
 };
 use sparksmith_core::catalog::generic::GenericValue;
 use sparksmith_core::catalog::generic::generators::{self as catalog, GeneratorCandidate};

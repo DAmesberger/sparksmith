@@ -171,8 +171,9 @@ pub struct ModelRequest<'a> {
     pub tools: &'a [ToolSpec],
     pub messages: &'a [Message],
     pub max_output_tokens: u32,
-    /// Longest wait for this response.
-    pub timeout: Duration,
+    /// The run's time left, when the person limits it; none: the reply is
+    /// waited for until it is there or the call is cancelled.
+    pub timeout: Option<Duration>,
 }
 
 impl ModelRequest<'_> {
@@ -301,8 +302,6 @@ pub fn connect_with_key(
 
 /// Output tokens [`check_connection`]'s one request may take.
 pub const CHECK_OUTPUT_TOKENS: u32 = 16;
-/// Longest wait for [`check_connection`]'s reply.
-const CHECK_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Check that `endpoint` answers as `profile` with `key`: one short request
 /// (no tools, no reasoning, at most [`CHECK_OUTPUT_TOKENS`] output tokens),
@@ -343,7 +342,7 @@ fn check_on(backend: &mut dyn ModelBackend) -> Result<String> {
         tools: &[],
         messages: &messages,
         max_output_tokens: CHECK_OUTPUT_TOKENS,
-        timeout: CHECK_TIMEOUT,
+        timeout: None,
     })?;
     Ok(reply.model)
 }

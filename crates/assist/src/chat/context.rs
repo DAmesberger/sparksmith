@@ -22,7 +22,6 @@
 //!   ([`summarise`]).
 use crate::model::{Message, ModelReply, ModelRequest, Part, Role, StopReason};
 use serde_json::{Map, Value};
-use std::time::Duration;
 
 /// Marks a cleared reply; never cleared again.
 pub const STUB: &str = "[Cleared";
@@ -769,7 +768,6 @@ pub fn summarise(
     history: &mut Vec<Message>,
     prompt: &str,
     max_output_tokens: u32,
-    timeout: Duration,
     send: impl FnOnce(&ModelRequest<'_>) -> Option<ModelReply>,
 ) -> Option<(usize, String)> {
     let cut = latest_turn(history).filter(|cut| *cut > 0)?;
@@ -812,7 +810,7 @@ pub fn summarise(
         tools: &[],
         messages: &messages,
         max_output_tokens,
-        timeout,
+        timeout: None,
     };
     let reply = send(&request)?;
     if reply.stop != StopReason::EndTurn {

@@ -3,7 +3,7 @@
 //! Dialogs stay in the app. Reads, writes, native export and recovery run outside
 //! the UI thread; every result retains its document epoch and captured content.
 use crate::kit::severity::Level;
-use sparksmith_automation::session::generators::Cancel;
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_automation::{FileChange, HostFile};
 use sparksmith_core::{Document, Engine, FirstSave, Project, format::EditorFile};
 use sparksmith_io::recovery::{self, RecoveryEntry, RecoveryRecord, RecoveryStore, Snapshot};

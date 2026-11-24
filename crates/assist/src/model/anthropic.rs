@@ -22,14 +22,11 @@ use crate::usage::Usage;
 use crate::{Error, Result};
 use serde_json::{Value, json};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 /// The API version every request names.
 pub const API_VERSION: &str = "2026-10-21";
 /// The beta that turns on server-side refusal fallback.
 pub const FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
-/// Longest wait for a token count.
-const COUNT_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The Messages backend over a wire.
 pub struct AnthropicBackend<W> {
@@ -533,7 +530,7 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
             "/v1/messages/count_tokens",
             &[("anthropic-version", API_VERSION)],
             &prompt,
-            COUNT_TIMEOUT,
+            request.timeout,
         )?;
         Ok(reply["input_tokens"].as_u64())
     }
@@ -633,7 +630,7 @@ mod tests {
             tools: &tools,
             messages: &messages,
             max_output_tokens: 32_000,
-            timeout: Duration::from_secs(1),
+            timeout: None,
         };
         let expected = json!({
             "model": "claude-opus-5-5",
@@ -691,7 +688,7 @@ mod tests {
                 tools: &[],
                 messages: &messages,
                 max_output_tokens: 10,
-                timeout: Duration::from_secs(1),
+                timeout: None,
             },
         );
         for key in ["thinking", "output_config", "cache_control", "fallbacks"] {
@@ -711,7 +708,7 @@ mod tests {
             tools: &[],
             messages: &[],
             max_output_tokens: 100,
-            timeout: Duration::from_secs(1),
+            timeout: None,
         }
     }
 

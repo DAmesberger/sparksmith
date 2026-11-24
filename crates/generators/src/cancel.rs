@@ -13,6 +13,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[derive(Clone, Debug, Default)]
 pub struct Cancel(Arc<AtomicBool>);
 
+impl From<Arc<AtomicBool>> for Cancel {
+    /// The cancellation `flag` is.
+    fn from(flag: Arc<AtomicBool>) -> Self {
+        Self(flag)
+    }
+}
+
 thread_local! {
     static CURRENT: RefCell<Option<Cancel>> = const { RefCell::new(None) };
 }

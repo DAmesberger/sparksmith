@@ -331,7 +331,6 @@ pub fn turn(
                 duration: None,
             }
             .output_within(profile.output.per_request),
-            profile.request_timeout,
             |request| {
                 let prompt = crate::usage::estimated_tokens(
                     request
@@ -426,7 +425,7 @@ pub fn turn(
             tools: &config.tools,
             messages: history,
             max_output_tokens: allowance.output_within(profile.output.per_request),
-            timeout: allowance.timeout_within(profile.request_timeout),
+            timeout: allowance.duration,
         };
         let received = match (crate::request::Driver {
             backend,

@@ -20,7 +20,8 @@ pub struct KeptRequest {
     pub tools: Vec<ToolSpec>,
     pub messages: Vec<Message>,
     pub max_output_tokens: u32,
-    pub timeout: Duration,
+    /// The run's time left, when the person limits it.
+    pub timeout: Option<Duration>,
 }
 
 /// The workflow a recording was made with: its id, version and the
@@ -347,7 +348,7 @@ mod tests {
             tools: &[],
             messages: &[],
             max_output_tokens: 1,
-            timeout: Duration::from_secs(20),
+            timeout: None,
         }
     }
 
