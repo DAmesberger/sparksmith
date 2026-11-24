@@ -44,7 +44,7 @@ use crate::diagnostics::Result;
 use crate::geometry::{Point, distance};
 use crate::ids::Id;
 use crate::layout::arrange::CopperMove;
-use crate::layout::connectivity::{CopperGraph, Meets, TrackEnd, keeps_joint};
+use crate::layout::connectivity::{CopperGraph, Meets, TrackEnd, keeps_joint, leaves_pour};
 use crate::layout::posture::MIN_SEGMENT_MM;
 use crate::layout::router::reroute::{self, Rerouted};
 use crate::model::{Placement, Project, Track};
@@ -217,14 +217,12 @@ pub fn carry(
         }
     }
     // Loose copper a part does not carry: the re-route deletes no via of it.
-    let mut loose_tracks = BTreeSet::new();
     let mut loose_vias = BTreeSet::new();
     if let Some(loose) = loose {
         let slide = |p: Point| add(p, loose.by);
         for (k, t) in before.tracks.iter().enumerate() {
             if loose.tracks.contains(&t.id) && !carried.tracks.contains(&k) {
                 tracks.insert(k, (slide(t.start), slide(t.end)));
-                loose_tracks.insert(t.id);
             }
         }
         for (v, via) in before.vias.iter().enumerate() {
@@ -235,18 +233,28 @@ pub fn carry(
         }
     }
     let mut dragged_vias = move_vias(before, project, &vias, &free_via);
+    let left = left_pours(before, project, &dragged_vias);
     dragged_vias.retain(|id| !loose_vias.contains(id));
     let dragged = move_tracks(before, project, &tracks, &edits, &free_track)?;
     let moved = motions.keys().copied().collect();
-    reroute::dragged(
-        before,
-        graph,
-        project,
-        &moved,
-        &dragged,
-        &dragged_vias,
-        &loose_tracks,
-    )
+    let mut report = reroute::dragged(before, graph, project, &moved, &dragged, &dragged_vias)?;
+    for name in left {
+        if !report.unrouted.contains(&name) {
+            report.unrouted.push(name);
+        }
+    }
+    Ok(report)
+}
+
+/// The nets of the `moved` vias that stood in a drawn pour of their net and
+/// now stand outside it, where no refill can join them to it.
+fn left_pours(before: &Project, project: &Project, moved: &BTreeSet<Id>) -> BTreeSet<String> {
+    moved
+        .iter()
+        .filter_map(|id| Some((before.via(*id)?, project.via(*id)?)))
+        .filter(|(old, new)| leaves_pour(before, old, new.position))
+        .map(|(old, _)| before.net_name(old.net).to_owned())
+        .collect()
 }
 
 /// One island's copper by index into the board's tracks and vias, and

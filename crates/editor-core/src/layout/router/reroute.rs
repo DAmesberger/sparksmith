@@ -22,10 +22,10 @@
 //!    carried copper removed: it is left unrouted (an airwire), never a
 //!    clearance error. A pair re-routed only for coupling keeps the new
 //!    route only when it comes out better.
-//! 5. Only copper a moved part carries is removed without a route in its
-//!    place. Any other via stays where it is, and so does other copper
-//!    whose removal leaves nothing to route (a stub, a second way round):
-//!    what is then too close is a finding.
+//! 5. Copper whose removal would leave nothing to route (a stub, an end
+//!    only a pour or an open end joins) is never removed, and a via only
+//!    when a moved part carries it: it stays, and what is then too close
+//!    is a finding. A second way round is laid again like the first.
 //!
 //! Connections are taken in order of their smallest identity and every
 //! attempt is a pure function of the board, so the same edit gives the
@@ -38,7 +38,7 @@ use crate::ids::{Id, PadId};
 use crate::layout::connectivity::{CopperGraph, Meets};
 use crate::layout::length;
 use crate::layout::pair::{self, PairHead, PairStepRequest};
-use crate::layout::posture::Posture;
+use crate::layout::posture::{MIN_SEGMENT_MM, Posture};
 use crate::layout::{RouteEditSet, apply_routes};
 use crate::model::{CopperLayer, Project};
 use crate::rules::signal::DiffPairId;
@@ -99,6 +99,8 @@ struct Gap {
     width: f64,
     a: Point,
     b: Point,
+    /// The copper left joins the two already: a second way round.
+    again: bool,
 }
 
 /// The connections (sets of track and via identities) of the carried
@@ -156,21 +158,6 @@ fn connections(
     let mut out: Vec<_> = out.into_values().collect();
     out.sort_by_key(|(t, v)| t.first().or(v.first()).copied());
     out
-}
-
-/// The tracks of `project` that join a fresh fill.
-fn joining_fills(project: &Project, graph: &CopperGraph) -> BTreeSet<Id> {
-    let joins = |k: usize| {
-        let joints = graph.joints_on(k);
-        joints.iter().any(|j| matches!(j.meets, Meets::Fill))
-    };
-    project
-        .tracks
-        .iter()
-        .enumerate()
-        .filter(|(k, _)| joins(*k))
-        .map(|(_, t)| t.id)
-        .collect()
 }
 
 /// The pads (instance and pad) each track of `project` joins, by identity.
@@ -292,14 +279,14 @@ fn offending(
 
 /// The gaps that removing `tracks` from `project` leaves: each piece of
 /// them joined together, between the copper it meets, nearest first.
-/// `None` when a piece's places are on layers no step joins, or its only
-/// other place is a fill; `filled` is the tracks that joined a fill before
-/// the move, which made the fills stale.
+/// `None` when a piece leaves nothing to route: it meets no two places, or
+/// holds a track of `open` (one that ended openly before the move), whose
+/// copper no step would lay again.
 fn gaps(
     project: &Project,
     graph: &CopperGraph,
     tracks: &BTreeSet<Id>,
-    filled: &BTreeSet<Id>,
+    open: &BTreeSet<Id>,
 ) -> Option<Vec<Gap>> {
     let none = BTreeSet::new();
     // What stays joined once the copper is removed needs no gap.
@@ -338,64 +325,73 @@ fn gaps(
                 }
             }
         }
-        if ends.len() < 2 && piece.iter().any(|id| filled.contains(id)) {
+        if ends.len() < 2 || piece.iter().any(|id| open.contains(id)) {
             return None;
         }
-        let Some(net) = net else {
-            continue;
-        };
+        let net = net?;
         // Join the places nearest first (a spanning tree on one layer)
-        // where the copper left does not join them already; copper leading
-        // nowhere, or to one place only, is just removed.
+        // where the copper left does not join them already; when it joins
+        // them all, the piece was a second way round and is laid again.
         let islands: Vec<BTreeSet<usize>> = ends
             .iter()
             .map(|(_, at, layer, _)| rest.islands_at(*at, *layer, net).into_iter().collect())
             .collect();
-        let mut joined: BTreeSet<usize> = BTreeSet::new();
-        let mut reached = vec![false; ends.len()];
-        let reach = |i: usize, joined: &mut BTreeSet<usize>, reached: &mut Vec<bool>| {
-            if let Some(found) = islands.get(i) {
-                joined.extend(found.iter().copied());
-            }
-            for (k, found) in islands.iter().enumerate() {
-                if (k == i || found.iter().any(|x| joined.contains(x)))
-                    && let Some(slot) = reached.get_mut(k)
-                {
-                    *slot = true;
+        let before = out.len();
+        for again in [false, true] {
+            let mut joined: BTreeSet<usize> = BTreeSet::new();
+            let mut reached = vec![false; ends.len()];
+            let reach = |i: usize, joined: &mut BTreeSet<usize>, reached: &mut Vec<bool>| {
+                if let Some(found) = islands.get(i) {
+                    joined.extend(found.iter().copied());
                 }
-            }
-        };
-        if !ends.is_empty() {
-            reach(0, &mut joined, &mut reached);
-        }
-        while reached.iter().any(|r| !r) {
-            let mut best: Option<(f64, usize, usize)> = None;
-            for (i, (_, a, la, _)) in ends.iter().enumerate() {
-                if !reached.get(i).copied().unwrap_or(false) {
-                    continue;
-                }
-                for (j, (_, b, lb, _)) in ends.iter().enumerate() {
-                    let d = distance(*a, *b);
-                    if !reached.get(j).copied().unwrap_or(true)
-                        && la == lb
-                        && best.is_none_or(|(e, ..)| d < e)
+                for (k, found) in islands.iter().enumerate() {
+                    if (k == i || (!again && found.iter().any(|x| joined.contains(x))))
+                        && let Some(slot) = reached.get_mut(k)
                     {
-                        best = Some((d, i, j));
+                        *slot = true;
                     }
                 }
-            }
-            let (_, i, j) = best?;
-            let (Some(from), Some(to)) = (ends.get(i), ends.get(j)) else {
-                return None;
             };
-            out.push(Gap {
-                net,
-                layer: from.2,
-                width: to.3,
-                a: from.1,
-                b: to.1,
-            });
-            reach(j, &mut joined, &mut reached);
+            reach(0, &mut joined, &mut reached);
+            while reached.iter().any(|r| !r) {
+                let mut best: Option<(f64, usize, usize)> = None;
+                for (i, (_, a, la, _)) in ends.iter().enumerate() {
+                    if !reached.get(i).copied().unwrap_or(false) {
+                        continue;
+                    }
+                    for (j, (_, b, lb, _)) in ends.iter().enumerate() {
+                        let d = distance(*a, *b);
+                        if !reached.get(j).copied().unwrap_or(true)
+                            && la == lb
+                            && best.is_none_or(|(e, ..)| d < e)
+                        {
+                            best = Some((d, i, j));
+                        }
+                    }
+                }
+                let (d, i, j) = best?;
+                let (Some(from), Some(to)) = (ends.get(i), ends.get(j)) else {
+                    return None;
+                };
+                // Two places at one point (a pad and a track on it).
+                if !again || d >= MIN_SEGMENT_MM {
+                    out.push(Gap {
+                        net,
+                        layer: from.2,
+                        width: to.3,
+                        a: from.1,
+                        b: to.1,
+                        again,
+                    });
+                }
+                reach(j, &mut joined, &mut reached);
+            }
+            if out.len() > before {
+                break;
+            }
+        }
+        if out.len() == before {
+            return None;
         }
     }
     Some(out)
@@ -542,10 +538,9 @@ fn better(before: &length::PairRow, after: &Project, id: DiffPairId) -> bool {
 type Job = (Vec<usize>, Option<[Id; 2]>, Vec<String>);
 
 /// Re-route the copper the carry dragged (`tracks` and `vias` on
-/// `project`; `loose` are the tracks among them no part carries) where it
-/// now offends, and the unlocked tracks the `moved` parts' pads now come
-/// too close to; `before` is the board before the operation and `graph`
-/// its copper graph.
+/// `project`) where it now offends, and the unlocked tracks the `moved`
+/// parts' pads now come too close to; `before` is the board before the
+/// operation and `graph` its copper graph.
 pub(crate) fn dragged(
     before: &Project,
     graph: &CopperGraph,
@@ -553,7 +548,6 @@ pub(crate) fn dragged(
     moved: &BTreeSet<Id>,
     tracks: &BTreeSet<Id>,
     vias: &BTreeSet<Id>,
-    loose: &BTreeSet<Id>,
 ) -> Result<Rerouted> {
     let mut report = Rerouted::default();
     if moved.is_empty() {
@@ -595,16 +589,16 @@ pub(crate) fn dragged(
     if bad_tracks.is_empty() && bad_vias.is_empty() {
         return Ok(report);
     }
-    let filled = joining_fills(before, graph);
-    // Copper no part carries stays when nothing would be routed in its
-    // place.
-    let others: BTreeSet<Id> = bad_tracks
-        .iter()
-        .copied()
-        .filter(|id| tracks.contains(id) && (loose.contains(id) || !given.contains(id)))
+    let open: BTreeSet<Id> = graph
+        .stubs()
+        .into_iter()
+        .filter(|s| !s.open_ends.is_empty())
+        .flat_map(|s| s.tracks)
         .collect();
-    for (piece, _) in connections(project, &now, &others, &BTreeSet::new()) {
-        if gaps(project, &now, &piece, &filled).is_none_or(|g| g.is_empty()) {
+    // Copper stays when nothing would be routed in its place.
+    let found: BTreeSet<Id> = bad_tracks.intersection(&tracks).copied().collect();
+    for (piece, _) in connections(project, &now, &found, &BTreeSet::new()) {
+        if gaps(project, &now, &piece, &open).is_none() {
             for id in &piece {
                 tracks.remove(id);
                 bad_tracks.remove(id);
@@ -738,7 +732,7 @@ pub(crate) fn dragged(
         let mut routed = None;
         for remove in tiers {
             let graph = CopperGraph::of(project);
-            let found = gaps(project, &graph, remove, &filled);
+            let found = gaps(project, &graph, remove, &open);
             let Some(gaps) = found else {
                 continue;
             };
@@ -760,8 +754,14 @@ pub(crate) fn dragged(
             // Copper that offends a rule goes; a pair carried out of
             // coupling but clear of everything stays as it was carried.
             None if offends => {
-                *project = without(project, &all_tracks, &all_vias);
-                report.unrouted.extend(names);
+                // A second way round is no connection lost: it stays.
+                let second = !bad_via
+                    && gaps(project, &CopperGraph::of(project), &all_tracks, &open)
+                        .is_some_and(|g| g.iter().all(|g| g.again));
+                if !second {
+                    *project = without(project, &all_tracks, &all_vias);
+                    report.unrouted.extend(names);
+                }
             }
             None => {}
         }

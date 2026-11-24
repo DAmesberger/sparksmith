@@ -3,10 +3,11 @@
 //! before they move or finish copper.
 use super::build::joins;
 use super::{CopperGraph, ElementKind, JOIN_TOLERANCE_MM};
-use crate::geometry::{Point, distance, segment_distance};
+use crate::geometry::{Point, distance, polygon_contains, segment_distance};
 use crate::ids::Id;
 use crate::layout::copper::CopperRing;
-use crate::model::CopperLayer;
+use crate::layout::fill::FILL_CHORD_MM;
+use crate::model::{CopperLayer, Project, Via};
 
 /// What a joint meets.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -60,6 +61,21 @@ pub fn keeps_joint(polyline: &[Point], at: Point) -> bool {
             .windows(2)
             .any(|w| segment_distance(at, w[0], w[1]) <= JOIN_TOLERANCE_MM),
     }
+}
+
+/// Whether `via`, moved to `to`, leaves a drawn fill of its net whose
+/// outline it stood in, on a layer it reaches: no refill joins it to that
+/// fill again. A fill that follows the board is never left by a via on it.
+pub fn leaves_pour(project: &Project, via: &Via, to: Point) -> bool {
+    let layers = project.stackup.layers();
+    project
+        .fills
+        .iter()
+        .filter(|f| f.region.is_drawn() && f.net == Some(via.net) && via.on(f.layer, &layers))
+        .any(|f| {
+            let ring = f.outline.flatten(FILL_CHORD_MM);
+            polygon_contains(&ring, via.position) && !polygon_contains(&ring, to)
+        })
 }
 
 impl CopperGraph {
