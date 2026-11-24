@@ -264,66 +264,69 @@ fn left_pours(before: &Project, project: &Project) -> BTreeSet<String> {
         p.fills.clear();
         CopperGraph::of(&p)
     };
-    // Its tracks and vias.
-    let copper = |island: &Island| -> BTreeSet<Id> {
+    // Where each track and via of those nets runs.
+    type Runs = BTreeMap<Id, Vec<(CopperLayer, Point, Point)>>;
+    let runs = |p: &Project| -> Runs {
+        let mut out = Runs::new();
+        for t in p.tracks.iter().filter(|t| poured.contains(&t.net)) {
+            out.insert(t.id, vec![(t.layer, t.start, t.end)]);
+        }
+        for v in p.vias.iter().filter(|v| poured.contains(&v.net)) {
+            let on = layers.iter().filter(|l| v.on(**l, &layers));
+            out.insert(v.id, on.map(|l| (*l, v.position, v.position)).collect());
+        }
+        out
+    };
+    let copper = |island: &Island| -> Vec<Id> {
         island.tracks.iter().chain(&island.vias).copied().collect()
     };
-    // The fills of `before` that `island`'s copper, as `p` has it, runs in.
-    let met = |p: &Project, island: &Island| -> BTreeSet<Id> {
-        let Some(net) = island.net else {
-            return BTreeSet::new();
-        };
-        let ids = copper(island);
+    // The fills of `before` that the copper `ids` of `net` runs in.
+    let met = |runs: &Runs, net: Id, ids: &[Id]| -> BTreeSet<Id> {
         let mut lines: BTreeMap<CopperLayer, Vec<(Point, Point)>> = BTreeMap::new();
-        for t in p.tracks.iter().filter(|t| ids.contains(&t.id)) {
-            lines.entry(t.layer).or_default().push((t.start, t.end));
-        }
-        for v in p.vias.iter().filter(|v| ids.contains(&v.id)) {
-            for l in layers.iter().filter(|l| v.on(**l, &layers)) {
-                lines.entry(*l).or_default().push((v.position, v.position));
-            }
+        for (layer, from, to) in ids.iter().filter_map(|id| runs.get(id)).flatten() {
+            lines.entry(*layer).or_default().push((*from, *to));
         }
         lines
             .iter()
             .flat_map(|(layer, lines)| pours_met(before, net, *layer, lines))
             .collect()
     };
+    let (old, new) = (runs(before), runs(project));
+    if old == new {
+        return left;
+    }
     let (a, b) = (bare(before), bare(project));
-    let named = |g: &CopperGraph, island: &Island| -> BTreeSet<(Id, crate::ids::PadId)> {
-        island
-            .pads
-            .iter()
-            .filter_map(|p| g.pads().get(*p))
-            .map(|p| (p.instance, p.pad))
-            .collect()
-    };
-    let now: Vec<(Island, BTreeSet<(Id, crate::ids::PadId)>)> = b
-        .islands()
-        .into_iter()
-        .filter(|i| i.net.is_some_and(|n| poured.contains(&n)))
-        .map(|i| {
-            let pads = named(&b, &i);
-            (i, pads)
-        })
-        .collect();
+    let now = b.islands();
+    let mut holds: BTreeMap<Id, usize> = BTreeMap::new();
+    let mut pads = BTreeMap::new();
+    for (i, island) in now.iter().enumerate() {
+        holds.extend(copper(island).into_iter().map(|id| (id, i)));
+        for pad in island.pads.iter().filter_map(|p| b.pads().get(*p)) {
+            pads.insert((pad.instance, pad.pad), i);
+        }
+    }
     for island in a.islands() {
         let Some(net) = island.net.filter(|n| poured.contains(n)) else {
             continue;
         };
-        let was = met(before, &island);
-        if was.is_empty() {
+        let ids = copper(&island);
+        if ids.iter().all(|id| old.get(id) == new.get(id)) {
             continue;
         }
         // The same connection now: what shares a track, via or pad.
-        let (pads, ids) = (named(&a, &island), copper(&island));
-        let is: BTreeSet<Id> = now
+        let mine = island.pads.iter().filter_map(|p| a.pads().get(*p));
+        let is: BTreeSet<usize> = ids
             .iter()
-            .filter(|(i, p)| {
-                i.tracks.iter().chain(&i.vias).any(|id| ids.contains(id)) || !p.is_disjoint(&pads)
-            })
-            .flat_map(|(i, _)| met(project, i))
+            .filter_map(|id| holds.get(id))
+            .chain(mine.filter_map(|p| pads.get(&(p.instance, p.pad))))
+            .copied()
             .collect();
-        if !was.is_subset(&is) {
+        let after: Vec<Id> = is
+            .iter()
+            .filter_map(|i| now.get(*i))
+            .flat_map(copper)
+            .collect();
+        if !met(&old, net, &ids).is_subset(&met(&new, net, &after)) {
             left.insert(before.net_name(net).to_owned());
         }
     }

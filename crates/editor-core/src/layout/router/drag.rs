@@ -548,8 +548,8 @@ fn attempt(
 /// Whether the dragged copper no longer runs in a drawn pour of its net
 /// that it ran in where it was.
 fn leaves_pours(ctx: &Ctx<'_>, copper: &Moved) -> bool {
-    let was = copper.hidden.iter().filter_map(|k| ctx.base_track(*k));
-    was.into_iter().any(|t| {
+    let mut was = copper.hidden.iter().filter_map(|k| ctx.base_track(*k));
+    was.any(|t| {
         let met = pours_met(ctx.project, t.net, t.layer, &[(t.start, t.end)]);
         let now: Vec<(Point, Point)> = copper
             .pieces
