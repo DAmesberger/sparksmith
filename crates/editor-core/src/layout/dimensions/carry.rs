@@ -216,23 +216,37 @@ pub fn carry(
             vias.insert(index, m.apply(old.position));
         }
     }
+    // Loose copper a part does not carry: the re-route deletes no via of it.
+    let mut loose_tracks = BTreeSet::new();
+    let mut loose_vias = BTreeSet::new();
     if let Some(loose) = loose {
         let slide = |p: Point| add(p, loose.by);
         for (k, t) in before.tracks.iter().enumerate() {
             if loose.tracks.contains(&t.id) && !carried.tracks.contains(&k) {
                 tracks.insert(k, (slide(t.start), slide(t.end)));
+                loose_tracks.insert(t.id);
             }
         }
         for (v, via) in before.vias.iter().enumerate() {
             if loose.vias.contains(&via.id) && !carried.vias.contains(&v) {
                 vias.insert(v, slide(via.position));
+                loose_vias.insert(via.id);
             }
         }
     }
-    let dragged_vias = move_vias(before, project, &vias, &free_via);
+    let mut dragged_vias = move_vias(before, project, &vias, &free_via);
+    dragged_vias.retain(|id| !loose_vias.contains(id));
     let dragged = move_tracks(before, project, &tracks, &edits, &free_track)?;
     let moved = motions.keys().copied().collect();
-    reroute::dragged(before, graph, project, &moved, &dragged, &dragged_vias)
+    reroute::dragged(
+        before,
+        graph,
+        project,
+        &moved,
+        &dragged,
+        &dragged_vias,
+        &loose_tracks,
+    )
 }
 
 /// One island's copper by index into the board's tracks and vias, and
