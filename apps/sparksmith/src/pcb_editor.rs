@@ -1320,10 +1320,7 @@ impl PcbEditor {
             "select" => self.end_route(),
             "dimension" => {
                 self.end_route();
-                let rules = &engine.project().rules;
-                if self.needs_profile(rules, "Can't dimension a part") {
-                    self.arm_dimension(true);
-                }
+                self.arm_dimension(true);
             }
             "route" if self.needs_profile(&engine.project().rules, "Can't route") => {
                 if self.tool != Tool::Route {

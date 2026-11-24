@@ -824,11 +824,11 @@ fn a_new_project_has_the_shipped_profile_and_works_at_once() -> TestResult {
     Ok(())
 }
 
-/// GUI check 1, U1: on a board whose profile is missing Route, Via, Tune,
-/// Fill and Dimension are refused before anything is drawn. Each opens the
-/// Design rules at the picker with the sentence every other refusal uses;
-/// Done leaves Select armed; with a profile each arms, and losing the
-/// profile (undo) ends a copper tool.
+/// GUI check 1, U1: on a board whose profile is missing Route, Via, Tune and
+/// Fill are refused before anything is drawn. Each opens the Design rules at
+/// the picker with the sentence every other refusal uses; Done leaves Select
+/// armed; with a profile each arms, and losing the profile (undo) ends a
+/// copper tool. Dimension reads no rule, so it arms without one.
 #[test]
 fn a_copper_tool_without_a_profile_opens_the_rules() -> TestResult {
     let mut engine = unprofiled()?;
@@ -838,8 +838,12 @@ fn a_copper_tool_without_a_profile_opens_the_rules() -> TestResult {
         ("via", "Can't place a via", Tool::Via),
         ("tune", "Can't tune a track", Tool::Tune),
         ("fill", "Can't draw a fill", Tool::Fill),
-        ("dimension", "Can't dimension a part", Tool::Dimension),
     ];
+    let mut editor = PcbEditor::default();
+    assert!(editor.on_tool("dimension", &engine).is_none());
+    assert!(editor.tool == Tool::Dimension && editor.rules.is_none());
+    frame(&mut editor, &engine, &ctx, vec![]);
+    assert!(editor.tool == Tool::Dimension, "and stays");
     let error = ProjectRules::default().require().err().ok_or("refused")?;
     for (id, what, _) in tools {
         let mut editor = PcbEditor::default();

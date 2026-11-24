@@ -121,12 +121,9 @@ impl Operation {
         }
     }
 
-    /// Whether this makes or reshapes copper, which is work at the widths
-    /// and clearances of a fab profile, or places a part by a dimension,
-    /// which is solved against the board's sketch, fitted as the profile's
-    /// `board_outline_fit` says
-    /// ([`layout::dimensions::board_sketch`]). The
-    /// engine refuses it on a board without one
+    /// Whether this makes or reshapes copper: work at the widths and
+    /// clearances of a fab profile. The engine refuses it on a board without
+    /// one
     /// ([`rules::ProjectRules::require`]), as the desktop's tools do;
     /// taking copper away needs none.
     fn needs_profile(&self) -> bool {
@@ -151,10 +148,6 @@ impl Operation {
                 | L::TrackDrag { .. },
             ) => true,
             Self::Fill(layout::fill::FillCommand::Add { .. }) => true,
-            Self::Dimension(
-                layout::dimensions::DimensionCommand::Add { .. }
-                | layout::dimensions::DimensionCommand::Edit { .. },
-            ) => true,
             _ => false,
         }
     }

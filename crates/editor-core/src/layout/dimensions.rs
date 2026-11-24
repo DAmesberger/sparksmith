@@ -631,19 +631,18 @@ fn untouched(before: &Project, after: &Project) -> bool {
 }
 
 /// The board the parts solve holds fixed: the sketch, or the evaluator's
-/// sketch of a rectangle board.
+/// sketch of a rectangle board. That one is four lines and is not kept, so
+/// no fit of free-form curves enters it and it needs no fab profile.
 pub fn board_sketch<'a>(
     project: &'a Project,
     evaluator: &dyn super::outline::BoardShapeEvaluator,
 ) -> Result<Cow<'a, BoardSketch>> {
     Ok(match &project.board_shape {
         BoardShape::Sketch(s) => Cow::Borrowed(&**s),
-        BoardShape::Rectangle => {
-            project.rules.require()?;
-            Cow::Owned(
-                evaluator.rectangle(project.board_size, super::outline::outline_fit(project))?,
-            )
-        }
+        BoardShape::Rectangle => Cow::Owned(evaluator.rectangle(
+            project.board_size,
+            *crate::rules::OUTLINE_FIT_RANGE_MM.start(),
+        )?),
     })
 }
 
