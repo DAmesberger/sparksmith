@@ -1,5 +1,5 @@
-//! Mechanical parts placed directly on the board (docs/mechanical-parts.md
-//! M4): `library.part_files` lists the part files a project can place,
+//! Mechanical parts placed directly on the board (docs/mechanical-parts.md):
+//! `library.part_files` lists the part files a project can place,
 //! `layout.place_part_file` reads, checks and evaluates one and applies the
 //! core `layout.place_part`, and `layout.set_part_file_values` evaluates a
 //! placed part at new values and applies `layout.set_part`. The builders

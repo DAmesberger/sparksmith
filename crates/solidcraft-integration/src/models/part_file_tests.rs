@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-//! Lean parts (docs/part-templates.md §11): the conventions, the cache
+//! Lean parts (docs/part-files.md): the conventions, the cache
 //! and refusals.
 use super::*;
 use serde_json::json;
@@ -310,7 +310,7 @@ fn volume(part: &EvaluatedPart) -> Fallible<f64> {
     Ok(measured["total"]["volume_mm3"].as_f64().unwrap_or(0.0))
 }
 
-/// The mechanical starter set (docs/mechanical-parts.md §M7): each built-in
+/// The mechanical starter set (docs/mechanical-parts.md): each built-in
 /// passes its check at its defaults, names its parameters and material,
 /// seats on z = 0, has `marking-top`, and follows its values.
 #[test]

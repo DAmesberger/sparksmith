@@ -1,6 +1,6 @@
 //! `part check`: a Solidcraft part file evaluated at literal values and
-//! checked against Sparksmith's naming conventions (docs/part-templates.md
-//! §11), through `library.check_part_file`. Read-only; the exit status is a
+//! checked against Sparksmith's naming conventions (docs/part-files.md)
+//! through `library.check_part_file`. Read-only; the exit status is a
 //! failure on a blocking finding.
 use super::{Result, execute, open, print};
 use serde_json::{Map, Value, json};

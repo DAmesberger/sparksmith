@@ -500,7 +500,7 @@ fn sized(a: &MarkingArea) -> bool {
 }
 
 /// The named anchors a package offers: a part file's derived surfaces
-/// (docs/part-templates.md §11); none for any other model.
+/// (docs/part-files.md); none for any other model.
 pub fn package_anchors(package: &super::super::PackageDefinition) -> Vec<AnchorInfo> {
     match &package.model {
         super::super::PackageModel::PartFile(part) => part.derived.surfaces.clone(),

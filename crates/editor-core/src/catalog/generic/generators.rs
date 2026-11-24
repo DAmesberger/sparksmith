@@ -1,4 +1,4 @@
-//! The catalog over generators (slice D1 of the part-generation plan): the
+//! The catalog over generators: the
 //! words of a component search read as a generator's part, and the
 //! generators' presets a search finds. The host hands in the descriptions
 //! of the generators it ships (`library.generators`); the core never runs a

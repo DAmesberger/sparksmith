@@ -166,7 +166,7 @@ pub struct PartDerived {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub datums: Vec<super::datum::PackageDatum>,
     /// The part file's lead bodies and the package terminal each belongs
-    /// to (part-generation slice B2): a body of a lead material is bound to
+    /// to: a body of a lead material is bound to
     /// the terminal whose lead contact (a generated package's contact, or
     /// the centre of a pad of the package's footprint) lies under it, so
     /// it highlights and picks with that terminal's net. Found by the host
@@ -195,7 +195,7 @@ impl PartDerived {
 
 /// A package's part file: an exact Model revision (format `solidcraft`),
 /// literal values by the part's own parameter names, and what it evaluated
-/// to (docs/part-templates.md §11).
+/// to (docs/part-files.md).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PartFileModel {

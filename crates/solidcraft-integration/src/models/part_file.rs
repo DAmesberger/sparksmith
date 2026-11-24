@@ -1,4 +1,4 @@
-//! Lean parts (docs/part-templates.md §11): a package's 3D body is an
+//! Lean parts (docs/part-files.md): a package's 3D body is an
 //! ordinary parametric Solidcraft design, a **part file**, built at the
 //! package's literal parameter values through Solidcraft's engine.
 //!
@@ -978,7 +978,7 @@ fn valid_stem(stem: &str) -> bool {
 /// the generated parts' envelope tolerance.
 pub const LEAD_TOLERANCE_MM: f64 = 0.01;
 
-/// The part's lead bodies bound to terminals (part-generation slice B2):
+/// The part's lead bodies bound to terminals:
 /// every body of a lead material (role [`BodyRole::Termination`]) under a
 /// contact, `(terminal designation, [x, y] mm in the model frame)`, is
 /// bound to that contact's terminal; a body under no contact stays

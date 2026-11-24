@@ -6,7 +6,7 @@
 //! in integers. `cargo xtask generators check` runs its golden case
 //! natively, under wasmi and under the probe: one result hash on all three
 //! shows that a call in a pure invoke changes nothing and that an arc off
-//! the quarter turns is the same bits everywhere (part-generation B3, ABI
+//! the quarter turns is the same bits everywhere (ABI
 //! slice S8).
 #![cfg_attr(target_arch = "wasm32", no_std)]
 

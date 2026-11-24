@@ -16,8 +16,7 @@
 //! The codec has its own reader, writer and serde (de)serializer over an
 //! integer-only tree ([`Canon`]), not `serde_json`: no path reaches
 //! floating-point code, so a module built with it contains no float
-//! instruction, which the host refuses in plugins whose results are hashed
-//! (part-generation slice B3).
+//! instruction, which the host refuses in plugins whose results are hashed.
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
