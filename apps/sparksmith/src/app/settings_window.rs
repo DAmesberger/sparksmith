@@ -67,6 +67,8 @@ pub(crate) struct SettingsWindow {
     /// `impedance_changed`.
     pub impedance_tolerance: Result<f64, String>,
     pub impedance_changed: bool,
+    /// A network wait changed this frame.
+    pub network_changed: bool,
     /// The AI section (Settings › AI), read when the window opens.
     pub ai: super::settings_ai::AiPage,
     /// The Libraries section: the app sets it before [`Self::show`] and
@@ -80,6 +82,8 @@ pub(crate) struct LibrariesPage {
     /// The URL as typed; kept while focused.
     pub url: String,
     pub enabled: bool,
+    /// Its index, when it can be stopped or read again: in words, and which.
+    pub index: Option<(String, AccountAction)>,
     /// How the running registry stands, in words, and whether that is a
     /// problem.
     pub status: Option<(String, bool)>,
@@ -113,6 +117,7 @@ impl Default for SettingsWindow {
             lists_changed: false,
             impedance_tolerance: Err(String::new()),
             impedance_changed: false,
+            network_changed: false,
             ai: Default::default(),
             libraries: LibrariesPage::default(),
         }
@@ -341,6 +346,9 @@ impl SettingsWindow {
                 }
                 kit::section(ui, "settings-ai", "AI", true, None, |ui| {
                     self.ai.ui(ui);
+                });
+                kit::section(ui, "settings-network", "Network", false, None, |ui| {
+                    self.network_changed = self.ai.network(ui);
                 });
                 kit::section(ui, "settings-lists", "Lists", true, None, |ui| {
                     self.lists_changed = lists_rows(ui, &mut self.lists);
@@ -661,22 +669,35 @@ impl super::App {
             .sources
             .online()
             .and_then(|o| o.account_note().cloned());
+        page.index = None;
         page.status = match (self.sources.online(), self.sources.online_problem()) {
             (_, Some(problem)) => Some((problem.to_owned(), true)),
             (Some(online), None) => {
                 let name = online.name();
-                Some(match online.status() {
-                    OnlineStatus::Syncing => (format!("Reading the index of {name}…"), false),
+                match online.status() {
+                    OnlineStatus::Syncing => {
+                        let reading = format!("Reading the index of {name}…");
+                        page.index = Some((reading, AccountAction::StopIndex));
+                        None
+                    }
                     OnlineStatus::Ready {
                         entries,
                         offline: None,
-                    } => (format!("{name}: {entries} parts"), false),
+                    } => Some((format!("{name}: {entries} parts"), false)),
                     OnlineStatus::Ready {
                         offline: Some(date),
                         ..
-                    } => (format!("{name} is offline: searching its {date}"), false),
-                    OnlineStatus::Failed(error) => (format!("{name}: {error}"), true),
-                })
+                    } => {
+                        let offline = format!("{name} is offline: searching its {date}");
+                        page.index = Some((offline, AccountAction::ReadIndex));
+                        None
+                    }
+                    OnlineStatus::Failed(error) => {
+                        let again = "The index was not read".to_owned();
+                        page.index = Some((again, AccountAction::ReadIndex));
+                        Some((format!("{name}: {error}"), true))
+                    }
+                }
             }
             (None, None) => None,
         };
@@ -717,6 +738,10 @@ impl super::App {
             }
             Some(action) => self.sources.account_action(&action),
             None => {}
+        }
+        if std::mem::take(&mut self.settings_window.network_changed) {
+            let config = self.settings_window.ai.config_dir();
+            self.sources.set_network(config.as_deref());
         }
         let libraries = &mut self.settings_window.libraries;
         if libraries.changed {
@@ -872,6 +897,15 @@ fn libraries_rows(ui: &mut egui::Ui, page: &mut LibrariesPage) {
     if let Some(error) = &page.error {
         kit::field_error(ui, &field, error, true);
     }
+    if let Some((status, action)) = &page.index {
+        let (label, action) = match action {
+            AccountAction::StopIndex => ("Stop", AccountAction::StopIndex),
+            _ => ("Try again", AccountAction::ReadIndex),
+        };
+        if kit::summary_row(ui, status, Some(label)) {
+            page.account_action = Some(action);
+        }
+    }
     if let Some((status, problem)) = &page.status {
         kit::status(
             ui,
@@ -973,7 +1007,13 @@ fn account_rows(
             }
         }
         V::SigningOut => {
-            kit::status(ui, "Signing out…", kit::Tone::Dim);
+            if kit::summary_row(
+                ui,
+                "Telling the online library you signed out…",
+                Some("Stop"),
+            ) {
+                action = Some(AccountAction::StopSignOut);
+            }
         }
     }
     action

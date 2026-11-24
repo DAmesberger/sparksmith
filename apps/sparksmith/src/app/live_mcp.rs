@@ -326,7 +326,7 @@ impl App {
             _ => None,
         };
         let host = self.files.host_file();
-        let _ = self.generators.runtime.take_met();
+        let _ = self.generators.take_met();
         let (mut window, engine, live_mcp) = self.window_for_live(busy);
         let (reply, changes) = live_mcp
             .session
@@ -334,7 +334,7 @@ impl App {
         // The file workflow takes on a file change with the engine.
         self.file_changes(changes, false);
         let now = self.engine.revision();
-        if self.generators.runtime.take_met() && now == before {
+        if self.generators.take_met() && now == before {
             self.generators.hold(Waiting::Live {
                 request,
                 admitted: Box::new(admitted),

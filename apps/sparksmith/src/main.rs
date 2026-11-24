@@ -28,6 +28,7 @@ mod model_scene;
 mod native_menu;
 mod navigation;
 mod online_library;
+mod online_window;
 mod open_documents;
 mod palette;
 mod part_chooser;

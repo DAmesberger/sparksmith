@@ -5,6 +5,7 @@ type Fallible = std::result::Result<(), Box<dyn std::error::Error>>;
 fn local(name: &str) -> EndpointSetting {
     EndpointSetting {
         harness_profile: None,
+        timeout_minutes: None,
         name: name.into(),
         provider: Wire::Openai,
         base_url: "http://localhost:11434/v1".into(),
@@ -73,7 +74,32 @@ fn settings_round_trip_and_a_missing_file_is_empty() -> Fallible {
         ..AssistSettings::default()
     };
     write(&path, &settings)?;
-    assert_eq!(read(&path)?, settings);
+    let kept = read(&path)?;
+    assert_eq!(kept.endpoints[0].timeout_minutes, Some(Wait::Limit(90)));
+    let shipped = Shipped::locate()?;
+    let wait = |e: &EndpointSetting| {
+        e.waiting_profile(&shipped, &shipped.network)
+            .map(|p| p.silence.after)
+    };
+    let minutes = |n: u64| Some(Duration::from_secs(n * 60));
+    assert_eq!(wait(&kept.endpoints[0])?, minutes(90));
+
+    value["endpoints"][0]["timeout_minutes"] = "no_limit".into();
+    std::fs::write(&path, value.to_string())?;
+    let unlimited = read(&path)?;
+    assert_eq!(wait(&unlimited.endpoints[0])?, None);
+    write(&path, &unlimited)?;
+    assert_eq!(read(&path)?, unlimited);
+
+    // Where nothing is said, as the presets say: here, and elsewhere.
+    let mut silent = local("Local");
+    assert_eq!(wait(&silent)?, minutes(90));
+    silent.base_url = "https://example.com/v1".into();
+    assert_eq!(wait(&silent)?, minutes(30));
+
+    value["endpoints"][0]["timeout_minutes"] = 0.into();
+    std::fs::write(&path, value.to_string())?;
+    assert!(read(&path).is_err_and(|e| e.to_string().contains("minutes")));
     // The assistant uses an agent; a model run takes the first endpoint.
     assert_eq!(
         settings.run_endpoint().map(|e| e.name.as_str()),
@@ -167,9 +193,11 @@ fn every_rule_is_checked_with_its_reason() {
     assert_eq!(anthropic.check(), Ok(()));
 }
 
-/// A file of an earlier version, which says how long a reply may take, opens.
+/// A file of an earlier version, which says how long a reply may take, keeps
+/// its value; `no_limit` is a choice, and a file without it has the shipped
+/// wait of such a connection.
 #[test]
-fn an_earlier_files_reply_time_is_dropped() -> Fallible {
+fn a_connections_wait_is_read_and_defaults_to_the_shipped_one() -> Fallible {
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("settings.json");
     let settings = AssistSettings {
@@ -282,5 +310,40 @@ fn a_user_profile_is_copied_checked_on_save_and_removed() -> Fallible {
         .find(|p| p.name == "default")
         .ok_or("listed")?;
     assert_eq!(default.source, ProfileSource::BuiltIn);
+    Ok(())
+}
+
+/// The person's network waits replace the shipped ones; a broken file
+/// leaves the shipped ones.
+#[test]
+fn network_waits_are_the_persons_or_the_shipped_ones() -> Fallible {
+    let shipped = Shipped::locate()?.network;
+    let dir = tempfile::tempdir()?;
+    assert_eq!(network(Some(dir.path()))?, shipped);
+    let own = Network {
+        search: Wait::NO_LIMIT,
+        download: Wait::Limit(300),
+        ..shipped
+    };
+    let settings = AssistSettings {
+        network: Some(own),
+        ..AssistSettings::default()
+    };
+    let path = user_file(dir.path());
+    write(&path, &settings)?;
+    assert_eq!(network(Some(dir.path()))?, own);
+    assert_eq!(Network::silence(own.search).after, None);
+    assert_eq!(
+        Network::silence(own.download).after,
+        Some(Duration::from_secs(300))
+    );
+    let mut bad = settings;
+    bad.network = Some(Network {
+        index: Wait::Limit(0),
+        ..own
+    });
+    assert!(bad.check().is_err_and(|why| why.contains("index")));
+    std::fs::write(&path, "not settings")?;
+    assert_eq!(network(Some(dir.path()))?, shipped);
     Ok(())
 }

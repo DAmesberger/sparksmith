@@ -210,6 +210,11 @@ pub enum StopReason {
     /// The person pressed Stop while the reply arrived: whatever came is
     /// incomplete, and it is never used.
     Stopped,
+    /// The server went silent for as long as the person allows: what came
+    /// is kept and shown, and no call in it is run. `why` names the limit.
+    Silent {
+        why: String,
+    },
 }
 
 impl StopReason {
@@ -221,6 +226,7 @@ impl StopReason {
             Self::CutOff => "cut_off".into(),
             Self::Refusal { .. } => "refusal".into(),
             Self::Stopped => "stopped".into(),
+            Self::Silent { .. } => "silent".into(),
             Self::Other { reason } => reason.clone(),
         }
     }

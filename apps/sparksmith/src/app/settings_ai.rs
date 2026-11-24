@@ -21,11 +21,12 @@
 //! saved. Workflows are listed read-only, with why one can't run.
 use crate::kit;
 use sparksmith_assist::AssistLibrary;
+use sparksmith_assist::http::Silence;
 use sparksmith_assist::model::{Endpoint, KeySource, Secret, keys};
 use sparksmith_assist::profile as run_profile;
 use sparksmith_assist::settings::{
-    self as stored, AgentSetting, AssistSettings, CONTEXT_RANGE, EndpointSetting, OUTPUT_RANGE,
-    ProfileEntry, ProfileSource, Rule, Shipped, Wire,
+    self as stored, AgentSetting, AssistSettings, CONTEXT_RANGE, EndpointSetting, Network,
+    OUTPUT_RANGE, ProfileEntry, ProfileSource, Rule, Shipped, Wait, Wire,
 };
 use sparksmith_assist::workflow::{self, HostCatalog, Listed, Source, load};
 use sparksmith_automation::cancel::Cancel;
@@ -93,7 +94,11 @@ pub(crate) mod test_keyring {
 
     /// Test connection without a network: the model answers when a key
     /// came with the request or the server is on this computer.
-    pub(crate) fn check(setting: &EndpointSetting, key: Option<Secret>) -> Result<String, String> {
+    pub(crate) fn check(
+        setting: &EndpointSetting,
+        key: Option<Secret>,
+        _: Silence,
+    ) -> Result<String, String> {
         let local = setting.endpoint().is_ok_and(|e| e.is_loopback());
         if key.is_some() || local {
             Ok(setting.model.trim().to_owned())
@@ -103,14 +108,19 @@ pub(crate) mod test_keyring {
     }
 }
 
-/// Test connection's one request, run off the UI thread: the setting, and
-/// the key typed (none: the keychain's, when there is one). The model that
-/// answered, or why not.
-pub(crate) type Checker = fn(&EndpointSetting, Option<Secret>) -> Result<String, String>;
+/// Test connection's one request, run off the UI thread: the setting, the
+/// key typed (none: the keychain's, when there is one) and how long the
+/// server may send nothing. The model that answered, or why not.
+pub(crate) type Checker = fn(&EndpointSetting, Option<Secret>, Silence) -> Result<String, String>;
 
 #[cfg_attr(test, allow(dead_code))]
-fn system_check(setting: &EndpointSetting, typed: Option<Secret>) -> Result<String, String> {
-    let profile = setting.model_profile().map_err(|e| e.to_string())?;
+fn system_check(
+    setting: &EndpointSetting,
+    typed: Option<Secret>,
+    silence: Silence,
+) -> Result<String, String> {
+    let mut profile = setting.model_profile().map_err(|e| e.to_string())?;
+    profile.silence = silence;
     let endpoint = setting.endpoint().map_err(|e| e.to_string())?;
     let key = match typed {
         Some(key) => Some(key),
@@ -278,6 +288,7 @@ impl Quick {
                 provider: Wire::Anthropic,
                 base_url: String::new(),
                 model: String::new(),
+                timeout_minutes: None,
                 capabilities: None,
             });
         Self {
@@ -506,6 +517,44 @@ impl AiPage {
     fn state(&mut self) -> &mut State {
         let config = self.config_dir();
         self.state.get_or_insert_with(|| State::read(config))
+    }
+
+    /// Settings › Network: how long each kind of request may hear nothing.
+    /// Whether a wait changed.
+    pub fn network(&mut self, ui: &mut egui::Ui) -> bool {
+        let state = self.state();
+        let (settings, shipped) = match (&state.settings, &state.shipped) {
+            (Ok(settings), Ok(shipped)) => (settings.clone(), shipped.clone()),
+            (Err(why), _) | (_, Err(why)) => {
+                kit::refusal_wrapped(ui, why);
+                return false;
+            }
+        };
+        kit::hint(
+            ui,
+            "When a server sends nothing for this long, the request is given up",
+            "What keeps arriving is never cut off, however slow. “No limit” waits until you stop it. The wait for a model's reply is each connection's own (AI › Advanced).",
+        );
+        let before = settings.network_or(&shipped);
+        let mut now = before;
+        let usual = shipped.network;
+        for (label, wait, usual) in [
+            ("Online library search", &mut now.search, usual.search),
+            ("Online library index", &mut now.index, usual.index),
+            ("Part download", &mut now.download, usual.download),
+            ("Account and sign-in", &mut now.account, usual.account),
+            ("Sign-out", &mut now.sign_out, usual.sign_out),
+            ("Counting a prompt's tokens", &mut now.count, usual.count),
+            ("Test connection", &mut now.check, usual.check),
+        ] {
+            wait_rows(ui, label, wait, usual, "s", &stored::SECONDS_RANGE);
+        }
+        if now == before {
+            return false;
+        }
+        let mut next = settings;
+        next.network = (now != shipped.network).then_some(now);
+        state.commit(next)
     }
 
     /// The page, in the Settings window's AI section.
@@ -859,7 +908,8 @@ fn model_choice(
         quick.check = Check::Idle;
     }
     if test {
-        quick.check = start_check(ui.ctx(), checker, &quick.draft, &quick.key);
+        let silence = Network::silence(settings.network_or(shipped).check);
+        quick.check = start_check(ui.ctx(), checker, &quick.draft, &quick.key, silence);
     }
     if let Check::Running(rx, _) = &quick.check {
         match rx.try_recv() {
@@ -963,7 +1013,13 @@ fn key_row(ui: &mut egui::Ui, quick: &mut Quick, focus: bool) {
 }
 
 /// Start Test connection off the UI thread.
-fn start_check(ctx: &egui::Context, checker: Checker, draft: &EndpointSetting, key: &str) -> Check {
+fn start_check(
+    ctx: &egui::Context,
+    checker: Checker,
+    draft: &EndpointSetting,
+    key: &str,
+    silence: Silence,
+) -> Check {
     let (tx, rx) = std::sync::mpsc::channel();
     let setting = draft.clone();
     let key = Secret::new(key);
@@ -973,7 +1029,7 @@ fn start_check(ctx: &egui::Context, checker: Checker, draft: &EndpointSetting, k
     match std::thread::Builder::new()
         .name("settings-ai-check".into())
         .spawn(move || {
-            let _ = tx.send(call.scope(|| checker(&setting, key)));
+            let _ = tx.send(call.scope(|| checker(&setting, key, silence)));
             wake.request_repaint();
         }) {
         Ok(_) => Check::Running(rx, cancel),
@@ -1158,6 +1214,38 @@ fn number_u64(ui: &mut egui::Ui, label: &str, value: &mut u64, unit: &str, range
     }
 }
 
+/// How long a request may hear nothing: given up after a time, or no limit.
+/// `usual` is where a limit starts. Whether it changed.
+fn wait_rows(
+    ui: &mut egui::Ui,
+    label: &str,
+    wait: &mut Wait,
+    usual: Wait,
+    unit: &str,
+    range: &std::ops::RangeInclusive<u32>,
+) -> bool {
+    let before = *wait;
+    let mut limited = matches!(wait, Wait::Limit(_));
+    if kit::choice_row(
+        ui,
+        label,
+        &mut limited,
+        &[(true, "Give up".to_owned()), (false, "No limit".to_owned())],
+    ) {
+        *wait = match (limited, usual) {
+            (false, _) => Wait::NO_LIMIT,
+            (true, Wait::Limit(_)) => usual,
+            (true, Wait::Never(_)) => Wait::Limit(*range.start()),
+        };
+    }
+    if let Wait::Limit(after) = wait {
+        ui.push_id(label, |ui| {
+            number_u32(ui, "After", after, unit, (*range.start(), *range.end()));
+        });
+    }
+    *wait != before
+}
+
 /// The endpoint form; whether it closed.
 fn endpoint_form(
     ui: &mut egui::Ui,
@@ -1227,6 +1315,24 @@ fn endpoint_form(
     {
         d.harness_profile = (!harness.is_empty()).then_some(harness);
     }
+    let local = d.endpoint().is_ok_and(|e| e.is_loopback());
+    let usual = shipped.reply_wait(d.provider, local);
+    let mut wait = d.timeout_minutes.unwrap_or(usual);
+    if wait_rows(
+        ui,
+        "When the model sends nothing",
+        &mut wait,
+        usual,
+        "min",
+        &stored::MINUTES_RANGE,
+    ) {
+        d.timeout_minutes = Some(wait);
+    }
+    kit::hint(
+        ui,
+        "A reply that keeps arriving is never cut off",
+        "A model on this computer may send nothing while it loads, or until a whole reply is done. You can stop the wait at any time.",
+    );
     if let Some(c) = &mut d.capabilities {
         number_u64(
             ui,

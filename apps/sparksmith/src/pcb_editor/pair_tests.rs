@@ -799,9 +799,7 @@ fn a_pair_without_a_partner_pad_on_the_layer_is_refused_in_words() -> TestResult
 
 /// The ESP32 board with its USB pair unrouted: the pair's nets and the
 /// module's two pads' positions, `[positive, negative]`.
-type Esp32 = (Engine, [Id; 2], [Point; 2]);
-
-fn esp32() -> Result<Esp32, Box<dyn std::error::Error>> {
+fn esp32() -> Result<(Engine, [Id; 2], [Point; 2]), Box<dyn std::error::Error>> {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith"

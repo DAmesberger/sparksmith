@@ -784,3 +784,58 @@ fn summary_and_chat_fit_the_counted_prompt_in_the_declared_context() -> Fallible
     }
     Ok(())
 }
+
+/// A model that went silent: what it had said stays, in the history too, a
+/// call it began does not run, its tokens count, and the end names the
+/// limit. Asked again, it goes on from there.
+#[test]
+fn a_silent_reply_is_kept_and_the_turn_can_go_on() -> Fallible {
+    let silent = reply(
+        vec![
+            Part::text("Half an answer"),
+            call("c1", "apply", serde_json::json!({})),
+        ],
+        StopReason::Silent {
+            why: "Nothing arrived.".into(),
+        },
+    );
+    let mut model = Script::new([silent, text("The rest.")]);
+    let mut history = Vec::new();
+    let mut tools = Recorder {
+        calls: vec![],
+        answer: |_, _| Value::Null,
+    };
+    let config = config()?;
+    let mut shown = Vec::new();
+    let mut go = |message: &str, history: &mut Vec<Message>, model: &mut Script| {
+        turn(
+            &config,
+            model,
+            history,
+            vec![Part::text(message)],
+            &mut tools,
+            &mut |event| {
+                if let Event::Text(text) = event {
+                    shown.push(text);
+                }
+            },
+            &AtomicBool::new(false),
+        )
+    };
+    let outcome = go("Go", &mut history, &mut model);
+    assert_eq!(
+        outcome.end,
+        End::Limit {
+            hit: Hit::Silence,
+            why: "Nothing arrived.".into()
+        }
+    );
+    assert_eq!(outcome.usage.output_tokens, 10);
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[1].content, [Part::text("Half an answer")]);
+    let outcome = go("Again", &mut history, &mut model);
+    assert_eq!(outcome.end, End::Answered);
+    assert_eq!(shown, ["Half an answer", "The rest."]);
+    assert!(tools.calls.is_empty());
+    Ok(())
+}

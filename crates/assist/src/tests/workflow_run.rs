@@ -632,6 +632,55 @@ fn a_declared_budget_stops_its_run_within_the_persons_limits() -> Fallible {
     Ok(())
 }
 
+/// A model that goes silent in a step: the person is told which limit and
+/// may have the step tried again; with no one to ask, the run ends there.
+#[test]
+fn a_silent_model_is_tried_again_when_the_person_says_so() -> Fallible {
+    let loaded = shipped()?;
+    let config = local_config(131_072)?;
+    let dir = tempfile::tempdir()?;
+    let mut backend = openai(Vec::new(), &config);
+    for why in ["first", "second"] {
+        backend
+            .wire
+            .replies
+            .push_back(Err(Error::Silent(why.into())));
+    }
+    let again = ControlAnswer::Change {
+        value: json!("again"),
+    };
+    let mut person = Scripted {
+        answers: vec![("plan".into(), again)],
+        ..Scripted::default()
+    };
+    let outcome = start(
+        &loaded,
+        &config,
+        inputs(&dir)?,
+        &mut backend,
+        &mut profiled_session(),
+        &mut person,
+    )?;
+    assert_eq!(
+        outcome.end,
+        RunEnd::Limit {
+            why: "second".into()
+        }
+    );
+    assert_eq!(backend.wire.posts.len(), 2);
+    let helps: Vec<_> = person
+        .asked
+        .iter()
+        .flat_map(|(_, cards)| cards)
+        .filter_map(|card| match card {
+            ControlCard::Choice { field, .. } => Some(field.help.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(helps, ["first", "second"]);
+    Ok(())
+}
+
 /// Without limits, the same refused call sent again and again still ends
 /// the run.
 #[test]

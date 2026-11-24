@@ -227,7 +227,7 @@ fn no_background_result_reaches_the_project_opened_next() -> Fallible {
         assert!(ax.app.after_commit.take().is_empty(), "{what}");
         assert!(ax.app.workflow_cards.outbox.is_empty(), "{what}");
         assert!(ax.app.assistant.notes.is_empty(), "{what}");
-        assert!(ax.app.assistant.online_waits.is_empty(), "{what}");
+        assert!(!ax.app.generators.is_waiting(), "{what}");
         assert!(
             ax.ctx
                 .data(|d| d.get_temp::<String>(egui::Id::unique("typed")))

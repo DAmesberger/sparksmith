@@ -374,6 +374,8 @@ struct Chunks {
     finish: Option<String>,
     usage: Value,
     done: bool,
+    /// Something arrived.
+    began: bool,
 }
 
 impl Chunks {
@@ -388,6 +390,7 @@ impl Chunks {
         }
         let chunk: Value = serde_json::from_str(data)
             .map_err(|e| Error::Protocol(format!("a stream chunk is not JSON: {e}")))?;
+        self.began = true;
         if let Some(error) = reported_error(&chunk) {
             return Err(error);
         }
@@ -574,6 +577,7 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
         let started = Instant::now();
         let body = request_body(&self.profile, request, self.completion_field)?;
         let path = "/chat/completions";
+        self.wire.set_silence(self.profile.silence);
         let response =
             match self
                 .wire
@@ -608,6 +612,7 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
     ) -> Result<ModelReply> {
         let started = Instant::now();
         let path = "/chat/completions";
+        self.wire.set_silence(self.profile.silence);
         let mut redactor = self.wire.redactor();
         let mut emit = |delta| redactor.push(delta, deltas);
         // Usage comes in a last chunk when asked for; a server that refuses
@@ -663,10 +668,15 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
                 redactor.finish(true, deltas);
                 return Ok(reply);
             }
-            Streamed::Stopped => (chunks.finish(), true),
+            Streamed::Stopped => (chunks.finish(), Some(StopReason::Stopped)),
+            Streamed::Silent(why) if !chunks.began => return Err(Error::Silent(why)),
+            Streamed::Silent(why) => {
+                chunks.think.finish(&mut emit);
+                (chunks.finish(), Some(StopReason::Silent { why }))
+            }
             Streamed::Done if chunks.done || chunks.finish.is_some() => {
                 chunks.think.finish(&mut emit);
-                (chunks.finish(), false)
+                (chunks.finish(), None)
             }
             Streamed::Done => {
                 return Err(Error::Protocol(
@@ -681,10 +691,11 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
             prompt_chars,
             &mut self.calls,
         )?;
-        if stopped {
-            reply.stop = StopReason::Stopped;
+        let whole = stopped.is_none();
+        if let Some(stop) = stopped {
+            reply.stop = stop;
         }
-        redactor.finish(!stopped, deltas);
+        redactor.finish(whole, deltas);
         self.wire.clean_reply(reply)
     }
 

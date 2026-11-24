@@ -18,6 +18,7 @@
 //! Run profiles stay files in `<config>/assist-profiles/`
 //! ([`crate::profile`]); [`profiles`] lists them beside the built-in ones
 //! and [`save_profile`] checks one before it replaces the file.
+use crate::http::Silence;
 use crate::model::{Budget, Endpoint, ModelProfile, OutputLimits, Provider};
 use crate::profile::{AssistLibrary, RunProfile};
 use crate::{Error, Result};
@@ -51,6 +52,132 @@ pub const CONTEXT_RANGE: std::ops::RangeInclusive<u64> = 2_048..=10_000_000;
 pub const OUTPUT_RANGE: std::ops::RangeInclusive<u32> = 256..=1_000_000;
 /// Parts of a variable name that mean it carries a key.
 const SECRET_WORDS: &[&str] = &["KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL"];
+
+/// Seconds a request may be let hear nothing.
+pub const SECONDS_RANGE: std::ops::RangeInclusive<u32> = 1..=24 * 60 * 60;
+/// Minutes a model's reply may be let hear nothing.
+pub const MINUTES_RANGE: std::ops::RangeInclusive<u32> = 1..=24 * 60;
+/// Where the person sets a connection's own wait.
+const REPLY_SET_IN: &str =
+    "Settings › AI › Advanced (the connection's “When the model sends nothing”)";
+/// Where the person sets the others.
+const NETWORK_SET_IN: &str = "Settings › Network";
+
+/// How long a request may hear nothing before it is given up, in its
+/// field's unit: a number, or `"no_limit"`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Wait {
+    Limit(u32),
+    Never(Never),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Never {
+    NoLimit,
+}
+
+impl Wait {
+    pub const NO_LIMIT: Self = Self::Never(Never::NoLimit);
+
+    /// As a request takes it: units of `unit` seconds, set in `set_in`.
+    fn silence(self, unit: u64, set_in: &'static str) -> Silence {
+        Silence {
+            after: match self {
+                Self::Limit(n) => Some(Duration::from_secs(u64::from(n).saturating_mul(unit))),
+                Self::Never(_) => None,
+            },
+            set_in,
+        }
+    }
+
+    fn within(self, range: &std::ops::RangeInclusive<u32>) -> bool {
+        match self {
+            Self::Limit(n) => range.contains(&n),
+            Self::Never(_) => true,
+        }
+    }
+}
+
+/// How long, in seconds, each kind of request but a model's reply may hear
+/// nothing before it is given up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Network {
+    /// A search of the online library.
+    pub search: Wait,
+    /// Its index and the index's shards.
+    pub index: Wait,
+    /// A part's data.
+    pub download: Wait,
+    /// The account and the sign-in's requests.
+    pub account: Wait,
+    /// Telling the registry of a sign-out.
+    pub sign_out: Wait,
+    /// Counting a prompt's tokens.
+    pub count: Wait,
+    /// Test connection.
+    pub check: Wait,
+}
+
+impl Network {
+    /// No limits: what a client has before it is given the person's.
+    pub const NO_LIMITS: Self = Self {
+        search: Wait::NO_LIMIT,
+        index: Wait::NO_LIMIT,
+        download: Wait::NO_LIMIT,
+        account: Wait::NO_LIMIT,
+        sign_out: Wait::NO_LIMIT,
+        count: Wait::NO_LIMIT,
+        check: Wait::NO_LIMIT,
+    };
+
+    /// One of these waits, as a request takes it.
+    pub fn silence(wait: Wait) -> Silence {
+        wait.silence(1, NETWORK_SET_IN)
+    }
+
+    fn check(&self) -> std::result::Result<(), String> {
+        let Self {
+            search,
+            index,
+            download,
+            account,
+            sign_out,
+            count,
+            check,
+        } = self;
+        for (name, wait) in [
+            ("search", search),
+            ("index", index),
+            ("download", download),
+            ("account", account),
+            ("sign_out", sign_out),
+            ("count", count),
+            ("check", check),
+        ] {
+            if !wait.within(&SECONDS_RANGE) {
+                return Err(format!(
+                    "network {name}: the wait must be {} to {} seconds, or no_limit",
+                    SECONDS_RANGE.start(),
+                    SECONDS_RANGE.end()
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The person's network waits, kept in `config`, over the shipped ones.
+/// A settings file that cannot be read leaves the shipped ones.
+pub fn network(config: Option<&Path>) -> Result<Network> {
+    let shipped = Shipped::locate()?;
+    let own = config
+        .and_then(|config| read(&user_file(config)).ok())
+        .and_then(|settings| settings.network);
+    Ok(own.unwrap_or(shipped.network))
+}
 
 /// Which wire format an endpoint speaks, as stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -98,10 +225,19 @@ pub struct EndpointSetting {
     pub model: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub harness_profile: Option<String>,
+    /// Minutes the model may send nothing before a request is given up;
+    /// none: the shipped wait of such a connection ([`Shipped::reply_wait`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_minutes: Option<Wait>,
     /// What the model can do, declared; an OpenAI-compatible endpoint
     /// needs it, and the Messages API declares its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<Declared>,
+}
+
+/// A connection's wait, as a request takes it.
+fn reply_silence(wait: Wait) -> Silence {
+    wait.silence(60, REPLY_SET_IN)
 }
 
 impl EndpointSetting {
@@ -138,6 +274,20 @@ impl EndpointSetting {
             }
         };
         profile.harness_profile.clone_from(&self.harness_profile);
+        if let Some(wait) = self.timeout_minutes {
+            profile.silence = reply_silence(wait);
+        }
+        Ok(profile)
+    }
+
+    /// [`Self::model_profile`] with the waits of `shipped` and `network`.
+    pub fn waiting_profile(&self, shipped: &Shipped, network: &Network) -> Result<ModelProfile> {
+        let mut profile = self.model_profile()?;
+        if self.timeout_minutes.is_none() {
+            let local = self.endpoint()?.is_loopback();
+            profile.silence = reply_silence(shipped.reply_wait(self.provider, local));
+        }
+        profile.count_silence = Network::silence(network.count);
         Ok(profile)
     }
 
@@ -162,6 +312,17 @@ impl EndpointSetting {
             return Err(format!(
                 "endpoint {}: give the model id, at most {MAX_MODEL} bytes",
                 self.name
+            ));
+        }
+        if self
+            .timeout_minutes
+            .is_some_and(|wait| !wait.within(&MINUTES_RANGE))
+        {
+            return Err(format!(
+                "endpoint {}: the wait for the model must be {} to {} minutes, or no_limit",
+                self.name,
+                MINUTES_RANGE.start(),
+                MINUTES_RANGE.end()
             ));
         }
         let Some(c) = &self.capabilities else {
@@ -377,6 +538,9 @@ pub struct AssistSettings {
     /// None: no limits of the person's own ([`run_budget`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limits: Option<Limits>,
+    /// None: the shipped ones.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network: Option<Network>,
 }
 
 impl Default for AssistSettings {
@@ -388,6 +552,7 @@ impl Default for AssistSettings {
             connection: None,
             permissions: None,
             limits: None,
+            network: None,
         }
     }
 }
@@ -426,6 +591,9 @@ impl AssistSettings {
         if let Some(limits) = &self.limits {
             limits.check()?;
         }
+        if let Some(network) = &self.network {
+            network.check()?;
+        }
         Ok(())
     }
 
@@ -444,6 +612,10 @@ impl AssistSettings {
             .as_deref()
             .and_then(|name| self.endpoints.iter().find(|e| e.name == name))
             .or_else(|| self.endpoints.first())
+    }
+
+    pub fn network_or(&self, shipped: &Shipped) -> Network {
+        self.network.unwrap_or(shipped.network)
     }
 
     pub fn permissions_or(&self, shipped: &Shipped) -> Permissions {
@@ -478,26 +650,12 @@ pub fn read(path: &Path) -> Result<AssistSettings> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(AssistSettings::default()),
         Err(e) => return Err(Error::Config(format!("{origin}: {e}"))),
     };
-    let settings = parse(&text).map_err(|e| Error::Config(format!("{origin}: {e}")))?;
+    let settings: AssistSettings =
+        serde_json::from_str(&text).map_err(|e| Error::Config(format!("{origin}: {e}")))?;
     settings
         .check()
         .map_err(|why| Error::Config(format!("{origin}: {why}")))?;
     Ok(settings)
-}
-
-/// The settings `text` holds. Files of earlier versions say how long an
-/// endpoint's reply may take, which nothing limits: it is dropped.
-fn parse(text: &str) -> serde_json::Result<AssistSettings> {
-    let mut value: serde_json::Value = serde_json::from_str(text)?;
-    let endpoints = value
-        .get_mut("endpoints")
-        .and_then(serde_json::Value::as_array_mut);
-    for endpoint in endpoints.into_iter().flatten() {
-        if let Some(fields) = endpoint.as_object_mut() {
-            fields.remove("timeout_minutes");
-        }
-    }
-    serde_json::from_value(value)
 }
 
 /// Check `settings` and replace the file at `path` atomically.
@@ -551,6 +709,7 @@ struct ShippedFile {
     _about: String,
     permissions: Permissions,
     limits_start: Limits,
+    network: Network,
     endpoint_presets: Vec<EndpointPreset>,
     agent_presets: Vec<AgentPreset>,
     #[serde(default, rename = "sources")]
@@ -564,6 +723,7 @@ pub struct Shipped {
     pub permissions: Permissions,
     /// The values the limits start from when the person turns them on.
     pub limits_start: Limits,
+    pub network: Network,
     pub endpoint_presets: Vec<EndpointPreset>,
     pub agent_presets: Vec<AgentPreset>,
 }
@@ -590,6 +750,7 @@ impl Shipped {
             )));
         }
         file.limits_start.check().map_err(|e| bad(&e))?;
+        file.network.check().map_err(|e| bad(&e))?;
         if file.endpoint_presets.len() > MAX_CONNECTIONS
             || file.agent_presets.len() > MAX_CONNECTIONS
         {
@@ -605,6 +766,10 @@ impl Shipped {
             }
             e.check()
                 .map_err(|why| bad(&format!("preset {}: {why}", preset.title)))?;
+            if e.timeout_minutes.is_none() {
+                let why = format!("preset {}: its timeout_minutes is missing", preset.title);
+                return Err(bad(&why));
+            }
         }
         for preset in &file.agent_presets {
             preset
@@ -615,9 +780,30 @@ impl Shipped {
         Ok(Self {
             permissions: file.permissions,
             limits_start: file.limits_start,
+            network: file.network,
             endpoint_presets: file.endpoint_presets,
             agent_presets: file.agent_presets,
         })
+    }
+}
+
+impl Shipped {
+    /// How long a model may send nothing when its connection does not say:
+    /// as the preset of its provider on this computer (`local`) or not.
+    pub fn reply_wait(&self, provider: Wire, local: bool) -> Wait {
+        let endpoints = || self.endpoint_presets.iter().map(|p| &p.endpoint);
+        let here = |e: &&EndpointSetting| e.endpoint().is_ok_and(|u| u.is_loopback() == local);
+        endpoints()
+            .filter(here)
+            .find(|e| e.provider == provider)
+            .or_else(|| endpoints().find(here))
+            .and_then(|e| e.timeout_minutes)
+            .unwrap_or(Wait::NO_LIMIT)
+    }
+
+    /// [`Self::reply_wait`], as a request takes it.
+    pub fn reply_silence(&self, provider: Wire, local: bool) -> Silence {
+        reply_silence(self.reply_wait(provider, local))
     }
 }
 

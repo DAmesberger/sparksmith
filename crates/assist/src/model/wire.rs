@@ -5,14 +5,15 @@
 //! and final replies (including decoded tool arguments).
 use super::stream::{self, SseEvent, Streamed};
 use super::{Endpoint, Secret};
+use crate::http::{self, Agents, Next, Silence};
 use crate::{Error, Result};
 use serde_json::Value;
-use sparksmith_automation::cancel;
-use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::time::Duration;
 
 /// Largest response body read.
 const MAX_RESPONSE_BYTES: u64 = 32 * 1024 * 1024;
+/// Who a silent request waited for, in words.
+const MODEL: &str = "the model";
 
 /// How a key is presented.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,9 +28,9 @@ pub enum AuthStyle {
 pub trait Wire {
     /// Where this goes, for the review report; never holds a key.
     fn label(&self) -> String;
-    /// POST `body` to the endpoint's `path`. It waits as long as the server
-    /// takes, at most `timeout` when the person limits the run's time; a
-    /// cancelled call ([`cancel`]) ends it.
+    /// POST `body` to the endpoint's `path`: at most `timeout` in all when
+    /// the person limits the run's time, and no longer than the set silence
+    /// hears nothing ([`Self::set_silence`]). A cancelled call ends it.
     fn post(
         &mut self,
         path: &str,
@@ -48,6 +49,8 @@ pub trait Wire {
         timeout: Option<Duration>,
         on: &mut dyn FnMut(SseEvent) -> Result<bool>,
     ) -> Result<Streamed>;
+    /// How long the requests from here on may hear nothing.
+    fn set_silence(&mut self, _silence: Silence) {}
     /// `value` without the key, for a reply put together from many events:
     /// a key split across two of them is whole again here.
     fn clean_value(&self, value: Value) -> Value {
@@ -63,45 +66,26 @@ pub trait Wire {
     }
 }
 
-/// The real thing, over ureq. Each request runs on a thread of its own, so
-/// a cancelled call ([`cancel`]) ends at once however silent the server is;
-/// the thread ends, and the connection closes, when the server next sends
-/// something or closes it.
+/// The real thing, over ureq ([`crate::http`]): a request is given up when
+/// its server sends nothing for as long as the person allows, and ends at
+/// once when its call is cancelled.
 pub struct HttpWire {
+    agents: Agents,
     http: Http,
 }
 
 #[derive(Clone)]
 struct Http {
-    agent: ureq::Agent,
     endpoint: Endpoint,
     key: Option<Secret>,
     auth: AuthStyle,
+    silence: Silence,
 }
 
 /// What a streaming request's thread says.
 enum Step {
     Event(SseEvent),
     End(Result<Streamed>),
-}
-
-/// How often a waiting request looks at its call's cancellation.
-const POLL: Duration = Duration::from_millis(50);
-
-/// What the request's thread says next; `None` once the call is cancelled.
-fn wait<T>(answer: &Receiver<T>) -> Result<Option<T>> {
-    loop {
-        if cancel::requested() {
-            return Ok(None);
-        }
-        match answer.recv_timeout(POLL) {
-            Ok(value) => return Ok(Some(value)),
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => {
-                return Err(Error::Http("the request ended without an answer".into()));
-            }
-        }
-    }
 }
 
 fn owned(headers: &[(&str, &str)]) -> Vec<(String, String)> {
@@ -124,34 +108,15 @@ impl HttpWire {
         if key.is_some() {
             endpoint.check_key_allowed()?;
         }
-        let mut config = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .max_redirects(0);
-        if endpoint.is_loopback() {
-            // Requests for this computer never go through a proxy.
-            config = config.proxy(None);
-        }
         Ok(Self {
+            agents: Agents::new(endpoint.is_loopback()),
             http: Http {
-                agent: config.build().into(),
                 endpoint,
                 key,
                 auth,
+                silence: Silence::default(),
             },
         })
-    }
-
-    /// Run `request` on a thread of its own.
-    fn start(&self, request: impl FnOnce(&Http) + Send + 'static) -> Result<()> {
-        if cancel::requested() {
-            return Err(Error::Http("the request was stopped".into()));
-        }
-        let http = self.http.clone();
-        std::thread::Builder::new()
-            .name("model-request".into())
-            .spawn(move || request(&http))
-            .map(|_| ())
-            .map_err(|e| Error::Http(format!("the request could not be started: {e}")))
     }
 }
 
@@ -169,13 +134,21 @@ impl Wire for HttpWire {
         timeout: Option<Duration>,
     ) -> Result<Value> {
         let (path, headers, body) = (path.to_owned(), owned(headers), body.clone());
-        let (send, answer) = channel();
-        self.start(move |http| {
-            let _ = send.send(http.post(&path, &headers, &body, timeout));
-        })?;
-        let value =
-            wait(&answer)?.ok_or_else(|| Error::Http("the request was stopped".into()))??;
-        Ok(self.clean_value(value))
+        let http = self.http.clone();
+        let running = self
+            .agents
+            .start(move |agent, said| {
+                let _ = said.send(http.post(agent, &path, &headers, &body, timeout));
+            })
+            .map_err(Error::Http)?;
+        match running.next() {
+            Next::Step(answer) => {
+                running.done();
+                answer.map(|value| self.clean_value(value))
+            }
+            Next::Cancelled => Err(Error::Http("the request was stopped".into())),
+            Next::Gone => Err(Error::Http("the request ended without an answer".into())),
+        }
     }
 
     fn post_stream(
@@ -187,31 +160,43 @@ impl Wire for HttpWire {
         on: &mut dyn FnMut(SseEvent) -> Result<bool>,
     ) -> Result<Streamed> {
         let (path, headers, body) = (path.to_owned(), owned(headers), body.clone());
-        let (send, steps) = channel();
-        self.start(move |http| {
-            let events = send.clone();
-            let end = http.post_stream(&path, &headers, &body, timeout, &mut |event| {
-                Ok(events.send(Step::Event(event)).is_ok())
-            });
-            let _ = send.send(Step::End(end));
-        })?;
-        // Dropping `steps` on a stop ends the thread at its next event.
+        let http = self.http.clone();
+        let running = self
+            .agents
+            .start(move |agent, said| {
+                let end = http.post_stream(agent, &path, &headers, &body, timeout, &mut |event| {
+                    Ok(said.send(Step::Event(event)).is_ok())
+                });
+                let _ = said.send(Step::End(end));
+            })
+            .map_err(Error::Http)?;
+        // Dropping `running` on a stop closes the connection.
         loop {
-            match wait(&steps)? {
-                None => return Ok(Streamed::Stopped),
-                Some(Step::Event(event)) => {
+            match running.next() {
+                Next::Cancelled => return Ok(Streamed::Stopped),
+                Next::Gone => {
+                    return Err(Error::Http("the request ended without an answer".into()));
+                }
+                Next::Step(Step::Event(event)) => {
                     let more =
                         on(event).map_err(|e| Error::Http(self.http.clean(&e.to_string())))?;
                     if !more {
                         return Ok(Streamed::Stopped);
                     }
                 }
-                Some(Step::End(Ok(Streamed::Whole(value)))) => {
-                    return Ok(Streamed::Whole(self.clean_value(value)));
+                Next::Step(Step::End(end)) => {
+                    running.done();
+                    return Ok(match end? {
+                        Streamed::Whole(value) => Streamed::Whole(self.clean_value(value)),
+                        other => other,
+                    });
                 }
-                Some(Step::End(end)) => return end,
             }
         }
+    }
+
+    fn set_silence(&mut self, silence: Silence) {
+        self.http.silence = silence;
     }
 
     fn clean_value(&self, mut value: Value) -> Value {
@@ -280,27 +265,37 @@ impl Http {
         }
     }
 
+    /// A request that failed, in words without the key.
+    fn failed(&self, error: &ureq::Error) -> Error {
+        if http::silent(error) {
+            return Error::Silent(self.silence.why(MODEL));
+        }
+        Error::Http(self.clean(&error.to_string()))
+    }
+
     fn post(
         &self,
+        agent: &ureq::Agent,
         path: &str,
         headers: &[(String, String)],
         body: &Value,
         timeout: Option<Duration>,
     ) -> Result<Value> {
-        let mut response = self.send(path, headers, body, timeout)?;
+        let mut response = self.send(agent, path, headers, body, timeout)?;
         let text = self.read_text(&mut response)?;
         reply_value(&text)
     }
 
     fn post_stream(
         &self,
+        agent: &ureq::Agent,
         path: &str,
         headers: &[(String, String)],
         body: &Value,
         timeout: Option<Duration>,
         on: &mut dyn FnMut(SseEvent) -> Result<bool>,
     ) -> Result<Streamed> {
-        let mut response = self.send(path, headers, body, timeout)?;
+        let mut response = self.send(agent, path, headers, body, timeout)?;
         let events = response
             .headers()
             .get("content-type")
@@ -330,9 +325,13 @@ impl Http {
             .reader();
         let mut reader = std::io::BufReader::new(reader);
         let clean = |line: &str| self.clean(line);
-        // Dropping the reader on a stop closes the connection.
-        let stopped = stream::read_sse(&mut reader, &clean, on)
-            .map_err(|e| Error::Http(self.clean(&e.to_string())))?;
+        let stopped = match stream::read_sse(&mut reader, &clean, on) {
+            Ok(stopped) => stopped,
+            Err(Error::Io(error)) if http::silent_io(&error) => {
+                return Ok(Streamed::Silent(self.silence.why(MODEL)));
+            }
+            Err(error) => return Err(Error::Http(self.clean(&error.to_string()))),
+        };
         Ok(if stopped {
             Streamed::Stopped
         } else {
@@ -343,17 +342,22 @@ impl Http {
     /// Send one POST: the response with a success status, or the error.
     fn send(
         &self,
+        agent: &ureq::Agent,
         path: &str,
         headers: &[(String, String)],
         body: &Value,
         timeout: Option<Duration>,
     ) -> Result<ureq::http::Response<ureq::Body>> {
         let url = format!("{}{path}", self.endpoint.base());
-        let mut request = self
-            .agent
+        let silence = self.silence.after;
+        let mut request = agent
             .post(&url)
             .config()
             .timeout_global(timeout)
+            .timeout_per_read(silence)
+            .timeout_per_write(silence)
+            .timeout_connect(silence)
+            .timeout_resolve(silence)
             .build()
             .header("content-type", "application/json");
         for (name, value) in headers {
@@ -367,9 +371,7 @@ impl Http {
                 }
             };
         }
-        let mut response = request
-            .send_json(body)
-            .map_err(|e| Error::Http(self.clean(&e.to_string())))?;
+        let mut response = request.send_json(body).map_err(|e| self.failed(&e))?;
         let status = response.status().as_u16();
         if (300..400).contains(&status) {
             return Err(Error::Api {
@@ -396,7 +398,7 @@ impl Http {
             .with_config()
             .limit(MAX_RESPONSE_BYTES)
             .read_to_string()
-            .map_err(|e| Error::Http(self.clean(&e.to_string())))?;
+            .map_err(|e| self.failed(&e))?;
         Ok(self.clean(&text))
     }
 }
@@ -1031,6 +1033,146 @@ mod tests {
             let next = wire.post("/s", &[], &json!({}), None)?;
             assert_eq!(next, json!({"next": true}));
             let _ = handle.join();
+        }
+        Ok(())
+    }
+
+    /// Serve one event stream: `first`, then whatever `rest` does.
+    fn stream_server(
+        first: &'static [u8],
+        rest: impl FnOnce(&mut std::net::TcpStream) + Send + 'static,
+    ) -> Result<(String, std::thread::JoinHandle<()>)> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let base = format!("http://{}", listener.local_addr()?);
+        let handle = std::thread::spawn(move || {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            let _ = stream.read(&mut [0u8; 8192]);
+            let _ = stream.write_all(first);
+            rest(&mut stream);
+        });
+        Ok((base, handle))
+    }
+
+    const HEAD: &[u8] =
+        b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\n";
+
+    fn quiet(millis: u64) -> Silence {
+        Silence {
+            after: Some(Duration::from_millis(millis)),
+            set_in: "the test",
+        }
+    }
+
+    /// Reads until the client closes the connection.
+    fn until_closed(stream: &mut std::net::TcpStream) {
+        while stream.read(&mut [0u8; 64]).is_ok_and(|n| n > 0) {}
+    }
+
+    /// A server that never answers is given up at the limit, and one that
+    /// goes silent after some of its reply too, with what came kept; the
+    /// message names the limit and its place. The next request is answered.
+    #[test]
+    fn a_silent_server_is_given_up_at_the_limit() -> Result<()> {
+        let (base, handle) = stream_server(b"", until_closed)?;
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+        wire.set_silence(quiet(50));
+        let given_up = |error: Error| match error {
+            Error::Silent(why) => Ok(why),
+            other => Err(other),
+        };
+        let why = match wire.post("/s", &[], &json!({}), None) {
+            Ok(value) => return Err(Error::Protocol(value.to_string())),
+            Err(error) => given_up(error)?,
+        };
+        assert!(why.contains("the limit set in the test"), "{why}");
+        let _ = handle.join();
+
+        let first = [HEAD, b"data: first\n\n".as_slice()].concat().leak();
+        let (base, handle) = stream_server(first, until_closed)?;
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+        wire.set_silence(quiet(50));
+        let (streamed, seen) = stream_of(&mut wire)?;
+        assert!(matches!(streamed, Streamed::Silent(_)), "{streamed:?}");
+        assert_eq!(seen, ["first"]);
+        let _ = handle.join();
+
+        let (base, handle) = server(http("200 OK", r#"{"next": true}"#))?;
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+        wire.set_silence(quiet(60_000));
+        let next = wire.post("/s", &[], &json!({}), None)?;
+        assert_eq!(next, json!({"next": true}));
+        let _ = handle.join();
+        Ok(())
+    }
+
+    /// A reply that keeps arriving is never cut, however long it takes in
+    /// all: each piece comes well within the limit, the whole well past it.
+    #[test]
+    fn a_trickling_reply_is_never_cut() -> Result<()> {
+        const PIECES: usize = 12;
+        let (_pace, paced) = std::sync::mpsc::channel::<()>();
+        let (base, handle) = stream_server(HEAD, move |stream| {
+            for _ in 0..PIECES {
+                // The server's own pace.
+                let _ = paced.recv_timeout(Duration::from_millis(150));
+                let _ = stream.write_all(b"data: piece\n\n");
+            }
+        })?;
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+        wire.set_silence(quiet(1_000));
+        let started = std::time::Instant::now();
+        let (streamed, seen) = stream_of(&mut wire)?;
+        assert_eq!(streamed, Streamed::Done);
+        assert_eq!(seen.len(), PIECES);
+        assert!(started.elapsed() > Duration::from_millis(1_000));
+        let _ = handle.join();
+        Ok(())
+    }
+
+    /// Both backends keep what a reply that went silent had said, count its
+    /// tokens and name the limit; one that said nothing is the error.
+    #[test]
+    fn a_reply_that_went_silent_keeps_what_it_said() -> Result<()> {
+        use crate::model::{ModelBackend, ModelProfile, ModelRequest, Part, StopReason};
+        use std::sync::atomic::AtomicBool;
+        let openai = "data: {\"model\":\"m\",\"choices\":[{\"delta\":{\"content\":\"Half an answer\"}}]}\n\n";
+        let anthropic = "data: {\"type\":\"message_start\",\"message\":{\"model\":\"m\",\"usage\":{\"input_tokens\":40,\"output_tokens\":1}}}\n\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Half an answer\"}}\n\n";
+        for (said, messages) in [(openai, false), (anthropic, true), ("", false), ("", true)] {
+            let first = [HEAD, said.as_bytes()].concat().leak();
+            let (base, handle) = stream_server(first, until_closed)?;
+            let wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+            let mut profile = if messages {
+                ModelProfile::anthropic("m")
+            } else {
+                ModelProfile::openai_compatible("m", 32_768)
+            };
+            profile.silence = quiet(50);
+            let mut backend: Box<dyn ModelBackend> = if messages {
+                Box::new(crate::model::anthropic::AnthropicBackend::new(
+                    profile, wire,
+                ))
+            } else {
+                Box::new(crate::model::openai::OpenAiBackend::new(profile, wire))
+            };
+            let request = ModelRequest {
+                system: "",
+                tools: &[],
+                messages: &[],
+                max_output_tokens: 100,
+                timeout: None,
+            };
+            let ended = backend.stream(&request, &mut |_| {}, &AtomicBool::new(false));
+            let _ = handle.join();
+            if said.is_empty() {
+                assert!(matches!(ended, Err(Error::Silent(_))), "{ended:?}");
+                continue;
+            }
+            let reply = ended?;
+            assert!(matches!(reply.stop, StopReason::Silent { .. }), "{reply:?}");
+            assert_eq!(reply.content, [Part::text("Half an answer")]);
+            assert!(reply.usage_estimated && reply.usage.output_tokens > 1);
         }
         Ok(())
     }

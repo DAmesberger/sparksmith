@@ -23,6 +23,7 @@ pub use source::{FootprintDrawing, PreviewSource};
 
 use egui::{Color32, ColorImage, Rect, Response, Sense, Stroke, TextureHandle, Ui, Vec2, vec2};
 use raster::Model;
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_core::geometry::Shape;
 use sparksmith_core::ids::{ComponentRef, ContentHash};
 use sparksmith_core::library::graphics::DrawingLayer;
@@ -102,6 +103,8 @@ struct Shared {
     shown: Option<(PreviewKey, Instant)>,
     motion: bool,
     quit: bool,
+    /// The job being read, and what ends it.
+    reading: Option<(PreviewKey, Cancel)>,
 }
 
 /// Drawn from the records: what the 2D thumbnails paint.
@@ -116,6 +119,9 @@ enum Message {
     Frame(PreviewKey, ColorImage),
     Ready(PreviewKey, Stats),
     Failed(PreviewKey, String),
+    /// Another row was asked for while this one was read: it is asked again
+    /// when its row is shown again.
+    Dropped(PreviewKey),
 }
 
 struct Entry {
@@ -149,6 +155,9 @@ impl Drop for PartPreviews {
         let (lock, wake) = &*self.shared;
         if let Ok(mut shared) = lock.lock() {
             shared.quit = true;
+            if let Some((_, cancel)) = &shared.reading {
+                cancel.set();
+            }
         }
         wake.notify_all();
     }
@@ -228,6 +237,12 @@ impl PartPreviews {
             let Ok(mut shared) = self.shared.0.lock() else {
                 return;
             };
+            // A row left behind may wait for a silent registry.
+            if let Some((reading, cancel)) = &shared.reading
+                && *reading != key
+            {
+                cancel.set();
+            }
             shared.jobs.push_back(Job {
                 key,
                 load: Box::new(load),
@@ -273,8 +288,14 @@ impl PartPreviews {
                 Message::Loaded(k, _)
                 | Message::Frame(k, _)
                 | Message::Ready(k, _)
-                | Message::Failed(k, _) => *k,
+                | Message::Failed(k, _)
+                | Message::Dropped(k) => *k,
             };
+            if matches!(message, Message::Dropped(_)) {
+                self.entries.remove(&key);
+                self.order.retain(|k| *k != key);
+                continue;
+            }
             let Some(entry) = self.entries.get_mut(&key) else {
                 continue;
             };
@@ -283,6 +304,7 @@ impl PartPreviews {
                 Message::Frame(_, image) => entry.image = Some(image),
                 Message::Ready(_, stats) => entry.state = PreviewState::Ready(stats),
                 Message::Failed(_, reason) => entry.state = PreviewState::Failed(reason),
+                Message::Dropped(_) => {}
             }
         }
     }
@@ -549,11 +571,22 @@ impl Worker {
         }
     }
 
+    fn reading(&self, reading: Option<(PreviewKey, Cancel)>) {
+        if let Ok(mut shared) = self.shared.0.lock() {
+            shared.reading = reading;
+        }
+    }
+
     fn serve(&mut self, job: Job) {
         let _context = job.context.as_ref().map(|c| c.enter());
         let key = job.key;
-        let source = match (job.load)() {
+        let cancel = Cancel::default();
+        self.reading(Some((key, cancel.clone())));
+        let read = cancel.scope(job.load);
+        self.reading(None);
+        let source = match read {
             Ok(source) => source,
+            Err(_) if cancel.is_set() => return self.send(Message::Dropped(key)),
             Err(reason) => return self.send(Message::Failed(key, reason)),
         };
         self.send(Message::Loaded(

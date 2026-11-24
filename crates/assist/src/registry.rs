@@ -5,20 +5,24 @@
 //! (`cargo xtask layers`); the mirror's files are io's
 //! ([`sparksmith_io::registry_mirror`]).
 //!
-//! [`RegistryClient`] calls block. [`RegistryWorker`] runs them off the UI
-//! thread: searches are debounced, tagged with the caller's generation and
-//! dropped when a newer one was asked for (before the request and again
-//! when its reply arrives), and bundle reads run on their own thread so a
-//! large download never holds up typing. Offline, search runs the core's
+//! [`RegistryClient`] calls block, and end when their call is cancelled or
+//! the registry sends nothing for as long as the person allows
+//! (`settings::Network`). [`RegistryWorker`] runs each on a thread of its
+//! own: searches are debounced and tagged with the caller's generation, and
+//! a newer one ends the request of the one before, so a silent registry
+//! holds up neither typing nor a download. Offline, search runs the core's
 //! own index over the mirrored shards and says the index's date.
 //!
 //! Downloading part data needs a free account ([`account`]): bundle
 //! requests carry the sign-in's token, searches and the catalog never do.
 pub mod account;
 
+use crate::http::{self, Agents, Next, Silence};
 use crate::model::{Endpoint, Secret};
+use crate::settings::{Network, Wait};
 use account::{Auth, DeviceCode};
 use serde::Deserialize;
+use sparksmith_automation::cancel::Cancel;
 use sparksmith_automation::session::online::{
     OnlineAccount, OnlineHit, OnlineReport, OnlineSource, SignOut,
 };
@@ -30,6 +34,7 @@ use sparksmith_core::library::Drafts;
 use sparksmith_core::library::bundle::{Bundle, SourceRevision};
 use sparksmith_core::model::{NewBoard, Project};
 use sparksmith_io::registry_mirror::{self as mirror, Mirror, MirroredIndex, RegistryIndex, Shard};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -41,12 +46,10 @@ pub const MAX_SEARCH_BYTES: u64 = 4 * 1024 * 1024;
 /// Bytes of a bundle reply: the core's packed-asset bound as base64, plus
 /// its records.
 pub const MAX_BUNDLE_BYTES: u64 = 160 * 1024 * 1024;
-/// How long a search may take before it is given up.
-pub const SEARCH_TIMEOUT: Duration = Duration::from_secs(4);
-/// How long the index or a shard may take.
-pub const SYNC_TIMEOUT: Duration = Duration::from_secs(30);
-/// How long a bundle may take.
-pub const BUNDLE_TIMEOUT: Duration = Duration::from_secs(60);
+/// A request its call was cancelled during.
+const STOPPED: &str = "the request was stopped";
+/// Who a silent request waited for, in words.
+const REGISTRY: &str = "the online library";
 /// How long typing must pause before a search is sent.
 pub const DEBOUNCE: Duration = Duration::from_millis(120);
 
@@ -104,7 +107,9 @@ impl Synced {
 pub struct RegistryClient {
     endpoint: Endpoint,
     host: String,
-    agent: ureq::Agent,
+    agents: Agents,
+    /// How long its requests may hear nothing.
+    network: Mutex<Network>,
     /// The sign-in: its keychain and what is known of it.
     auth: Auth,
     mirror: Option<Mirror>,
@@ -205,15 +210,90 @@ impl Reply {
     }
 }
 
-fn get_err(error: ureq::Error) -> String {
+fn get_err(error: ureq::Error, silence: Silence) -> String {
     match error {
-        ureq::Error::Timeout(_) => "the registry did not answer in time".into(),
+        error if http::silent(&error) => {
+            format!("the registry did not answer. {}", silence.why(REGISTRY))
+        }
         ureq::Error::BodyExceedsLimit(limit) => {
             format!("the registry's reply is larger than {limit} bytes: refused")
         }
         // Anything else on the way (no route, refused, closed): offline.
         other => format!("the registry cannot be reached ({other})"),
     }
+}
+
+/// A request as its thread sends it.
+enum Sent {
+    Post(serde_json::Value),
+    Get(Option<Secret>),
+    Delete(Secret),
+}
+
+impl From<Request<'_>> for Sent {
+    fn from(request: Request<'_>) -> Self {
+        match request {
+            Request::SignIn(name) => Self::Post(serde_json::json!({"client_name": name})),
+            Request::Poll(code) => Self::Post(serde_json::json!({"device_code": code.expose()})),
+            Request::Read(token) => Self::Get(token.cloned()),
+            Request::Revoke(token) => Self::Delete(token.clone()),
+        }
+    }
+}
+
+/// What came back: the status, `Retry-After` and the body.
+type Answer = (u16, Option<u64>, Vec<u8>);
+
+/// Send `sent` to `url` on `agent` and read at most `limit` bytes.
+fn exchange(
+    agent: &ureq::Agent,
+    url: &str,
+    sent: &Sent,
+    silence: Silence,
+    limit: u64,
+) -> Result<Answer, ureq::Error> {
+    let after = silence.after;
+    let post = |body: &serde_json::Value| {
+        agent
+            .post(url)
+            .config()
+            .timeout_per_read(after)
+            .timeout_per_write(after)
+            .timeout_connect(after)
+            .timeout_resolve(after)
+            .build()
+            .send_json(body)
+    };
+    let read = |request: ureq::RequestBuilder<_>, token: Option<&Secret>| {
+        let mut request = request
+            .config()
+            .timeout_per_read(after)
+            .timeout_per_write(after)
+            .timeout_connect(after)
+            .timeout_resolve(after)
+            .build();
+        if let Some(token) = token {
+            request = request.header("authorization", format!("Bearer {}", token.expose()));
+        }
+        request.call()
+    };
+    let mut response = match sent {
+        Sent::Post(body) => post(body)?,
+        Sent::Get(token) => read(agent.get(url), token.as_ref())?,
+        Sent::Delete(token) => read(agent.delete(url), Some(token))?,
+    };
+    let status = response.status().as_u16();
+    let retry_after = response
+        .headers()
+        .get("retry-after")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.trim().parse().ok());
+    let bytes = response
+        .body_mut()
+        .with_config()
+        .limit(limit)
+        .read_to_vec()?;
+    Ok((status, retry_after, bytes))
 }
 
 /// Whether a failure means the registry is unreachable (offline), rather
@@ -246,24 +326,31 @@ impl RegistryClient {
         let endpoint = Endpoint::parse(url).map_err(|e| e.to_string())?;
         let base = endpoint.base();
         let host = base.split_once("://").map_or(base, |(_, h)| h).to_owned();
-        let mut config = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .max_redirects(0);
-        if endpoint.is_loopback() {
-            config = config.proxy(None);
-        }
         let mirror = cache
             .map(|c| Mirror::open(c, url))
             .transpose()
             .map_err(|e| e.to_string())?;
         Ok(Self {
+            agents: Agents::new(endpoint.is_loopback()),
+            network: Mutex::new(Network::NO_LIMITS),
             endpoint,
             host,
-            agent: config.build().into(),
             auth,
             mirror,
             synced: Mutex::new(None),
         })
+    }
+
+    /// How long its requests may hear nothing, from now on.
+    pub fn set_network(&self, network: Network) {
+        if let Ok(mut held) = self.network.lock() {
+            *held = network;
+        }
+    }
+
+    fn silence(&self, wait: impl FnOnce(&Network) -> Wait) -> Silence {
+        let network = self.network.lock().map_or(Network::NO_LIMITS, |n| *n);
+        Network::silence(wait(&network))
     }
 
     /// The registry's display name: its host.
@@ -285,51 +372,30 @@ impl RegistryClient {
         Ok(format!("{}{path}", self.endpoint.base()))
     }
 
-    /// Check the destination before constructing or sending the HTTP request.
+    /// Check the destination before constructing or sending the HTTP
+    /// request, which runs on a thread of its own ([`crate::http`]).
     fn send(
         &self,
         request: Request<'_>,
         path: &str,
-        timeout: Duration,
+        silence: Silence,
         limit: u64,
     ) -> Result<Reply, String> {
         let url = self.request_url(request, path)?;
-        let clean = |error| request.clean(&get_err(error));
-        let post = |body: serde_json::Value| {
-            self.agent
-                .post(&url)
-                .config()
-                .timeout_global(Some(timeout))
-                .build()
-                .send_json(body)
-        };
-        let read = |req: ureq::RequestBuilder<_>, token: Option<&Secret>| {
-            let mut req = req.config().timeout_global(Some(timeout)).build();
-            if let Some(token) = token {
-                req = req.header("authorization", format!("Bearer {}", token.expose()));
+        let sent = Sent::from(request);
+        let running = self.agents.start(move |agent, said| {
+            let _ = said.send(exchange(agent, &url, &sent, silence, limit));
+        })?;
+        match running.next() {
+            Next::Step(answer) => {
+                running.done();
+                let (status, retry_after, bytes) =
+                    answer.map_err(|e| request.clean(&get_err(e, silence)))?;
+                Ok(Reply::received(request, status, retry_after, bytes))
             }
-            req.call()
-        };
-        let sent = match request {
-            Request::SignIn(name) => post(serde_json::json!({"client_name": name})),
-            Request::Poll(code) => post(serde_json::json!({"device_code": code.expose()})),
-            Request::Read(token) => read(self.agent.get(&url), token),
-            Request::Revoke(token) => read(self.agent.delete(&url), Some(token)),
-        };
-        let mut response = sent.map_err(clean)?;
-        let status = response.status().as_u16();
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse().ok());
-        let bytes = response
-            .body_mut()
-            .with_config()
-            .limit(limit)
-            .read_to_vec()
-            .map_err(clean)?;
-        Ok(Reply::received(request, status, retry_after, bytes))
+            Next::Cancelled => Err(STOPPED.into()),
+            Next::Gone => Err("the registry cannot be reached (no answer)".into()),
+        }
     }
 
     /// A refusal in words: the sign-in a download needs, when to try again
@@ -351,8 +417,8 @@ impl RegistryClient {
     /// A public read: never with the sign-in. Searching and the index
     /// need no account, so a 401 here is the server closed to the public
     /// (a password in front of it), not a missing sign-in.
-    fn get(&self, path: &str, timeout: Duration, limit: u64) -> Result<Vec<u8>, String> {
-        let reply = self.send(Request::Read(None), path, timeout, limit)?;
+    fn get(&self, path: &str, silence: Silence, limit: u64) -> Result<Vec<u8>, String> {
+        let reply = self.send(Request::Read(None), path, silence, limit)?;
         if reply.status == 401 {
             return Err(format!(
                 "{} is not open to the public: it asked for a password to search, which needs no account. Use another online library, or wait until this one opens",
@@ -367,9 +433,9 @@ impl RegistryClient {
 
     /// A download of part data: with the sign-in's token when there is
     /// one. A token the registry refuses is forgotten.
-    fn download(&self, path: &str, timeout: Duration, limit: u64) -> Result<Vec<u8>, String> {
+    fn download(&self, path: &str, silence: Silence, limit: u64) -> Result<Vec<u8>, String> {
         let token = self.token();
-        let reply = self.send(Request::Read(token.as_ref()), path, timeout, limit)?;
+        let reply = self.send(Request::Read(token.as_ref()), path, silence, limit)?;
         if reply.status >= 300 {
             if reply.status == 401 && token.is_some() {
                 self.token_refused();
@@ -411,8 +477,9 @@ impl RegistryClient {
     }
 
     fn fetch_sync(&self, limit: u64) -> Result<Synced, String> {
+        let silence = self.silence(|n| n.index);
         let index =
-            mirror::decode_index(&self.get("/v1/index", SYNC_TIMEOUT, mirror::MAX_INDEX_BYTES)?)
+            mirror::decode_index(&self.get("/v1/index", silence, mirror::MAX_INDEX_BYTES)?)
                 .map_err(|e| e.to_string())?;
         let mut shards = Vec::with_capacity(index.shards.len());
         let mut budget = mirror::ShardBudget(limit);
@@ -426,7 +493,7 @@ impl RegistryClient {
                 None => {
                     let bytes = self.get(
                         &format!("/v1/shards/{}", info.sha256),
-                        SYNC_TIMEOUT,
+                        silence,
                         mirror::MAX_SHARD_BYTES,
                     )?;
                     budget.charge(bytes.len()).map_err(|e| e.to_string())?;
@@ -475,7 +542,7 @@ impl RegistryClient {
     pub fn search(&self, text: &str, limit: usize, offset: usize) -> Result<OnlineReport, String> {
         let query: String = url_encode(text);
         let path = format!("/v1/search?q={query}&limit={limit}&offset={offset}");
-        match self.get(&path, SEARCH_TIMEOUT, MAX_SEARCH_BYTES) {
+        match self.get(&path, self.silence(|n| n.search), MAX_SEARCH_BYTES) {
             Ok(bytes) => {
                 let wire: WireSearch = serde_json::from_slice(&bytes)
                     .map_err(|e| format!("the registry's search reply is unreadable: {e}"))?;
@@ -536,7 +603,7 @@ impl RegistryClient {
         }
         let bytes = self.download(
             &format!("/v1/bundles/{}/{}", root.lineage, root.revision.0),
-            BUNDLE_TIMEOUT,
+            self.silence(|n| n.download),
             MAX_BUNDLE_BYTES,
         )?;
         let wire: WireBundle =
@@ -743,92 +810,123 @@ enum SearchJob {
         text: String,
         limit: usize,
     },
+    /// No search is wanted any more.
+    Drop,
 }
 
-enum FetchJob {
-    Bundle {
-        ticket: u64,
-        library: LibraryId,
-        root: SourceRevision,
-    },
+/// Work that runs on a thread of its own, to be stopped by name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Work {
     Sync,
+    Account,
+    SignOut,
+    Bundle(u64),
 }
 
-/// The client on two threads: one for searches (debounced, newest wins),
-/// one for the index and bundles.
+/// The client off the UI thread: each request on a thread of its own, so a
+/// silent registry holds up no other one. Searches are debounced and the
+/// newest wins: a newer one ends the request of the one before. Dropping it
+/// ends every request.
 pub struct RegistryWorker {
     client: Arc<RegistryClient>,
     searches: Sender<SearchJob>,
-    fetches: Sender<FetchJob>,
-    /// For the sign-in's threads.
     sender: Sender<RegistryEvent>,
     notify: Arc<dyn Fn() + Send + Sync>,
     events: Receiver<RegistryEvent>,
     /// The newest search generation asked for; replies of others are
     /// dropped.
     latest: Arc<AtomicU64>,
+    running: Mutex<BTreeMap<Work, Cancel>>,
+}
+
+impl Drop for RegistryWorker {
+    fn drop(&mut self) {
+        if let Ok(running) = self.running.lock() {
+            running.values().for_each(Cancel::set);
+        }
+    }
 }
 
 impl RegistryWorker {
-    /// Start the threads. `notify` runs after each event is sent (the app
-    /// asks for a repaint).
+    /// Start the searches' thread. `notify` runs after each event is sent
+    /// (the app asks for a repaint).
     pub fn start(
         client: Arc<RegistryClient>,
         debounce: Duration,
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> Self {
         let (searches, search_jobs) = mpsc::channel::<SearchJob>();
-        let (fetches, fetch_jobs) = mpsc::channel::<FetchJob>();
         let (sender, events) = mpsc::channel();
         let latest = Arc::new(AtomicU64::new(0));
-        {
-            let client = client.clone();
-            let sender = sender.clone();
-            let latest = latest.clone();
-            let notify = notify.clone();
-            let context = sparksmith_core::library::standards::Context::current().ok();
-            std::thread::spawn(move || {
-                let _scope = context.as_ref().map(|c| c.enter());
-                search_loop(&client, &search_jobs, &sender, &latest, debounce, &*notify);
-            });
-        }
-        {
-            let client = client.clone();
-            let sender = sender.clone();
-            let notify = notify.clone();
-            let context = sparksmith_core::library::standards::Context::current().ok();
-            std::thread::spawn(move || {
-                let _scope = context.as_ref().map(|c| c.enter());
-                while let Ok(job) = fetch_jobs.recv() {
-                    let event = match job {
-                        FetchJob::Bundle {
-                            ticket,
-                            library,
-                            root,
-                        } => RegistryEvent::Bundle {
-                            ticket,
-                            library,
-                            root,
-                            result: client.bundle(library, root),
-                        },
-                        FetchJob::Sync => RegistryEvent::Synced(client.sync()),
-                    };
-                    if sender.send(event).is_err() {
-                        return;
-                    }
-                    notify();
-                }
-            });
-        }
+        let search = Search {
+            client: client.clone(),
+            sender: sender.clone(),
+            latest: latest.clone(),
+            notify: notify.clone(),
+        };
+        std::thread::spawn(sparksmith_core::library::standards::carried(move || {
+            search_loop(&search, &search_jobs, debounce);
+        }));
         Self {
             client,
             searches,
-            fetches,
             sender,
             notify,
             events,
             latest,
+            running: Mutex::default(),
         }
+    }
+
+    /// Run `request` as `work` on a thread of its own, ending an earlier
+    /// one that still runs.
+    fn run(
+        &self,
+        work: Work,
+        request: impl FnOnce(&RegistryClient) -> RegistryEvent + Send + 'static,
+    ) -> bool {
+        let cancel = Cancel::default();
+        if let Ok(mut running) = self.running.lock()
+            && let Some(earlier) = running.insert(work, cancel.clone())
+        {
+            earlier.set();
+        }
+        let client = self.client.clone();
+        let sender = self.sender.clone();
+        let notify = self.notify.clone();
+        std::thread::Builder::new()
+            .name("registry-request".into())
+            .spawn(sparksmith_core::library::standards::carried(move || {
+                let event = cancel.scope(|| request(&client));
+                if sender.send(event).is_ok() {
+                    notify();
+                }
+            }))
+            .is_ok()
+    }
+
+    fn stop(&self, work: Work) {
+        if let Ok(mut running) = self.running.lock()
+            && let Some(cancel) = running.remove(&work)
+        {
+            cancel.set();
+        }
+    }
+
+    /// Stop the bundle asked for with `ticket`: its event says so.
+    pub fn stop_bundle(&self, ticket: u64) {
+        self.stop(Work::Bundle(ticket));
+    }
+
+    /// Stop reading the index.
+    pub fn stop_sync(&self) {
+        self.stop(Work::Sync);
+    }
+
+    /// Stop telling the registry of the sign-out, which this computer has
+    /// done either way.
+    pub fn stop_sign_out(&self) {
+        self.stop(Work::SignOut);
     }
 
     pub fn client(&self) -> &Arc<RegistryClient> {
@@ -846,78 +944,92 @@ impl RegistryWorker {
         });
     }
 
-    /// Drop every search asked so far (the palette closed): replies still
-    /// in flight are not reported.
+    /// Drop every search asked so far (the palette closed): the request in
+    /// flight ends.
     pub fn cancel(&self, generation: u64) {
-        self.latest.fetch_max(generation, Ordering::SeqCst);
+        if self.latest.fetch_max(generation, Ordering::SeqCst) < generation {
+            let _ = self.searches.send(SearchJob::Drop);
+        }
     }
 
     pub fn bundle(&self, ticket: u64, library: LibraryId, root: SourceRevision) {
-        let _ = self.fetches.send(FetchJob::Bundle {
+        let started = self.run(Work::Bundle(ticket), move |client| RegistryEvent::Bundle {
             ticket,
             library,
             root,
+            result: client.bundle(library, root),
         });
+        if !started {
+            let result = Err("the download could not be started".into());
+            let _ = self.sender.send(RegistryEvent::Bundle {
+                ticket,
+                library,
+                root,
+                result,
+            });
+        }
     }
 
     pub fn sync(&self) {
-        let _ = self.fetches.send(FetchJob::Sync);
+        if !self.run(Work::Sync, |client| RegistryEvent::Synced(client.sync())) {
+            let result = Err("the index could not be read: no thread".into());
+            let _ = self.sender.send(RegistryEvent::Synced(result));
+        }
     }
 
-    /// Read the kept sign-in and ask whose it is, on a thread of its own.
+    /// Read the kept sign-in and ask whose it is.
     pub fn read_account(&self) {
-        let client = self.client.clone();
-        self.account_thread(move || AccountEvent::Read(client.refresh_account().map(|_| ())));
+        self.account(Work::Account, |client| {
+            AccountEvent::Read(client.refresh_account().map(|_| ()))
+        });
     }
 
     /// Sign in as `client_name` (attempt `attempt`), on a thread of its
     /// own: the code arrives first, then the end. Setting `cancel` stops
     /// the polling.
     pub fn sign_in(&self, attempt: u64, client_name: String, cancel: Arc<AtomicBool>) {
-        let client = self.client.clone();
         let sender = self.sender.clone();
         let notify = self.notify.clone();
-        self.account_thread(move || {
-            let code = match client.start_sign_in(&client_name) {
-                Ok(code) => code,
-                Err(error) => {
-                    return AccountEvent::SignedIn {
-                        attempt,
-                        result: Err(error),
-                    };
+        self.account(Work::Account, move |client| {
+            // The person's Cancel ends a request in flight too.
+            Cancel::from(cancel.clone()).scope(|| {
+                let code = match client.start_sign_in(&client_name) {
+                    Ok(code) => code,
+                    Err(error) => {
+                        return AccountEvent::SignedIn {
+                            attempt,
+                            result: Err(error),
+                        };
+                    }
+                };
+                let event = AccountEvent::Code {
+                    attempt,
+                    code: code.clone(),
+                };
+                if sender.send(RegistryEvent::Account(event)).is_ok() {
+                    notify();
                 }
-            };
-            let event = AccountEvent::Code {
-                attempt,
-                code: code.clone(),
-            };
-            if sender.send(RegistryEvent::Account(event)).is_ok() {
-                notify();
-            }
-            AccountEvent::SignedIn {
-                attempt,
-                result: client.wait_for_sign_in(&code, &cancel, &account::sleep_unless),
-            }
+                AccountEvent::SignedIn {
+                    attempt,
+                    result: client.wait_for_sign_in(&code, &cancel, &account::sleep_unless),
+                }
+            })
         });
     }
 
-    /// Sign out, on a thread of its own.
+    /// Sign out.
     pub fn sign_out(&self) {
-        let client = self.client.clone();
-        self.account_thread(move || AccountEvent::SignedOut(client.sign_out()));
+        self.account(Work::SignOut, |client| {
+            AccountEvent::SignedOut(client.sign_out())
+        });
     }
 
-    fn account_thread(&self, work: impl FnOnce() -> AccountEvent + Send + 'static) {
-        let sender = self.sender.clone();
-        let notify = self.notify.clone();
-        let started = std::thread::Builder::new()
-            .name("registry-account".into())
-            .spawn(move || {
-                if sender.send(RegistryEvent::Account(work())).is_ok() {
-                    notify();
-                }
-            });
-        if started.is_err() {
+    fn account(
+        &self,
+        work: Work,
+        request: impl FnOnce(&RegistryClient) -> AccountEvent + Send + 'static,
+    ) {
+        if !self.run(work, |client| RegistryEvent::Account(request(client))) {
             let event = AccountEvent::Read(Err("could not start the sign-in's thread".into()));
             if self.sender.send(RegistryEvent::Account(event)).is_ok() {
                 (self.notify)();
@@ -929,23 +1041,64 @@ impl RegistryWorker {
     /// newest is dropped here too.
     pub fn receive(&self) -> Vec<RegistryEvent> {
         let latest = self.latest.load(Ordering::SeqCst);
-        self.events
+        let events: Vec<_> = self
+            .events
             .try_iter()
             .filter(
                 |e| !matches!(e, RegistryEvent::Search { generation, .. } if *generation != latest),
             )
-            .collect()
+            .collect();
+        if let Ok(mut running) = self.running.lock() {
+            for event in &events {
+                if let RegistryEvent::Bundle { ticket, .. } = event {
+                    running.remove(&Work::Bundle(*ticket));
+                }
+            }
+        }
+        events
     }
 }
 
-fn search_loop(
-    client: &RegistryClient,
-    jobs: &Receiver<SearchJob>,
-    sender: &Sender<RegistryEvent>,
-    latest: &AtomicU64,
-    debounce: Duration,
-    notify: &(dyn Fn() + Send + Sync),
-) {
+/// What a search's thread needs.
+#[derive(Clone)]
+struct Search {
+    client: Arc<RegistryClient>,
+    sender: Sender<RegistryEvent>,
+    latest: Arc<AtomicU64>,
+    notify: Arc<dyn Fn() + Send + Sync>,
+}
+
+impl Search {
+    fn run(&self, generation: u64, text: String, limit: usize) {
+        let started = Instant::now();
+        let result = self.client.search(&text, limit, 0);
+        let round_trip_ms = started.elapsed().as_secs_f64() * 1000.0;
+        // A newer search was asked while this one ran: drop its reply.
+        if generation != self.latest.load(Ordering::SeqCst) {
+            return;
+        }
+        let event = RegistryEvent::Search {
+            generation,
+            text,
+            result,
+            round_trip_ms,
+        };
+        if self.sender.send(event).is_ok() {
+            (self.notify)();
+        }
+    }
+}
+
+fn search_loop(search: &Search, jobs: &Receiver<SearchJob>, debounce: Duration) {
+    /// The request in flight, ended when a newer is asked or none is left.
+    #[derive(Default)]
+    struct InFlight(Cancel);
+    impl Drop for InFlight {
+        fn drop(&mut self) {
+            self.0.set();
+        }
+    }
+    let mut in_flight = InFlight::default();
     while let Ok(mut job) = jobs.recv() {
         // Debounce: wait for typing to pause, keeping only the newest.
         loop {
@@ -955,33 +1108,35 @@ fn search_loop(
                 Err(RecvTimeoutError::Disconnected) => return,
             }
         }
+        in_flight.0.set();
+        in_flight = InFlight::default();
         let SearchJob::Search {
             generation,
             text,
             limit,
-        } = job;
-        if generation != latest.load(Ordering::SeqCst) {
+        } = job
+        else {
+            continue;
+        };
+        if generation != search.latest.load(Ordering::SeqCst) {
             continue;
         }
-        let started = Instant::now();
-        let result = client.search(&text, limit, 0);
-        let round_trip_ms = started.elapsed().as_secs_f64() * 1000.0;
-        // A newer search was asked while this one ran: drop its reply.
-        if generation != latest.load(Ordering::SeqCst) {
-            continue;
-        }
-        if sender
-            .send(RegistryEvent::Search {
+        let (own, cancel) = (search.clone(), in_flight.0.clone());
+        let text_shown = text.clone();
+        let started = std::thread::Builder::new()
+            .name("registry-search".into())
+            .spawn(sparksmith_core::library::standards::carried(move || {
+                cancel.scope(|| own.run(generation, text, limit));
+            }));
+        if let Err(error) = started {
+            let _ = search.sender.send(RegistryEvent::Search {
                 generation,
-                text,
-                result,
-                round_trip_ms,
-            })
-            .is_err()
-        {
-            return;
+                text: text_shown,
+                result: Err(format!("the search could not be started: {error}")),
+                round_trip_ms: 0.0,
+            });
+            (search.notify)();
         }
-        notify();
     }
 }
 

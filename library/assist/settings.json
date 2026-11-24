@@ -13,6 +13,15 @@
     "total_tokens": 4000000,
     "minutes": 45
   },
+  "network": {
+    "search": 4,
+    "index": 30,
+    "download": 60,
+    "account": 10,
+    "sign_out": 5,
+    "count": 120,
+    "check": 60
+  },
   "endpoint_presets": [
     {
       "title": "Anthropic",
@@ -20,7 +29,8 @@
         "name": "Anthropic",
         "provider": "anthropic",
         "base_url": "https://api.anthropic.com",
-        "model": ""
+        "model": "",
+        "timeout_minutes": 30
       }
     },
     {
@@ -30,6 +40,7 @@
         "provider": "openai",
         "base_url": "https://api.openai.com/v1",
         "model": "",
+        "timeout_minutes": 30,
         "capabilities": {
           "tool_calling": true,
           "vision": false,
@@ -45,6 +56,7 @@
         "provider": "openai",
         "base_url": "http://localhost:11434/v1",
         "model": "",
+        "timeout_minutes": 90,
         "capabilities": {
           "tool_calling": true,
           "vision": false,
@@ -63,7 +75,8 @@
   "sources": {
     "permissions": "The founder's defaults for agents (docs/design/extension-abi-design.md): edits run inside the reviewable turn, which undoes as one step; files and publishing to a library ask; the built-in chat moves the view without asking (founder, 14 November: view steering is on for the built-in agent). Publishing a part into the open project never asks (founder, 16 November). Each ask offers Allow once, Allow for this session, Always allow and Deny.",
     "limits_start": "Limits are unset by default and the shipped workflows declare no budget, so a run goes on until it is done (founder, 16, 22 and 24 November). These are only the values the limits start from when the person turns them on: docs/assistant-panel.md §6.3, 40 model requests, 200 000 output tokens and 4 000 000 tokens as approved on 9 November, 45 minutes as approved in Q7. There are no per-turn caps on edits or calls.",
-    "endpoint_presets": "The choices of Settings › AI › Connection, in this order, titled in plain words (founder, 16 November: no jargon on the first screen). Anthropic's API base URL; OpenAI's API base URL, https://api.openai.com/v1 (OpenAI's API reference); Ollama's OpenAI-compatible endpoint on its default port 11434 (the person changes it for LM Studio, llama-server or another server under Advanced). OpenAI names no model here: its model ids change often, so the person types the one they use. The context is a starting value the person corrects to what their server gives the model; tool calling is declared on, vision and PDF reading off until the person declares them.",
+    "endpoint_presets": "The choices of Settings › AI › Connection, in this order, titled in plain words (founder, 16 November: no jargon on the first screen). Anthropic's API base URL; OpenAI's API base URL, https://api.openai.com/v1 (OpenAI's API reference); Ollama's OpenAI-compatible endpoint on its default port 11434 (the person changes it for LM Studio, llama-server or another server under Advanced). OpenAI names no model here: its model ids change often, so the person types the one they use. The context is a starting value the person corrects to what their server gives the model; tool calling is declared on, vision and PDF reading off until the person declares them. timeout_minutes is how long the model may send nothing before a request is given up, and never limits a reply that keeps arriving (founder, 24 November): 30 minutes for a hosted model; 90 for one on this computer, which at 17 tokens a second takes 31 minutes for 32 000 output tokens it does not stream.",
+    "network": "Seconds each kind of request may hear nothing before it is given up; the person changes each in Settings › Network, where \"No limit\" is a choice (founder, 24 November). The values the requests had as limits in code before: 4 for a search of the online library (it then answers from the last index), 30 for its index, 60 for a part's data, 10 for the account, 5 for telling the registry of a sign-out, 120 for counting a prompt's tokens, 60 for Test connection.",
     "agent_presets": "The ACP launch commands each agent documents: claude-agent-acp, codex-acp, gemini --acp, opencode acp. Titles name the agent only; the command shows under Advanced."
   }
 }

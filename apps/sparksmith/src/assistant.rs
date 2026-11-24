@@ -174,18 +174,6 @@ pub struct Asking {
     pub card: String,
 }
 
-/// A `library.search` with `src:online` waiting for the registry, which
-/// answers on a thread of its own so the window never waits on the
-/// network; when `report` arrives the call runs with it.
-pub struct OnlineWait {
-    pub request: ToolRequest,
-    /// The person allowed the call on its card.
-    pub allowed: bool,
-    pub report: std::sync::mpsc::Receiver<
-        Result<sparksmith_automation::session::online::OnlineReport, String>,
-    >,
-}
-
 /// A workflow run that ended: Undo run takes it back while the document
 /// still stands at `after` and its step is the one Undo would take.
 pub struct RunDone {
@@ -232,10 +220,6 @@ pub struct Assistant {
     pub held: Option<Held>,
     /// A question card the turn waits on.
     pub asking: Option<Asking>,
-    /// Online searches waiting for the registry.
-    pub online_waits: Vec<OnlineWait>,
-    /// A waited-for online search is running with its answer installed.
-    pub prefetched: bool,
     /// The session the chat's calls run in, over the window's engine; it
     /// keeps the turns open between calls.
     pub session: Session,
@@ -277,8 +261,6 @@ impl Default for Assistant {
             turn: None,
             held: None,
             asking: None,
-            online_waits: Vec::new(),
-            prefetched: false,
             session: Session::lending(),
             model: None,
             model_limits: None,
@@ -873,6 +855,10 @@ pub const CONTINUE: &str = "Continue (raise this turn's limit)";
 /// What Continue tells the model.
 pub const CONTINUE_MESSAGE: &str =
     "Continue where you stopped: the person raised the limit for this.";
+/// A silent model's card's action, and what it tells the model.
+pub const TRY_AGAIN: &str = "Try again";
+pub const TRY_AGAIN_MESSAGE: &str =
+    "The connection went silent before you were done. Continue where you stopped.";
 
 /// The height the composer, its chips and its context line take.
 fn composer_height(ui: &Ui, chips: bool) -> f32 {
@@ -1207,7 +1193,7 @@ fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, last: bool, actions: &mut
                 .font(type_face::semibold(t.font_body))
                 .color(t.text),
         );
-        if let Some(limit) = &card.limit {
+        if let Some(limit) = card.limit.as_ref().filter(|l| !l.silence) {
             kit::note(ui, &format!("{} was reached.", limit.which));
         }
         if let Some(end) = &card.end {
@@ -1274,7 +1260,12 @@ fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, last: bool, actions: &mut
                 actions.push(Action::Show(card.id));
             }
             if let Some(limit) = &card.limit
-                && ui_kit::button(ui, CONTINUE, Button::Enabled(last && !limit.continued)).clicked()
+                && ui_kit::button(
+                    ui,
+                    if limit.silence { TRY_AGAIN } else { CONTINUE },
+                    Button::Enabled(last && !limit.continued),
+                )
+                .clicked()
             {
                 actions.push(Action::Continue(card.id));
             }

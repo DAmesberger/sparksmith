@@ -71,6 +71,11 @@ struct Registry {
     slow: Option<(String, Duration)>,
     tamper: AtomicBool,
     up: AtomicBool,
+    /// Requests whose path has this in it are never answered.
+    silent: Mutex<String>,
+    /// Requests held so, and those of them the client closed.
+    held: AtomicU64,
+    let_go: AtomicU64,
     /// Every request: method and path, and its `Authorization` header.
     seen: Mutex<Vec<(String, Option<String>)>>,
     /// Bundles need [`TOKEN`] as their bearer (the accounts contract).
@@ -312,6 +317,13 @@ fn serve(registry: Arc<Registry>) -> std::result::Result<String, Box<dyn std::er
                 let mut words = line.split_whitespace();
                 let method = words.next().unwrap_or("GET").to_owned();
                 let path = words.next().unwrap_or("/").to_owned();
+                if registry.holds(&path) {
+                    // Never answered: until the client closes.
+                    registry.held.fetch_add(1, Ordering::SeqCst);
+                    let _ = reader.read(&mut [0]);
+                    registry.let_go.fetch_add(1, Ordering::SeqCst);
+                    return;
+                }
                 let (status, headers, body) =
                     registry.respond(&method, &path, auth.as_deref(), &body);
                 let extra: String = headers
@@ -342,6 +354,9 @@ fn registry(
         slow: slow.map(|(t, d)| (t.to_owned(), d)),
         tamper: AtomicBool::new(false),
         up: AtomicBool::new(true),
+        silent: Mutex::new(String::new()),
+        held: AtomicU64::new(0),
+        let_go: AtomicU64::new(0),
         seen: Mutex::new(Vec::new()),
         needs_account: AtomicBool::new(false),
         limited: AtomicBool::new(false),
@@ -554,6 +569,142 @@ fn index_dates_read_as_people_write_them() {
     assert_eq!(index_date(0), "index of 1 January");
     // 2026-11-14 00:00 UTC.
     assert_eq!(index_date(1_794_614_400), "index of 14 November");
+}
+
+impl Registry {
+    /// Never answer a request whose path has `part` in it (empty: all are).
+    fn hold(&self, part: &str) {
+        if let Ok(mut silent) = self.silent.lock() {
+            *silent = part.to_owned();
+        }
+    }
+
+    fn holds(&self, path: &str) -> bool {
+        self.silent
+            .lock()
+            .is_ok_and(|part| !part.is_empty() && path.contains(part.as_str()))
+    }
+
+    fn held(&self) -> u64 {
+        self.held.load(Ordering::SeqCst)
+    }
+
+    fn wait_let_go(&self, requests: u64) {
+        while self.let_go.load(Ordering::SeqCst) < requests {
+            std::thread::yield_now();
+        }
+    }
+}
+
+fn limited(seconds: u32) -> Network {
+    Network {
+        search: Wait::Limit(seconds),
+        index: Wait::Limit(seconds),
+        download: Wait::Limit(seconds),
+        account: Wait::Limit(seconds),
+        sign_out: Wait::Limit(seconds),
+        ..Network::NO_LIMITS
+    }
+}
+
+/// A silent registry is given up at the person's limit, which the message
+/// names with its place; the mirror then answers a search. A limit set
+/// later holds from then on.
+#[test]
+fn a_silent_registry_is_given_up_at_the_persons_limit() -> TestResult {
+    let registry = registry(None)?;
+    let cache = tempfile::tempdir()?;
+    let client = plain(&serve(registry.clone())?, Some(cache.path()))?;
+    client.sync()?;
+    client.set_network(limited(1));
+    registry.hold("/v1/");
+    let offline = client.search("EX-R0603", 10, 0)?;
+    assert!(offline.offline.is_some(), "the last index answered");
+    let refused = client
+        .bundle(LIBRARY, registry.bundle.root)
+        .err()
+        .ok_or("a silent download ended")?;
+    assert!(
+        refused.contains("for 1 second, the limit set in Settings › Network"),
+        "{refused}"
+    );
+    registry.wait_let_go(2);
+    // Tried again, it is there.
+    registry.hold("");
+    client.bundle(LIBRARY, registry.bundle.root)?;
+    Ok(())
+}
+
+/// With "No limit", a silent registry is waited for until the call is
+/// cancelled, which closes the connection; the next request is answered.
+#[test]
+fn without_a_limit_a_cancel_ends_the_wait() -> TestResult {
+    let registry = registry(None)?;
+    let client = Arc::new(plain(&serve(registry.clone())?, None)?);
+    client.sync()?;
+    registry.hold("/v1/bundles");
+    let cancel = Cancel::default();
+    let (own, call, root) = (client.clone(), cancel.clone(), registry.bundle.root);
+    let request = sparksmith_core::library::standards::carried(move || {
+        call.scope(|| own.bundle(LIBRARY, root).map(|_| ()))
+    });
+    let waiting = std::thread::spawn(request);
+    while registry.held() == 0 {
+        std::thread::yield_now();
+    }
+    cancel.set();
+    let ended = waiting.join().map_err(|_| "the request's thread")?;
+    assert_eq!(ended.err().as_deref(), Some(STOPPED));
+    registry.wait_let_go(1);
+    registry.hold("");
+    client.bundle(LIBRARY, registry.bundle.root)?;
+    Ok(())
+}
+
+/// A silent search and a silent download hold up no other request: a newer
+/// search ends the older one's, and Stop the download's.
+#[test]
+fn a_silent_request_holds_up_no_other() -> TestResult {
+    let registry = registry(None)?;
+    let client = Arc::new(plain(&serve(registry.clone())?, None)?);
+    client.sync()?;
+    registry.hold("SILENT");
+    let worker = RegistryWorker::start(client, Duration::ZERO, Arc::new(|| {}));
+    worker.search(1, "SILENT", 10);
+    while registry.held() == 0 {
+        std::thread::yield_now();
+    }
+    worker.search(2, "EX-C", 10);
+    registry.wait_let_go(1);
+    let events = wait_for(&worker, |e| !e.is_empty());
+    assert!(
+        matches!(
+            events.as_slice(),
+            [RegistryEvent::Search {
+                generation: 2,
+                result: Ok(_),
+                ..
+            }]
+        ),
+        "{events:?}"
+    );
+    registry.hold("/v1/bundles");
+    let root = registry.bundle.root;
+    worker.bundle(7, LIBRARY, root);
+    while registry.held() < 2 {
+        std::thread::yield_now();
+    }
+    worker.stop_bundle(7);
+    registry.wait_let_go(2);
+    let events = wait_for(&worker, |e| !e.is_empty());
+    assert!(
+        matches!(
+            events.as_slice(),
+            [RegistryEvent::Bundle { ticket: 7, result: Err(why), .. }] if why == STOPPED
+        ),
+        "{events:?}"
+    );
+    Ok(())
 }
 
 fn seen(registry: &Registry) -> Vec<(String, Option<String>)> {
