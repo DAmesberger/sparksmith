@@ -143,11 +143,17 @@ pub(super) struct ViaRow {
     y: String,
     drill: String,
     span: String,
+    fill: &'static str,
     search: String,
 }
 
 fn mm(v: f64) -> String {
     format!("{v:.3} mm")
+}
+
+/// A via's fill in one word, for a filter.
+fn fill_name(fill: sparksmith_core::model::ViaFill) -> &'static str {
+    if fill.is_none() { "Open" } else { "Capped" }
 }
 
 fn side_name(side: Layer) -> &'static str {
@@ -232,7 +238,8 @@ impl Model {
                         (from, format!("{} \u{2013} {}", from.name(), to.name()))
                     }
                 };
-                let search = format!("{net} {span}");
+                let fill = fill_name(v.fill);
+                let search = format!("{net} {span} {fill}");
                 (
                     order,
                     ViaRow {
@@ -246,6 +253,7 @@ impl Model {
                         y: mm(v.position[1]),
                         drill: mm(v.drill),
                         span,
+                        fill,
                         search,
                     },
                 )
@@ -336,6 +344,7 @@ impl Model {
                     2 => query::Cell::Length(v.at[1]),
                     3 => query::Cell::Length(v.drill_mm),
                     4 => text(&v.span),
+                    5 => text(v.fill),
                     _ => query::Cell::None,
                 }
             }
@@ -377,6 +386,7 @@ impl Model {
                     2 => p.at[1].total_cmp(&q.at[1]),
                     3 => p.drill_mm.total_cmp(&q.drill_mm),
                     4 => natural_cmp(&p.span, &q.span),
+                    5 => natural_cmp(p.fill, q.fill),
                     // The model's order is by net already.
                     _ => a.cmp(&b),
                 }
@@ -404,6 +414,7 @@ fn specs(tab: Tab) -> Vec<ColumnSpec<'static>> {
             ColumnSpec::number("Y", 64.0, 3),
             ColumnSpec::number("Drill", 56.0, 1),
             ColumnSpec::text("Span", 64.0, 4),
+            ColumnSpec::text("Fill", 64.0, 5),
         ],
     }
 }
@@ -426,6 +437,14 @@ fn fields(tab: Tab) -> Fields {
             Field::new("y", Kind::Length),
             Field::new("drill", Kind::Length),
             Field::new("span", Kind::Text),
+            Field::new(
+                "fill",
+                Kind::Choice(
+                    sparksmith_core::model::ViaFill::ALL
+                        .map(|f| fill_name(f).to_owned())
+                        .to_vec(),
+                ),
+            ),
         ],
     })
 }
@@ -460,6 +479,7 @@ fn row_cells<'a>(model: &'a Model, tab: Tab, row: usize, l: &ListTokens) -> Vec<
                 Cell::Number(&v.y),
                 Cell::Number(&v.drill),
                 Cell::Text(&v.span),
+                Cell::Text(v.fill),
             ]
         }),
     }

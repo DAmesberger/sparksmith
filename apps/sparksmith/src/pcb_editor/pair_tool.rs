@@ -160,7 +160,7 @@ impl PcbEditor {
                 drill,
                 diameter,
                 tented: self.via_tented(project),
-                fill: Default::default(),
+                fill: self.via_fill,
                 pitch: pair::via_pitch(project, route.nets, drill, diameter, next)
                     .max(pair::via_pitch(project, route.nets, drill, diameter, style)),
                 layer: self.layer,

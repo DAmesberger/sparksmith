@@ -5,6 +5,8 @@ use super::PcbEditor;
 use crate::kit::{self, ToolCard};
 use crate::refusal::{self, Origin};
 use egui::Ui;
+use sparksmith_core::model::ViaFill;
+use sparksmith_core::rules::drills::{Verdict, through_fill};
 use sparksmith_core::{Operation, Project, Via, ViaSpan, layout::LayoutCommand};
 use sparksmith_ui::ui_kit::{self, Button};
 
@@ -53,6 +55,17 @@ impl PcbEditor {
                 ViaSpan::Between { from, to } => format!("{} to {}", from.name(), to.name()),
             };
             kit::value_row(ui, "Span", &span);
+            let mut fill = via.fill;
+            let filled =
+                ui.add_enabled_ui(!via.locked, |ui| fill_row(ui, project, "Fill", &mut fill));
+            crate::app::help_sheet::region(ui, filled.response.rect, "entry/layout.via_set", 3);
+            filled.response.on_disabled_hover_text(LOCKED);
+            if filled.inner && fill != via.fill {
+                action = Some(LayoutCommand::SetVias {
+                    ids: vec![via.id],
+                    fill,
+                });
+            }
             let mut tented = via.tented;
             let tent =
                 ui.add_enabled_ui(!via.locked, |ui| kit::check_row(ui, "Tented", &mut tented));
@@ -107,6 +120,7 @@ impl PcbEditor {
                     if kit::check_row(ui, "Tented", &mut tented) {
                         self.via_tented = Some(tented);
                     }
+                    fill_row(ui, project, "Fill", &mut self.via_fill);
                 })
             })
             .inner;
@@ -116,6 +130,61 @@ impl PcbEditor {
         }
         None
     }
+}
+
+/// The fills a via may be given: those the fab profile makes or offers
+/// without stating what it makes, and the via's own.
+pub(super) fn fill_options(project: &Project, current: ViaFill) -> Vec<(ViaFill, String)> {
+    let profile = project.rules.profile.as_ref();
+    ViaFill::ALL
+        .into_iter()
+        .filter_map(|fill| {
+            let verdict = profile.map(|p| through_fill(&p.drill_rules, fill));
+            match verdict {
+                Some(Verdict::NotMade(_)) if fill != current => None,
+                Some(Verdict::NotMade(_)) => Some((fill, format!("{} (not made)", fill.label()))),
+                Some(Verdict::NotStated(_)) => {
+                    Some((fill, format!("{} (not stated)", fill.label())))
+                }
+                _ => Some((fill, fill.label().to_owned())),
+            }
+        })
+        .collect()
+}
+
+/// What closes a via's hole: a choice of what the fab profile makes, else
+/// the one value and why there is no other. Returns whether it changed.
+pub(super) fn fill_row(ui: &mut Ui, project: &Project, label: &str, fill: &mut ViaFill) -> bool {
+    let options = fill_options(project, *fill);
+    if options.len() > 1 {
+        return kit::choice_row(ui, label, fill, &options);
+    }
+    kit::value_row(ui, label, fill.label());
+    if let Some(profile) = &project.rules.profile {
+        kit::note(ui, &format!("{} makes open vias only", profile.name));
+    }
+    false
+}
+
+/// The via under the pointer: "Via on GND · through, filled and capped ·
+/// 0.15 / 0.25 mm".
+pub(super) fn hover_text(project: &Project, via: &Via) -> String {
+    let span = match via.span {
+        ViaSpan::Through => "through".to_owned(),
+        ViaSpan::Between { from, to } => format!("{} to {}", from.name(), to.name()),
+    };
+    let fill = if via.fill.is_none() {
+        String::new()
+    } else {
+        format!(", {}", via.fill.label().to_lowercase())
+    };
+    let mm = |v: f64| kit::number_text((v * 1000.0).round() / 1000.0);
+    format!(
+        "Via on {} · {span}{fill} · {} / {} mm",
+        project.net_name(via.net),
+        mm(via.drill),
+        mm(via.diameter)
+    )
 }
 
 /// The via footer: Delete via, disabled while the via is locked.

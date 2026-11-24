@@ -117,6 +117,7 @@ impl PcbEditor {
         if kit::check_row(ui, "Tent vias", &mut tented) {
             self.via_tented = Some(tented);
         }
+        super::via_card::fill_row(ui, project, "Via fill", &mut self.via_fill);
         let nets = super::net_options(project, "From the first pad");
         if kit::choice_row(ui, "Net", &mut self.net, &nets) {
             self.reset_route();

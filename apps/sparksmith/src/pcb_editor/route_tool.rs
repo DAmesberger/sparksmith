@@ -828,7 +828,7 @@ impl PcbEditor {
                         drill,
                         diameter,
                         tented: self.via_tented(project),
-                        fill: Default::default(),
+                        fill: self.via_fill,
                         net,
                         position: at,
                         span: sparksmith_core::model::ViaSpan::Through,
