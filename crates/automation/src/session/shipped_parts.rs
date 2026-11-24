@@ -79,7 +79,7 @@ fn one() -> f64 {
 }
 
 /// A built-in part's land rule: shipped data over the part's parameters
-/// (the part file never supplies lands, M1.4).
+/// (the part file never supplies lands).
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum LandRule {

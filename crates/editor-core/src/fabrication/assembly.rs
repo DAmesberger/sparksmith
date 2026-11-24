@@ -45,7 +45,7 @@
 //! reads `no` in the Fitted column of `bom-parts.csv`; a part it fits
 //! another Part on is written with that Part's value, package and MPN. A
 //! mechanical part placed from a part file carries its own
-//! `bom` and `pick_and_place` flags (docs/mechanical-parts.md M1.6): it is
+//! `bom` and `pick_and_place` flags (docs/mechanical-parts.md): it is
 //! left out of the BOM files or the pick-and-place rows when they are off.
 use super::{FabFile, FabricationOptions, FileGroup};
 use crate::completeness::{self, BomLine, PurchasingState};

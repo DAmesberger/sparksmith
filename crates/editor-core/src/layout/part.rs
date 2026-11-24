@@ -1,5 +1,5 @@
-//! Mechanical parts placed directly on the board (docs/mechanical-parts.md
-//! M4): `layout.place_part` finds or makes the variant of a part spec and
+//! Mechanical parts placed directly on the board (docs/mechanical-parts.md):
+//! `layout.place_part` finds or makes the variant of a part spec and
 //! places a new off-sheet instance of it; `layout.set_part` moves a placed
 //! mechanical instance to another variant; `layout.remove_part` removes a
 //! board-only one. Each runs on the engine's candidate, so a refusal

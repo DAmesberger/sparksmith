@@ -836,7 +836,7 @@ fn fit_sole_orderable(project: &mut Project, id: Id) -> Result<()> {
 
 /// Create one instance with no occurrence: every unit of its
 /// representation unused (a mechanical part placed on the board,
-/// docs/mechanical-parts.md M2). Without a designator the core numbers it
+/// docs/mechanical-parts.md). Without a designator the core numbers it
 /// under the component's prefix.
 pub fn place_off_sheet(
     project: &mut Project,

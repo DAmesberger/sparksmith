@@ -259,7 +259,7 @@ pub struct PartEditor {
     /// D3: the model chooser sheet and import wizard.
     model_chooser: crate::model_library::ModelChooser,
     model_import: model_import::ModelImport,
-    /// M5: the part-file chooser and the Model section's part-file form.
+    /// The part-file chooser and the Model section's part-file form.
     part_chooser: crate::part_chooser::PartChooser,
     part_file: model_part::PartFileCard,
     /// D6: the 3D tab's Marking section.

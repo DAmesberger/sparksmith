@@ -10,7 +10,7 @@
 //! The operation builders ([`use_part_file_operation`],
 //! [`set_part_values_operation`]) only read the engine; the Session and the
 //! desktop apply what they return through their own engine path, so UI,
-//! CLI and MCP issue the same typed command (docs/mechanical-parts.md M4).
+//! CLI and MCP issue the same typed command (docs/mechanical-parts.md).
 use super::Session;
 use crate::Result;
 use schemars::JsonSchema;
