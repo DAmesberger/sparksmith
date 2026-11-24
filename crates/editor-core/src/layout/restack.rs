@@ -365,6 +365,38 @@ impl StackupDraft {
         Ok(())
     }
 
+    /// Replace the draft's stackup with `next`, a build made elsewhere (a
+    /// fabricator's). Foils keep their origin by position from the top while
+    /// both have them, and the bottom foil stays the bottom, as for a preset;
+    /// a kept foil keeps its plane mark.
+    pub fn use_stackup(&mut self, mut next: Stackup) {
+        let old = self.origin.clone();
+        let planes: BTreeMap<CopperLayer, bool> = self
+            .origin
+            .iter()
+            .zip(&self.stackup.copper)
+            .filter_map(|(origin, foil)| origin.map(|o| (o, foil.plane)))
+            .collect();
+        let n = next.copper.len();
+        self.origin = (0..n)
+            .map(|i| {
+                if i + 1 == n {
+                    old.last().copied().flatten()
+                } else if i + 1 < old.len() {
+                    old.get(i).copied().flatten()
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for (foil, origin) in next.copper.iter_mut().zip(&self.origin) {
+            if let Some(plane) = origin.and_then(|o| planes.get(&o)) {
+                foil.plane = *plane;
+            }
+        }
+        self.stackup = next;
+    }
+
     /// Add one inner foil above the bottom foil, with a dielectric of
     /// `kind` above it, both as `presets` add them.
     pub fn add_layer(&mut self, presets: &StackupPresets, kind: DielectricKind) -> Result<()> {

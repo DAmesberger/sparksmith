@@ -40,7 +40,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "layout",
-        (2, 12),
+        (2, 13),
         "Layout",
         "Place parts, route copper, vias, fills, keepouts, pairs and the board shape.",
     ),
