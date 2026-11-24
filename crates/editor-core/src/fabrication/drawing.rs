@@ -448,32 +448,41 @@ fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Str
         return Vec::new();
     }
     let findings = layout::checks(project, settings);
-    let mut now: BTreeMap<String, Vec<&[crate::diagnostics::Measured]>> = BTreeMap::new();
+    type Now<'a> = (
+        &'a [crate::diagnostics::Measured],
+        Option<&'a crate::diagnostics::Requirement>,
+    );
+    let mut now: BTreeMap<String, Vec<Now<'_>>> = BTreeMap::new();
     for f in &findings {
         let key = crate::model::production::waiver_key(&f.code, &f.objects);
-        now.entry(key).or_default().push(&f.measured);
+        let found = (f.measured.as_slice(), f.requirement.as_ref());
+        now.entry(key).or_default().push(found);
     }
     let legend = super::preflight::legend_measured(project);
     for (key, measured) in &legend {
-        now.entry(key.clone()).or_default().push(measured);
+        now.entry(key.clone()).or_default().push((measured, None));
     }
-    let subject = |key: &str| {
+    let subject = |key: &str, requirement| {
         crate::model::production::StoredKey::parse(key)
-            .map(|k| crate::issues::waived_subject(project, &k.code, &k.objects))
+            .map(|k| crate::issues::waived_subject(project, &k.code, &k.objects, requirement))
             .unwrap_or_default()
     };
     waivers
         .iter()
         .filter(|w| {
             super::preflight::can_waive(w.key.split_whitespace().next().unwrap_or_default())
-                && now.get(&w.key).into_iter().flatten().all(|measured| {
-                    matches!(
-                        project
-                            .production
-                            .acceptance(&w.key, measured, || subject(&w.key)),
-                        crate::model::production::Acceptance::Holds(_)
-                    )
-                })
+                && now
+                    .get(&w.key)
+                    .into_iter()
+                    .flatten()
+                    .all(|(measured, requirement)| {
+                        matches!(
+                            project
+                                .production
+                                .acceptance(&w.key, measured, || subject(&w.key, *requirement)),
+                            crate::model::production::Acceptance::Holds(_)
+                        )
+                    })
         })
         .map(|w| {
             let what = findings

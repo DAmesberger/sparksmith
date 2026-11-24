@@ -787,6 +787,11 @@ impl RuleKey {
         Self::all().into_iter().find(|k| k.name() == name)
     }
 
+    /// Whether the rule is a most; every other limit is a least.
+    pub fn is_maximum(self) -> bool {
+        matches!(self, Self::AspectRatioMax | Self::CappedDrillMax)
+    }
+
     /// Whether a profile may leave this key out. [`Self::ThermalAngleRound`]
     /// may: without it, round pads and vias take [`Self::ThermalAngle`] as
     /// every other pad does, as profiles written before it was added say.

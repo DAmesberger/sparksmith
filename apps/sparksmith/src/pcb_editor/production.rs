@@ -1471,6 +1471,10 @@ fn row_tip(item: &PreflightItem) -> String {
             tip.push(more);
         }
     }
+    if let Some(unstated) = &item.not_stated {
+        tip.push(unstated.text.clone());
+        tip.push(unstated.source.clone());
+    }
     if let Some(waiver) = &item.waiver {
         tip.push(if waiver.reason.is_empty() {
             "Waived".to_owned()

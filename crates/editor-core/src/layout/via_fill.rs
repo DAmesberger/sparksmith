@@ -2,7 +2,8 @@
 //!
 //! - [`NOT_MADE`]: the profile's drill rules exclude the fill, or the via's
 //!   hole is outside the sizes it fills. Never waivable.
-//! - [`NOT_STATED`]: the fabricator offers it without stating what it makes.
+//! - [`NOT_STATED`]: the fabricator offers it without stating what it makes,
+//!   or its sources disagree on the hole.
 //!   A person may accept that, with a reason, for this profile and these
 //!   sizes of via ([`given_for`]).
 //! - [`IN_PAD_OPEN`]: an open hole under a solder paste opening.
@@ -16,8 +17,9 @@ use crate::geometry::{Bounds, Shape};
 use crate::library::{PadKind, PasteRule};
 use crate::model::production::{GivenFor, GivenVia};
 use crate::model::{Project, Via, ViaFill};
-use crate::rules::RuleKey;
 use crate::rules::drills::{Verdict, through_fill};
+use crate::rules::profile::ProfileData;
+use crate::rules::{RuleKey, requirement};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const NOT_MADE: &str = FindingCode::BoardDrillNotMade.as_str();
@@ -97,34 +99,54 @@ fn profile(project: &Project, out: &mut Vec<Finding>) {
     }
 }
 
-/// The profile and the vias a waiver of [`NOT_STATED`] is given for; none
-/// where the profile leaves nothing the board uses unstated.
-pub fn given_for(project: &Project) -> Option<GivenFor> {
+/// The profile and the vias a waiver of a finding is given for, where the
+/// profile does not state what the finding is about: of [`NOT_STATED`] for
+/// the board, every via of a fill it leaves unstated; of a limit the
+/// fabricator's sources disagree on ([`requirement::not_stated`]), the vias
+/// the finding names. None for every other finding.
+pub fn given_for(
+    project: &Project,
+    code: &str,
+    objects: &[ObjectRef],
+    requirement: Option<&Requirement>,
+) -> Option<GivenFor> {
     use sha2::{Digest, Sha256};
     let fab = project.rules.profile.as_ref()?;
+    let unclear = requirement.and_then(|r| requirement::not_stated(r, Some(fab)));
+    let concerned = |via: &&Via| match &unclear {
+        Some(_) => objects.contains(&ObjectRef::Via { id: via.id }),
+        None => matches!(
+            through_fill(&fab.drill_rules, via.fill),
+            Verdict::NotStated(_)
+        ),
+    };
+    if unclear.is_none() && code != NOT_STATED {
+        return None;
+    }
     let nm = |mm: f64| (mm * 1e6).round() as i64;
     let vias: BTreeSet<GivenVia> = project
         .vias
         .iter()
-        .filter(|v| {
-            matches!(
-                through_fill(&fab.drill_rules, v.fill),
-                Verdict::NotStated(_)
-            )
-        })
+        .filter(concerned)
         .map(|v| GivenVia {
             fill: v.fill,
             drill_nm: nm(v.drill),
             diameter_nm: nm(v.diameter),
         })
         .collect();
-    if vias.is_empty() {
+    if unclear.is_none() && vias.is_empty() {
         return None;
     }
     let mut digest = Sha256::new();
-    // Plain data: neither list can fail to be written.
+    // Plain data: none of it can fail to be written.
     digest.update(serde_json::to_vec(&fab.source).unwrap_or_default());
     digest.update(serde_json::to_vec(&fab.drill_rules).unwrap_or_default());
+    if let Some(Requirement::AtMost { rule, .. } | Requirement::AtLeast { rule, .. }) =
+        requirement.filter(|_| unclear.is_some())
+    {
+        let rules = ProfileData::from(fab.clone()).rules;
+        digest.update(serde_json::to_vec(&rules.get(rule)).unwrap_or_default());
+    }
     Some(GivenFor {
         profile: fab.id.clone(),
         read: fab.source.date.clone(),
@@ -138,53 +160,48 @@ pub fn given_for(project: &Project) -> Option<GivenFor> {
     })
 }
 
-/// The holes of filled vias against the sizes the fabricator fills.
+/// The holes of filled vias against the sizes the fabricator fills. What its
+/// sources disagree on is not stated rather than not made.
 fn sizes(project: &Project, vias: &[&Via], out: &mut Vec<Finding>) {
     let rules = &project.rules;
     let effective = rules.effective();
+    let mut tell = |via: &Via, limit: f64, needs: String, broken: Option<Requirement>| {
+        let unclear = broken
+            .as_ref()
+            .and_then(|r| requirement::not_stated(r, rules.profile.as_ref()));
+        let (code, why) = match unclear {
+            Some(unclear) => (FindingCode::BoardDrillNotStated, unclear.text),
+            None => (FindingCode::BoardDrillNotMade, needs),
+        };
+        out.push(
+            Finding::new(
+                code,
+                format!(
+                    "A filled via on {} has a {} mm hole; {why}",
+                    project.net_name(via.net),
+                    limits::mm_against(via.drill, limit)
+                ),
+                vec![ObjectRef::Via { id: via.id }],
+            )
+            .requiring(broken),
+        );
+    };
     for via in vias {
-        let name = project.net_name(via.net);
-        let me = vec![ObjectRef::Via { id: via.id }];
-        if effective
-            .holes
+        let holes = &effective.holes;
+        if holes
             .capped_drill_min
             .is_some_and(|min| via.drill < min - EPS)
         {
             let need = limits::need(rules, &effective, RuleKey::CappedDrillMin);
-            out.push(
-                Finding::new(
-                    FindingCode::BoardDrillNotMade,
-                    format!(
-                        "A filled via on {name} has a {} mm hole; {}",
-                        limits::mm_against(via.drill, need.mm),
-                        need.text()
-                    ),
-                    me.clone(),
-                )
-                .requiring(need.at_most(via.drill)),
-            );
+            tell(via, need.mm, need.text(), need.at_most(via.drill));
         }
-        if let Some(max) = effective
-            .holes
-            .capped_drill_max
-            .filter(|max| via.drill > max + EPS)
-        {
-            out.push(
-                Finding::new(
-                    FindingCode::BoardDrillNotMade,
-                    format!(
-                        "A filled via on {name} has a {} mm hole; needs at most {} mm ({})",
-                        limits::mm_against(via.drill, max),
-                        mm(max),
-                        limits::cite(rules, RuleKey::CappedDrillMax)
-                    ),
-                    me,
-                )
-                .requiring(limits::at_least(
-                    rules,
-                    RuleKey::CappedDrillMax,
-                    via.drill,
-                )),
+        if let Some(max) = holes.capped_drill_max.filter(|max| via.drill > max + EPS) {
+            let cite = limits::cite(rules, RuleKey::CappedDrillMax);
+            tell(
+                via,
+                max,
+                format!("needs at most {} mm ({cite})", mm(max)),
+                limits::at_least(rules, RuleKey::CappedDrillMax, via.drill),
             );
         }
     }

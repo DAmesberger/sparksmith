@@ -91,7 +91,13 @@ pub fn apply(
                         .into(),
                 ));
             }
-            if reason.is_empty() && keys.iter().any(|k| needs_reason(code_of(k))) {
+            let unstated = |k: &String| {
+                needs_reason(code_of(k))
+                    || accepted
+                        .get(k)
+                        .is_some_and(|a| a.subject.given_for.is_some())
+            };
+            if reason.is_empty() && keys.iter().any(unstated) {
                 return Err(Error::Invalid(
                     "fabrication.waiver_reason: the fabricator states nothing about this, so \
                      accepting it needs a reason"
@@ -190,6 +196,11 @@ pub struct PreflightItem {
     /// ([`Self::offers_waiver`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub needs: Option<crate::rules::requirement::Needed>,
+    /// What the fab profile does not state, where the fabricator's own
+    /// sources disagree; `source` quotes them. Such a finding is waived only
+    /// with a reason, for this profile and these vias.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_stated: Option<crate::rules::requirement::Needed>,
 }
 
 /// A waiver that counts for nothing: what it accepted, and why it no longer
@@ -283,13 +294,18 @@ pub fn accepted(
         .filter_map(|k| {
             let stored = crate::model::production::StoredKey::parse(k)?;
             let accepted = Accepted {
-                subject: crate::issues::waived_subject(project, &stored.code, &stored.objects),
+                subject: crate::issues::waived_subject(
+                    project,
+                    &stored.code,
+                    &stored.objects,
+                    None,
+                ),
                 ..Accepted::default()
             };
             Some(((*k).to_owned(), accepted))
         })
         .collect();
-    let mut take = |k: String, measured: &[Measured]| {
+    let take = |out: &mut BTreeMap<String, Accepted>, k: String, measured: &[Measured]| {
         let all = &mut out.entry(k).or_default().measured;
         for m in measured {
             if !all.iter().any(|a| a.accepts(m)) {
@@ -306,7 +322,9 @@ pub fn accepted(
         if !keys.contains(k.as_str()) {
             continue;
         }
-        if let Some(requirement) = &row.finding.requirement {
+        if let Some(requirement) = &row.finding.requirement
+            && crate::issues::needs_profile(project, &row.finding)
+        {
             let need =
                 crate::rules::requirement::describe(requirement, project.rules.profile.as_ref())
                     .map_or_else(String::new, |n| format!("{}; ", n.text));
@@ -314,11 +332,21 @@ pub fn accepted(
                 "fabrication.not_waivable: `{k}` cannot be waived. {need}switch to a fab profile that allows it (fabrication.profile_suggestions) or change the design"
             )));
         }
-        take(k, &row.finding.measured);
+        if row.finding.requirement.is_some()
+            && let Some(a) = out.get_mut(&k)
+        {
+            a.subject = crate::issues::waived_subject(
+                project,
+                &row.finding.code,
+                &row.finding.objects,
+                row.finding.requirement.as_ref(),
+            );
+        }
+        take(&mut out, k, &row.finding.measured);
     }
     for (k, measured) in legend_measured(project) {
         if keys.contains(k.as_str()) {
-            take(k, &measured);
+            take(&mut out, k, &measured);
         }
     }
     Ok(out)
@@ -436,11 +464,14 @@ pub fn check(
             row.detail.fix.clone(),
             row.finding.objects.clone(),
         );
-        found.needs = row
-            .finding
-            .requirement
-            .as_ref()
-            .and_then(|r| crate::rules::requirement::describe(r, p.rules.profile.as_ref()));
+        found.not_stated = crate::issues::not_stated(p, &row.finding);
+        if found.not_stated.is_none() {
+            found.needs = row
+                .finding
+                .requirement
+                .as_ref()
+                .and_then(|r| crate::rules::requirement::describe(r, p.rules.profile.as_ref()));
+        }
         found.measured.clone_from(&row.finding.measured);
         items.push(found);
     }
@@ -460,7 +491,10 @@ pub fn check(
         if unwaivable(&i.key) || i.needs.is_some() {
             continue;
         }
-        let subject = || crate::issues::waived_subject(p, &i.code, &i.objects);
+        let subject = || {
+            let requirement = i.not_stated.as_ref().map(|n| &n.requirement);
+            crate::issues::waived_subject(p, &i.code, &i.objects, requirement)
+        };
         match p.production.acceptance(&i.key, &i.measured, subject) {
             Acceptance::None => {}
             Acceptance::Holds(waiver) => i.waiver = Some(waiver.clone()),
@@ -510,6 +544,7 @@ fn item(
         lapsed: None,
         measured: Vec::new(),
         needs: None,
+        not_stated: None,
     }
 }
 

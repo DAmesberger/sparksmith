@@ -198,11 +198,19 @@
       },
       "capped_drill_max": {
         "value": 0.5,
-        "source": "JLCPCB's pages conflict; the stricter one is used: \"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, read 2026-11-24) and \"should be less than or equal to 0.5mm\" (https://jlcpcb.com/help/article/pcb-via-covering, read 2026-11-24), against \"Compatible with via diameters from 0.15 to 0.55 mm.\" (https://jlcpcb.com/capabilities/pcb-capabilities, Drilling, \"Epoxy Filled & Capped\" and \"Copper paste Filled&Capped\", read 2026-11-24)."
+        "source": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24); \"Plugged and epoxy-filled vias holes should not be larger than 0.5 mm\" (https://jlcpcb.com/help/article/pcb-via-covering, updated Nov 10, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+        "unclear": {
+          "to": 0.55,
+          "source": "JLCPCB's pages disagree over 0.5 mm: \"Compatible with via diameters from 0.15 to 0.55 mm.\" (https://jlcpcb.com/capabilities/pcb-capabilities, Drilling, \"Epoxy Filled & Capped\" and \"Copper paste Filled&Capped\", read 2026-11-24); \"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24); \"Plugged and epoxy-filled vias holes should not be larger than 0.5 mm\" (https://jlcpcb.com/help/article/pcb-via-covering, updated Nov 10, 2026, read 2026-11-24)."
+        }
       },
       "capped_drill_min": {
         "value": 0.2,
-        "source": "JLCPCB's pages conflict; the stricter one is used: \"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, read 2026-11-24) and \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, read 2026-11-24), against \"Compatible with via diameters from 0.15 to 0.55 mm.\" (https://jlcpcb.com/capabilities/pcb-capabilities, Drilling, \"Epoxy Filled & Capped\" and \"Copper paste Filled&Capped\", read 2026-11-24)."
+        "source": "\"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24). Every JLCPCB page read allows this size.",
+        "unclear": {
+          "to": 0.15,
+          "source": "JLCPCB's pages disagree under 0.2 mm: \"Compatible with via diameters from 0.15 to 0.55 mm.\" (https://jlcpcb.com/capabilities/pcb-capabilities, Drilling, \"Epoxy Filled & Capped\" and \"Copper paste Filled&Capped\", read 2026-11-24); \"Via hole size: 0.2 to 0.5 mm\" (https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv, dated Nov 02, 2022, read 2026-11-24); \"Min: 0.20 mm / Max: 0.50 mm\" (https://jlcpcb.com/blog/via-in-pad-design-deep-dive, updated Jul 16, 2026, read 2026-11-24)."
+        }
       },
       "chip_gap_min": {
         "value": 0.2,

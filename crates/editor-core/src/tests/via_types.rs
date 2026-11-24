@@ -5,7 +5,7 @@ use crate::fabrication::preflight::{self, FabricationCommand, PreflightItem};
 use crate::layout::{self, LayoutCommand, ViaRequest, via_fill};
 use crate::library::PadKind;
 use crate::model::{Project, Via, ViaFill, ViaSpan};
-use crate::rules::{self, RuleProfile, RulesCommand, fixtures};
+use crate::rules::{self, RuleKey, RuleProfile, RuleValue, RulesCommand, fixtures};
 use crate::{Engine, Id, Operation};
 
 type Fallible<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -344,6 +344,188 @@ fn a_not_stated_waiver_is_for_its_profile_and_its_vias() -> Fallible<()> {
     Ok(())
 }
 
+/// [`filling`] with sources that disagree: 0.15 to 0.2 mm and 0.4 to
+/// 0.45 mm are unclear, and a via ring of 0.1 to 0.15 mm.
+fn disagreeing() -> Fallible<serde_json::Value> {
+    let mut value = serde_json::to_value(rules::ProfileFile {
+        format: rules::PROFILE_FILE_FORMAT,
+        profile: filling(true)?,
+    })?;
+    let rules = &mut value["fab_profile"]["rules"];
+    for (key, limit, to) in [
+        ("capped_drill_min", 0.2, 0.15),
+        ("capped_drill_max", 0.4, 0.45),
+        ("via_annular_ring_min", 0.15, 0.1),
+    ] {
+        rules[key] = serde_json::json!({
+            "value": limit, "source": "Test fixture.",
+            "unclear": {"to": to, "source": "Page A says one, page B the other."}
+        });
+    }
+    Ok(value)
+}
+
+/// The test board with one filled via of `drill` and `ring` mm under
+/// `profile`, with `waivers`.
+fn one_filled(
+    profile: &serde_json::Value,
+    drill: f64,
+    ring: f64,
+    waivers: &[crate::model::production::Waiver],
+) -> Fallible<Engine> {
+    let engine = under(fixtures::parse(&profile.to_string())?)?;
+    let mut file = engine.to_file();
+    file.project = with(&engine, &[(drill, ViaFill::Capped)])?;
+    for v in &mut file.project.vias {
+        v.diameter = drill + 2.0 * ring;
+    }
+    file.project.production.waivers = waivers.to_vec();
+    Ok(Engine::from_file(file)?)
+}
+
+/// Each side of each boundary. Red when the unclear range is read as made,
+/// as not made, or without its ends.
+#[test]
+fn what_the_sources_disagree_on_is_not_stated() -> Fallible<()> {
+    let profile = disagreeing()?;
+    for (drill, expected) in [
+        (0.14, Some(via_fill::NOT_MADE)),
+        (0.149, Some(via_fill::NOT_MADE)),
+        (0.15, Some(via_fill::NOT_STATED)),
+        (0.199, Some(via_fill::NOT_STATED)),
+        (0.2, None),
+        (0.4, None),
+        (0.401, Some(via_fill::NOT_STATED)),
+        (0.45, Some(via_fill::NOT_STATED)),
+        (0.451, Some(via_fill::NOT_MADE)),
+    ] {
+        let engine = one_filled(&profile, drill, 0.2, &[])?;
+        assert_eq!(
+            codes(engine.project()),
+            expected.into_iter().collect::<Vec<_>>(),
+            "{drill}"
+        );
+    }
+    // A limit of the project's own leaves nothing to a source.
+    let mut engine = one_filled(&profile, 0.16, 0.2, &[])?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::SetOverride {
+            key: RuleKey::CappedDrillMin,
+            value: RuleValue::Length(0.18),
+        }),
+    )?;
+    assert_eq!(codes(engine.project()), [via_fill::NOT_MADE]);
+    Ok(())
+}
+
+/// Red when such a finding cannot be waived, needs no reason, cites no
+/// source, or keeps its waiver for another hole or other sources.
+#[test]
+fn what_the_sources_disagree_on_is_waived_with_a_reason_for_that_hole() -> Fallible<()> {
+    let profile = disagreeing()?;
+    let mut engine = one_filled(&profile, 0.15, 0.2, &[])?;
+    let found = item(&engine, via_fill::NOT_STATED)?;
+    assert!(found.blocks() && found.offers_waiver() && found.measured.is_empty());
+    let cited = found.not_stated.as_ref().map(|n| n.source.as_str());
+    assert_eq!(cited, Some("Page A says one, page B the other."));
+    let waive = |reason: &str| {
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys: vec![found.key.clone()],
+            reason: reason.to_owned(),
+            profile: None,
+        })
+    };
+    let refused = engine.apply(engine.revision(), waive(""));
+    assert!(
+        refused
+            .as_ref()
+            .is_err_and(|e| e.rule() == Some("fabrication.waiver_reason")),
+        "{refused:?}"
+    );
+    engine.apply(engine.revision(), waive("confirmed by mail"))?;
+    let waivers = engine.project().production.waivers.clone();
+    let lapsed = |profile: &serde_json::Value, drill: f64| -> Fallible<Option<String>> {
+        let engine = one_filled(profile, drill, 0.2, &waivers)?;
+        Ok(item(&engine, via_fill::NOT_STATED)?.lapsed.map(|l| l.text))
+    };
+    assert_eq!(lapsed(&profile, 0.15)?, None);
+    assert_eq!(
+        lapsed(&profile, 0.16)?.as_deref(),
+        Some("Was accepted for vias of other sizes")
+    );
+    let mut said = profile.clone();
+    said["fab_profile"]["rules"]["capped_drill_min"]["unclear"]["to"] = 0.14.into();
+    assert_eq!(
+        lapsed(&said, 0.15)?.as_deref(),
+        Some("Was accepted under another fab profile")
+    );
+    // A hole nothing allows is not waived by it.
+    let engine = one_filled(&profile, 0.14, 0.2, &waivers)?;
+    assert!(item(&engine, via_fill::NOT_MADE)?.blocks());
+    Ok(())
+}
+
+/// Any rule with a limit can have an unclear range: the via ring here, whose
+/// finding keeps its own code. Red when only the filled holes read it.
+#[test]
+fn an_unclear_range_counts_for_any_rule() -> Fallible<()> {
+    let profile = disagreeing()?;
+    let ring = crate::diagnostics::FindingCode::BoardViaAnnularRing.as_str();
+    let mut engine = one_filled(&profile, 0.3, 0.12, &[])?;
+    let found = item(&engine, ring)?;
+    assert!(found.blocks() && found.offers_waiver());
+    assert!(found.not_stated.is_some() && found.needs.is_none());
+    let waive = |reason: &str| {
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys: vec![found.key.clone()],
+            reason: reason.to_owned(),
+            profile: None,
+        })
+    };
+    assert!(engine.apply(engine.revision(), waive("")).is_err());
+    engine.apply(engine.revision(), waive("confirmed by mail"))?;
+    assert!(!item(&engine, ring)?.blocks());
+    // Past the loosest source it needs another profile, as ever.
+    let engine = one_filled(&profile, 0.3, 0.09, &[])?;
+    let found = item(&engine, ring)?;
+    assert!(found.needs.is_some() && found.not_stated.is_none() && !found.offers_waiver());
+    let engine = one_filled(&profile, 0.3, 0.15, &[])?;
+    assert!(item(&engine, ring).is_err(), "what every source allows");
+    Ok(())
+}
+
+/// An unclear range lies past a limit and quotes its sources.
+#[test]
+fn an_unclear_range_that_is_none_is_refused() -> Fallible<()> {
+    let good = disagreeing()?;
+    assert!(fixtures::parse(&good.to_string()).is_ok());
+    for (key, unclear) in [
+        (
+            "capped_drill_min",
+            serde_json::json!({"to": 0.25, "source": "x"}),
+        ),
+        (
+            "capped_drill_min",
+            serde_json::json!({"to": 0.2, "source": "x"}),
+        ),
+        (
+            "capped_drill_max",
+            serde_json::json!({"to": 0.35, "source": "x"}),
+        ),
+        (
+            "capped_drill_min",
+            serde_json::json!({"to": 0.15, "source": " "}),
+        ),
+        ("tent_vias", serde_json::json!({"to": 0.15, "source": "x"})),
+    ] {
+        let mut bad = good.clone();
+        bad["fab_profile"]["rules"][key]["unclear"] = unclear;
+        assert!(fixtures::parse(&bad.to_string()).is_err(), "{key}");
+    }
+    Ok(())
+}
+
 /// The data itself: every shipped profile states the open through via, and
 /// what it says of the filled one carries a source.
 #[test]
@@ -356,11 +538,21 @@ fn shipped_profiles_source_what_they_say_of_filled_vias() -> Fallible<()> {
     assert!(!rule.source.is_empty());
     assert!(!jlc.charges.is_empty());
     let holes = jlc.rules().holes;
-    // Of two pages that conflict, the stricter one.
+    // Made where every page agrees; not stated up to the loosest page.
     assert_eq!(
         (holes.capped_drill_min, holes.capped_drill_max),
         (Some(0.2), Some(0.5))
     );
+    for (key, to) in [
+        (RuleKey::CappedDrillMin, 0.15),
+        (RuleKey::CappedDrillMax, 0.55),
+    ] {
+        let unclear = jlc.unclear(key).ok_or("what its pages disagree on")?;
+        assert_eq!(unclear.to, to);
+        // Both sides are cited.
+        assert!(unclear.source.contains("pcb-capabilities"));
+        assert!(unclear.source.contains("pofv"));
+    }
     Ok(())
 }
 

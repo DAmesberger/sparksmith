@@ -177,6 +177,7 @@ fn report_with_error(engine: &Engine) -> PreflightReport {
             objects: Vec::new(),
             waiver,
             needs: None,
+            not_stated: None,
             lapsed: None,
             measured: Vec::new(),
         }],
@@ -492,6 +493,7 @@ fn report_like_the_run(engine: &Engine) -> PreflightReport {
             objects: Vec::new(),
             waiver,
             needs: None,
+            not_stated: None,
             lapsed: None,
             measured: Vec::new(),
         }

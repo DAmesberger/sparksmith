@@ -7,7 +7,7 @@
     "finding/board.drill_not_stated": "0000000000000000000000000000000000000000000000000000000000000000"
   },
   "summary": "The fabricator offers filled vias without saying what it makes.",
-  "cause": "The fabricator's pages name the fill but give no usable limit, or limits that contradict each other.",
+  "cause": "The fabricator's pages name the fill but give no usable limit, or its pages give limits that contradict each other. What lies between them is neither made nor not made.",
   "fix": "Ask the fabricator, then waive with its answer as the reason, or choose a profile that states it",
   "fixed_by": [
     "entry/fabrication.waive",

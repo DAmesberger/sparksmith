@@ -201,6 +201,41 @@ pub fn describe(requirement: &Requirement, profile: Option<&RuleProfile>) -> Opt
     Some(needed)
 }
 
+/// What `profile` does not state of `requirement`: what the board has lies
+/// past the rule's limit and within what the fabricator's own sources
+/// disagree on ([`super::profile::Unclear`]). The source quotes them.
+pub fn not_stated(requirement: &Requirement, profile: Option<&RuleProfile>) -> Option<Needed> {
+    // A limit a source names is met by the same size entered.
+    const SAME: f64 = 1e-9;
+    let profile = profile?;
+    let (Requirement::AtMost { rule, value } | Requirement::AtLeast { rule, value }) = requirement
+    else {
+        return None;
+    };
+    let key = RuleKey::from_name(rule)?;
+    let unclear = profile.unclear(key)?;
+    let limit = scalar(key.get(profile.rules()))?;
+    let within = if key.is_maximum() {
+        *value <= unclear.to + SAME
+    } else {
+        *value >= unclear.to - SAME
+    };
+    let need = describe(requirement, Some(profile)).filter(|_| within)?;
+    let kind = key.kind();
+    let (low, high) = (unclear.to.min(limit), unclear.to.max(limit));
+    Some(Needed {
+        text: format!(
+            "{} does not state {} between {} and {}",
+            profile.name,
+            key.label(),
+            with_unit(kind, &number(low)),
+            with_unit(kind, &number(high))
+        ),
+        source: unclear.source.clone(),
+        ..need
+    })
+}
+
 /// Whether `a` asks at least as much as `b` of a profile: the same kind of
 /// requirement of the same rule, and as tight or tighter. Requirements of
 /// different rules or kinds never cover each other.

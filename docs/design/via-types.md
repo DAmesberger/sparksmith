@@ -120,7 +120,7 @@ JLCPCB's pages disagree about the smallest filled hole:
 | [Design guide][jblog] | 0.25 to 0.35 mm, "Min: 0.20 mm / Max: 0.50 mm" | "Less than or equal to 8:1", "Max Limits: 10:1" |
 | [Via covering help][jcov] | "should be less than or equal to 0.5mm" | not given |
 
-Where its pages conflict the profile takes the stricter value, 0.2 to 0.5 mm, and cites both (decision 2). **The multi-tool's 0.15 mm filled via is therefore not made under this profile.**
+Where its pages conflict the size is not stated (decision 2). **The multi-tool's 0.15 mm filled via is not stated under this profile: it can be ordered only with a waiver that gives JLCPCB's answer as its reason.**
 
 The 4-layer charge: the news page says "POFV for 4-layer PCBs still requires charges." The amount is not published. The order form is drawn by a script, so its labels for via covering were **not read**. Only its text on via size was.
 
@@ -592,7 +592,7 @@ Order: S1a, S2, S1b for the multi-tool (20–29 hours). S3 to S9 are 85–117 ho
 ## 12. Founder decisions, open
 
 1. **Which rows of JLCPCB's shared capabilities page count as stated for HDI?** Mask, legend and outline rows name no build. *Recommended:* count a row that names no build and no layer count as stated for every build on that page, and nothing else. Until decided: none count.
-2. **JLCPCB's smallest filled hole.** Its pages say 0.15 mm, 0.2 mm and 0.2 mm. Until the founder decides, the stricter values are used, 0.2 to 0.5 mm, with both pages cited. Ask JLCPCB before the order.
+2. **JLCPCB's smallest filled hole.** Its pages say 0.15 mm, 0.2 mm and 0.2 mm. The profile says, as data: 0.2 to 0.5 mm is made (every page), 0.15 to 0.2 and 0.5 to 0.55 mm is not stated (the pages disagree), anything else is not made. Open: whether to keep that or take one page. Ask JLCPCB before the order.
 3. **From 6 layers JLCPCB fills every via by default.** *Recommended:* a finding on such boards.
 4. **Skip laser drills (L1–L3).** JLCPCB makes them as stacks. *Recommended:* refuse under JLCPCB and offer the two.
 5. **How far to go now.** Decided: S1a, S2 and S1b.
