@@ -407,3 +407,48 @@ fn a_pad_hole_is_checked_again_when_its_island_is_cut_far_away() -> Fallible {
     assert_eq!(**next.report(), expected);
     Ok(())
 }
+
+/// What a report reads of the context (each row's way to fix it, a tie
+/// part's rating) is of the context it was made in: another context makes
+/// another report of the same state, in full, also after a copper edit.
+#[test]
+fn a_report_is_made_again_in_another_context() -> Fallible {
+    use crate::Operation;
+    use crate::layout::LayoutCommand;
+    let mut engine = crate::Engine::showcase()?;
+    let context = engine.context().cloned().ok_or("no context")?;
+    let fixes = |report: &IssueReport| {
+        report
+            .rows
+            .iter()
+            .filter(|r| r.detail.fix.is_some())
+            .count()
+    };
+    let expected = |engine: &crate::Engine| {
+        let _context = engine.enter_context();
+        full(engine.project(), engine.drafts(), engine.check_settings())
+    };
+    let (with, key) = (engine.issue_report()?, engine.report_key());
+    assert_eq!(*with, expected(&engine)?);
+    assert!(fixes(&with) > 0, "the fixture's help says how to fix");
+    engine.clear_context();
+    assert_ne!(engine.report_key(), key);
+    let without = engine.issue_report()?;
+    assert_eq!(*without, expected(&engine)?);
+    assert_eq!(fixes(&without), 0);
+    // A copper edit keeps the rows no track or via is in: of this context,
+    // not of the one before.
+    engine.set_context(context);
+    assert_eq!(*engine.issue_report()?, *with);
+    engine.clear_context();
+    let via = engine.project().vias.first().cloned().ok_or("no via")?;
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::SetViaTented {
+            id: via.id,
+            tented: !via.tented,
+        }),
+    )?;
+    assert_eq!(*engine.issue_report()?, expected(&engine)?);
+    Ok(())
+}

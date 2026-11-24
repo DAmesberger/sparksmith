@@ -15,7 +15,7 @@ mod plan;
 mod truth;
 
 use crate::{Engine, format};
-use invariants::{Broken, Rule, Seen, State, broken};
+use invariants::{Broken, Kept, Rule, Seen, State, broken};
 use plan::{Atom, CUTS, Case, Edit, FORMS, PRINTS};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -166,7 +166,7 @@ fn step(engine: &mut Engine, edit: &Edit, look: Look, tally: &mut Tally) -> Fall
 
 fn looked(engine: &Engine, seen: &Seen, look: Look) -> Fallible<Vec<Broken>> {
     let mut out = invariants::all(seen, PIXEL)?;
-    out.extend(invariants::cached(engine, seen)?);
+    out.extend(invariants::cached(&Kept::of(engine)?, engine, seen)?);
     if look == Look::Files {
         let bytes = format::encode(&engine.to_file())?;
         out.extend(invariants::reopened(seen, engine, &bytes)?);
@@ -178,6 +178,8 @@ fn looked(engine: &Engine, seen: &Seen, look: Look) -> Fallible<Vec<Broken>> {
 /// make it and look at nothing.
 fn play(case: &Case, looking: bool, tally: &mut Tally) -> Fallible<(Engine, Option<Failure>)> {
     let mut engine = build::built(case)?;
+    // As a host has it: what is made of the board reads its standards.
+    let _context = engine.enter_context();
     let mut started = false;
     for (number, atom) in &case.atoms {
         let (edit, look) = match atom {
