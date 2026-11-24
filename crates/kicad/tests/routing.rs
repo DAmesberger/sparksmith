@@ -310,6 +310,8 @@ fn the_project_files_rules_become_the_projects_own_rule_set() -> Fallible<()> {
     let report = &imported.report;
     let rules = &project.rules;
     assert_eq!(rules.source.as_deref(), Some("From the KiCad project"));
+    // Rules are set after the copper: no part of the import can be undone.
+    assert!(!imported.engine.can_undo());
     assert_eq!(rules.net_classes.len(), 1);
     let power = &rules.net_classes[0];
     assert_eq!(power.name, "Power");
