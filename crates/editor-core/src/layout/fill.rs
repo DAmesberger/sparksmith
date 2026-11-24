@@ -126,6 +126,9 @@ pub fn apply(project: &mut Project, command: FillCommand) -> Result<Option<Id>> 
     let missing = |what: &str, id: Id| Error::NotFound(format!("{what}.missing: no {what} {id}"));
     match command {
         FillCommand::Add { fill } => {
+            // A fill is poured as soon as it is drawn: none without the
+            // profile its clearances come from.
+            project.rules.require()?;
             let id = project.allocate()?;
             project.fills.push(Fill::from_spec(id, *fill));
             Ok(Some(id))
@@ -182,6 +185,7 @@ pub fn apply(project: &mut Project, command: FillCommand) -> Result<Option<Id>> 
             Ok(None)
         }
         FillCommand::Store { fill, copper } => {
+            project.rules.require()?;
             let key = inputs_key(project, fill)?;
             if copper.key != key {
                 return Err(Error::Conflict(
@@ -195,6 +199,7 @@ pub fn apply(project: &mut Project, command: FillCommand) -> Result<Option<Id>> 
             Ok(None)
         }
         FillCommand::StoreAll { fills } => {
+            project.rules.require()?;
             // Each names a distinct fill of the board, so the board bounds
             // how many one request stores.
             if fills.is_empty() || fills.len() > project.fills.len() {
@@ -437,6 +442,10 @@ impl FillCache {
 /// Only fills whose inputs changed are computed; results already in
 /// `cache` are reused, and new ones are added to it.
 pub fn compute_stale(project: &Project, cache: &mut FillCache) -> Result<Vec<(Id, FilledCopper)>> {
+    // No fab profile, no clearances to keep: nothing is poured.
+    if project.rules.profile.is_none() {
+        return Ok(Vec::new());
+    }
     let ids = ranked(project, RefillTarget::All)?;
     let mut ctx = compute::Ctx::new(project);
     let mut out = Vec::new();

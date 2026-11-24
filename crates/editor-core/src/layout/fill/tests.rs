@@ -2005,3 +2005,50 @@ fn without_a_round_pad_angle_every_pad_keeps_the_one_spoke_angle() -> Fallible<(
     assert!(reliefs.iter().all(|(_, gaps)| *gaps), "{reliefs:?}");
     Ok(())
 }
+
+/// GUI check 1, K9: without a fab profile every clearance is 0, so a fill
+/// would be poured up to other nets' copper. It is refused with the cause,
+/// and one already on such a board is not poured.
+#[test]
+fn without_a_fab_profile_a_fill_is_refused_and_none_is_poured() -> Fallible<()> {
+    let mut engine = showcase()?;
+    let gnd = net(&engine, "GND")?;
+    let drawn = || spec(Some(gnd), CopperLayer::Bottom, rect(2.0, 2.0, 20.0, 20.0));
+    add(&mut engine, drawn())?;
+    let copper = compute_stale(engine.project(), &mut FillCache::default())?;
+    assert_eq!(copper.len(), 1, "poured with the profile");
+    let mut file = engine.to_file();
+    file.project.rules.profile = None;
+    file.project
+        .fills
+        .iter_mut()
+        .for_each(|f| f.computed = None);
+    let mut engine = Engine::from_file(file)?;
+    let poured = compute_stale(engine.project(), &mut FillCache::default())?;
+    assert!(
+        poured.is_empty(),
+        "{} fills poured at no clearance",
+        poured.len()
+    );
+    let before = engine.to_file();
+    let refused = add(&mut engine, drawn()).err().ok_or("it was accepted")?;
+    assert!(refused.to_string().contains("no fab profile"), "{refused}");
+    for command in [
+        FillCommand::Store {
+            fill: copper[0].0,
+            copper: Box::new(copper[0].1.clone()),
+        },
+        FillCommand::StoreAll {
+            fills: vec![super::StoredFill {
+                fill: copper[0].0,
+                copper: copper[0].1.clone(),
+            }],
+        },
+    ] {
+        let refused = engine.apply(engine.revision(), Operation::Fill(command));
+        let refused = refused.err().ok_or("stored without a profile")?;
+        assert!(refused.to_string().contains("no fab profile"), "{refused}");
+    }
+    assert_eq!(engine.to_file(), before);
+    Ok(())
+}
