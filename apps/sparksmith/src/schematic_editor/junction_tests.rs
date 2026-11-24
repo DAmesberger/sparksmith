@@ -917,3 +917,60 @@ fn no_connect_tool_toggles_pins_with_one_undo_step_each() -> TestResult {
     }
     Ok(())
 }
+
+/// A wire whose elbow runs over another pin of the part it starts on joins
+/// that pin (docs/schematic-wires.md): the preview rings it before the
+/// click, and the toast names it.
+#[test]
+fn a_wire_over_another_pin_of_its_part_rings_and_names_it() -> TestResult {
+    let (mut engine, [r90, _, r92, _], _) = engine()?;
+    let (start, over, end) = (
+        pin(&engine, ep(r92, 2))?,
+        pin(&engine, ep(r92, 1))?,
+        pin(&engine, ep(r90, 1))?,
+    );
+    assert!(over[1] == start[1] && over[0] < start[0] && end[0] < over[0]);
+    let (mut editor, ctx) = wiring(&engine, over);
+    assert!(tap(&mut editor, &engine, &ctx, start).is_none());
+    let to = screen(&editor, end);
+    let (shapes, _) = canvas_frame(
+        &mut editor,
+        &engine,
+        &ctx,
+        vec![egui::Event::PointerMoved(to)],
+    );
+    let ring = screen(&editor, over);
+    assert!(
+        circles(&shapes, SNAP_MARKER_PX, false)
+            .iter()
+            .any(|c| c.distance(ring) < 0.5),
+        "the pin it runs over is ringed"
+    );
+    let operation = click(&mut editor, &engine, &ctx, to).ok_or("nothing sent")?;
+    engine.apply(engine.revision(), operation)?;
+    assert_eq!(
+        engine.project().net_of(ep(r92, 1)).map(|n| n.id),
+        engine.project().net_of(ep(r92, 2)).map(|n| n.id),
+        "joined by rule"
+    );
+    crate::kit::toast::take_posted(&ctx);
+    for _ in 0..2 {
+        canvas_frame(&mut editor, &engine, &ctx, vec![]);
+    }
+    let posted: Vec<String> = crate::kit::toast::take_posted(&ctx)
+        .into_iter()
+        .map(|p| p.text)
+        .collect();
+    let name = engine
+        .project()
+        .instance(r92)
+        .and_then(|i| engine.project().library.component(i.component))
+        .and_then(|c| c.definition.terminal(sparksmith_core::TerminalId(1)))
+        .map(|t| t.name.clone())
+        .ok_or("terminal")?;
+    assert_eq!(
+        posted,
+        [format!("Drew the wire, which also joins R92 pin {name}")]
+    );
+    Ok(())
+}

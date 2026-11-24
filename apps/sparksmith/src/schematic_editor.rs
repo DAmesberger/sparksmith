@@ -956,8 +956,8 @@ impl SchematicEditor {
         }
     }
 
-    /// A drawn wire's `plan`, which is not
-    /// blocked. An ordinary join applies at once, one undo step, and says
+    /// A drawn wire's `plan`, which is not blocked; `over` names the pins
+    /// its path runs over. An ordinary join applies at once, one undo step, and says
     /// what changed in a status toast. The review opens only when core says
     /// the join needs one (`UpdatePlan::needs_review`): it touches routed
     /// copper, or it merges two nets that each carry a name of their own,
@@ -966,6 +966,7 @@ impl SchematicEditor {
         &mut self,
         engine: &Engine,
         plan: sparksmith_core::updates::UpdatePlan,
+        over: &[String],
     ) -> Option<Operation> {
         let change = plan.change.clone();
         if plan.needs_review() {
@@ -973,7 +974,7 @@ impl SchematicEditor {
         }
         self.join_watch = Some((
             engine.revision(),
-            crate::update_preview::applied_line(&plan),
+            joined_line(crate::update_preview::applied_line(&plan), over),
             None,
         ));
         Some(Operation::Update(Box::new(ApplyUpdate {
@@ -3385,6 +3386,21 @@ fn focus_left(ui: &egui::Ui, key: egui::Id, rect: Rect) -> Option<bool> {
 const PIN_MARK_PX: (f32, f32) = (2.0, 12.0);
 /// The pin-mark stroke in sheet millimetres (thinner than the pin line).
 const PIN_MARK_STROKE_MM: f32 = 0.15;
+
+/// A drawn wire's toast, naming the pins it joins by running over them:
+/// "Drew the wire, which also joins R1 pin 2".
+fn joined_line(line: String, over: &[String]) -> String {
+    if over.is_empty() {
+        return line;
+    }
+    let named = over.iter().take(3).cloned().collect::<Vec<_>>().join(", ");
+    let more = over.len().saturating_sub(3);
+    if more == 0 {
+        format!("{line}, which also joins {named}")
+    } else {
+        format!("{line}, which also joins {named} and {more} more")
+    }
+}
 
 /// The to-do ring's on-screen radius and stroke width at `scale`.
 fn pin_ring(scale: f32) -> (f32, f32) {
