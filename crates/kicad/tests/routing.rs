@@ -141,12 +141,8 @@ fn findings(project: &sparksmith_core::Project) -> Fallible<Vec<(String, String)
     Ok(report
         .rows
         .iter()
-        .map(|r| {
-            (
-                r.finding.code.as_str().to_owned(),
-                r.finding.message.clone(),
-            )
-        })
+        .flat_map(|r| std::iter::once(&r.finding).chain(&r.also))
+        .map(|f| (f.code.as_str().to_owned(), f.message.clone()))
         .collect())
 }
 

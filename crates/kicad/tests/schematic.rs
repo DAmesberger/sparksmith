@@ -470,7 +470,11 @@ fn a_track_onto_a_pad_the_schematic_keeps_off_its_net_is_imported_and_reported()
     )?;
     for code in ["board.clearance", "import.board_joins_nets"] {
         assert!(
-            report.rows.iter().any(|r| r.finding.code == code),
+            report
+                .rows
+                .iter()
+                .flat_map(|r| std::iter::once(&r.finding).chain(&r.also))
+                .any(|f| f.code == code),
             "{code}: {:?}",
             report.rows
         );
