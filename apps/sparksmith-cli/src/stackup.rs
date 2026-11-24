@@ -57,6 +57,8 @@ mod tests {
 
     #[test]
     fn every_stackup_is_listed_and_one_is_shown_with_its_sources() -> Result<()> {
+        // As `run` in main enters it for the whole program.
+        let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
         let library = fab_stackups::shipped()?;
         let listed = reply(&library, &args(&["list"]))?;
         let rows = listed["stackups"].as_array().map_or(0, Vec::len);
