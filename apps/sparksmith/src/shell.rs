@@ -915,10 +915,13 @@ fn group_row(ui: &mut Ui, area: Rect, ribbon: &Ribbon) -> Option<&'static str> {
             .menu(&response)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
             .show(|ui| {
-                // A small window's menu scrolls.
-                let room = ui.ctx().content_rect().bottom() - rect.bottom() - t.space_24;
+                // As tall as its tools, up to the whole window: the popup moves
+                // up to fit. A menu taller than the window scrolls.
+                let room = ui.ctx().content_rect().height() - t.space_24;
+                let room = room.max(OVERFLOW_ROW_HEIGHT);
                 egui::ScrollArea::vertical()
-                    .max_height(room.max(OVERFLOW_ROW_HEIGHT))
+                    .max_height(room)
+                    .min_scrolled_height(room)
                     .show(ui, |ui| {
                         crate::kit::form(ui, |ui| {
                             ui.set_width(OVERFLOW_MENU_WIDTH);
