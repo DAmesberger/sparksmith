@@ -288,6 +288,11 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
             Some("Fix or waive the error first")
         );
     }
+    // Readable without hovering Export (GUI check 1, item F6).
+    assert!(
+        shown.iter().any(|t| t == "Fix or waive the error first"),
+        "{shown:?}"
+    );
     // Export is disabled: clicking it starts nothing.
     click(&mut editor, &engine, &ctx, "Export")?;
     assert!(!dialog(&mut editor)?.busy());
@@ -1016,8 +1021,29 @@ fn a_profile_limited_finding_says_what_it_needs_and_switches_instead_of_waiving(
         only.blocking = only.items.iter().filter(|i| i.blocks()).count();
         assert!(only.blocking > 0);
         assert_eq!(
-            export_blocked(d, Some(&Ok(only)), true, d.output("x").as_ref()).as_deref(),
+            export_blocked(d, Some(&Ok(only.clone())), true, d.output("x").as_ref()).as_deref(),
             Some("Fix the design or switch to a fab profile that allows it first")
+        );
+        // An error neither a waiver nor another profile resolves offers
+        // neither; a missing profile asks for one (GUI check 1, U11).
+        only.items.truncate(1);
+        only.items[0].needs = None;
+        only.items[0].code = "fabrication.slot_unroutable.3".into();
+        only.blocking = 1;
+        assert_eq!(
+            export_blocked(d, Some(&Ok(only.clone())), true, None).as_deref(),
+            Some("Fix the error first; it cannot be waived")
+        );
+        only.items.push(only.items[0].clone());
+        only.blocking = 2;
+        assert_eq!(
+            export_blocked(d, Some(&Ok(only.clone())), true, None).as_deref(),
+            Some("Fix the 2 errors first; they cannot be waived")
+        );
+        only.items[0].code = "rules.no_fab_profile".into();
+        assert_eq!(
+            export_blocked(d, Some(&Ok(only)), true, None).as_deref(),
+            Some("Choose a fab profile first")
         );
     }
     // Hovering the finding offers no Waive….
