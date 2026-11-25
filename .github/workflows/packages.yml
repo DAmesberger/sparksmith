@@ -1,0 +1,51 @@
+# The three downloads, built and tried. Only by hand, and nothing is released:
+# the packages are this run's artifacts.
+name: Packages
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  package:
+    name: package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest Ubuntu offered: the glibc it has is the one a person needs.
+        os: ["ubuntu-22.04", "windows-latest", "macos-14"]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The macOS build number counts the commits.
+          fetch-depth: 0
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          cache-on-failure: true
+      - name: Build the package
+        run: cargo xtask package --out packages
+      - name: Install a display and a software Vulkan driver
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            xvfb xauth mesa-vulkan-drivers libvulkan1 libegl1 libgl1 libgl1-mesa-dri \
+            libx11-6 libx11-xcb1 libxcursor1 libxi6 libxrandr2 libxkbcommon0 libxkbcommon-x11-0
+      - name: Try the package
+        run: |
+          try=""
+          if [ "$RUNNER_OS" = Linux ]; then try="xvfb-run --auto-servernum"; fi
+          $try sh packaging/smoke.sh packages/sparksmith-* "$RUNNER_TEMP/smoke"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-${{ runner.os }}
+          path: packages/sparksmith-*
+          if-no-files-found: error
+          # Packed already.
+          compression-level: 0

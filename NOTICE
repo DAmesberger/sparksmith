@@ -6,22 +6,28 @@ Licensed under the MIT License or the Apache License, Version 2.0, at your optio
 Third-party material
 
 Software dependencies are listed in Cargo.lock and retrieved by Cargo with their own license
-notices. `cargo xtask licences --check` (part of `cargo xtask ci`) rejects any resolved dependency
+notices; a package (`cargo xtask package`) holds them in THIRD-PARTY-NOTICES.txt. `cargo xtask licences --check` (part of `cargo xtask ci`) rejects any resolved dependency
 that cannot be used without a GPL, LGPL or AGPL license, and any unreviewed license.
 
 The 3D engine and desktop UI come from Solidcraft (https://github.com/tangency-labs/solidcraft),
 built from the fork https://github.com/DAmesberger/solidcraft at revision
-64bebfef0a77dab8c79666114c7601c9dda55d12 (branch pcbcraft-smlib-open: upstream a34756830185f82da3a0e3ddd1ea25ef21111558
-with its vendored SMLib kernel, plus material-graph looks, via scaling and a font-order fix) and linked as its MIT/Apache crates
+f78bfe81b282d3936d126fcc2e863c52836372a8 (branch sparksmith-pin-2026-11-23: upstream 8650f8688
+with its vendored kernel, plus material-graph looks, via scaling and a font-order fix) and linked as its MIT/Apache crates
 (solidcraft-engine, solidcraft-viewport, solidcraft-viewport-gpu, solidcraft-viewport-egui and the
 others listed in ATTRIBUTION.md) together with Solidcraft's patched geometry and windowing crates.
 Copyright (c) 2026 SolidCraft contributors; MIT OR Apache-2.0. Sparksmith does not link Solidcraft's
 brand-licensed crates (solidcraft-ui-kit, solidcraft-look, solidcraft-theme) or solidcraft-ui-egui.
 The desktop's UI toolkit (crates/ui) is seeded from Solidcraft's interface code (UI kit, theme
-tokens, icons, glyphs, font setup), vendored from that revision, whose upstream base a34756830 predates the brand licence,
+tokens, icons, glyphs, font setup), vendored from the fork's revision
+64bebfef0a77dab8c79666114c7601c9dda55d12, whose upstream base a34756830 predates the brand licence,
 under its MIT option; crates/ui/LICENSE-MIT and LICENSE-APACHE carry the notices. Agent instructions, build
 conventions and some UI and transport source are adapted from the same revision under its MIT
 option; ATTRIBUTION.md lists the files and licenses/solidcraft-MIT.txt preserves the notice.
+Solidcraft's geometry kernel, solidcore, is a Rust port of the SMLib and SM_API components of USD
+BRep (https://github.com/NVIDIA-Omniverse/usd-brep), Apache-2.0. Copyright (c) 2026 The solidcore
+contributors; USD BRep is Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights
+reserved.
+
 The fork's renderer contains Apache-2.0 code adapted from the Khronos PBR Neutral tone mapper
 (Copyright The Khronos Group Inc.); the fork's NOTICE carries that attribution and applies to the
 built renderer.

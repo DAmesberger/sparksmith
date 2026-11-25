@@ -366,6 +366,17 @@ impl SettingsWindow {
                 kit::section(ui, "settings-keyboard", "Keyboard", true, None, |ui| {
                     action = self.keyboard(ui, registry, unapplied);
                 });
+                // macOS has it in the app menu too.
+                kit::section(ui, "settings-about", "About", true, None, |ui| {
+                    let version = sparksmith_core::product::version();
+                    kit::value_row(ui, "Version", &version);
+                    kit::value_row(ui, "Website", sparksmith_core::product::WEBSITE);
+                    kit::note(
+                        ui,
+                        "MIT OR Apache-2.0. Built on Solidcraft's engine. The licences and \
+                         notices of everything in it come with the package.",
+                    );
+                });
             });
         if closed {
             self.open = false;
