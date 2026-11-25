@@ -147,6 +147,7 @@ impl PartEditor {
         }
         if electrical.is_some() {
             self.selected = electrical;
+            self.mapping_reveal = electrical;
         }
         self.view = super::View::Mapping;
         true

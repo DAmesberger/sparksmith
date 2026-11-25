@@ -2306,6 +2306,9 @@ mod flow_tests;
 #[path = "app/generator_wait_tests.rs"]
 mod generator_wait_tests;
 #[cfg(test)]
+#[path = "app/mapping_scroll_tests.rs"]
+mod mapping_scroll_tests;
+#[cfg(test)]
 #[path = "app/open_project_tests.rs"]
 mod open_project_tests;
 #[cfg(test)]
