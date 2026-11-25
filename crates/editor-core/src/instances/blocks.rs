@@ -75,8 +75,8 @@ declare_entries!(BlockCommand in project {
     Rename "block.rename" Edit "Rename a block" [since(11, 0)],
     Members "block.members" Edit "Change a block's parts" [since(11, 0)],
     Delete "block.delete" Edit "Delete blocks" [since(11, 0)],
-    BoardMove "block.board_move" Edit "Move a block on the board" [in layout, since(4, 1)],
-    BoardLock "block.board_lock" Edit "Lock or unlock blocks on the board" [in layout, since(4, 1)],
+    BoardMove "block.board_move" Edit "Move a block on the board" [in layout, since(5, 0)],
+    BoardLock "block.board_lock" Edit "Lock or unlock blocks on the board" [in layout, since(5, 0)],
 });
 
 /// The block `instance` is in.

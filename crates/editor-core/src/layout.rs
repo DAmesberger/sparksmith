@@ -381,9 +381,9 @@ declare_entries!(LayoutCommand in layout {
     DeleteObjects "layout.delete_objects" Edit "Delete several board objects" [returns(none, parts_kept)],
     LockObjects "layout.lock_objects" Edit "Lock or unlock several board objects",
     SetRefusedImportTracks "layout.set_refused_import_tracks" Edit "Record tracks an import refused" [since(0, 3)],
-    AddText "layout.text_add" Edit "Add text to the silkscreen" [since(4, 2), returns(text_added)],
-    EditText "layout.text_edit" Edit "Edit a board text" [since(4, 2)],
-    DeleteText "layout.text_delete" Edit "Delete a board text" [since(4, 2)],
+    AddText "layout.text_add" Edit "Add text to the silkscreen" [since(5, 0), returns(text_added)],
+    EditText "layout.text_edit" Edit "Edit a board text" [since(5, 0)],
+    DeleteText "layout.text_delete" Edit "Delete a board text" [since(5, 0)],
 });
 
 impl LayoutCommand {
