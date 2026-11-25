@@ -169,7 +169,7 @@ A courtyard graphic a footprint source computes from its pad and body extents gr
 The board check that two placements on the same side have courtyards sharing interior area. Touching edges is not overlap; a part without a courtyard is not checked.
 
 **Layout block** (block):
-Parts that belong together on the board and move, turn, flip and lock as one. Its border is derived from its parts, the convex hull of their courtyards, and is soft: other parts and traces may lie in it. A part is in one block at most, and copper belongs to its net, not to the block.
+Parts that belong together in the design, and move, turn, flip and lock as one on the board. Who is in it is set by hand, never by where a part lies. Its border on the board is derived from its parts, the convex hull of their courtyards, and is soft: other parts and traces may lie in it. A part is in one block at most, and copper belongs to its net, not to the block.
 _Avoid_: Module
 
 **Mask web**:

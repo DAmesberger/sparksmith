@@ -19,6 +19,7 @@ use super::{BoardView, PcbEditor, Placement, body_polygon, fill_paint, opposite}
 use crate::commands::PcbArrange;
 use crate::kit;
 use egui::{Pos2, Ui};
+use sparksmith_core::instances::blocks::BlockCommand;
 use sparksmith_core::layout::arrange::{CopperMove, PartMove};
 use sparksmith_core::layout::several::Objects;
 use sparksmith_core::layout::{self, LayoutCommand};
@@ -142,7 +143,6 @@ impl Group {
             tracks: self.tracks.iter().copied().collect(),
             vias: self.vias.iter().copied().collect(),
             fills: self.fills.iter().copied().collect(),
-            blocks: self.blocks.iter().copied().collect(),
         }
     }
 
@@ -510,7 +510,7 @@ impl PcbEditor {
                 by: drag.by,
                 ..Default::default()
             };
-            return Some(Operation::Layout(how.command(id)));
+            return Some(Operation::Block(how.command(id)));
         }
         let moves = drag
             .parts
@@ -560,16 +560,52 @@ impl PcbEditor {
         }))
     }
 
-    /// The group's Delete: its tracks, vias, fills and blocks in one undo step.
-    /// Parts stay, as they come from the schematic; the engine names them
-    /// in its outcome, so the app says which were kept.
+    /// The group's Delete, when there is something to delete: its tracks,
+    /// vias and fills, else its blocks. Parts stay, as they come from the
+    /// schematic; the engine names them in its outcome, so the app says
+    /// which were kept.
     pub(super) fn delete_group(&self) -> Option<Operation> {
         let objects = self.group.objects();
-        let any = !(objects.tracks.is_empty()
-            && objects.vias.is_empty()
-            && objects.fills.is_empty()
-            && objects.blocks.is_empty());
-        any.then_some(Operation::Layout(LayoutCommand::DeleteObjects { objects }))
+        let any =
+            !(objects.tracks.is_empty() && objects.vias.is_empty() && objects.fills.is_empty());
+        if any {
+            return Some(Operation::Layout(LayoutCommand::DeleteObjects { objects }));
+        }
+        self.group_blocks()
+            .map(|ids| Operation::Block(BlockCommand::Delete { ids }))
+    }
+
+    /// [`Self::delete_group`] to be sent: with copper and blocks both, the
+    /// blocks go first in the same undo step.
+    pub(super) fn take_group_delete(&mut self) -> Option<Operation> {
+        let delete = self.delete_group()?;
+        if matches!(delete, Operation::Layout(_)) {
+            self.first = self
+                .group_blocks()
+                .map(|ids| Operation::Block(BlockCommand::Delete { ids }));
+        }
+        Some(delete)
+    }
+
+    /// Lock or unlock the whole group in one undo step.
+    pub(super) fn take_group_lock(&mut self, locked: bool) -> Option<Operation> {
+        let objects = self.group.objects();
+        let blocks = self
+            .group_blocks()
+            .map(|ids| Operation::Block(BlockCommand::BoardLock { ids, locked }));
+        if objects == Objects::default() {
+            return blocks;
+        }
+        self.first = blocks;
+        Some(Operation::Layout(LayoutCommand::LockObjects {
+            objects,
+            locked,
+        }))
+    }
+
+    fn group_blocks(&self) -> Option<Vec<Id>> {
+        let ids: Vec<Id> = self.group.blocks.iter().copied().collect();
+        (!ids.is_empty()).then_some(ids)
     }
 
     /// The selected parts lined up or spaced (`pcb.align-*`,
@@ -602,14 +638,10 @@ impl PcbEditor {
         kit::section(ui, "pcb-selection", "Selection", true, None, |ui| {
             kit::value_row(ui, "Holds", &group.summary());
             let mut locked = group.all_locked(project);
-            kit::check_row(ui, "Locked", &mut locked).then(|| {
-                Operation::Layout(LayoutCommand::LockObjects {
-                    objects: group.objects(),
-                    locked,
-                })
-            })
+            kit::check_row(ui, "Locked", &mut locked).then_some(locked)
         })
         .flatten()
+        .and_then(|locked| self.take_group_lock(locked))
     }
 
     /// The card's footer: Flip for parts, Delete for copper.
@@ -622,7 +654,7 @@ impl PcbEditor {
             .on_disabled_hover_text("Parts are removed on the schematic")
             .clicked()
         {
-            output = delete;
+            output = self.take_group_delete();
         }
         let flip = self.flip_group(project);
         if ui_kit::button(ui, "Flip", Button::Enabled(flip.is_some()))

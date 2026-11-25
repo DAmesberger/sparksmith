@@ -79,6 +79,8 @@ pub enum Operation {
     Assembly(interface::assembly_link::AssemblyCommand),
     /// Assembly variants and which parts each fits (`variant.*`).
     Variant(instances::variants::VariantCommand),
+    /// Blocks: parts that belong together (`block.*`).
+    Block(instances::blocks::BlockCommand),
     Update(Box<updates::ApplyUpdate>),
 }
 
@@ -98,6 +100,7 @@ impl Operation {
             Self::Interface(command) => command.class(),
             Self::Assembly(command) => command.class(),
             Self::Variant(command) => command.class(),
+            Self::Block(command) => command.class(),
             Self::Update(_) => Class::Edit,
         }
     }
@@ -117,6 +120,7 @@ impl Operation {
             Self::Interface(command) => command.command(),
             Self::Assembly(command) => command.command(),
             Self::Variant(command) => command.command(),
+            Self::Block(command) => command.command(),
             Self::Update(_) => "update",
         }
     }
@@ -169,12 +173,17 @@ impl Operation {
             | Self::Dimension(_)
             | Self::Fabrication(_)
             | Self::Interface(_)
-            | Self::Assembly(_) => Area::Pcb,
+            | Self::Assembly(_)
+            | Self::Block(
+                instances::blocks::BlockCommand::BoardMove { .. }
+                | instances::blocks::BlockCommand::BoardLock { .. },
+            ) => Area::Pcb,
             Self::Schematic(
                 schematic::SchematicCommand::SetProperties { .. }
                 | schematic::SchematicCommand::RenameProject { .. },
             )
-            | Self::Variant(_) => Area::Project,
+            | Self::Variant(_)
+            | Self::Block(_) => Area::Project,
             Self::Instance(_) | Self::Schematic(_) | Self::Update(_) => Area::Schematic,
         }
     }
@@ -241,6 +250,7 @@ impl Operation {
             interface::InterfaceCommand::ENTRIES,
             interface::assembly_link::AssemblyCommand::ENTRIES,
             instances::variants::VariantCommand::ENTRIES,
+            instances::blocks::BlockCommand::ENTRIES,
             UPDATE,
         ]
         .into_iter()
@@ -542,9 +552,10 @@ pub enum Query {
         #[serde(default)]
         net: Option<Id>,
     },
-    /// The layout blocks: name, lock, parts with their sides, and the
-    /// border on the board, the convex hull of its parts' courtyards.
-    #[serde(rename = "layout.blocks")]
+    /// The blocks: name, parts, and what each is on the board. There: its
+    /// lock, its parts' sides and its border, the convex hull of its parts'
+    /// courtyards.
+    #[serde(rename = "block.list")]
     Blocks {},
     /// What `layout.route_step` would do, without applying it. The edit set
     /// (the step's copper and every shoved track and via), where the head ends
@@ -655,7 +666,7 @@ declare_entries!(Query in project {
     Stackups "layout.stackups" Read "List fabricators' stackups" [in layout, link, since(3, 0), returns(stackups, stackup)],
     LengthReport "layout.length_report" Read "Length report" [in layout, link, returns(length_report)],
     Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1), returns(pads)],
-    Blocks "layout.blocks" Read "List the layout blocks" [in layout, link, since(3, 1), returns(blocks)],
+    Blocks "block.list" Read "List the blocks" [in project, link, since(10, 0), returns(blocks)],
     RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link, returns(route_preview)],
     TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link, returns(route_preview)],
     TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link, returns(tune_preview)],
@@ -2046,7 +2057,7 @@ impl Engine {
                 layout::LayoutCommand::Align { instances, .. }
                 | layout::LayoutCommand::Distribute { instances, .. },
             ) => instances.clone(),
-            Operation::Layout(layout::LayoutCommand::MoveBlock { id, .. }) => self
+            Operation::Block(instances::blocks::BlockCommand::BoardMove { id, .. }) => self
                 .document
                 .project
                 .block(*id)
@@ -2057,9 +2068,8 @@ impl Engine {
         // Of a block, so more than the part under the pointer.
         let moved_block = matches!(
             operation,
-            Operation::Layout(
-                layout::LayoutCommand::MoveBlock { .. } | layout::LayoutCommand::MoveParts { .. }
-            )
+            Operation::Block(instances::blocks::BlockCommand::BoardMove { .. })
+                | Operation::Layout(layout::LayoutCommand::MoveParts { .. })
         ) && moved_parts
             .iter()
             .any(|id| layout::blocks::block_of(&self.document.project, *id).is_some());
@@ -2169,19 +2179,6 @@ impl Engine {
                 layout::validate(project)?;
                 Outcome::None
             }
-            // So does a block's move.
-            Operation::Layout(layout::LayoutCommand::MoveBlock {
-                id,
-                by,
-                turn_deg,
-                flip,
-            }) => {
-                let project = Arc::make_mut(&mut candidate.project);
-                let how = layout::blocks::BlockMove { by, turn_deg, flip };
-                layout::blocks::move_block(project, id, &how, evaluators.board)?;
-                layout::validate(project)?;
-                Outcome::None
-            }
             // Parts named with the copper stay; the outcome names them.
             Operation::Layout(layout::LayoutCommand::DeleteObjects { objects }) => {
                 let project = Arc::make_mut(&mut candidate.project);
@@ -2195,7 +2192,6 @@ impl Engine {
             }
             Operation::Layout(command) => {
                 let part = command.places_part();
-                let block = matches!(command, layout::LayoutCommand::AddBlock { .. });
                 let before = candidate.project.library.components.len();
                 let project = Arc::make_mut(&mut candidate.project);
                 match layout::apply_staged(project, command)? {
@@ -2208,7 +2204,6 @@ impl Engine {
                             created: project.library.components.len() > before,
                         }
                     }
-                    Some(id) if block => Outcome::BlockAdded { block: id },
                     Some(via) => Outcome::ViaAdded { via },
                     None => Outcome::None,
                 }
@@ -2339,6 +2334,43 @@ impl Engine {
                     Some(variant) => Outcome::VariantAdded { variant },
                     None => Outcome::None,
                 }
+            }
+            Operation::Block(command) => {
+                use instances::blocks::BlockCommand as B;
+                use layout::blocks::BlockMove;
+                // Applied to a copy, so a command that restates the blocks
+                // takes no revision or undo step.
+                let mut next = (*candidate.project).clone();
+                let project = &mut next;
+                let mut outcome = Outcome::None;
+                match command {
+                    B::Add { parts, name } => {
+                        let block = instances::blocks::add(project, name.as_deref(), &parts)?;
+                        outcome = Outcome::BlockAdded { block };
+                    }
+                    B::Rename { id, name } => instances::blocks::rename(project, id, &name)?,
+                    B::Members { id, add, remove } => {
+                        instances::blocks::set_members(project, id, &add, &remove)?;
+                    }
+                    B::Delete { ids } => instances::blocks::delete(project, &ids)?,
+                    B::BoardMove {
+                        id,
+                        by,
+                        turn_deg,
+                        flip,
+                    } => {
+                        let how = BlockMove { by, turn_deg, flip };
+                        layout::blocks::move_block(project, id, &how, evaluators.board)?;
+                        layout::validate(project)?;
+                    }
+                    B::BoardLock { ids, locked } => {
+                        layout::blocks::lock(project, &ids, locked)?;
+                    }
+                }
+                if next != *candidate.project {
+                    candidate.project = Arc::new(next);
+                }
+                outcome
             }
             Operation::Update(mut update) => {
                 if self.still_at(update.expected_revision) {

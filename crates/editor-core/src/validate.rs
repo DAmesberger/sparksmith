@@ -112,7 +112,7 @@ fn project_checks(p: &Project, schematic: bool) -> Result<()> {
         schematic::validate(p)?;
         nets::validate(p)?;
     }
-    layout::blocks::check(p)?;
+    instances::blocks::check(p)?;
     layout::validate(p)?;
     Ok(())
 }

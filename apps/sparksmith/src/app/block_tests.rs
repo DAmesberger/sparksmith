@@ -6,6 +6,7 @@ use super::ax_harness::{Ax, Fallible};
 use super::*;
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton};
+use sparksmith_core::instances::blocks::BlockCommand;
 use sparksmith_core::layout::LayoutCommand;
 use sparksmith_core::model::Block;
 use sparksmith_core::{Id, Layer, Point};
@@ -215,7 +216,7 @@ fn a_taken_name_is_refused_at_its_field() -> Fallible {
         let revision = ax.app.engine.revision();
         ax.app.engine.apply(
             revision,
-            Operation::Layout(LayoutCommand::AddBlock {
+            Operation::Block(BlockCommand::Add {
                 parts: vec![id],
                 name: Some(name.into()),
             }),
@@ -291,5 +292,60 @@ fn a_saved_file_keeps_the_block() -> Fallible {
     ax.until("the save", |ax| !ax.app.files.dirty() && path.exists())?;
     let opened = Engine::from_file(sparksmith_io::read_project(&path)?)?;
     assert_eq!(opened.project().blocks[..], [made]);
+    Ok(())
+}
+
+/// Copper and a block selected together are deleted in one step, and so
+/// locked; one undo brings both back.
+#[test]
+fn copper_and_a_block_are_one_delete_and_one_lock() -> Fallible {
+    use sparksmith_core::layout::RouteRequest;
+    let (mut ax, [r1, _]) = made()?;
+    let net = ax
+        .app
+        .engine
+        .project()
+        .net_of(sparksmith_core::Endpoint {
+            instance: r1,
+            terminal: sparksmith_core::TerminalId(2),
+        })
+        .ok_or("no net")?
+        .id;
+    let revision = ax.app.engine.revision();
+    ax.app.engine.apply(
+        revision,
+        Operation::Layout(LayoutCommand::Route {
+            request: RouteRequest {
+                net,
+                start: [11.2, 10.0],
+                end: [23.8, 10.0],
+                width: 0.3,
+                layer: Layer::Top.into(),
+            },
+        }),
+    )?;
+    ax.settle();
+    let before = ax.app.engine.document().clone();
+    let grab = border(&ax)?;
+    click(&mut ax, [17.5, 10.0], Modifiers::NONE)?;
+    click(&mut ax, grab, Modifiers::SHIFT)?;
+    let group = ax.app.pcb.selected();
+    assert_eq!((group.tracks.len(), group.blocks.len()), (1, 1));
+    ax.click(Role::CheckBox, "Locked")?;
+    ax.settle();
+    let project = ax.app.engine.project();
+    assert!(project.tracks[0].locked && project.blocks[0].locked);
+    ax.command_key(Key::Z);
+    ax.settle();
+    assert_eq!(ax.app.engine.document(), &before, "one undo step");
+    click(&mut ax, [17.5, 10.0], Modifiers::NONE)?;
+    click(&mut ax, grab, Modifiers::SHIFT)?;
+    ax.key(Key::Delete);
+    ax.settle();
+    let project = ax.app.engine.project();
+    assert!(project.tracks.is_empty() && project.blocks.is_empty());
+    ax.command_key(Key::Z);
+    ax.settle();
+    assert_eq!(ax.app.engine.document(), &before, "one undo step");
     Ok(())
 }

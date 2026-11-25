@@ -3359,13 +3359,13 @@
   {
     "id": "command/pcb.make-block",
     "title": "Make block of the selected parts",
-    "summary": "Make a block of `parts`: parts that belong together and move as one.",
+    "summary": "Make a block of `parts`: parts that belong together.",
     "since": "0.1.0",
     "facts": {
       "kind": "command",
       "context": "PCB › Layout",
       "default_key": "Ctrl+G",
-      "reaches": "entry/layout.block_add"
+      "reaches": "entry/block.add"
     },
     "keywords": [
       "block",

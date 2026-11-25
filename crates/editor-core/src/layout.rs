@@ -308,67 +308,20 @@ pub enum LayoutCommand {
         instances: Vec<Id>,
         axis: arrange::Axis,
     },
-    /// Delete several tracks, vias, fills and blocks as one undo step (a
-    /// multi-selection's Delete, or a dangling stub's tracks). A block's
-    /// parts stay. A locked
+    /// Delete several tracks, vias and fills as one undo step (a
+    /// multi-selection's Delete, or a dangling stub's tracks). A locked
     /// track or via refuses the whole command. Named parts are kept, as
     /// they come from the schematic: the outcome (`parts_kept`) names
     /// them. Naming only parts is refused.
     #[serde(rename = "layout.delete_objects")]
     DeleteObjects { objects: several::Objects },
-    /// Lock or unlock several parts, tracks, vias, fills and blocks as one
-    /// undo step.
+    /// Lock or unlock several parts, tracks, vias and fills as one undo
+    /// step.
     #[serde(rename = "layout.lock_objects")]
     LockObjects {
         objects: several::Objects,
         locked: bool,
     },
-    /// Make a block of `parts`: parts that belong together and move as one.
-    /// Named "Block 1" (the first free number) unless `name` says. A part is
-    /// in one block at most. The outcome names it (`Outcome::BlockAdded`).
-    #[serde(rename = "layout.block_add")]
-    AddBlock {
-        parts: Vec<Id>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        name: Option<String>,
-    },
-    /// Rename a block.
-    #[serde(rename = "layout.block_rename")]
-    RenameBlock { id: Id, name: String },
-    /// Take parts into a block (`add`) and let parts go (`remove`), as one
-    /// undo step. Where the parts are does not change. A block keeps at
-    /// least one part.
-    #[serde(rename = "layout.block_members")]
-    SetBlockMembers {
-        id: Id,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        add: Vec<Id>,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        remove: Vec<Id>,
-    },
-    /// Lock or unlock a block. While it is locked nothing moves it or one
-    /// of its parts by hand; the parts' own locks stay as they are.
-    #[serde(rename = "layout.block_lock")]
-    SetBlockLock { id: Id, locked: bool },
-    /// Move a block's placed parts as one, as one undo step. Mirrored onto
-    /// the other side (`flip`, left to right) and turned by `turn_deg`
-    /// counter-clockwise about the middle of its border, then slid by `by`
-    /// (mm). The attached copper is carried as by `layout.move_parts`. A
-    /// locked block, or a part of it that is locked or held by its
-    /// dimensions, refuses the whole move and is named.
-    #[serde(rename = "layout.block_move")]
-    MoveBlock {
-        id: Id,
-        #[serde(default)]
-        by: Point,
-        #[serde(default)]
-        turn_deg: f64,
-        #[serde(default)]
-        flip: bool,
-    },
-    /// Delete a block. Its parts stay where they are and as they are.
-    #[serde(rename = "layout.block_delete")]
-    DeleteBlock { id: Id },
     /// Record the track pieces an import refused, replacing those
     /// recorded: copper left ending where one ran says why
     /// (`board.track_dangling`).
@@ -413,12 +366,6 @@ declare_entries!(LayoutCommand in layout {
     Distribute "layout.distribute" Edit "Distribute parts evenly",
     DeleteObjects "layout.delete_objects" Edit "Delete several board objects" [returns(none, parts_kept)],
     LockObjects "layout.lock_objects" Edit "Lock or unlock several board objects",
-    AddBlock "layout.block_add" Edit "Make a block" [since(3, 1), returns(block_added)],
-    RenameBlock "layout.block_rename" Edit "Rename a block" [since(3, 1)],
-    SetBlockMembers "layout.block_members" Edit "Change a block's parts" [since(3, 1)],
-    SetBlockLock "layout.block_lock" Edit "Lock or unlock a block" [since(3, 1)],
-    MoveBlock "layout.block_move" Edit "Move a block" [since(3, 1)],
-    DeleteBlock "layout.block_delete" Edit "Delete a block" [since(3, 1)],
     SetRefusedImportTracks "layout.set_refused_import_tracks" Edit "Record tracks an import refused" [since(0, 3)],
 });
 
@@ -1078,24 +1025,6 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
         LayoutCommand::LockObjects { objects, locked } => {
             several::lock(project, &objects, locked)?;
         }
-        LayoutCommand::AddBlock { parts, name } => {
-            return blocks::add(project, name.as_deref(), &parts).map(Some);
-        }
-        LayoutCommand::RenameBlock { id, name } => blocks::rename(project, id, &name)?,
-        LayoutCommand::SetBlockMembers { id, add, remove } => {
-            blocks::set_members(project, id, &add, &remove)?;
-        }
-        LayoutCommand::SetBlockLock { id, locked } => blocks::lock(project, id, locked)?,
-        LayoutCommand::MoveBlock {
-            id,
-            by,
-            turn_deg,
-            flip,
-        } => {
-            let how = blocks::BlockMove { by, turn_deg, flip };
-            blocks::move_block(project, id, &how, None)?;
-        }
-        LayoutCommand::DeleteBlock { id } => blocks::delete(project, id)?,
         LayoutCommand::SetRefusedImportTracks { tracks } => {
             crate::model::import_review::check_refused(&tracks)?;
             project.refused_import_tracks = tracks;

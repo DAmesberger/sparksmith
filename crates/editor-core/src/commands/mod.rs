@@ -45,7 +45,7 @@ pub enum Outcome {
     ViaAdded {
         via: Id,
     },
-    /// The block `layout.block_add` made.
+    /// The block `block.add` made.
     BlockAdded {
         block: Id,
     },

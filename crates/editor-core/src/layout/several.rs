@@ -25,28 +25,15 @@ pub struct Objects {
     pub vias: Vec<Id>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fills: Vec<Id>,
-    /// Blocks; the parts in them are not meant unless they are named too.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub blocks: Vec<Id>,
 }
 
 impl Objects {
     fn check(&self) -> Result<()> {
-        let count = self.parts.len()
-            + self.tracks.len()
-            + self.vias.len()
-            + self.fills.len()
-            + self.blocks.len();
+        let count = self.parts.len() + self.tracks.len() + self.vias.len() + self.fills.len();
         if count == 0 {
             return Err(Error::Invalid("name at least one object".into()));
         }
-        for ids in [
-            &self.parts,
-            &self.tracks,
-            &self.vias,
-            &self.fills,
-            &self.blocks,
-        ] {
+        for ids in [&self.parts, &self.tracks, &self.vias, &self.fills] {
             let mut seen = BTreeSet::new();
             if let Some(id) = ids.iter().find(|id| !seen.insert(**id)) {
                 return Err(Error::Invalid(format!("object {id} is named twice")));
@@ -89,16 +76,12 @@ pub fn kept_line(kept: &[KeptPart]) -> String {
     )
 }
 
-/// `layout.delete_objects`: remove the tracks, vias, fills and blocks (a
-/// block's parts stay). Named parts stay, as they come from the schematic,
-/// and are returned; naming only parts is refused.
+/// `layout.delete_objects`: remove the tracks, vias and fills. Named parts
+/// stay, as they come from the schematic, and are returned; naming only
+/// parts is refused.
 pub fn delete(project: &mut Project, objects: &Objects) -> Result<Vec<KeptPart>> {
     objects.check()?;
-    if objects.tracks.is_empty()
-        && objects.vias.is_empty()
-        && objects.fills.is_empty()
-        && objects.blocks.is_empty()
-    {
+    if objects.tracks.is_empty() && objects.vias.is_empty() && objects.fills.is_empty() {
         return Err(Error::Invalid(
             "parts come from the schematic; remove them there".into(),
         ));
@@ -131,9 +114,6 @@ pub fn delete(project: &mut Project, objects: &Objects) -> Result<Vec<KeptPart>>
     }
     for &id in &objects.fills {
         fill::apply(project, FillCommand::Delete { id })?;
-    }
-    for &id in &objects.blocks {
-        super::blocks::delete(project, id)?;
     }
     Ok(kept)
 }
@@ -198,9 +178,6 @@ pub fn lock(project: &mut Project, objects: &Objects, locked: bool) -> Result<()
             .find(|f| f.id == id)
             .ok_or_else(|| missing("fill", id))?
             .locked = locked;
-    }
-    for &id in &objects.blocks {
-        super::blocks::lock(project, id, locked)?;
     }
     Ok(())
 }

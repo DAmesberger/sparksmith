@@ -1,10 +1,11 @@
-//! The `layout.block_*` commands through the engine: one undo step each,
+//! The `block.*` commands through the engine: one undo step each,
 //! refusals that name what is in the way and change nothing, copper carried
 //! or named, and blocks that follow the design's parts.
 use super::*;
+use crate::instances::blocks::{BlockCommand as B, block_of};
 use crate::layout::arrange::{AlignTo, PartMove};
-use crate::layout::several::Objects;
 use crate::layout::{LayoutCommand as L, RouteRequest};
+use crate::model::Block;
 use crate::schematic::{ClipObject, SchematicCommand};
 use crate::tests::support::{by_designator, demo_fixture, pt};
 use crate::updates::Change;
@@ -12,15 +13,27 @@ use crate::{Engine, Operation, Outcome, Query, QueryResult, UnitId, format, inst
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-fn run(engine: &mut Engine, command: L) -> Fallible<Outcome> {
-    Ok(engine.apply(engine.revision(), Operation::Layout(command))?)
+impl From<L> for Operation {
+    fn from(command: L) -> Self {
+        Self::Layout(command)
+    }
+}
+
+impl From<B> for Operation {
+    fn from(command: B) -> Self {
+        Self::Block(command)
+    }
+}
+
+fn run(engine: &mut Engine, command: impl Into<Operation>) -> Fallible<Outcome> {
+    Ok(engine.apply(engine.revision(), command.into())?)
 }
 
 /// The refusal's words; nothing may have changed.
-fn refused(engine: &mut Engine, command: L) -> Fallible<String> {
+fn refused(engine: &mut Engine, command: impl Into<Operation>) -> Fallible<String> {
     let (before, revision) = (engine.project().clone(), engine.revision());
     let error = engine
-        .apply(revision, Operation::Layout(command))
+        .apply(revision, command.into())
         .err()
         .ok_or("taken")?;
     assert_eq!(engine.project(), &before);
@@ -91,7 +104,7 @@ fn third(engine: &mut Engine) -> Fallible<Id> {
 fn block(engine: &mut Engine, parts: &[Id], name: Option<&str>) -> Fallible<Id> {
     let outcome = run(
         engine,
-        L::AddBlock {
+        B::Add {
             parts: parts.to_vec(),
             name: name.map(str::to_owned),
         },
@@ -102,7 +115,7 @@ fn block(engine: &mut Engine, parts: &[Id], name: Option<&str>) -> Fallible<Id> 
     }
 }
 
-fn move_block(id: Id, by: Point, turn_deg: f64, flip: bool) -> L {
+fn move_block(id: Id, by: Point, turn_deg: f64, flip: bool) -> B {
     BlockMove { by, turn_deg, flip }.command(id)
 }
 
@@ -140,7 +153,7 @@ fn a_block_is_made_named_changed_and_deleted_in_one_step_each() -> Fallible {
     engine.redo()?;
     run(
         &mut engine,
-        L::RenameBlock {
+        B::Rename {
             id,
             name: " Converter ".into(),
         },
@@ -149,14 +162,14 @@ fn a_block_is_made_named_changed_and_deleted_in_one_step_each() -> Fallible {
     // Its own name in another case is no other block's.
     run(
         &mut engine,
-        L::RenameBlock {
+        B::Rename {
             id,
             name: "CONVERTER".into(),
         },
     )?;
     let why = refused(
         &mut engine,
-        L::AddBlock {
+        B::Add {
             parts: vec![r3, r1],
             name: None,
         },
@@ -164,7 +177,7 @@ fn a_block_is_made_named_changed_and_deleted_in_one_step_each() -> Fallible {
     assert!(why.contains("R1 is in the block CONVERTER"), "{why}");
     let why = refused(
         &mut engine,
-        L::AddBlock {
+        B::Add {
             parts: vec![r3],
             name: Some("converter".into()),
         },
@@ -178,12 +191,12 @@ fn a_block_is_made_named_changed_and_deleted_in_one_step_each() -> Fallible {
         (vec![r3], Some("a\nb"), "needs a name"),
     ] {
         let name = name.map(str::to_owned);
-        let why = refused(&mut engine, L::AddBlock { parts, name })?;
+        let why = refused(&mut engine, B::Add { parts, name })?;
         assert!(why.contains(word), "{why}");
     }
     run(
         &mut engine,
-        L::SetBlockMembers {
+        B::Members {
             id,
             add: vec![r3],
             remove: vec![r2],
@@ -195,7 +208,7 @@ fn a_block_is_made_named_changed_and_deleted_in_one_step_each() -> Fallible {
     );
     let why = refused(
         &mut engine,
-        L::SetBlockMembers {
+        B::Members {
             id,
             add: vec![],
             remove: vec![r2],
@@ -204,7 +217,7 @@ fn a_block_is_made_named_changed_and_deleted_in_one_step_each() -> Fallible {
     assert!(why.contains("R2 is not in the block CONVERTER"), "{why}");
     let why = refused(
         &mut engine,
-        L::SetBlockMembers {
+        B::Members {
             id,
             add: vec![],
             remove: vec![r1, r3],
@@ -212,7 +225,7 @@ fn a_block_is_made_named_changed_and_deleted_in_one_step_each() -> Fallible {
     )?;
     assert!(why.contains("would have no part left"), "{why}");
     let before = engine.project().clone();
-    run(&mut engine, L::DeleteBlock { id })?;
+    run(&mut engine, B::Delete { ids: vec![id] })?;
     assert!(engine.project().blocks.is_empty());
     assert_eq!(engine.project().placements, before.placements);
     assert_eq!(engine.project().tracks, before.tracks);
@@ -229,7 +242,7 @@ fn blocks_are_saved_and_reopened() -> Fallible {
     assert!(!String::from_utf8_lossy(&format::encode(&engine.to_file())?).contains("\"blocks\""));
     let first = block(&mut engine, &[r1], None)?;
     block(&mut engine, &[r2], None)?;
-    run(&mut engine, L::DeleteBlock { id: first })?;
+    run(&mut engine, B::Delete { ids: vec![first] })?;
     let again = block(&mut engine, &[r1], None)?;
     assert_ne!(again, first, "an identity is not used twice");
     let names: Vec<&str> = engine
@@ -241,8 +254,8 @@ fn blocks_are_saved_and_reopened() -> Fallible {
     assert_eq!(names, ["Block 2", "Block 1"]);
     run(
         &mut engine,
-        L::SetBlockLock {
-            id: again,
+        B::BoardLock {
+            ids: vec![again],
             locked: true,
         },
     )?;
@@ -322,9 +335,9 @@ fn the_border_is_the_hull_of_the_parts() -> Fallible {
     let QueryResult::Blocks(rows) = engine.query(Query::Blocks {})? else {
         return Err("no rows".into());
     };
-    assert_eq!(rows[0].border, *ring);
+    assert_eq!(rows[0].board_border, *ring);
     assert_eq!(rows[0].parts.len(), 4);
-    assert!(rows[0].parts.iter().all(|p| p.layer.is_some()));
+    assert!(rows[0].parts.iter().all(|p| p.board_side.is_some()));
     Ok(())
 }
 
@@ -430,7 +443,13 @@ fn locks_refuse_and_are_named() -> Fallible {
         },
     )?;
     let id = block(&mut engine, &[r1, r2], Some("Converter"))?;
-    run(&mut engine, L::SetBlockLock { id, locked: true })?;
+    run(
+        &mut engine,
+        B::BoardLock {
+            ids: vec![id],
+            locked: true,
+        },
+    )?;
     assert!(!at(&engine, r1)?.locked, "the parts' own locks stay");
     let words = "R1 is in the locked block Converter; unlock the block to";
     let one = PartMove {
@@ -474,14 +493,20 @@ fn locks_refuse_and_are_named() -> Fallible {
     run(&mut engine, mv(r3, [41.0, 20.0]))?;
     run(
         &mut engine,
-        L::SetBlockMembers {
+        B::Members {
             id,
             add: vec![],
             remove: vec![r1],
         },
     )?;
     run(&mut engine, mv(r1, [11.0, 10.0]))?;
-    run(&mut engine, L::SetBlockLock { id, locked: false })?;
+    run(
+        &mut engine,
+        B::BoardLock {
+            ids: vec![id],
+            locked: false,
+        },
+    )?;
     run(
         &mut engine,
         L::SetPlacementLock {
@@ -505,7 +530,7 @@ fn parts_taken_over_the_edge_are_named() -> Fallible {
     run(
         &mut engine,
         L::DeleteObjects {
-            objects: Objects {
+            objects: crate::layout::several::Objects {
                 tracks,
                 ..Default::default()
             },
@@ -540,7 +565,7 @@ fn a_part_not_on_the_board_stays_where_it_is() -> Fallible {
     assert!(engine.project().placement_of(r3).is_none());
     run(
         &mut engine,
-        L::SetBlockMembers {
+        B::Members {
             id,
             add: vec![],
             remove: vec![r1],
@@ -576,7 +601,7 @@ fn a_block_follows_the_designs_parts() -> Fallible {
     assert_eq!(engine.project().blocks, before.blocks);
     run(
         &mut engine,
-        L::SetBlockMembers {
+        B::Members {
             id,
             add: vec![],
             remove: vec![r1],
@@ -617,41 +642,88 @@ fn a_block_follows_the_designs_parts() -> Fallible {
     Ok(())
 }
 
-/// Several objects' Delete and Lock take blocks with them, in one step, and
-/// never their parts.
+/// Several blocks are deleted or locked in one step, and never their parts;
+/// naming one twice or none is refused, and a command that changes nothing
+/// takes no step.
 #[test]
-fn delete_and_lock_several_take_blocks() -> Fallible {
+fn several_blocks_are_deleted_and_locked_at_once() -> Fallible {
     let (mut engine, r1, r2) = pair()?;
     let (a, b) = (
         block(&mut engine, &[r1], None)?,
         block(&mut engine, &[r2], None)?,
     );
-    let objects = Objects {
-        tracks: engine.project().tracks.iter().map(|t| t.id).collect(),
-        blocks: vec![a, b],
-        ..Default::default()
+    let lock = |locked| B::BoardLock {
+        ids: vec![a, b],
+        locked,
     };
-    run(
-        &mut engine,
-        L::LockObjects {
-            objects: objects.clone(),
-            locked: true,
-        },
-    )?;
+    run(&mut engine, lock(true))?;
     assert!(engine.project().blocks.iter().all(|b| b.locked));
     assert!(!at(&engine, r1)?.locked);
-    run(
-        &mut engine,
-        L::LockObjects {
-            objects: objects.clone(),
-            locked: false,
-        },
-    )?;
+    let revision = engine.revision();
+    run(&mut engine, lock(true))?;
+    assert_eq!(engine.revision(), revision, "nothing changed");
+    run(&mut engine, lock(false))?;
+    for (ids, word) in [
+        (vec![], "at least one block"),
+        (vec![a, a], "named twice"),
+        (vec![99_999], "unknown block"),
+    ] {
+        let why = refused(&mut engine, B::Delete { ids })?;
+        assert!(why.contains(word), "{why}");
+    }
     let before = engine.project().clone();
-    let outcome = run(&mut engine, L::DeleteObjects { objects })?;
-    assert_eq!(outcome, Outcome::None);
-    assert!(engine.project().blocks.is_empty() && engine.project().tracks.is_empty());
+    run(&mut engine, B::Delete { ids: vec![a, b] })?;
+    assert!(engine.project().blocks.is_empty());
     assert_eq!(engine.project().placements, before.placements);
+    assert_eq!(engine.project().tracks, before.tracks);
+    engine.undo()?;
+    assert_eq!(engine.project(), &before);
+    Ok(())
+}
+
+/// What a flip leaves behind is named with its net and counted as the checks
+/// count it: one entry for each connection the copper graph newly has open.
+/// Undo puts everything back.
+#[test]
+fn a_flip_names_what_it_leaves_as_the_checks_count_it() -> Fallible {
+    let mut engine = Engine::showcase()?;
+    let parts: Vec<Id> = engine
+        .project()
+        .placements
+        .iter()
+        .filter(|p| !p.locked)
+        .map(|p| p.instance)
+        .take(3)
+        .collect();
+    let id = block(&mut engine, &parts, None)?;
+    let before = engine.project().clone();
+    let open = |engine: &Engine| -> BTreeMap<Id, usize> {
+        let mut out = BTreeMap::new();
+        let graph = crate::layout::CopperGraph::of(engine.project());
+        for (a, _) in graph.airwires() {
+            *out.entry(a.net).or_default() += 1;
+        }
+        out
+    };
+    let was = open(&engine);
+    run(&mut engine, move_block(id, [0.0, 0.0], 0.0, true))?;
+    let said = engine.rerouted().unrouted.clone();
+    assert!(!said.is_empty(), "the flip opened nothing");
+    let poured: BTreeSet<Id> = before.fills.iter().filter_map(|f| f.net).collect();
+    for (net, now) in open(&engine) {
+        // A poured net is counted as its refill will join it.
+        if poured.contains(&net) {
+            continue;
+        }
+        let opened = now.saturating_sub(was.get(&net).copied().unwrap_or(0));
+        let name = before.net_name(net);
+        let named = said.iter().filter(|n| *n == name).count();
+        assert_eq!(named, opened, "{name}: {said:?}");
+    }
+    let line = engine.rerouted().line().ok_or("nothing said")?;
+    for name in &said {
+        assert!(line.contains(name.as_str()), "{name} is not in {line:?}");
+    }
     engine.undo()?;
     assert_eq!(engine.project(), &before);
     Ok(())

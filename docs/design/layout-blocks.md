@@ -128,7 +128,7 @@ Each opens the statement with its quote and page. The waiver key is the block, t
 
 ## 7. Arrange as in the datasheet
 
-One undo step, one `layout.block_arrange`. The anchor stays; the other roles go to the arrangement's places, rotated with the anchor. Parts only: copper follows by the existing rules of a part move, and what cannot follow is listed first, in the existing impact review. A locked or held part is not moved; the review names it. Where a part does not fit (another part, the board edge), it stays and is named. Arranging is refused while the block is locked. If the arrangement was drawn with other packages, the button says so and is off.
+One undo step, one `block.board_arrange`. The anchor stays; the other roles go to the arrangement's places, rotated with the anchor. Parts only: copper follows by the existing rules of a part move, and what cannot follow is listed first, in the existing impact review. A locked or held part is not moved; the review names it. Where a part does not fit (another part, the board edge), it stays and is named. Arranging is refused while the block is locked. If the arrangement was drawn with other packages, the button says so and is off.
 
 ## 8. Together with what exists
 

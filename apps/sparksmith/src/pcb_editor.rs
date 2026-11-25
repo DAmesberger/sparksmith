@@ -17,7 +17,7 @@ use egui::{Align2, Color32, FontId, PointerButton, Pos2, Rect, Sense, Shape, Str
 use sparksmith_core::{
     CopperLayer, Engine, Id, Layer, ObjectRef, Operation, Placement, Point, Project, Via,
     geometry::{Bounds, Shape as CoreShape, Transform2},
-    instances,
+    instances::{self, blocks::BlockCommand},
     issues::{IssueArea, IssueScope},
     layout::{
         self, BoardDrawing, CopperGraph, LayoutCommand, PlacedGraphic, PlacedHole, PlacedItem,
@@ -376,9 +376,10 @@ struct DragAirwires {
 }
 
 pub struct PcbEditor {
-    /// The board edit the dimension operation returned this frame needs first
-    /// (the parameter its value defines): `App::apply` applies both in one
-    /// undo step, or neither.
+    /// What the operation returned this frame needs first: the board edit of
+    /// a dimension (the parameter its value defines), or the blocks' part of
+    /// a selection's Delete or Lock. `App::apply` applies both in one undo
+    /// step, or neither.
     pub(crate) first: Option<Operation>,
     /// Two-finger scrolling across frames.
     trackpad: crate::navigation::Trackpad,
@@ -1870,8 +1871,14 @@ impl PcbEditor {
             Inspected::Track(id) => Operation::Layout(LayoutCommand::DeleteTrack { id }),
             Inspected::Via(id) => Operation::Layout(LayoutCommand::DeleteVia { id }),
             Inspected::Fill(id) => Operation::Fill(layout::fill::FillCommand::Delete { id }),
-            Inspected::Block(id) => Operation::Layout(LayoutCommand::DeleteBlock { id }),
-            Inspected::Group => self.delete_group()?,
+            Inspected::Block(id) => Operation::Block(BlockCommand::Delete { ids: vec![id] }),
+            Inspected::Group => {
+                self.delete_group()?;
+                if !crate::keys::pressed(ui.ctx(), "pcb.delete") {
+                    return None;
+                }
+                return self.take_group_delete();
+            }
             _ => return None,
         };
         crate::keys::pressed(ui.ctx(), "pcb.delete").then_some(operation)
@@ -2407,7 +2414,7 @@ impl PcbEditor {
         {
             let turn = blocks::turn();
             blocks::name_move(ui.ctx(), project, id, &turn);
-            operation = Some(Operation::Layout(turn.command(id)));
+            operation = Some(Operation::Block(turn.command(id)));
         }
         if let Some(pill) = self.pills(ui, rect, project) {
             operation = Some(pill);

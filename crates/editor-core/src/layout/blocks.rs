@@ -1,5 +1,6 @@
-//! Layout blocks: parts that belong together and move as one
-//! (docs/design/layout-blocks.md). Each `layout.block_*` command is one undo
+//! Blocks on the board: the border, the move and the lock of parts that
+//! belong together (docs/design/layout-blocks.md; membership is
+//! `instances::blocks`'s). Each command is one undo
 //! step. A block owns no copper: what a move carries or leaves is the carry's
 //! (`dimensions::carry`), as for any move of several parts.
 //!
@@ -11,8 +12,10 @@ use super::{CopperRing, placed_pads};
 use crate::diagnostics::{Error, Result};
 use crate::geometry::{Point, point_valid};
 use crate::ids::Id;
+pub use crate::instances::blocks::block_of;
+use crate::instances::blocks::{BlockCommand, find, named_once};
+use crate::model::Block;
 use crate::model::Project;
-use crate::model::block::{Block, MAX_BLOCK_NAME};
 use crate::model::{Layer, Placement};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,16 +25,17 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 /// check's.
 const CHORD_MM: f64 = 0.01;
 
-/// A block as `layout.blocks` lists it.
+/// A block as `block.list` lists it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct BlockRow {
     pub id: Id,
     pub name: String,
-    pub locked: bool,
+    /// Nothing moves it on the board by hand.
+    pub board_locked: bool,
     pub parts: Vec<BlockPart>,
     /// The corners of its border on the board, counter-clockwise, mm.
     /// Empty while no part of it is on the board.
-    pub border: Vec<Point>,
+    pub board_border: Vec<Point>,
 }
 
 /// A part of a listed block.
@@ -39,17 +43,9 @@ pub struct BlockRow {
 pub struct BlockPart {
     pub instance: Id,
     pub designator: String,
-    /// The side it is on; absent while it is not on the board.
+    /// The board's side it is on; absent while it is not on the board.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub layer: Option<Layer>,
-}
-
-/// The block `instance` is in.
-pub fn block_of(project: &Project, instance: Id) -> Option<&Block> {
-    project
-        .blocks
-        .iter()
-        .find(|b| b.members.binary_search(&instance).is_ok())
+    pub board_side: Option<Layer>,
 }
 
 /// A block's members on the board, in identity order.
@@ -165,7 +161,7 @@ fn hull(mut points: Vec<Point>) -> Vec<Point> {
     ring
 }
 
-/// The rows of `layout.blocks`.
+/// The rows of `block.list`.
 pub fn rows(project: &Project) -> Vec<BlockRow> {
     let mut borders: BTreeMap<Id, Vec<Point>> = borders(project).into_iter().collect();
     project
@@ -174,168 +170,31 @@ pub fn rows(project: &Project) -> Vec<BlockRow> {
         .map(|b| BlockRow {
             id: b.id,
             name: b.name.clone(),
-            locked: b.locked,
+            board_locked: b.locked,
             parts: b
                 .members
                 .iter()
                 .map(|&instance| BlockPart {
                     instance,
                     designator: outline::part_name(project, instance),
-                    layer: project.placement_of(instance).map(|p| p.layer),
+                    board_side: project.placement_of(instance).map(|p| p.layer),
                 })
                 .collect(),
-            border: borders.remove(&b.id).unwrap_or_default(),
+            board_border: borders.remove(&b.id).unwrap_or_default(),
         })
         .collect()
 }
 
-fn find(project: &Project, id: Id) -> Result<&Block> {
-    project
-        .block(id)
-        .ok_or_else(|| Error::NotFound(format!("unknown block {id}")))
-}
-
-fn edit(project: &mut Project, id: Id) -> Result<&mut Block> {
-    project
-        .blocks
-        .iter_mut()
-        .find(|b| b.id == id)
-        .ok_or_else(|| Error::NotFound(format!("unknown block {id}")))
-}
-
-/// `name` as it is stored; refused when it is empty, too long, not
-/// printable or another block's (`except` is the renamed one).
-fn named(project: &Project, name: &str, except: Option<Id>) -> Result<String> {
-    let name = name.trim();
-    if name.is_empty() || name.chars().any(char::is_control) {
-        return Err(Error::Invalid("A block needs a name".into()));
+/// `block.board_lock`.
+pub fn lock(project: &mut Project, ids: &[Id], locked: bool) -> Result<()> {
+    named_once(project, ids)?;
+    for block in project.blocks.iter_mut().filter(|b| ids.contains(&b.id)) {
+        block.locked = locked;
     }
-    if name.len() > MAX_BLOCK_NAME {
-        return Err(Error::Limit(format!(
-            "A block's name is at most {MAX_BLOCK_NAME} bytes"
-        )));
-    }
-    if let Some(other) = project
-        .blocks
-        .iter()
-        .find(|b| Some(b.id) != except && b.name.to_lowercase() == name.to_lowercase())
-    {
-        return Err(Error::Conflict(format!(
-            "There is already a block {}",
-            other.name
-        )));
-    }
-    Ok(name.to_owned())
-}
-
-/// "Block 1", or the first number no block has.
-fn free_name(project: &Project) -> String {
-    let taken: BTreeSet<String> = project
-        .blocks
-        .iter()
-        .map(|b| b.name.to_lowercase())
-        .collect();
-    (1..=project.blocks.len().saturating_add(1))
-        .map(|n| format!("Block {n}"))
-        .find(|name| !taken.contains(&name.to_lowercase()))
-        .unwrap_or_default()
-}
-
-/// The named parts in identity order: each once, in the project, and in no
-/// block but `own`.
-fn members(project: &Project, parts: &[Id], own: Option<Id>) -> Result<BTreeSet<Id>> {
-    let mut out = BTreeSet::new();
-    for &id in parts {
-        let Some(part) = project.instance(id) else {
-            return Err(Error::NotFound(format!(
-                "No component instance has ID {id}"
-            )));
-        };
-        if !out.insert(id) {
-            return Err(Error::Invalid(format!(
-                "{} is named twice",
-                part.designator
-            )));
-        }
-        if let Some(block) = block_of(project, id).filter(|b| Some(b.id) != own) {
-            return Err(Error::Conflict(format!(
-                "{} is in the block {}; a part is in one block",
-                part.designator, block.name
-            )));
-        }
-    }
-    Ok(out)
-}
-
-/// `layout.block_add`: a block of `parts`, named "Block n" unless named.
-pub fn add(project: &mut Project, name: Option<&str>, parts: &[Id]) -> Result<Id> {
-    let members = members(project, parts, None)?;
-    if members.is_empty() {
-        return Err(Error::Invalid("A block needs at least one part".into()));
-    }
-    let name = match name {
-        Some(name) => named(project, name, None)?,
-        None => free_name(project),
-    };
-    let id = project.allocate()?;
-    project.blocks.push(Block {
-        id,
-        name,
-        members: members.into_iter().collect(),
-        locked: false,
-    });
-    Ok(id)
-}
-
-/// `layout.block_rename`.
-pub fn rename(project: &mut Project, id: Id, name: &str) -> Result<()> {
-    find(project, id)?;
-    let name = named(project, name, Some(id))?;
-    edit(project, id)?.name = name;
     Ok(())
 }
 
-/// `layout.block_members`: parts taken in and let go.
-pub fn set_members(project: &mut Project, id: Id, take: &[Id], release: &[Id]) -> Result<()> {
-    let block = find(project, id)?;
-    if take.is_empty() && release.is_empty() {
-        return Err(Error::Invalid("name at least one part".into()));
-    }
-    let mut next: BTreeSet<Id> = block.members.iter().copied().collect();
-    for &part in release {
-        if !next.remove(&part) {
-            return Err(Error::Conflict(format!(
-                "{} is not in the block {}",
-                outline::part_name(project, part),
-                block.name
-            )));
-        }
-    }
-    next.extend(members(project, take, Some(id))?);
-    if next.is_empty() {
-        return Err(Error::Conflict(format!(
-            "The block {} would have no part left; delete the block instead",
-            block.name
-        )));
-    }
-    edit(project, id)?.members = next.into_iter().collect();
-    Ok(())
-}
-
-/// `layout.block_lock`.
-pub fn lock(project: &mut Project, id: Id, locked: bool) -> Result<()> {
-    edit(project, id)?.locked = locked;
-    Ok(())
-}
-
-/// `layout.block_delete`: the block goes, its parts stay as they are.
-pub fn delete(project: &mut Project, id: Id) -> Result<()> {
-    find(project, id)?;
-    project.blocks.retain(|b| b.id != id);
-    Ok(())
-}
-
-/// What `layout.block_move` does to a block's parts, all at once: mirror
+/// What `block.board_move` does to a block's parts, all at once: mirror
 /// them onto the other side (`flip`, left to right), turn them by
 /// `turn_deg` counter-clockwise, both about the middle of the border's
 /// bounding box, then slide them by `by`.
@@ -348,8 +207,8 @@ pub struct BlockMove {
 
 impl BlockMove {
     /// The command the block's move is.
-    pub fn command(self, id: Id) -> super::LayoutCommand {
-        super::LayoutCommand::MoveBlock {
+    pub fn command(self, id: Id) -> BlockCommand {
+        BlockCommand::BoardMove {
             id,
             by: self.by,
             turn_deg: self.turn_deg,
@@ -420,7 +279,7 @@ fn middle(project: &Project, block: &Block) -> Point {
     [mid(0), mid(1)]
 }
 
-/// `layout.block_move`. A locked block, and a member locked or held by its
+/// `block.board_move`. A locked block, and a member locked or held by its
 /// dimensions, refuse the whole move and are named. The engine carries the
 /// members' copper at once and names the connections it opens.
 pub fn move_block(
@@ -489,52 +348,6 @@ pub(crate) fn put_over_edge(before: &Project, after: &Project, moved: &[Id]) -> 
         1 => format!("{first} extends beyond the board"),
         n => format!("{first} and {} more extend beyond the board", n - 1),
     })
-}
-
-/// Members that no longer exist leave their block, and a block left
-/// without a member goes. Run after every edit of the schematic; leaves the
-/// blocks untouched when nothing is dropped.
-pub fn follow_instances(project: &mut Project) {
-    let gone = |id: &Id| project.instance(*id).is_none();
-    if !project.blocks.iter().any(|b| b.members.iter().any(gone)) {
-        return;
-    }
-    let live: BTreeSet<Id> = project.instances.iter().map(|i| i.id).collect();
-    for block in project.blocks.iter_mut() {
-        block.members.retain(|id| live.contains(id));
-    }
-    project.blocks.retain(|b| !b.members.is_empty());
-}
-
-/// The blocks' invariants: named once each, with members that exist, in
-/// identity order, each in one block.
-pub(crate) fn check(project: &Project) -> Result<()> {
-    let invalid = |why: &str| Err(Error::Invalid(format!("layout.block: {why}")));
-    let mut names = BTreeSet::new();
-    let mut seen = BTreeSet::new();
-    for block in project.blocks.iter() {
-        let name = block.name.as_str();
-        if name.trim() != name
-            || name.is_empty()
-            || name.len() > MAX_BLOCK_NAME
-            || name.chars().any(char::is_control)
-            || !names.insert(name.to_lowercase())
-        {
-            return invalid("block names are unique, trimmed and printable");
-        }
-        if block.members.is_empty() || !block.members.is_sorted_by(|a, b| a < b) {
-            return invalid("a block lists its parts once each, in order, and has at least one");
-        }
-        for id in &block.members {
-            if project.instance(*id).is_none() {
-                return invalid("a block names a part that is not in the design");
-            }
-            if !seen.insert(*id) {
-                return invalid("a part is in one block at most");
-            }
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

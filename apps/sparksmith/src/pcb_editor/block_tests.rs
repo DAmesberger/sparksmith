@@ -7,7 +7,7 @@ use super::super::{Inspected, menu};
 use super::*;
 use crate::kit::toast;
 use egui::{Event, Modifiers, PointerButton, Rect};
-use sparksmith_core::layout::RouteRequest;
+use sparksmith_core::layout::{LayoutCommand, RouteRequest};
 use sparksmith_core::{Endpoint, Engine, Outcome, TerminalId};
 use sparksmith_ui::fonts;
 
@@ -87,12 +87,12 @@ fn canvas() -> Fallible<Canvas> {
             },
         },
     )?;
-    let outcome = run(
-        &mut engine,
-        LayoutCommand::AddBlock {
+    let outcome = engine.apply(
+        engine.revision(),
+        Operation::Block(BlockCommand::Add {
             parts: parts.to_vec(),
             name: Some("Divider".into()),
-        },
+        }),
     )?;
     let Outcome::BlockAdded { block } = outcome else {
         return Err("no block".into());
@@ -216,6 +216,10 @@ impl Canvas {
 
     fn layout(&mut self, command: LayoutCommand) -> Fallible {
         self.apply(Some(Operation::Layout(command)))
+    }
+
+    fn block(&mut self, command: BlockCommand) -> Fallible {
+        self.apply(Some(Operation::Block(command)))
     }
 
     /// Draw the blocks at `detail`.
@@ -351,7 +355,7 @@ fn the_level_of_detail_changes_only_what_is_drawn() -> Fallible {
     assert!(c.editor.part_hidden(r1));
     assert_eq!(c.engine.document(), &before);
     assert_eq!(c.engine.revision(), revision);
-    c.layout(LayoutCommand::SetBlockMembers {
+    c.block(BlockCommand::Members {
         id: c.block,
         add: vec![],
         remove: vec![r1],
@@ -418,7 +422,7 @@ fn a_block_shows_its_parts_once_one_of_them_reads() -> Fallible {
     Ok(())
 }
 
-/// Dragging the border is one `layout.block_move` of all its parts; a part
+/// Dragging the border is one `block.board_move` of all its parts; a part
 /// is still dragged alone, and an unmoved drag is nothing.
 #[test]
 fn dragging_the_border_moves_the_block() -> Fallible {
@@ -432,7 +436,7 @@ fn dragging_the_border_moves_the_block() -> Fallible {
         ..Default::default()
     };
     match &operation {
-        Some(Operation::Layout(LayoutCommand::MoveBlock {
+        Some(Operation::Block(BlockCommand::BoardMove {
             id,
             by,
             turn_deg,
@@ -475,8 +479,8 @@ fn what_holds_a_block_is_named() -> Fallible {
     let border = c.on_border()?;
     let to = [border[0] + 3.0, border[1]];
     let (block, [r1, r2]) = (c.block, c.parts);
-    c.layout(LayoutCommand::SetBlockLock {
-        id: block,
+    c.block(BlockCommand::BoardLock {
+        ids: vec![block],
         locked: true,
     })?;
     assert!(c.drag(border, to, Modifiers::NONE).is_none());
@@ -498,8 +502,8 @@ fn what_holds_a_block_is_named() -> Fallible {
             .any(|t| t.contains("R1 is in the locked block Divider")),
         "{said:?}"
     );
-    c.layout(LayoutCommand::SetBlockLock {
-        id: block,
+    c.block(BlockCommand::BoardLock {
+        ids: vec![block],
         locked: false,
     })?;
     c.layout(LayoutCommand::SetPlacementLock {
@@ -549,7 +553,7 @@ fn what_holds_a_block_is_named() -> Fallible {
     for how in [turn(), flip()] {
         let before = c.engine.document().clone();
         let error = c
-            .apply(Some(Operation::Layout(how.command(block))))
+            .apply(Some(Operation::Block(how.command(block))))
             .err()
             .ok_or("moved")?;
         assert!(error.to_string().contains("R1"), "{error}");
@@ -609,7 +613,7 @@ fn keys_and_menus_act_on_the_block() -> Fallible {
     assert!(
         matches!(
             turned,
-            Some(Operation::Layout(LayoutCommand::MoveBlock { turn_deg, .. })) if turn_deg == 90.0
+            Some(Operation::Block(BlockCommand::BoardMove { turn_deg, .. })) if turn_deg == 90.0
         ),
         "{turned:?}"
     );
@@ -647,7 +651,7 @@ fn keys_and_menus_act_on_the_block() -> Fallible {
 fn a_block_and_a_part_are_one_group() -> Fallible {
     let mut c = canvas()?;
     let (block, [r1, r2]) = (c.block, c.parts);
-    c.layout(LayoutCommand::SetBlockMembers {
+    c.block(BlockCommand::Members {
         id: block,
         add: vec![],
         remove: vec![r2],
@@ -709,21 +713,21 @@ fn example() -> Fallible<(Engine, Id)> {
     ];
     let mut first = None;
     for (name, parts) in blocks {
-        let command = LayoutCommand::AddBlock {
+        let command = BlockCommand::Add {
             parts,
             name: Some(name.into()),
         };
-        let outcome = engine.apply(engine.revision(), Operation::Layout(command))?;
+        let outcome = engine.apply(engine.revision(), Operation::Block(command))?;
         let Outcome::BlockAdded { block } = outcome else {
             return Err("no block".into());
         };
         first = first.or(Some(block));
         if name == "USB" {
-            let lock = LayoutCommand::SetBlockLock {
-                id: block,
+            let lock = BlockCommand::BoardLock {
+                ids: vec![block],
                 locked: true,
             };
-            engine.apply(engine.revision(), Operation::Layout(lock))?;
+            engine.apply(engine.revision(), Operation::Block(lock))?;
         }
     }
     Ok((engine, first.ok_or("no block")?))

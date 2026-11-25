@@ -6,6 +6,7 @@
 use super::edge_card::{dimensions_of, nearest_edge, spec_at};
 use super::{PcbEditor, Tool, blocks, opposite};
 use crate::context_menu::{Entry, Rows};
+use sparksmith_core::instances::blocks::BlockCommand;
 use sparksmith_core::layout::LayoutCommand;
 use sparksmith_core::layout::dimensions::{self, DimensionCommand};
 use sparksmith_core::layout::fill::{FillCommand, RefillTarget};
@@ -452,25 +453,25 @@ impl PcbEditor {
                 target: RefillTarget::One(id),
             })),
             Act::DeleteFill(id) => Some(Operation::Fill(FillCommand::Delete { id })),
-            Act::DeleteGroup => self.delete_group(),
-            Act::LockGroup(locked) => layout(LayoutCommand::LockObjects {
-                objects: self.group.objects(),
-                locked,
-            }),
+            Act::DeleteGroup => self.take_group_delete(),
+            Act::LockGroup(locked) => self.take_group_lock(locked),
             Act::Population(instance) => crate::variants::toggle(project, vec![instance]),
-            Act::RotateBlock(id) => layout(blocks::turn().command(id)),
-            Act::FlipBlock(id) => layout(blocks::flip().command(id)),
-            Act::LockBlock(id, locked) => layout(LayoutCommand::SetBlockLock { id, locked }),
-            Act::DeleteBlock(id) => layout(LayoutCommand::DeleteBlock { id }),
+            Act::RotateBlock(id) => Some(Operation::Block(blocks::turn().command(id))),
+            Act::FlipBlock(id) => Some(Operation::Block(blocks::flip().command(id))),
+            Act::LockBlock(id, locked) => Some(Operation::Block(BlockCommand::BoardLock {
+                ids: vec![id],
+                locked,
+            })),
+            Act::DeleteBlock(id) => Some(Operation::Block(BlockCommand::Delete { ids: vec![id] })),
             Act::SelectBlock(id) => {
                 self.select_block(id);
                 None
             }
-            Act::Release(id, instance) => layout(LayoutCommand::SetBlockMembers {
+            Act::Release(id, instance) => Some(Operation::Block(BlockCommand::Members {
                 id,
                 add: Vec::new(),
                 remove: vec![instance],
-            }),
+            })),
             Act::AddToBlock => self.add_to_block().map(|(_, operation)| operation),
             Act::GroupPopulation => {
                 crate::variants::toggle(project, self.group.parts.iter().copied().collect())

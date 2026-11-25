@@ -21,11 +21,11 @@ fn open() -> TestResult<Session> {
     Ok(session)
 }
 
-fn layout(session: &mut Session, command: &str, params: Value) -> Value {
+fn block_op(session: &mut Session, command: &str, params: Value) -> Value {
     let revision = session.engine().revision();
     session.dispatch(json!({"command": "project.apply", "params": {
         "expected_revision": revision,
-        "operation": {"editor": "Layout", "operation": {"command": command, "params": params}}}}))
+        "operation": {"editor": "Block", "operation": {"command": command, "params": params}}}}))
 }
 
 fn id(session: &Session, designator: &str) -> TestResult<Id> {
@@ -43,7 +43,7 @@ fn at(session: &Session, part: Id) -> TestResult<Point> {
 
 fn rows(session: &mut Session) -> TestResult<Value> {
     let reply = session.dispatch(json!({"command": "project.query",
-        "params": {"query": "layout.blocks", "params": {}}}));
+        "params": {"query": "block.list", "params": {}}}));
     assert_eq!(reply["ok"], true, "{reply}");
     Ok(reply["result"]["result"].clone())
 }
@@ -53,9 +53,9 @@ fn blocks_are_made_listed_moved_and_deleted_on_the_wire() -> TestResult {
     let mut session = Session::new(Engine::demo()?);
     assert_eq!(rows(&mut session)?, json!([]));
     let (r1, r2) = (id(&session, "R1")?, id(&session, "R2")?);
-    let made = layout(
+    let made = block_op(
         &mut session,
-        "layout.block_add",
+        "block.add",
         json!({"parts": [r1, r2], "name": "Divider"}),
     );
     assert_eq!(made["ok"], true, "{made}");
@@ -67,15 +67,17 @@ fn blocks_are_made_listed_moved_and_deleted_on_the_wire() -> TestResult {
     let parts = listed[0]["parts"].to_string();
     assert!(parts.contains("R1") && parts.contains("R2"), "{listed}");
     assert!(
-        listed[0]["border"].as_array().is_some_and(|b| b.len() >= 3),
+        listed[0]["board_border"]
+            .as_array()
+            .is_some_and(|b| b.len() >= 3),
         "{listed}"
     );
     let before = session.engine().document().clone();
     let (a, b) = (at(&session, r1)?, at(&session, r2)?);
     let revision = session.engine().revision();
-    let moved = layout(
+    let moved = block_op(
         &mut session,
-        "layout.block_move",
+        "block.board_move",
         json!({"id": block, "turn_deg": 180.0}),
     );
     assert_eq!(moved["ok"], true, "{moved}");
@@ -88,13 +90,13 @@ fn blocks_are_made_listed_moved_and_deleted_on_the_wire() -> TestResult {
         "params": {"expected_revision": session.engine().revision()}}));
     assert_eq!(undone["ok"], true, "{undone}");
     assert_eq!(session.engine().document(), &before);
-    let gone = layout(&mut session, "layout.block_delete", json!({"id": block}));
+    let gone = block_op(&mut session, "block.delete", json!({"ids": [block]}));
     assert_eq!(gone["ok"], true, "{gone}");
     assert_eq!(rows(&mut session)?, json!([]));
     // A typo in a name is refused and changes nothing.
-    let wrong = layout(
+    let wrong = block_op(
         &mut session,
-        "layout.block_add",
+        "block.add",
         json!({"parts": [r1], "titel": "x"}),
     );
     assert_eq!(wrong["ok"], false, "{wrong}");
@@ -108,9 +110,9 @@ fn blocks_are_made_listed_moved_and_deleted_on_the_wire() -> TestResult {
 fn dimensions_win_over_a_block() -> TestResult {
     let mut session = open()?;
     let (j1, r5) = (id(&session, "J1")?, id(&session, "R5")?);
-    let made = layout(
+    let made = block_op(
         &mut session,
-        "layout.block_add",
+        "block.add",
         json!({"parts": [j1, r5], "name": "Connector"}),
     );
     let block = made["result"]["outcome"]["block"].clone();
@@ -120,18 +122,18 @@ fn dimensions_win_over_a_block() -> TestResult {
         json!({"id": block, "turn_deg": 90.0}),
         json!({"id": block, "flip": true}),
     ] {
-        let refused = layout(&mut session, "layout.block_move", how);
+        let refused = block_op(&mut session, "block.board_move", how);
         assert_eq!(refused["ok"], false, "{refused}");
         assert!(refused["error"].to_string().contains("J1"), "{refused}");
         assert_eq!(session.engine().document(), &before);
     }
-    let locked = layout(
+    let locked = block_op(
         &mut session,
-        "layout.block_lock",
-        json!({"id": block, "locked": true}),
+        "block.board_lock",
+        json!({"ids": [block], "locked": true}),
     );
     assert_eq!(locked["ok"], true, "{locked}");
-    let border = rows(&mut session)?[0]["border"].clone();
+    let border = rows(&mut session)?[0]["board_border"].clone();
     let revision = session.engine().revision();
     let was = at(&session, j1)?;
     let widened = session.dispatch(json!({"command": "project.apply", "params": {
@@ -141,6 +143,6 @@ fn dimensions_win_over_a_block() -> TestResult {
                 "comment": ""}}]}}}}}));
     assert_eq!(widened["ok"], true, "{widened}");
     assert!((at(&session, j1)?[0] - was[0] - 5.0).abs() < 1e-6);
-    assert_ne!(rows(&mut session)?[0]["border"], border);
+    assert_ne!(rows(&mut session)?[0]["board_border"], border);
     Ok(())
 }

@@ -675,8 +675,7 @@ pub struct Project {
     pub fills: Shared<Vec<Fill>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub keepouts: Shared<Vec<Keepout>>,
-    /// Layout blocks: parts that belong together and move as one
-    /// (`layout::blocks`).
+    /// Blocks: parts that belong together (`instances::blocks`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocks: Shared<Vec<Block>>,
     /// Schematic sheets in page order.

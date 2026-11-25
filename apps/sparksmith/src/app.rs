@@ -433,9 +433,18 @@ impl App {
         let Some(operation) = operation else {
             return;
         };
-        // A dimension whose value defines a board parameter brings its edit.
-        let first = self.pcb.first.take();
-        let first = first.filter(|_| matches!(operation, Operation::Dimension(_)));
+        // A dimension whose value defines a board parameter brings its edit,
+        // a selection's Delete or Lock its blocks'.
+        let first = self.pcb.first.take().filter(|first| {
+            use sparksmith_core::layout::LayoutCommand as L;
+            match &operation {
+                Operation::Dimension(_) => !matches!(first, Operation::Block(_)),
+                Operation::Layout(L::DeleteObjects { .. } | L::LockObjects { .. }) => {
+                    matches!(first, Operation::Block(_))
+                }
+                _ => false,
+            }
+        });
         if self.opening != self.engine.opening() {
             // Made for a document that is no longer the open one.
             self.document_replaced();

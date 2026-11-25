@@ -558,7 +558,7 @@ pub enum Action {
     /// Align or distribute the selected parts (`layout.align`,
     /// `layout.distribute`).
     PcbArrange(PcbArrange),
-    /// Make a block of the selected parts (`layout.block_add`).
+    /// Make a block of the selected parts (`block.add`).
     MakeBlock,
     /// A key of a gesture: shown, never run from the palette.
     Key,
@@ -712,7 +712,7 @@ impl Command {
             Action::Pcb(_) | Action::PcbLayer(_) | Action::PcbDialog(_) => "panel/layout",
             Action::PcbArrange(PcbArrange::Align(_)) => "entry/layout.align",
             Action::PcbArrange(PcbArrange::Distribute(_)) => "entry/layout.distribute",
-            Action::MakeBlock => "entry/layout.block_add",
+            Action::MakeBlock => "entry/block.add",
             Action::Key => match self.context {
                 Context::Component | Context::Symbol | Context::Footprint => "panel/component",
                 Context::Schematic | Context::SchematicWire => "panel/schematic",

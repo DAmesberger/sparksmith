@@ -1,6 +1,6 @@
-//! Layout blocks saved with the design (docs/design/layout-blocks.md):
-//! data only. The rules (who may be in a block, what moves it, its border)
-//! live in `layout::blocks`.
+//! Blocks saved with the design (docs/design/layout-blocks.md): data only.
+//! Who may be in a block is `instances::blocks`'s rule; what moves it on the
+//! board, and its border there, `layout::blocks`'s.
 use crate::ids::Id;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 /// Bytes of a block's name.
 pub const MAX_BLOCK_NAME: usize = 64;
 
-/// Parts that belong together on the board. A part is in at most one block.
-/// The border is not stored: it is derived from the members' courtyards.
+/// Parts that belong together. A part is in at most one block.
+/// No border is stored: it is derived.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Block {
@@ -19,8 +19,8 @@ pub struct Block {
     /// The component instances in it, in identity order; at least one. A
     /// member need not be on the board yet.
     pub members: Vec<Id>,
-    /// Nothing moves the block or one part of it by hand. The parts' own
-    /// locks are separate.
+    /// Nothing moves the block or one part of it on the board by hand. The
+    /// parts' own locks are separate; symbols are not locked.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub locked: bool,
 }

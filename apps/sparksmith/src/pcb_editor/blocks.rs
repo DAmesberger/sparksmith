@@ -1,6 +1,6 @@
 //! Layout blocks on the canvas, and their card: the derived border and its
 //! name, the level of detail a block is drawn at, the drag of a whole block
-//! (one `layout.block_move`) and Make block.
+//! (one `block.board_move`) and Make block.
 //!
 //! The level of detail only changes what is drawn (and so what a click
 //! takes): a border, its parts, or its pads and copper too. Parts outside
@@ -14,7 +14,7 @@ use crate::kit::{self, ItemRow, RowAction};
 use crate::refusal::{self, Origin};
 use egui::{Align2, Pos2, Shape, Stroke, Ui};
 use sparksmith_core::geometry::{polygon_contains, segment_distance};
-use sparksmith_core::layout::LayoutCommand;
+use sparksmith_core::instances::blocks::BlockCommand;
 use sparksmith_core::layout::blocks::{self, BlockMove};
 use sparksmith_core::model::Block;
 use sparksmith_core::{Id, Layer, Operation, Point, Project};
@@ -178,10 +178,7 @@ impl PcbEditor {
         if parts.is_empty() {
             return Err("Select the block's parts".into());
         }
-        Ok(Operation::Layout(LayoutCommand::AddBlock {
-            parts,
-            name: None,
-        }))
+        Ok(Operation::Block(BlockCommand::Add { parts, name: None }))
     }
 
     /// The selected parts taken into the one selected block.
@@ -193,7 +190,7 @@ impl PcbEditor {
         let add: Vec<Id> = self.group.parts.iter().copied().collect();
         (!add.is_empty()).then_some((
             id,
-            Operation::Layout(LayoutCommand::SetBlockMembers {
+            Operation::Block(BlockCommand::Members {
                 id,
                 add,
                 remove: Vec::new(),
@@ -491,7 +488,7 @@ impl PcbEditor {
             if name.lost_focus() && self.blocks.name.2.trim() != block.name {
                 self.errors.0.remove(&Field::BlockName);
                 action = Some((
-                    LayoutCommand::RenameBlock {
+                    BlockCommand::Rename {
                         id: block.id,
                         name: self.blocks.name.2.clone(),
                     },
@@ -500,11 +497,11 @@ impl PcbEditor {
             }
             let mut locked = block.locked;
             let lock = ui.scope(|ui| kit::check_row(ui, "Locked", &mut locked));
-            crate::app::help_sheet::region(ui, lock.response.rect, "entry/layout.block_lock", 3);
+            crate::app::help_sheet::region(ui, lock.response.rect, "entry/block.board_lock", 3);
             if lock.inner {
                 action = Some((
-                    LayoutCommand::SetBlockLock {
-                        id: block.id,
+                    BlockCommand::BoardLock {
+                        ids: vec![block.id],
                         locked,
                     },
                     Origin::Command,
@@ -554,7 +551,7 @@ impl PcbEditor {
                 });
                 if response.action {
                     action = Some((
-                        LayoutCommand::SetBlockMembers {
+                        BlockCommand::Members {
                             id: block.id,
                             add: Vec::new(),
                             remove: vec![id],
@@ -574,7 +571,7 @@ impl PcbEditor {
         }
         let (command, origin) = action?;
         refusal::mark(ui.ctx(), origin);
-        Some(Operation::Layout(command))
+        Some(Operation::Block(command))
     }
 
     /// The card's footer: Delete, Rotate 90° and Flip of the whole block.
@@ -589,7 +586,9 @@ impl PcbEditor {
             .on_hover_text("Delete the block; its parts stay as they are")
             .clicked()
         {
-            action = Some(LayoutCommand::DeleteBlock { id: block.id });
+            action = Some(BlockCommand::Delete {
+                ids: vec![block.id],
+            });
         }
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             for (label, tip, how) in [
@@ -607,7 +606,7 @@ impl PcbEditor {
                 }
             }
         });
-        action.map(Operation::Layout)
+        action.map(Operation::Block)
     }
 
     /// The Placement card's row: the block the part is in, which it selects.

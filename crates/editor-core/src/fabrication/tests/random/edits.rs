@@ -6,6 +6,7 @@ use super::plan::{BOARD, Edit, Past, Pour};
 use super::truth::{self, PadOn};
 use crate::geometry::Point;
 use crate::ids::Id;
+use crate::instances::blocks::{BlockCommand, block_of};
 use crate::layout::arrange::PartMove;
 use crate::layout::fill::{FillCommand, RefillTarget};
 use crate::layout::posture::Posture;
@@ -190,8 +191,12 @@ pub(super) fn operation(engine: &Engine, edit: &Edit) -> Fallible<Option<Operati
         | Edit::DeletePour { .. }
         | Edit::Keepout { .. }
         | Edit::DeleteKeepout { .. } => fills(project, edit).map(Operation::Fill),
+        Edit::Block { .. }
+        | Edit::MoveBlock { .. }
+        | Edit::LockBlock { .. }
+        | Edit::Members { .. }
+        | Edit::Unblock { .. } => blocks(project, edit).map(Operation::Block),
         _ => parts(project, edit)
-            .or_else(|| blocks(project, edit))
             .or_else(|| routes(project, edit))
             .or_else(|| copper(project, edit))
             .map(Operation::Layout),
@@ -323,7 +328,7 @@ pub(super) fn block(project: &Project, k: usize) -> Option<Id> {
     pick(&project.blocks, k).map(|b| b.id)
 }
 
-fn blocks(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
+fn blocks(project: &Project, edit: &Edit) -> Option<BlockCommand> {
     let block = |k: usize| pick(&project.blocks, k);
     // Parts in no block, `count` of them from the `k`th on.
     let free = |k: usize, count: usize| -> Vec<Id> {
@@ -331,13 +336,13 @@ fn blocks(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
             .instances
             .iter()
             .map(|i| i.id)
-            .filter(|id| crate::layout::blocks::block_of(project, *id).is_none())
+            .filter(|id| block_of(project, *id).is_none())
             .collect();
         let from = k.checked_rem(free.len()).unwrap_or(0);
         free.into_iter().skip(from).take(count).collect()
     };
     Some(match edit {
-        Edit::Block { pick: k, count } => LayoutCommand::AddBlock {
+        Edit::Block { pick: k, count } => BlockCommand::Add {
             parts: free(*k, *count),
             name: None,
         },
@@ -346,14 +351,14 @@ fn blocks(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
             by,
             turn,
             flip,
-        } => LayoutCommand::MoveBlock {
+        } => BlockCommand::BoardMove {
             id: block(*k)?.id,
             by: *by,
             turn_deg: *turn,
             flip: *flip,
         },
-        Edit::LockBlock { pick: k, locked } => LayoutCommand::SetBlockLock {
-            id: block(*k)?.id,
+        Edit::LockBlock { pick: k, locked } => BlockCommand::BoardLock {
+            ids: vec![block(*k)?.id],
             locked: *locked,
         },
         Edit::Members {
@@ -362,13 +367,15 @@ fn blocks(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
             remove,
         } => {
             let block = block(*k)?;
-            LayoutCommand::SetBlockMembers {
+            BlockCommand::Members {
                 id: block.id,
                 add: free(*k, *add),
                 remove: block.members.iter().copied().take(*remove).collect(),
             }
         }
-        Edit::Unblock { pick: k } => LayoutCommand::DeleteBlock { id: block(*k)?.id },
+        Edit::Unblock { pick: k } => BlockCommand::Delete {
+            ids: vec![block(*k)?.id],
+        },
         _ => return None,
     })
 }

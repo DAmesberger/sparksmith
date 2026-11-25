@@ -906,11 +906,11 @@
   {
     "id": "term/layout-block",
     "title": "Layout block",
-    "summary": "Parts that belong together on the board and move, turn, flip and lock as one. Its border is derived from its parts, the convex hull of their courtyards, and is soft: other parts and traces may lie in it. A part is in one block at most, and copper belongs to its net, not to the block.",
+    "summary": "Parts that belong together in the design, and move, turn, flip and lock as one on the board. Who is in it is set by hand, never by where a part lies. Its border on the board is derived from its parts, the convex hull of their courtyards, and is soft: other parts and traces may lie in it. A part is in one block at most, and copper belongs to its net, not to the block.",
     "since": "0.1.0",
     "facts": {
       "kind": "term",
-      "definition": "Parts that belong together on the board and move, turn, flip and lock as one. Its border is derived from its parts, the convex hull of their courtyards, and is soft: other parts and traces may lie in it. A part is in one block at most, and copper belongs to its net, not to the block.",
+      "definition": "Parts that belong together in the design, and move, turn, flip and lock as one on the board. Who is in it is set by hand, never by where a part lies. Its border on the board is derived from its parts, the convex hull of their courtyards, and is soft: other parts and traces may lie in it. A part is in one block at most, and copper belongs to its net, not to the block.",
       "avoid": [
         "Module"
       ],

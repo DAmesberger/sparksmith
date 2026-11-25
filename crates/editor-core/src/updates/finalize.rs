@@ -65,7 +65,7 @@ pub(crate) fn finalize(
         // A removed part takes its variant overrides with it.
         instances::variants::follow_instances(project);
         // And it leaves its block.
-        layout::blocks::follow_instances(project);
+        instances::blocks::follow_instances(project);
         let changes = nets::reconcile(project)?;
         if f.sheet_move && !f.reviewed {
             nets::refuse_moved_merges(base, project)?;
