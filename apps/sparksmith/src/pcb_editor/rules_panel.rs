@@ -461,7 +461,7 @@ impl RulesPanel {
             let job = match pollster::block_on(future) {
                 None => Job::Cancelled,
                 Some(file) => {
-                    let path = file.path().to_path_buf();
+                    let path = crate::file_ui::chosen(file.path().to_path_buf());
                     Job::Exported(
                         rule_profiles::export_replacing(&profile, &path)
                             .map(|()| path)

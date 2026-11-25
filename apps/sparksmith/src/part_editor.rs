@@ -2046,7 +2046,7 @@ pub fn run(engine: &mut Engine, request: Request) -> sparksmith_core::Result<Opt
         Request::Create(template) => working_set::create(engine, template).map(|_| None),
         Request::Blank => working_set::create_blank(engine).map(|_| None),
         Request::Draft(component) => {
-            let created = working_set::draft_closure(engine, component)?;
+            let created = working_set::open_drafts(engine, component)?;
             let name = engine
                 .project()
                 .library
@@ -2816,6 +2816,62 @@ mod draft_tests {
         let after = engine.revision();
         assert_eq!(run(&mut engine, Request::Draft(open))?, None);
         assert_eq!(engine.revision(), after);
+        Ok(())
+    }
+
+    /// GUI run 2, R2-B1: opening a component releases the drafts of the
+    /// ones opened before it, unless they hold changes; opening is one undo
+    /// step with that.
+    #[test]
+    fn opening_another_component_releases_unchanged_drafts()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut engine = Engine::default();
+        for template in [Template::TwoTerminal, Template::Header] {
+            run(&mut engine, Request::Create(template))?;
+            let ids = engine.drafts().items.iter().map(|d| d.id).collect();
+            engine.apply(
+                engine.revision(),
+                Operation::Library(LibraryCommand::Publish {
+                    drafts: ids,
+                    close: true,
+                }),
+            )?;
+        }
+        let published: Vec<ComponentRef> = engine
+            .project()
+            .library
+            .latest_components()
+            .into_iter()
+            .map(|c| ComponentRef::new(c.id, c.revision))
+            .collect();
+        let [first, second] = published[..] else {
+            return Err("two published components".into());
+        };
+        run(&mut engine, Request::Draft(first))?;
+        assert_eq!(engine.drafts().items.len(), 5);
+        run(&mut engine, Request::Draft(second))?;
+        assert_eq!(engine.drafts().items.len(), 5);
+        assert!(engine.drafts().get(first.id).is_none());
+        engine.undo()?;
+        assert!(engine.drafts().get(first.id).is_some(), "one undo step");
+        assert!(engine.drafts().get(second.id).is_none());
+
+        // With a change the first set stays, whole.
+        let mut edit = engine.drafts().get(first.id).cloned().ok_or("a draft")?;
+        edit.meta.name.push_str(" changed");
+        engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::Edit {
+                edits: vec![sparksmith_core::library::DraftEdit {
+                    id: edit.id,
+                    meta: edit.meta,
+                    definition: edit.definition,
+                }],
+            }),
+        )?;
+        run(&mut engine, Request::Draft(second))?;
+        assert_eq!(engine.drafts().items.len(), 10);
+        assert!(WorkingSet::of(engine.drafts(), first.id).is_some());
         Ok(())
     }
 

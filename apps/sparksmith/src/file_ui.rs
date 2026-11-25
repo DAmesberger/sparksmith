@@ -29,25 +29,27 @@ const SNAPSHOT_IDLE: f64 = 2.0;
 /// would never be kept (review: crash recovery cadence).
 pub(crate) const MAX_SNAPSHOT_INTERVAL: f64 = 30.0;
 
-/// Seconds a save or import may take before the app bar says what the
-/// system may be holding it for.
+/// Seconds a save or import may take before the app bar says that the
+/// system has not answered.
 const HELD_ACCESS: f64 = 3.0;
 
 /// `work` ("Saving…") after `elapsed` seconds on `path`, and when the text
-/// next changes: past [`HELD_ACCESS`] it names the folder the system may
-/// be asking permission for.
+/// next changes: past [`HELD_ACCESS`] it names the file the system has not
+/// finished with. Why is not known (a slow disk or network, and on macOS a
+/// permission prompt); a file another program holds is never waited for.
 fn activity_text(work: &str, path: &Path, elapsed: f64) -> (String, Option<Duration>) {
     if elapsed < HELD_ACCESS {
         let wake = Duration::try_from_secs_f64(HELD_ACCESS - elapsed.max(0.0)).ok();
         return (work.to_owned(), wake);
     }
-    let folder = path
-        .parent()
-        .and_then(Path::file_name)
+    let file = path
+        .file_name()
         .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "the folder".to_owned());
-    let text =
-        format!("{work} waiting for access to {folder}: check for a system permission prompt");
+        .unwrap_or_else(|| "the file".to_owned());
+    let mut text = format!("{work} the system has not finished with {file} yet");
+    if cfg!(target_os = "macos") {
+        text.push_str("; it may be asking for your permission");
+    }
     (text, None)
 }
 
@@ -1310,6 +1312,9 @@ impl FileUi {
                     return;
                 };
                 let path = match absolute_path(path) {
+                    Ok(path) if matches!(kind, Kind::Save | Kind::Export | Kind::SchematicPdf) => {
+                        chosen(path)
+                    }
                     Ok(path) => path,
                     Err(error) => {
                         self.controller.cancel(&ticket, kind);
@@ -1854,37 +1859,45 @@ fn proposed_file_name(path: Option<&Path>, project: &str) -> String {
     format!("{stem}.{}", sparksmith_core::format::EXTENSION)
 }
 
-/// Whether the engine's document differs from `saved` only by drafts opened
-/// for editing and not yet changed: whole component working sets that still
-/// equal their published revisions. Opening a component is not an edit.
+/// Whether the engine's document differs from `saved` only by drafts that
+/// hold nothing to publish (`drafts::unedited`): opened for editing and not
+/// yet changed, or released again. Opening a component is not an edit.
 fn only_unedited_drafts(saved: &Document, engine: &Engine) -> bool {
-    use crate::part_editor::WorkingSet;
-    use sparksmith_core::DefinitionKind;
+    use sparksmith_core::library::{Draft, Drafts, drafts::unedited};
     let now = engine.document();
     let (old, new) = (&saved.drafts, &now.drafts);
     if !Arc::ptr_eq(&saved.project, &now.project)
         || old.grid != new.grid
         || old.symbols != new.symbols
-        || !old.items.iter().all(|d| new.items.contains(d))
     {
         return false;
     }
-    let added: Vec<_> = new
-        .items
-        .iter()
-        .filter(|d| !old.items.contains(d))
-        .collect();
-    let mut covered = std::collections::BTreeSet::new();
-    for draft in added
-        .iter()
-        .filter(|d| d.definition.kind() == DefinitionKind::Component)
-    {
-        match WorkingSet::of(new, draft.id) {
-            Some(set) if !set.unpublished(engine) => covered.extend(set.ids.all()),
-            _ => return false,
-        }
+    let work = |drafts: &'_ Drafts| -> Vec<Draft> {
+        let idle = unedited(drafts, &now.project.library);
+        let mut work = drafts.items.clone();
+        work.retain(|d| !idle.contains(&d.id));
+        work.sort_by_key(|d| d.id);
+        work
+    };
+    work(old) == work(new)
+}
+
+/// The file a save panel gave, with its extension once. The panel proposes
+/// a name with the rest selected but not the extension, so a typed
+/// "board.sparksmith" becomes "board.sparksmith.sparksmith". A name that
+/// exists either way is kept as given: the panel asked about that one only.
+pub(crate) fn chosen(path: PathBuf) -> PathBuf {
+    let once = path.with_extension("");
+    let twice = match (path.extension(), once.extension()) {
+        (Some(last), Some(before)) => last.eq_ignore_ascii_case(before),
+        _ => false,
+    };
+    let taken = |path: &Path| path.symlink_metadata().is_ok();
+    if twice && !taken(&path) && !taken(&once) {
+        once
+    } else {
+        path
     }
-    added.iter().all(|d| covered.contains(&d.id))
 }
 
 fn absolute_path(path: PathBuf) -> Outcome<PathBuf> {

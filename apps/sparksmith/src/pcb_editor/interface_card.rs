@@ -967,12 +967,16 @@ impl PcbEditor {
                 Box::pin(dialog.set_title("Choose the linked design").pick_file())
             }
         };
+        let saves = matches!(pick, Pick::Design);
         let (sender, receiver) = std::sync::mpsc::channel();
         let repaint = ctx.clone();
         if std::thread::Builder::new()
             .name("sparksmith-interface-picker".into())
             .spawn(sparksmith_core::library::standards::carried(move || {
-                let picked = pollster::block_on(future).map(|f| f.path().to_path_buf());
+                let mut picked = pollster::block_on(future).map(|f| f.path().to_path_buf());
+                if saves {
+                    picked = picked.map(crate::file_ui::chosen);
+                }
                 let _ = sender.send(picked);
                 repaint.request_repaint();
             }))

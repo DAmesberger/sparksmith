@@ -157,6 +157,42 @@ fn a_writer_holding_the_original_handle_detects_the_other_writers_rename() -> Re
     Ok(())
 }
 
+/// GUI run 2, R2-G3: a file another program has locked is refused at once,
+/// as it was, with this version in the document's copy; the next save after
+/// the lock goes through and removes the copy.
+#[cfg(unix)]
+#[test]
+fn a_locked_file_is_refused_at_once_and_this_version_is_kept() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("board.sparksmith");
+    let saved = save_document(&path, Engine::demo()?.document(), None, "", None)?;
+    let before = std::fs::read(&path)?;
+    let holder = File::open(&path)?;
+    holder.lock()?;
+    let refused = save_document(&path, &saved.document, Some(saved.identity), "", None);
+    let Err(Error::InUse(in_use)) = refused else {
+        return Err(Error::Invalid(format!("{refused:?}")));
+    };
+    assert!(in_use.to_string().contains(HELD), "{in_use}");
+    assert_eq!(std::fs::read(&path)?, before);
+    let copy = in_use.copy.ok_or(Error::Invalid("a copy".into()))?;
+    assert_eq!(
+        read_project(&copy.path)?,
+        format::EditorFile::from_document(&saved.document)
+    );
+    drop(holder);
+    let saved = save_document(
+        &path,
+        &saved.document,
+        Some(saved.identity),
+        "",
+        Some(&copy),
+    )?;
+    assert_eq!(open_project(&path)?.1, saved.identity);
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    Ok(())
+}
+
 #[test]
 fn failed_saves_preserve_existing_target_and_leave_no_temporary_file() -> Result<()> {
     let dir = tempfile::tempdir()?;
@@ -683,9 +719,20 @@ fn concurrent_saves_of_one_opened_file_replace_it_once() -> Result<()> {
             let (first, second) = (save(a.clone()), save(b.clone()));
             (first.join(), second.join())
         });
+        // One that met the other's lock is refused at once and tries again.
+        let tried = |result: Result<DiskIdentity>, file: &format::EditorFile| match result {
+            Err(Error::InUse(_)) => save_project(&path, file, Some(opened)),
+            done => done,
+        };
         let (ra, rb) = (
-            ra.map_err(|_| Error::Invalid("a saver panicked".into()))?,
-            rb.map_err(|_| Error::Invalid("a saver panicked".into()))?,
+            tried(
+                ra.map_err(|_| Error::Invalid("a saver panicked".into()))?,
+                &a,
+            ),
+            tried(
+                rb.map_err(|_| Error::Invalid("a saver panicked".into()))?,
+                &b,
+            ),
         );
         let replaced = usize::from(ra.is_ok()) + usize::from(rb.is_ok());
         assert_eq!(replaced, 1, "{ra:?} {rb:?}");

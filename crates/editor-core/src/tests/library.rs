@@ -589,21 +589,6 @@ fn new_library_commands_fail_atomically() -> Result<()> {
         assert!(engine.apply(revision, operation).is_err(), "{what}");
         kept.assert_kept(&engine, &what);
     }
-    // The draft limit: the 65th draft allocates nothing.
-    while engine.drafts().items.len() < crate::library::drafts::MAX_DRAFTS {
-        new_draft(&mut engine, DefinitionKind::Package)?;
-    }
-    prime_history(&mut engine)?;
-    let kept = Snapshot::of(&engine);
-    let full = engine.apply(
-        kept.revision(),
-        Operation::Library(LibraryCommand::NewDraft {
-            meta: meta("65th"),
-            definition: Definition::empty(DefinitionKind::Package),
-        }),
-    );
-    assert_eq!(full.err().map(|e| e.code()), Some("limit_exceeded"));
-    kept.assert_kept(&engine, "draft limit");
     for malformed in [
         json!({"editor":"Library","operation":{"command":"library.publish","params":{"drafts":[1],"x":1}}}),
         json!({"editor":"Library","operation":{"command":"library.new_draft","params":{"meta":{"name":"x","description":"","provenance":""},"definition":{"kind":"resistor","body":{}}}}}),

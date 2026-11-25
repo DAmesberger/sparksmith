@@ -42,6 +42,18 @@ pub struct InUse {
     pub copy_problem: Option<String>,
 }
 
+impl InUse {
+    /// A save of `path` refused because of `cause`.
+    pub(super) fn refused(path: &Path, cause: impl Into<String>) -> Error {
+        Error::InUse(Box::new(Self {
+            path: path.to_path_buf(),
+            cause: cause.into(),
+            copy: None,
+            copy_problem: None,
+        }))
+    }
+}
+
 impl std::fmt::Display for InUse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -131,15 +143,6 @@ mod tests {
     use super::*;
     use sparksmith_core::{Document, Engine};
 
-    fn refused(path: &Path) -> Error {
-        Error::InUse(Box::new(InUse {
-            path: path.to_path_buf(),
-            cause: "in use".into(),
-            copy: None,
-            copy_problem: None,
-        }))
-    }
-
     fn named(name: &str) -> Result<Document> {
         let mut file = Engine::demo()?.to_file();
         file.project.name = name.into();
@@ -151,7 +154,7 @@ mod tests {
     /// A refused save of `document` at `path`.
     fn refuse(path: &Path, document: &Document, copy: Option<&UnsavedCopy>) -> Result<InUse> {
         let saved = save_document_with(path, document, None, "", copy, |path, _, _| {
-            Err(refused(path))
+            Err(InUse::refused(path, "in use"))
         });
         match saved {
             Err(Error::InUse(in_use)) => Ok(*in_use),

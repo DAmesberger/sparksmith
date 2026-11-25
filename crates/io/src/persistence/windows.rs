@@ -15,7 +15,6 @@ use crate::{Error, Result};
 use std::fs::{File, OpenOptions};
 use std::os::windows::fs::OpenOptionsExt;
 use std::path::Path;
-use std::time::Duration;
 
 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
 const FILE_FLAG_DELETE_ON_CLOSE: u32 = 0x0400_0000;
@@ -30,9 +29,6 @@ const ERROR_USER_MAPPED_FILE: i32 = 1224;
 /// other: the second and third cover a virus scanner's moment with a file
 /// just written. There is no waiting; the person is told and tries again.
 const TRIES: usize = 3;
-
-/// How often a save looks whether the save before it has ended.
-const POLL: Duration = Duration::from_millis(10);
 
 /// Whether `error` is another program having the file open, as far as its
 /// code tells: a file that may not be written answers access denied too.
@@ -69,31 +65,30 @@ pub(super) struct SaveLock {
 }
 
 impl SaveLock {
+    /// The lock of `path`, or a refusal while another save has it: that one
+    /// is not waited for.
     pub(super) fn hold(path: &Path) -> Result<Self> {
         let mut name = std::ffi::OsString::from(".");
         name.push(path.file_name().unwrap_or_default());
         name.push(".saving");
         let lock = path.with_file_name(name);
-        loop {
-            let opened = retrying(|| {
-                let opened = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(false)
-                    .share_mode(0)
-                    .attributes(FILE_ATTRIBUTE_HIDDEN)
-                    .custom_flags(FILE_FLAG_DELETE_ON_CLOSE)
-                    .open(&lock);
-                Ok(opened?)
-            });
-            match opened {
-                Ok(file) => return Ok(Self { _file: file }),
-                // Another save of this file: it ends with its writer.
-                Err(Error::Io(error)) if error.raw_os_error() == Some(ERROR_SHARING_VIOLATION) => {
-                    std::thread::sleep(POLL);
-                }
-                Err(error) => return Err(error),
+        let opened = retrying(|| {
+            let opened = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .share_mode(0)
+                .attributes(FILE_ATTRIBUTE_HIDDEN)
+                .custom_flags(FILE_FLAG_DELETE_ON_CLOSE)
+                .open(&lock);
+            Ok(opened?)
+        });
+        match opened {
+            Ok(file) => Ok(Self { _file: file }),
+            Err(Error::Io(error)) if error.raw_os_error() == Some(ERROR_SHARING_VIOLATION) => {
+                Err(InUse::refused(path, super::HELD))
             }
+            Err(error) => Err(refused(path, error)),
         }
     }
 }
@@ -123,12 +118,7 @@ impl Staged {
 /// What kept the file at `path` from being replaced, which is as it was.
 pub(super) fn refused(path: &Path, error: Error) -> Error {
     match error {
-        Error::Io(cause) if in_use(&cause) => Error::InUse(Box::new(InUse {
-            path: path.to_path_buf(),
-            cause: cause.to_string(),
-            copy: None,
-            copy_problem: None,
-        })),
+        Error::Io(cause) if in_use(&cause) => InUse::refused(path, cause.to_string()),
         other => other,
     }
 }
@@ -213,21 +203,13 @@ mod tests {
         let path = dir.path().join("board.sparksmith");
         std::fs::write(dir.path().join(".board.sparksmith.saving"), b"")?;
         let held = SaveLock::hold(&path)?;
-        let (send, entered) = std::sync::mpsc::channel();
         let other = dir.path().join("BOARD.sparksmith");
-        let waiting = std::thread::spawn(move || {
-            let held = SaveLock::hold(&other);
-            let _ = send.send(());
-            held.map(drop)
-        });
         assert!(
-            entered.recv_timeout(Duration::from_millis(100)).is_err(),
+            matches!(SaveLock::hold(&other), Err(Error::InUse(_))),
             "two saves at once"
         );
         drop(held);
-        waiting
-            .join()
-            .map_err(|_| Error::Invalid("the waiting save panicked".into()))??;
+        drop(SaveLock::hold(&other)?);
         assert!(files(dir.path())?.is_empty());
         Ok(())
     }

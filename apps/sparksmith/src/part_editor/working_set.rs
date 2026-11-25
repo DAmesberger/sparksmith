@@ -461,6 +461,38 @@ pub fn create(engine: &mut Engine, template: Template) -> Result<DefinitionId> {
         .map(|_| component)
 }
 
+/// [`draft_closure`] of a component being opened, in one undo step with
+/// releasing the drafts opened earlier that hold nothing to publish
+/// (`drafts::unedited`): what was only looked at, or was published since,
+/// does not stay a draft. Drafts with changes stay.
+pub fn open_drafts(engine: &mut Engine, component: ComponentRef) -> Result<usize> {
+    let idle = if engine.drafts().get(component.id).is_some() {
+        Default::default()
+    } else {
+        sparksmith_core::library::drafts::unedited(engine.drafts(), &engine.project().library)
+    };
+    if idle.is_empty() {
+        return draft_closure(engine, component);
+    }
+    engine.begin_group("Open a component")?;
+    let made = idle
+        .into_iter()
+        .try_for_each(|id| {
+            engine
+                .apply(
+                    engine.revision(),
+                    Operation::Library(LibraryCommand::DiscardDraft { id }),
+                )
+                .map(drop)
+        })
+        .and_then(|()| draft_closure(engine, component));
+    let stepped = engine.end_group().is_some();
+    if made.is_err() && stepped {
+        engine.undo()?;
+    }
+    made
+}
+
 /// Draft every lineage of a published component revision's first symbol and
 /// implementation that has no draft yet: one `library.draft_closure`, so
 /// one undo step (none when everything is drafted already).
