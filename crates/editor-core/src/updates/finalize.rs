@@ -104,11 +104,10 @@ pub(crate) fn finalize(
             layout::dimensions::protect_connections(base, project, &rerouted)?;
         }
     }
-    // A resized board must hold its tracks and vias where the carry left
-    // them: copper that followed its parts onto a smaller board fits.
-    if project.board_size != base.board_size {
-        layout::copper_fits(project, project.board_size)?;
-    }
+    // No edit leaves copper off the board. A resized board must hold its
+    // tracks and vias where the carry left them: copper that followed its
+    // parts onto a smaller board fits.
+    layout::copper_stays(base, project)?;
     // Board-following fills take the (possibly changed) outline.
     layout::fill::follow_board(project)?;
     if !f.reviewed && schematic_edited {

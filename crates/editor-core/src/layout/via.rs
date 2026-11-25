@@ -93,6 +93,9 @@ pub struct LayerChangeRequest {
 pub(super) fn add(project: &mut Project, request: ViaRequest) -> Result<Id> {
     let before = project.vias.iter().filter(|v| v.net == request.net).count();
     let id = insert(project, request)?;
+    if let Some(via) = project.via(id) {
+        check_inside(project, via)?;
+    }
     super::via_class::check_vias(project, request.net, before)?;
     check_clearance(project, id)?;
     Ok(id)
@@ -120,12 +123,8 @@ fn via_of(id: Id, request: ViaRequest) -> Via {
 
 /// Whether the document can hold the via `request` asks for, whatever the
 /// rules say of it.
-pub(super) fn check_held(
-    project: &Project,
-    request: &ViaRequest,
-    nets: &BTreeSet<Id>,
-) -> Result<()> {
-    check_shape(project, &via_of(0, *request), nets)
+pub(super) fn check_held(request: &ViaRequest, nets: &BTreeSet<Id>) -> Result<()> {
+    check_shape(&via_of(0, *request), nets)
 }
 
 fn unlocked(project: &mut Project, id: Id) -> Result<&mut Via> {
@@ -160,6 +159,9 @@ pub(super) fn move_to(project: &mut Project, id: Id, position: Point) -> Result<
         [position[0] - via.position[0], position[1] - via.position[1]],
     );
     via.position = position;
+    if let Some(via) = project.via(id) {
+        check_inside(project, via)?;
+    }
     let Some(index) = index else {
         return Err(Error::NotFound("unknown via".into()));
     };
@@ -1014,14 +1016,31 @@ pub(super) fn validate(project: &Project, nets: &BTreeSet<Id>) -> Result<()> {
         if via.id == 0 || via.id >= project.next_id || !ids.insert(via.id) {
             return invalid("invalid or duplicate via identity");
         }
-        check_shape(project, via, nets)?;
+        check_shape(via, nets)?;
     }
     Ok(())
 }
 
+/// Whether a via's pad lies wholly on a board of `size`.
+pub(super) fn within(via: &Via, size: Point) -> bool {
+    let r = via.diameter / 2.0;
+    let [w, h] = size;
+    let [x, y] = via.position;
+    x - r >= -EPS && y - r >= -EPS && x + r <= w + EPS && y + r <= h + EPS
+}
+
+/// Refuses a via an edit puts off the board.
+pub(super) fn check_inside(project: &Project, via: &Via) -> Result<()> {
+    if within(via, project.board_size) {
+        Ok(())
+    } else {
+        invalid("via copper must lie inside the board outline")
+    }
+}
+
 /// What every stored via keeps: a net of the board, a ring round its drill,
-/// its copper on the board and a through span.
-fn check_shape(project: &Project, via: &Via, nets: &BTreeSet<Id>) -> Result<()> {
+/// its place in the working area and a through span.
+fn check_shape(via: &Via, nets: &BTreeSet<Id>) -> Result<()> {
     if !nets.contains(&via.net) {
         return invalid("via references an unknown net");
     }
@@ -1036,11 +1055,8 @@ fn check_shape(project: &Project, via: &Via, nets: &BTreeSet<Id>) -> Result<()> 
             "via drill must be positive and smaller than its pad, at most {MAX_DIAMETER_MM} mm"
         ));
     }
-    let r = via.diameter / 2.0;
-    let [w, h] = project.board_size;
-    let [x, y] = via.position;
-    if x - r < -EPS || y - r < -EPS || x + r > w + EPS || y + r > h + EPS {
-        return invalid("via copper must lie inside the board outline");
+    if !super::in_working_area(via.position) {
+        return invalid("via copper must lie inside the working area");
     }
     if let ViaSpan::Between { .. } = via.span {
         return Err(Error::Unsupported(
