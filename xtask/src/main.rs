@@ -16,6 +16,7 @@ mod package;
 mod raw_keys;
 mod ui_containers;
 mod ui_forms;
+mod windows_check;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -102,6 +103,11 @@ fn run() -> Result<()> {
         && command == "help"
     {
         return help::run(rest);
+    }
+    if let Some((command, rest)) = args.split_first()
+        && command == "windows-check"
+    {
+        return windows_check::run(rest);
     }
     if let Some((command, rest)) = args.split_first()
         && command == "package"
@@ -196,7 +202,7 @@ fn run() -> Result<()> {
         "ui-forms" => ui_forms::check(),
         "raw-keys" => raw_keys::check(),
         _ => Err(
-            "usage: cargo xtask agent-bench ARGS | package [--out DIR] | ci | ci-native | fast [--base REV] | affected [--base REV] [--run] | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
+            "usage: cargo xtask agent-bench ARGS | package [--out DIR] | windows-check [-p PACKAGE]... | ci | ci-native | fast [--base REV] | affected [--base REV] [--run] | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
              | licences --check | brand-crates | clean-room | no-builtin-data | generic-terms | ui-containers | ui-forms | raw-keys | generators build [--ship] | check | reproduce | measure \
              | surface --check | --update | help --check | --update | --stamp <topic-id> | --site <out> | kicad-compare [--design PATH]"
                 .into(),
