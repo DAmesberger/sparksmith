@@ -360,7 +360,7 @@ fn shorts(seen: &Seen, out: &mut Vec<Broken>) {
 /// Pads, tracks and vias of different nets, each pair measured again: nearer
 /// than the rules allow is a finding that names both. The rules are the test
 /// profile's number and the classes' own clearances, which two pads of one
-/// part are free of.
+/// part and the two halves of a differential pair are free of.
 fn close(seen: &Seen, out: &mut Vec<Broken>) {
     let project = &seen.project;
     let pieces = truth::copper(project);
@@ -390,7 +390,11 @@ fn close(seen: &Seen, out: &mut Vec<Broken>) {
                 continue;
             }
             let mut need = COPPER;
-            if part(x).is_none() || part(x) != part(y) {
+            let halves = project.rules.diff_pairs.iter().any(|p| {
+                let own = [Some(p.positive), Some(p.negative)];
+                own.contains(&a.net) && own.contains(&b.net)
+            });
+            if !halves && (part(x).is_none() || part(x) != part(y)) {
                 for net in [a.net, b.net] {
                     need = need.max(class(net).unwrap_or(0.0));
                 }
