@@ -2521,7 +2521,7 @@ ET
 BT
 /F1 7.937008 Tf
 1 0 0 1 742.6772 287.71652 Tm
-(needs 0.2 mm (JLCPCB 4-layer: pad to unplated hole clearance). Accepted: 0.175 mm, needs at least 0.2 mm.) Tj
+(JLCPCB 4-layer does not state pad to unplated hole clearance between 0 mm and 0.2 mm. Accepted: 0.175 mm.) Tj
 ET
 BT
 /F1 7.937008 Tf
@@ -2546,7 +2546,7 @@ ET
 BT
 /F1 7.937008 Tf
 1 0 0 1 742.6772 242.3622 Tm
-(needs 0.2 mm (JLCPCB 4-layer: pad to unplated hole clearance). Accepted: 0.175 mm, needs at least 0.2 mm.) Tj
+(JLCPCB 4-layer does not state pad to unplated hole clearance between 0 mm and 0.2 mm. Accepted: 0.175 mm.) Tj
 ET
 BT
 /F1 7.937008 Tf
@@ -2666,7 +2666,7 @@ ET
 BT
 /F1 8.503937 Tf
 1 0 0 1 844.7244 67.46457 Tm
-(f412e1de84cd2b96) Tj
+(78c772c1d21a44b2) Tj
 ET
 737.0079 45.354332 m
 1162.2047 45.354332 l
@@ -2681,7 +2681,7 @@ ET
 BT
 /F1 8.503937 Tf
 1 0 0 1 844.7244 50.45669 Tm
-(6ecf5ab2-6d4f-8be9-b1e5-600b9fec63a3) Tj
+(3c03b4a4-d9f3-896e-b8f0-5f53cc1624bb) Tj
 ET
 737.0079 28.346457 m
 1162.2047 28.346457 l
@@ -2863,7 +2863,7 @@ ET
 BT
 /F1 8.503937 Tf
 1 0 0 1 844.7244 67.46457 Tm
-(f412e1de84cd2b96) Tj
+(78c772c1d21a44b2) Tj
 ET
 737.0079 45.354332 m
 1162.2047 45.354332 l
@@ -2878,7 +2878,7 @@ ET
 BT
 /F1 8.503937 Tf
 1 0 0 1 844.7244 50.45669 Tm
-(6ecf5ab2-6d4f-8be9-b1e5-600b9fec63a3) Tj
+(3c03b4a4-d9f3-896e-b8f0-5f53cc1624bb) Tj
 ET
 737.0079 28.346457 m
 1162.2047 28.346457 l

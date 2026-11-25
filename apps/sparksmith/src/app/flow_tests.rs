@@ -765,8 +765,9 @@ fn a_reroute_after_a_board_edit_is_one_toast() -> Fallible {
         .items()
         .map(|t| (t.text.clone(), t.actions.clone()))
         .collect();
-    // The pair's two halves; IO42 was re-routed too while the board was
-    // under PCBWay 4-layer.
+    // The pair's two halves. IO42 stays: the +3V3 via J1 carries ends
+    // 0.128 mm from it, clear of JLCPCB 4-layer's 0.09 mm track to via
+    // (PCBWay 4-layer's 0.18 mm re-routed it too).
     assert_eq!(
         shown,
         [(

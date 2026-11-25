@@ -299,9 +299,11 @@ fn the_reply_names_what_was_rerouted() -> Fallible {
         operation: j1_right(session.engine(), 0.5)?,
     }))?;
     assert_eq!(vias(&session), before, "no via is lost");
-    // The pair beside J1 (IO42 was re-routed too while the board was under
-    // PCBWay 4-layer). The regulator's +3V3 via is clear of the pair once
-    // that is re-routed, so it stays.
+    // The pair beside J1. The regulator's +3V3 via (470), carried with J1's
+    // cluster, ends 0.128 mm from IO42's bottom track: clear of JLCPCB
+    // 4-layer's 0.09 mm track to via, so IO42 stays (under PCBWay 4-layer's
+    // 0.18 mm minimum it was re-routed too). The via is clear of the pair
+    // once that is re-routed, so it stays.
     let rerouted = &reply["rerouted"];
     assert_eq!(
         rerouted["rerouted"],

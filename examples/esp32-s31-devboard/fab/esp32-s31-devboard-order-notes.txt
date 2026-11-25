@@ -1,5 +1,5 @@
 ORDER NOTES: ESP32-S31 dev board
-Release f412e1de84cd2b96
+Release 78c772c1d21a44b2
 JLCPCB 4-layer: 4 copper layers, 1.586 mm
 Stackup: JLC04161H-7628 (jlc04161h-7628)
 
