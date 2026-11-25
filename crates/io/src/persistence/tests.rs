@@ -202,13 +202,15 @@ fn a_write_protected_file_is_replaced_only_when_told() -> Result<()> {
     protected.set_readonly(true);
     std::fs::set_permissions(&path, protected.clone())?;
     let before = std::fs::read(&path)?;
-    let mut named = vec![path.clone()];
+    // By its own name, and where links are made freely, through one.
     #[cfg(unix)]
-    {
+    let named = {
         let link = dir.path().join("link.sparksmith");
         std::os::unix::fs::symlink(&path, &link)?;
-        named.push(link);
-    }
+        vec![path.clone(), link]
+    };
+    #[cfg(not(unix))]
+    let named = vec![path.clone()];
     let mut edited = file.clone();
     edited.project.name = "Edited".into();
     for path in &named {
