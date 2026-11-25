@@ -488,3 +488,87 @@ fn a_replacement_turned_a_quarter_fits_by_turning() -> Fallible {
     assert!(close(&pad_positions(&session, "U1")?, &old));
     Ok(())
 }
+
+/// Replacing the component of a locked part, or of a part in a locked
+/// block, is blocked: the review says which lock and how to free it, the
+/// apply is refused and changes nothing. Unlocked, the same replacement is
+/// one undo step.
+#[test]
+fn a_locked_part_or_block_blocks_its_replacement() -> Fallible {
+    for how in ["part", "block"] {
+        let mut session = Session::fixture(offset_engine()?);
+        let u1 = instance(&session, "U1")?.id;
+        let (lock, unlock, why) = if how == "part" {
+            let lock = |on: bool| {
+                (
+                    "layout.placement_lock",
+                    json!({"instance": u1, "locked": on}),
+                )
+            };
+            (
+                lock(true),
+                lock(false),
+                "U1 is locked on the board; unlock it to update",
+            )
+        } else {
+            let made = call(
+                &mut session,
+                "block.add",
+                json!({"parts": [u1], "name": "Converter"}),
+            );
+            assert_eq!(made["ok"], true, "{made}");
+            let block = session.engine().project().blocks[0].id;
+            let lock = |on: bool| ("block.board_lock", json!({"ids": [block], "locked": on}));
+            (
+                lock(true),
+                lock(false),
+                "U1 is in the locked block Converter; unlock the block to update",
+            )
+        };
+        let locked = call(&mut session, lock.0, lock.1);
+        assert_eq!(locked["ok"], true, "{how}: {locked}");
+        let place = |s: &Session| {
+            s.engine()
+                .project()
+                .placement_of(u1)
+                .map(|p| (p.position, p.rotation_deg))
+        };
+        let before = place(&session);
+        let component = instance(&session, "U1")?.component;
+        let revision = session.engine().revision();
+
+        let request = offset_request(&session, "U2", None)?;
+        let preview = call(&mut session, "project.preview_replace", request.clone());
+        let plan = &preview["result"]["plan"];
+        assert!(
+            plan["blocker_lines"].to_string().contains(why),
+            "{how}: {plan}"
+        );
+        let refused = call(
+            &mut session,
+            "project.replace_component",
+            json!({"replace": request.clone()}),
+        );
+        assert_eq!(refused["ok"], false, "{how}: {refused}");
+        assert_eq!(session.engine().revision(), revision, "{how}: changed");
+        assert_eq!(place(&session), before, "{how}: the part moved");
+        assert_eq!(instance(&session, "U1")?.component, component, "{how}");
+
+        let unlocked = call(&mut session, unlock.0, unlock.1);
+        assert_eq!(unlocked["ok"], true, "{how}: {unlocked}");
+        let revision = session.engine().revision();
+        let applied = call(
+            &mut session,
+            "project.replace_component",
+            json!({"replace": request}),
+        );
+        assert_eq!(applied["ok"], true, "{how}: {applied}");
+        assert_ne!(instance(&session, "U1")?.component, component, "{how}");
+        assert_eq!(session.engine().revision(), revision + 1, "{how}: one step");
+        let undone = call(&mut session, "project.undo", json!({}));
+        assert_eq!(undone["ok"], true, "{how}: {undone}");
+        assert_eq!(instance(&session, "U1")?.component, component, "{how}");
+        assert_eq!(place(&session), before, "{how}: undo");
+    }
+    Ok(())
+}
