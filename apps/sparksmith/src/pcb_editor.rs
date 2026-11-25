@@ -2325,6 +2325,9 @@ impl PcbEditor {
                             "Drag the pair (Alt: this half alone)"
                         }
                     }
+                    Tool::Select if project.instances.is_empty() => {
+                        "No parts yet: place them in Schematic, then Update PCB"
+                    }
                     Tool::Select => "Select / move",
                 },
                 self.layer.name(),
