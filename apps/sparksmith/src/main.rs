@@ -1,6 +1,7 @@
 //! Sparksmith desktop editor (formerly Pcbcraft).
 // Started by a click, it opens no console window beside its own.
 #![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
+mod about;
 mod app;
 mod assistant;
 #[cfg(test)]

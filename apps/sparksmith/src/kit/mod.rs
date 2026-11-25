@@ -18,6 +18,7 @@
 pub mod card;
 pub mod dialog;
 mod form;
+pub mod hover_card;
 pub mod issues;
 pub mod issues_list;
 mod item_row;

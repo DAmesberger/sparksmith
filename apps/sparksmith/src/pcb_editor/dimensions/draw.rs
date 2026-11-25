@@ -6,6 +6,7 @@
 use super::state::{
     self, Drawn, board_centre, height, label, part_held, to_vec, words_with_body, worse,
 };
+use crate::kit::hover_card::Content;
 use crate::pcb_editor::{PcbEditor, Tool};
 use egui::{FontId, Pos2, Rect, Shape, Stroke, Ui, vec2};
 use sparksmith_core::Project;
@@ -296,7 +297,7 @@ impl PcbEditor {
             else {
                 continue;
             };
-            if live {
+            if !armed && hover.is_some_and(|p| rect.contains(p)) {
                 // On hover: what it measures between, each by name with the
                 // body its face is on; a lost or inexact reference says why.
                 let mut why: Vec<String> = vec![format!(
@@ -328,12 +329,9 @@ impl PcbEditor {
                             .map(|f| f.message.clone()),
                     );
                 }
-                ui.interact(
-                    rect,
-                    egui::Id::unique(("pcb-dimension-why", d.id)),
-                    egui::Sense::hover(),
-                )
-                .on_hover_text(why.join("\n"));
+                let mut content = Content::new(text.clone(), Vec::new());
+                content.notes = why;
+                self.hover_card.dimension = Some((d.id, rect, content));
             }
             drawn.push(Drawn {
                 id: d.id,

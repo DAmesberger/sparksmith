@@ -154,6 +154,8 @@ pub struct Viewport {
     pivot: Option<Option<Vec3>>,
     /// Two-finger scrolling across frames.
     trackpad: crate::navigation::Trackpad,
+    /// The view has the keyboard focus.
+    focused: bool,
     /// What the left button's drag does, chosen when it was pressed.
     primary_nav: Option<NavMode>,
     /// The right button is past being a click and orbits.
@@ -300,6 +302,7 @@ impl Viewport {
             fit_pending: false,
             pivot: None,
             trackpad: Default::default(),
+            focused: false,
             primary_nav: None,
             right_drag: false,
             primary_drag: false,
@@ -747,6 +750,22 @@ impl Viewport {
     /// The model-space bounds of each selected object's shown bodies, in
     /// the order the model first names them: one pass over the geometry,
     /// with the selection looked up by hash.
+    /// The bounds of a shown item's bodies, in the model.
+    pub fn item_bounds(&self, item: u64) -> Option<([f64; 3], [f64; 3])> {
+        self.model
+            .as_ref()?
+            .geometry
+            .iter()
+            .filter(|g| g.item == Some(item) && self.layers.shows(g))
+            .map(|g| (g.min, g.max))
+            .reduce(|(lo, hi), (min, max)| {
+                (
+                    std::array::from_fn(|k| lo[k].min(min[k])),
+                    std::array::from_fn(|k| hi[k].max(max[k])),
+                )
+            })
+    }
+
     fn selected_boxes(&self) -> Vec<Aabb3> {
         let Some(model) = self.model.as_ref().filter(|_| !self.selected.is_empty()) else {
             return Vec::new();
@@ -1065,6 +1084,7 @@ impl Viewport {
         let (w, h) = (f64::from(rect.width()), f64::from(rect.height()));
         self.aspect = w / h;
         self.rect = Some(rect);
+        self.focused = response.has_focus();
         if self.fit_pending {
             self.fit_pending = false;
             self.fit_to(self.aspect);

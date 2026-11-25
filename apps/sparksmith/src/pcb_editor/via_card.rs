@@ -201,27 +201,6 @@ pub(super) fn fill_row(ui: &mut Ui, project: &Project, label: &str, fill: &mut V
     false
 }
 
-/// The via under the pointer: "Via on GND · through, filled and capped ·
-/// 0.15 / 0.25 mm".
-pub(super) fn hover_text(project: &Project, via: &Via) -> String {
-    let span = match via.span {
-        ViaSpan::Through => "through".to_owned(),
-        ViaSpan::Between { from, to } => format!("{} to {}", from.name(), to.name()),
-    };
-    let fill = if via.fill.is_none() {
-        String::new()
-    } else {
-        format!(", {}", via.fill.label().to_lowercase())
-    };
-    let mm = |v: f64| kit::number_text((v * 1000.0).round() / 1000.0);
-    format!(
-        "Via on {} · {span}{fill} · {} / {} mm",
-        project.net_name(via.net),
-        mm(via.drill),
-        mm(via.diameter)
-    )
-}
-
 /// The via footer: Delete via, disabled while the via is locked.
 pub(super) fn via_footer(ui: &mut Ui, via: &Via) -> Option<Operation> {
     let enabled = !via.locked;

@@ -108,6 +108,16 @@ Sections are listed in order. Every card ends with its issue slot.
 
 Elsewhere: SVG import and Arrange results become an error toast and a disabled reason. Library sources stays a `ui_kit::Window`. Recovery messages become Info toasts.
 
+## Hover card
+
+What the thing under the pointer is, in the canvas beside it, in Schematic, Layout and PCB 3D. Acting is in Properties: the card holds no control.
+
+- **One function** (`apps/sparksmith/src/about.rs`, `about`) says what an object is; `kit::hover_card` draws it and chooses where it goes. A part: designator with the fitted Part's number, else its value (`variants::fitted_value`), and the package; what it is in words (the component's description, else its name); value, manufacturer, height, side, locked, not placed, the assembly variant's state. A pad and its schematic pin say the same net, pin name and function, and which part they are on. A track: layer, width, class, locked. A via: span, drill, pad, fill, class, locked. A wire: its net, class and pins. A drawn dimension: what it measures between, and why a reference is lost. Nothing is said that the document does not state.
+- **What a click would pick** is what it is about: Layout asks `hit_at`, 3D the pick ray and the selection filter, Schematic its pins, symbols and wires in that order.
+- **Beside, never over** the thing or the pointer, in the part of the canvas no docked card covers, in points (the same size at every zoom), in the frame the thing is hovered. A thing that fills the view gets the corner farthest from the pointer.
+- **It stays away** while a tool is armed, a button is down, something is dragged or a menu is open, and closes on leaving. Esc closes it until something else is hovered; the key stays for its command. With the keyboard on the canvas and no pointer there, the selected object's card shows. It takes no focus; a screen reader gets one tooltip node with all of its text.
+- **Cost.** The object is looked for only when the pointer, the view or the document changed, and its text is made once per object and revision.
+
 ## Tool card
 
 The tool card replaces Properties while a tool other than Select is armed. Esc or Select restores Properties with the previous selection. The Issues bar stays.

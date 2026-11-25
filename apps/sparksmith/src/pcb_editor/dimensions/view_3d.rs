@@ -280,6 +280,7 @@ impl PcbEditor {
         self.sync(engine);
         let project = engine.project();
         let rect = scene.viewport.rect()?;
+        self.hover_card.card.begin(ui.ctx());
         self.dimension_frame_start(ui, engine);
         // Esc drops a Kelvin anchor pick first, through the 3D view's
         // pick-cancel key.
@@ -380,6 +381,9 @@ impl PcbEditor {
         });
         self.paint_datums(ui, &painter, &scene.viewport, engine, self.interface_shown);
         self.paint_dimensions(ui, &painter, &scene.viewport, project, true);
+        let at = pointer.filter(|_| !armed && !moving);
+        let room = crate::shell::canvas_clear(ui.ctx(), rect);
+        self.hover_card_3d(ui, scene, engine, at, (rect, room));
         let fields = self.dimension_fields(ui, engine);
         operation.or(fields)
     }
