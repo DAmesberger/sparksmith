@@ -310,11 +310,17 @@ impl Walk<'_> {
                     continue;
                 }
             };
+            // The variant it changes least against; of equals, the one in
+            // its own place, so a variant that changed is compared with
+            // itself, not with an earlier one it never was.
             let mut best: Option<(usize, Outcome)> = None;
             for j in candidates {
                 let Some(new) = news.get(j) else { continue };
                 let tried = self.compare(old, new, &here);
-                if best.as_ref().is_none_or(|(_, b)| tried.change < b.change) {
+                let better = best.as_ref().is_none_or(|(k, b)| {
+                    tried.change < b.change || (tried.change == b.change && j == i && *k != i)
+                });
+                if better {
                     best = Some((j, tried));
                 }
             }

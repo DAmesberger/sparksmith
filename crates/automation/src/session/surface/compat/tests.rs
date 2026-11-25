@@ -281,6 +281,44 @@ fn reply(schema: Value) -> Value {
     form(schema)
 }
 
+/// An untagged reply union whose second variant gains a tagged variant
+/// deep inside is a major change to that variant, and is told as one: of
+/// two variants that both change it a major way, it is compared with
+/// itself, not with the first (whose fields it never had, which read as
+/// "no longer returned").
+#[test]
+fn an_untagged_variant_that_changed_is_compared_with_itself() {
+    let union = |kinds: &[&str]| {
+        let refs: Vec<Value> = kinds
+            .iter()
+            .map(|k| {
+                json!({"type": "object", "properties": {"kind": {"const": k}},
+                    "required": ["kind"]})
+            })
+            .collect();
+        json!({"type": "array", "items": {"anyOf": [
+            {"type": "object", "properties": {"id": {"type": "integer"},
+                "name": {"type": "string"}}, "required": ["id", "name"]},
+            {"type": "object", "properties": {"check": {"type": "object",
+                "properties": {"objects": {"type": "array", "items": {"oneOf": refs}}},
+                "required": ["objects"]}},
+                "required": ["check"]}
+        ]}})
+    };
+    let old = reply(union(&["track", "via"]));
+    let new = reply(union(&["track", "via", "board_text"]));
+    let found = classify_reply(&old, &new);
+    assert_eq!(found.change, Change::Major, "{found:?}");
+    assert!(
+        found
+            .reasons
+            .iter()
+            .all(|r| r.contains("|1.check.objects[]|board_text: new reply variant")),
+        "{:?}",
+        found.reasons
+    );
+}
+
 fn classify_reply(old: &Value, new: &Value) -> Outcome {
     super::classify_reply(&old["schema"], &Defs::new(), &new["schema"], &Defs::new())
 }
