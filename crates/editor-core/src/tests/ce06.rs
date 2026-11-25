@@ -1393,7 +1393,9 @@ fn an_unrouted_exposed_pad_land_is_reported_although_its_terminal_is_one_net() -
     // Two lands joined: land 23 is still its own island, so the net is not
     // physically connected even though its schematic connection is complete.
     route(&mut engine, 21, 22)?;
-    assert_eq!(unrouted(&engine), [21, 22, 23]);
+    // The pads named are the ends of the one airwire left (22 to 23, the
+    // nearest pads of the two islands); land 21 is joined and not named.
+    assert_eq!(unrouted(&engine), [22, 23]);
     assert!(
         crate::layout::checks(engine.project(), engine.check_settings())
             .iter()
@@ -1410,7 +1412,7 @@ fn an_unrouted_exposed_pad_land_is_reported_although_its_terminal_is_one_net() -
     route(&mut engine, 22, 23)?;
     assert_eq!(unrouted(&engine), Vec::<u32>::new());
     engine.undo()?;
-    assert_eq!(unrouted(&engine), [21, 22, 23]);
+    assert_eq!(unrouted(&engine), [22, 23]);
     Ok(())
 }
 

@@ -834,3 +834,170 @@ fn a_component_gets_its_manufacturer_part_as_a_draft() -> Fallible<()> {
     assert!(engine.project().library.parts.iter().any(|p| p.id == part));
     Ok(())
 }
+
+/// A component whose symbol has no unit yet (Blank component, then Paste
+/// table…) gets the block symbol on import: a unit with a pin for every
+/// terminal, so the Symbol tab has something to draw on.
+#[test]
+fn an_import_into_a_draft_without_a_symbol_unit_draws_the_block_symbol() -> Fallible<()> {
+    let mut engine = Engine::default();
+    let document = exl48()?;
+    let applied = import_new(&mut engine, &document)?;
+    let id = *applied.drafts.first().ok_or("no component")?;
+    let symbol_id = component(&engine, id)?
+        .representations
+        .first()
+        .map(|r| r.id)
+        .ok_or("no symbol")?;
+    let draft = engine
+        .drafts()
+        .get(symbol_id)
+        .ok_or("symbol draft")?
+        .clone();
+    let Definition::Symbol(mut empty) = draft.definition.clone() else {
+        return Err("not a symbol".into());
+    };
+    empty.units.clear();
+    engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::Edit {
+            edits: vec![DraftEdit {
+                id: symbol_id,
+                meta: draft.meta,
+                definition: Definition::Symbol(empty),
+            }],
+        }),
+    )?;
+    let target = PinoutTarget::Draft { id };
+    let plan = preview(&engine, &target, &document)?;
+    apply(
+        &mut engine,
+        &target,
+        &document,
+        plan.base,
+        PinoutAccept::All,
+    )?;
+    let Some(Definition::Symbol(symbol)) = engine.drafts().get(symbol_id).map(|d| &d.definition)
+    else {
+        return Err("no symbol draft".into());
+    };
+    let terminals = component(&engine, id)?.terminals;
+    let unit = symbol.units.first().ok_or("still no unit")?;
+    assert_eq!(unit.pins.len(), terminals.len());
+    assert!(terminals.iter().all(|t| unit.pin(t.id).is_some()));
+    Ok(())
+}
+
+/// GUI run 3 (C6): a Blank component's working set has a package with no
+/// terminals and a binding that maps nothing. Paste table… then numbers
+/// the package from the rows and maps each number to its row's terminal,
+/// as a new import does, so a generator's package (`terminals matched by
+/// number`) lands every terminal. Names are never matched.
+#[test]
+fn an_import_into_an_empty_working_set_numbers_its_package() -> Fallible<()> {
+    use crate::library::{BindingDefinition, PackageDefinition};
+    let mut engine = Engine::default();
+    let document = exl48()?;
+    let applied = import_new(&mut engine, &document)?;
+    let id = *applied.drafts.first().ok_or("no component")?;
+    let first = component(&engine, id)?;
+    let binding_id = first
+        .implementations
+        .first()
+        .map(|b| b.id)
+        .ok_or("binding")?;
+    let binding_draft = engine
+        .drafts()
+        .get(binding_id)
+        .ok_or("binding draft")?
+        .clone();
+    let Definition::Binding(binding) = binding_draft.definition.clone() else {
+        return Err("not a binding".into());
+    };
+    let package_id = binding.package.id;
+    let package_draft = engine
+        .drafts()
+        .get(package_id)
+        .ok_or("package draft")?
+        .clone();
+    let Definition::Package(package) = package_draft.definition.clone() else {
+        return Err("not a package".into());
+    };
+    // Empty them, as Blank component leaves them.
+    engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::Edit {
+            edits: vec![
+                DraftEdit {
+                    id: binding_id,
+                    meta: binding_draft.meta,
+                    definition: Definition::Binding(BindingDefinition {
+                        mappings: Vec::new(),
+                        ..binding
+                    }),
+                },
+                DraftEdit {
+                    id: package_id,
+                    meta: package_draft.meta,
+                    definition: Definition::Package(PackageDefinition {
+                        terminals: Vec::new(),
+                        ..package
+                    }),
+                },
+            ],
+        }),
+    )?;
+    // A pasted table names one package, as the Pins tab's does.
+    let mut document = document;
+    document.variants.retain(|v| v.name == "QFN-48");
+    for pin in &mut document.pins {
+        pin.number.retain(|variant, _| variant == "QFN-48");
+    }
+    let target = PinoutTarget::Draft { id };
+    let plan = preview(&engine, &target, &document)?;
+    apply(
+        &mut engine,
+        &target,
+        &document,
+        plan.base,
+        PinoutAccept::All,
+    )?;
+    let Some(Definition::Package(numbered)) =
+        engine.drafts().get(package_id).map(|d| &d.definition)
+    else {
+        return Err("no package".into());
+    };
+    let Some(Definition::Binding(mapped)) = engine.drafts().get(binding_id).map(|d| &d.definition)
+    else {
+        return Err("no binding".into());
+    };
+    let variant = &document.variants.first().ok_or("variant")?.name;
+    let after = component(&engine, id)?;
+    // Every number of every row is a package terminal mapped to a
+    // terminal of that row's name (the fixture has several VDD rows, each
+    // its own terminal), and no terminal is mapped twice by one number.
+    for pin in &document.pins {
+        let Some(numbers) = pin.number.get(variant) else {
+            continue;
+        };
+        for number in numbers.iter() {
+            let physical = numbered
+                .terminals
+                .iter()
+                .find(|t| &t.designation == number)
+                .ok_or_else(|| format!("no package terminal {number}"))?;
+            let maps: Vec<_> = mapped
+                .mappings
+                .iter()
+                .filter(|m| m.package_terminal == physical.id)
+                .collect();
+            assert_eq!(maps.len(), 1, "{number}");
+            let name = maps
+                .first()
+                .and_then(|m| after.terminal(m.terminal))
+                .map(|t| t.name.as_str());
+            assert_eq!(name, Some(pin.name.as_str()), "{number}");
+        }
+    }
+    Ok(())
+}

@@ -199,9 +199,11 @@ pub(super) fn title(names: &Names<'_>, findings: &[&Finding]) -> String {
         "board.unrouted" => {
             let nets = names_of(names, findings, |o| matches!(o, ObjectRef::Net { .. }));
             let pads = names_of(names, findings, is_pad);
-            match pads.as_slice() {
-                [pad] => format!("{}: {pad} is unrouted", list(&nets)),
-                _ => format!("{}: {} pads unrouted", list(&nets), pads.len()),
+            // One finding per pad: pads may share a name (the shield pads
+            // of a USB receptacle are all "S"), so count the findings.
+            match (pads.as_slice(), findings.len()) {
+                ([pad], 1) => format!("{}: {pad} is unrouted", list(&nets)),
+                (_, n) => format!("{}: {n} pads unrouted", list(&nets)),
             }
         }
         "board.unplaced" => format!("{} not placed", list(&names_of(names, findings, |_| true))),

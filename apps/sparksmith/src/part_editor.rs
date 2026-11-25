@@ -467,6 +467,19 @@ impl PartEditor {
             self.fit_on_build = false;
             self.footprint_view = None;
         }
+        // Lands that arrive at once (a generator's package, a pad table, a
+        // sketch replaced by explicit pads) are shown whole: the view fitted to the empty footprint would
+        // show a corner of them, or only the designator text (run 3, C7).
+        let lands = |s: &Option<WorkingSet>| {
+            s.as_ref()
+                .map(|s| (s.footprint.pads.is_empty(), s.footprint.source.is_some()))
+        };
+        if let (Some((was_empty, was_from)), Some((false, from))) =
+            (lands(&self.draft), lands(&set))
+            && (was_empty || was_from != from)
+        {
+            self.footprint_view = None;
+        }
         self.baseline = set.clone();
         self.draft = set;
         self.source = Some(current);
@@ -3142,6 +3155,124 @@ mod draft_tests {
         engine.undo()?;
         assert!(engine.drafts().items.is_empty(), "one undo step");
         assert!(!engine.can_undo());
+        Ok(())
+    }
+
+    /// GUI run 3, C9 and C6: Blank component, then Paste table… with pin
+    /// numbers. The symbol gets a unit with a pin per terminal (its canvas
+    /// had nothing to draw on), and the package is numbered from the table
+    /// with each number mapped to its row's terminal, so a generator's
+    /// package lands every terminal by number. C7: when the lands then
+    /// arrive at once, the footprint view fits them again.
+    #[test]
+    fn a_pasted_table_gives_a_blank_component_its_symbol_and_numbers()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use super::pins_table::{self, ColumnMap, Delimiter, Mapping};
+        use sparksmith_core::library::pinout::{PinoutAccept, PinoutApply, PinoutTarget};
+        use sparksmith_core::library::{Definition, DraftEdit, Pad};
+        let ctx = egui::Context::default();
+        let mut engine = Engine::default();
+        let mut editor = PartEditor::default();
+        let component = create_blank(&mut engine)?;
+        editor.open(component, &engine);
+        assert!(editor.commit(&ctx, &engine).is_none());
+        let rows = pins_table::split_table(
+            "Pin,Name,Type\n1,VDD,power\n2,PA0,io\n3,PA1,io\n4,VSS,power\n",
+            Delimiter::Auto,
+        )?;
+        let mapping = Mapping {
+            columns: vec![ColumnMap::Number, ColumnMap::Name, ColumnMap::Type],
+            source_title: "Datasheet".into(),
+            ..Mapping::default()
+        };
+        let (document, _) = pins_table::document(&rows, &mapping, "SNS4", "package");
+        let document = document.ok_or("no document")?;
+        let target = PinoutTarget::Draft { id: component };
+        let QueryResult::PinoutPlan(plan) = engine.query(Query::PinoutPreview {
+            target: target.clone(),
+            document: Box::new(document.clone()),
+            detail: false,
+        })?
+        else {
+            return Err("no plan".into());
+        };
+        engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::PinoutApply(Box::new(PinoutApply {
+                target,
+                document,
+                base: plan.base,
+                accept: PinoutAccept::All,
+            }))),
+        )?;
+        let set = WorkingSet::of(engine.drafts(), component).ok_or("no working set")?;
+        assert_eq!(set.component.terminals.len(), 4);
+        let unit = set.symbol.units.first().ok_or("the symbol has no unit")?;
+        assert!(
+            set.component
+                .terminals
+                .iter()
+                .all(|t| unit.pin(t.id).is_some())
+        );
+        for (number, name) in [("1", "VDD"), ("2", "PA0"), ("3", "PA1"), ("4", "VSS")] {
+            let physical = set
+                .package
+                .terminals
+                .iter()
+                .find(|t| t.designation == number)
+                .ok_or_else(|| format!("no package terminal {number}"))?;
+            let terminal = set.binding.terminal_of(physical.id);
+            let named = terminal
+                .and_then(|t| set.component.terminal(t))
+                .map(|t| t.name.as_str());
+            assert_eq!(named, Some(name), "pad {number}");
+        }
+        // The view fitted to the empty footprint is fitted again when the
+        // lands arrive at once.
+        editor.sync(&engine);
+        editor.footprint_view = Some(symbol_canvas::ViewState {
+            pan: egui::Vec2::ZERO,
+            scale: 400.0,
+        });
+        let draft = engine
+            .drafts()
+            .get(set.ids.footprint)
+            .ok_or("footprint")?
+            .clone();
+        let Definition::Footprint(mut body) = draft.definition else {
+            return Err("not a footprint".into());
+        };
+        body.source = None;
+        body.pads = set
+            .package
+            .terminals
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                Pad::smd_rect_mm(
+                    PadId(i as u32 + 1),
+                    t.id,
+                    t.designation.clone(),
+                    [i as f64 * 0.65, 0.0],
+                    [0.4, 1.5],
+                )
+            })
+            .collect::<Result<_, _>>()?;
+        engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::Edit {
+                edits: vec![DraftEdit {
+                    id: set.ids.footprint,
+                    meta: draft.meta,
+                    definition: Definition::Footprint(body),
+                }],
+            }),
+        )?;
+        editor.sync(&engine);
+        assert!(
+            editor.footprint_view.is_none(),
+            "the view fits the new lands"
+        );
         Ok(())
     }
 
