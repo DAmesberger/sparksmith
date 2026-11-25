@@ -741,6 +741,43 @@ fn a_write_protected_file_is_replaced_only_when_the_person_says_so() -> Fallible
     Ok(())
 }
 
+/// A PDF over a write-protected file is not written: Cancel leaves it, and
+/// Replace writes it, still write-protected.
+#[test]
+fn a_write_protected_pdf_is_replaced_only_when_the_person_says_so() -> Fallible {
+    let mut h = Harness::new()?;
+    let path = h.dir.path().join("schematic.pdf");
+    std::fs::write(&path, b"theirs")?;
+    let writable = std::fs::metadata(&path)?.permissions();
+    let mut protected = writable.clone();
+    protected.set_readonly(true);
+    std::fs::set_permissions(&path, protected.clone())?;
+    for choice in ["Cancel", "Replace"] {
+        let ticket = h
+            .files
+            .begin(Kind::SchematicPdf, None)
+            .ok_or("no export started")?;
+        let picked = Event::Picked(ticket, Kind::SchematicPdf, Some(path.clone()));
+        h.files.event_sender.send(picked)?;
+        h.until("the refusal", |h| h.files.not_saved.is_some())?;
+        assert_eq!(std::fs::read(&path)?, b"theirs");
+        let painted = h.shown();
+        assert!(
+            painted
+                .iter()
+                .any(|(text, _)| text == "The PDF was not written"),
+            "{painted:?}"
+        );
+        h.click(choice)?;
+        h.until("the answer", |h| !h.files.busy())?;
+        assert!(h.files.not_saved.is_none());
+    }
+    assert!(std::fs::read(&path)?.starts_with(b"%PDF-"));
+    assert_eq!(std::fs::metadata(&path)?.permissions(), protected);
+    std::fs::set_permissions(&path, writable)?;
+    Ok(())
+}
+
 /// GUI run 1, F20, and run 2, R2-G1: a name typed with its extension over a
 /// save panel's proposal has it once; a file that exists is never taken
 /// for the one the panel asked about.

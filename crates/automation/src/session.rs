@@ -156,6 +156,9 @@ pub struct SchematicPdfParams {
     /// Sheets to print, in page order; every sheet when empty.
     #[serde(default)]
     pub sheets: Vec<sparksmith_core::SheetId>,
+    /// Replace a write-protected file, when the person said so (they are asked).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub replace_write_protected: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
@@ -656,6 +659,16 @@ declare_requests! {
 }
 
 impl Request {
+    /// Whether it replaces write-protected files, which a person decides.
+    pub(crate) fn replaces_protected(&self) -> bool {
+        match self {
+            Self::Save(params) => params.replace_write_protected,
+            Self::SchematicPdf(params) => params.replace_write_protected,
+            Self::InterfacePublish(params) => params.replace_write_protected,
+            _ => false,
+        }
+    }
+
     /// The class the gate acts on: the one listed, or the operation's or
     /// query's for those two requests, and at least Ask once a path is named.
     pub fn effective_class(&self) -> Class {
@@ -1696,11 +1709,7 @@ impl Session {
                     expected,
                     "",
                     self.unsaved.as_ref(),
-                    if params.replace_write_protected {
-                        sparksmith_io::WriteProtected::Replace
-                    } else {
-                        sparksmith_io::WriteProtected::Refuse
-                    },
+                    sparksmith_io::WriteProtected::told(params.replace_write_protected),
                 ) {
                     Ok(saved) => saved,
                     Err(sparksmith_io::Error::InUse(in_use)) => {
@@ -1891,6 +1900,7 @@ impl Session {
                     self.engine.project(),
                     &params.sheets,
                     Path::new(&params.path),
+                    sparksmith_io::WriteProtected::told(params.replace_write_protected),
                 )?;
                 return Ok(json!({
                     "revision": self.engine.revision(),

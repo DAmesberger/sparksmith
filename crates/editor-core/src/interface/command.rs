@@ -140,4 +140,7 @@ pub struct PublishParams {
     /// `project.export_native`'s `write_anyway` does; refused otherwise.
     #[serde(default)]
     pub write_anyway: bool,
+    /// Replace write-protected files, when the person said so (they are asked).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub replace_write_protected: bool,
 }
