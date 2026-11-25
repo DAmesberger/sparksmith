@@ -534,7 +534,6 @@ fn the_palette_ranks_commands_as_the_help_search_does() -> Result<(), Box<dyn st
         ("route", "pcb.route"),
         ("pour", "pcb.fill"),
         ("save as", "file.save-as"),
-        ("import a kicad board", "file.import-kicad"),
         ("kbdshrt", "app.shortcuts"),
     ] {
         let hits = ranked(q, Context::PcbLayout);

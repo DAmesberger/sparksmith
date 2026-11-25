@@ -8,8 +8,7 @@
 //! the delegate's class when the app is about to finish launching: after winit set the delegate and
 //! before AppKit delivers the files the app was launched with. The handler queues the paths and
 //! wakes the UI, which takes them with [`take`] whenever the file workflow is idle and opens them
-//! like a file named on the command line, so unsaved work is asked about first. A KiCad project
-//! or board file (`.kicad_pro`, `.kicad_pcb`) starts File › Import KiCad project… with it.
+//! like a file named on the command line, so unsaved work is asked about first.
 //!
 //! Adding a method to another crate's Objective-C class has no safe API, hence this module's
 //! `unsafe_code` allowance (winit overrides `sendEvent:` on `NSApplication` similarly). Only the
@@ -53,23 +52,18 @@ pub fn is_project(path: &Path) -> bool {
     sparksmith_core::format::is_project_path(path)
 }
 
-/// Whether `path` names a file Sparksmith opens: a project, or a KiCad project or board it
-/// imports.
+/// Whether `path` names a file Sparksmith opens: a project.
 pub fn is_openable(path: &Path) -> bool {
-    is_project(path) || sparksmith_automation::kicad_import::is_kicad_file(path)
+    is_project(path)
 }
 
-/// The file workflow's request for an openable `path`: open a project, import a KiCad file.
+/// The file workflow's request for an openable `path`.
 pub fn action(path: PathBuf) -> crate::file_ui::Action {
-    if is_project(&path) {
-        crate::file_ui::Action::OpenPath(path)
-    } else {
-        crate::file_ui::Action::ImportKicadPath(path)
-    }
+    crate::file_ui::Action::OpenPath(path)
 }
 
 /// What a batch of arrived files asks for. Sparksmith holds one project, so of several projects
-/// (or KiCad files) the last one opens; the others, and files it can't open, are reported.
+/// the last one opens; the others, and files it can't open, are reported.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Arrivals {
     pub open: Option<PathBuf>,
@@ -222,17 +216,9 @@ mod tests {
         // Another extension is skipped.
         let other = sort(vec![PathBuf::from("/a/old.pcbcraft")]);
         assert_eq!(other.open, None);
-        // A KiCad project or board is opened (imported), not skipped.
-        let kicad = sort(vec![
-            PathBuf::from("/a/board.kicad_sch"),
-            PathBuf::from("/a/board.kicad_pro"),
-        ]);
-        assert_eq!(kicad.open, Some(PathBuf::from("/a/board.kicad_pro")));
-        assert_eq!(kicad.skipped, [PathBuf::from("/a/board.kicad_sch")]);
-        assert!(matches!(
-            action(PathBuf::from("/a/b.KICAD_PCB")),
-            crate::file_ui::Action::ImportKicadPath(_)
-        ));
+        // A KiCad project or board is not opened: it is skipped.
+        let kicad = sort(vec![PathBuf::from("/a/board.kicad_pro")]);
+        assert_eq!(kicad.open, None);
         assert!(matches!(
             action(PathBuf::from("/a/b.sparksmith")),
             crate::file_ui::Action::OpenPath(_)

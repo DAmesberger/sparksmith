@@ -391,29 +391,6 @@
     ]
   },
   {
-    "id": "command/file.import-kicad",
-    "title": "Import KiCad project…",
-    "summary": "Import KiCad project from any workspace.",
-    "since": "0.1.0",
-    "facts": {
-      "kind": "command",
-      "context": "Everywhere",
-      "default_key": null,
-      "reaches": "panel/files"
-    },
-    "keywords": [
-      "kicad",
-      "import",
-      "convert",
-      "board",
-      "pcb",
-      "schematic",
-      "project",
-      "kicad_pro",
-      "kicad_pcb"
-    ]
-  },
-  {
     "id": "command/file.new",
     "title": "New project",
     "summary": "Start a new empty project at expected_revision with its board's fab profile, clearing history.",
@@ -5009,28 +4986,6 @@
       "view",
       "cube",
       "3d"
-    ]
-  },
-  {
-    "id": "command/view.import-report",
-    "title": "KiCad import report",
-    "summary": "KiCad import report from any workspace.",
-    "since": "0.1.0",
-    "facts": {
-      "kind": "command",
-      "context": "Everywhere",
-      "default_key": null,
-      "reaches": "panel/files"
-    },
-    "keywords": [
-      "kicad",
-      "import",
-      "report",
-      "rules",
-      "refused",
-      "tracks",
-      "looser",
-      "counts"
     ]
   },
   {

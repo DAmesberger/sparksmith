@@ -87,7 +87,7 @@ Driven by hand means a test agent using the window as a designer would, not a ma
 - A via left on one pour only, after a pour is edited, is not reported.
 - Dragging one corner of a track is not built, and neither are buses in the schematic.
 - Lengths are in millimetres. There is no setting for units or language.
-- No ODB++, IPC-2581 or panels. KiCad import lists in its report what it left out or approximated.
+- No ODB++, IPC-2581 or panels. No KiCad import.
 - Windows, exFAT drives, network shares, OneDrive folders and other desktops or graphics cards on Linux have not been tried by hand.
 - On macOS, quitting from the Dock ends the app without asking about unsaved work; the recovery snapshot has it.
 - There is no installer: you build it from source.

@@ -54,7 +54,7 @@ pub(super) const UNNAMED: &str = "Save or name the project first: the files take
 
 /// The production files' base name: the options' own, else the project's.
 /// An Untitled project takes the name its first save gives it: its own
-/// file's (one saved as Untitled), else the KiCad or recovery file it came
+/// file's (one saved as Untitled), else the recovery file it came
 /// from. A new project neither saved nor named has none (`None`): Export
 /// waits for a name rather than writing "Untitled" files.
 pub(super) fn files_stem(

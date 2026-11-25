@@ -239,11 +239,6 @@ impl App {
                         if let Some(wake) = wake {
                             ctx.request_repaint_after(wake);
                         }
-                        if self.files.import_stoppable()
-                            && ui_kit::button(ui, "Stop", Button::Enabled(true)).clicked()
-                        {
-                            self.files.stop_import();
-                        }
                     }
                     if let Some(work) = self.stoppable() {
                         kit::status_chip(ui, None, work);
