@@ -435,12 +435,21 @@ An **entry** is one immutable, versioned unit: `publisher/name@version` (version
 | `level` | Completeness (symbol, footprint, 3D, MPN, reviewed) |
 | `digest`, `signatures` | SHA-256 of the canonical manifest; the publisher's signature over it; the registry's countersignature |
 
-### 6.2 Index and search API (shape)
+### 6.2 Index and search API
 
-- `GET /v1/index` → the current index snapshot id and its shard list; shards are content-addressed, so a client fetches only what changed.
-- `GET /v1/search?q=&cat=&style=&pins=&pitch=&body=&field…&page=` → rows in the `SourceCatalog` entry shape (identity, facets, level, digest), plus facet counts. The query terms are the same as §1.3's, so the client sends its own query unchanged.
-- `GET /v1/entries/{publisher}/{name}/{version}` → the manifest. `GET /v1/blobs/{sha256}` → content, immutable and cacheable.
-- Search and fetch are read-only and anonymous. Publisher accounts, upload and moderation are designed in R0.
+Built (registry R0); the routes, documents, bounds and hashes are the [parts contract](../parts-contract.md)'s:
+
+- `GET /v1/index` → the current snapshot id and its shard list, one shard per library; shards are named by the SHA-256 of their bytes, so a client fetches only what changed.
+- `GET /v1/shards/{sha256}` → one library's `SourceCatalog`, with the registry's id and review word for each root.
+- `GET /v1/search?q=&limit=&offset=` → one page of ranked rows (the core's `Hit`, with the entry's id and review word), the parsed terms and the total. `q` is the person's query unchanged: the registry runs the same parser and index as §1.3's.
+- `GET /v1/bundles/{lineage}/{revision}` → a root revision and its closure, every record checked against the content hash its shard lists.
+- The index, shards and search need no account; a bundle download needs a free one (device sign-in: `POST /v1/device/code`, `POST /v1/device/token`, `GET /v1/account`, `DELETE /v1/auth/token`).
+
+#### Planned, not built
+
+- Search parameters for facets (`cat`, `style`, `pins`, `pitch`, `body`, fields) and facet counts in the reply.
+- `GET /v1/entries/{publisher}/{name}/{version}` → the manifest of §6.1, and content blobs by SHA-256, immutable and cacheable.
+- Publisher accounts, upload and moderation, designed in R0.
 
 ### 6.3 Trust
 
@@ -450,7 +459,7 @@ An **entry** is one immutable, versioned unit: `publisher/name@version` (version
 
 ### 6.4 Offline cache
 
-- `<cache>/registry/origins/<origin-digest>/` holds index shards and blobs by digest. Search works offline on the last snapshot and says its date ("index of 14 November").
+- `<cache>/registry/origins/<origin-digest>/` holds the index, its shards by hash, and the records and assets of every fetched bundle by content hash. Search works offline on the last snapshot and says its date ("index of 14 November").
 - The cache is never authoritative and never part of a project: placing **imports** an exact snapshot into the project (as `library.place_from` does today), so the project opens identically without the network.
 
 ### 6.5 Import preview
