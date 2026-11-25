@@ -415,6 +415,12 @@ impl PcbEditor {
                 && !locked
             {
                 refusal::name_action(ui.ctx(), format!("rotate {designator}"));
+                // A refusal (its dimensions hold it) stays under Rotation
+                // until the turn is tried again or the part changes.
+                refusal::mark(ui.ctx(), Origin::Field(Field::Rotation.id()));
+                let shown = [self.rotation, 0.0];
+                self.sent.insert(Field::Rotation, shown);
+                self.tried = Some((Field::Rotation, format!("rotate {designator}")));
                 action = Some(LayoutCommand::Move {
                     instance: placement.instance,
                     position: placement.position,
@@ -429,6 +435,8 @@ impl PcbEditor {
                 && !locked
             {
                 refusal::name_action(ui.ctx(), format!("flip {designator}"));
+                refusal::mark(ui.ctx(), Origin::Field(Field::Side.id()));
+                self.tried = Some((Field::Side, format!("flip {designator}")));
                 action = Some(LayoutCommand::Move {
                     instance: placement.instance,
                     position: placement.position,
