@@ -164,3 +164,41 @@ fn the_text_is_read_as_before_and_a_size_without_a_preset_is_refused() -> TestRe
     }
     Ok(())
 }
+
+/// Run 3, A2 and A3, over the shipped library: a word matches where a word
+/// starts, so "fuse" finds no part by its maker's name (the library has no
+/// fuse, so nothing at all); "button" also means "tactile" (the search
+/// vocabulary: "tactile") and finds the tactile switches, not the reed switch; "sma" finds the SMA diode
+/// outline.
+#[test]
+fn search_words_match_word_starts_and_the_vocabulary() -> TestResult {
+    let session = session()?;
+    let descriptions: Vec<_> = session
+        .generators_report()?
+        .shipped
+        .iter()
+        .filter_map(|s| s.description.as_ref().map(|d| d.description()))
+        .collect();
+    let _context = session.engine().enter_context();
+    let document = session.engine().document();
+    let names = |text: &str| -> Vec<String> {
+        find_presets(document, text, &descriptions, 50)
+            .0
+            .into_iter()
+            .map(|h| h.name)
+            .collect()
+    };
+    let fuse = names("fuse");
+    assert!(!fuse.iter().any(|n| n.contains("Littelfuse")), "{fuse:?}");
+    assert!(
+        names("mdsm").iter().any(|n| n.contains("MDSM")),
+        "the maker's part is found by its own name"
+    );
+    let button = names("button");
+    assert!(
+        !button.is_empty() && !button.iter().any(|n| n.contains("MDSM")),
+        "{button:?}"
+    );
+    assert!(names("sma").iter().any(|n| n.contains("SMA")));
+    Ok(())
+}

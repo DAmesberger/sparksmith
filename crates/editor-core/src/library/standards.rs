@@ -531,6 +531,14 @@ pub struct ValueSlot {
     pub bare: Vec<String>,
 }
 
+/// A word of a search and the words it also means ("button": "tactile").
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Synonym {
+    pub word: String,
+    pub means: Vec<String>,
+}
+
 /// A unit a length slot reads, with its scale to metres.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -550,6 +558,10 @@ pub struct GenericGrammar {
     pub about: String,
     pub families: Vec<FamilyPatterns>,
     pub value_slots: Vec<ValueSlot>,
+    /// Words people search with that also mean other words
+    /// (`catalog::words`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub synonyms: Vec<Synonym>,
     /// The standard field whose choices a `{colour:list}` slot reads.
     pub colour_field: String,
     pub length_units: Vec<LengthUnit>,
@@ -601,6 +613,18 @@ impl GenericGrammar {
                     "a generic family's presets, params and slots are bounded, and its body names two parameters or none".into(),
                 ));
             }
+        }
+        if self.synonyms.len() > MAX_GRAMMAR_ITEMS
+            || self.synonyms.iter().any(|s| {
+                s.word.trim().is_empty()
+                    || s.means.is_empty()
+                    || s.means.len() > MAX_GRAMMAR_ITEMS
+                    || s.means.iter().any(|m| m.trim().is_empty())
+            })
+        {
+            return Err(Error::Invalid(
+                "the generic-part grammar's synonyms need a word and the words it means".into(),
+            ));
         }
         if !self.metric_alias.contains("{code}") {
             return Err(Error::Invalid(
