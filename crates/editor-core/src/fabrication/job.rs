@@ -127,8 +127,12 @@ pub fn file(
                 "Material": "FR4",
                 "Thickness": mm(d.thickness_mm),
             });
-            if let (Some(glass), Some(row)) = (d.glass.designation(), row.as_object_mut()) {
-                row.insert("Notes".into(), json!(format!("{glass} glass")));
+            // The glass, and the fabricator's stackup the layer is of.
+            let glass = d.glass.designation().map(|g| format!("{g} glass"));
+            let picked = stackup.picked().map(|p| format!("stackup {}", p.name));
+            let notes: Vec<String> = glass.into_iter().chain(picked).collect();
+            if let (false, Some(row)) = (notes.is_empty(), row.as_object_mut()) {
+                row.insert("Notes".into(), json!(notes.join(", ")));
             }
             materials.push(row);
         }

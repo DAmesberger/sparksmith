@@ -178,19 +178,62 @@ impl GlassStyle {
     }
 }
 
+/// One sheet of a dielectric made of several, as its fabricator lists it.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DielectricSheet {
+    pub material: String,
+    /// As pressed.
+    pub thickness_nm: Nm,
+    pub dk: f64,
+}
+
 /// One dielectric between two consecutive copper foils.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Dielectric {
     pub kind: DielectricKind,
     pub thickness_mm: f64,
     pub glass: GlassStyle,
-    /// Relative permittivity (Dk) the fabricator quotes for this layer.
-    /// When absent, [`Stackup::permittivity`] estimates it from the glass
-    /// style.
+    /// Relative permittivity (Dk) of this layer: the one the fabricator
+    /// quotes, or calculated from `sheets`. When absent,
+    /// [`Stackup::permittivity`] estimates it from the glass style.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dk: Option<f64>,
+    /// The sheets `dk` is calculated from, when they have several Dk. An
+    /// edit they no longer give drops them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sheets: Vec<DielectricSheet>,
 }
+
+/// The Dk of a path through dielectrics of several, each a thickness (mm)
+/// and its Dk: averaged by thickness. The one rule for the sheets of a
+/// dielectric and for the dielectrics between a trace and its plane
+/// (`layout::impedance`). `None` without a thickness or with a part that
+/// has no Dk.
+pub fn weighted_dk(parts: impl IntoIterator<Item = (f64, Option<f64>)>) -> Option<f64> {
+    let (mut thick, mut weighted) = (0.0, 0.0);
+    for (mm, dk) in parts {
+        thick += mm;
+        weighted += mm * dk?;
+    }
+    (thick > 0.0).then(|| weighted / thick)
+}
+
+/// The Dk a dielectric of `sheets` takes: [`weighted_dk`] to four decimals.
+pub fn sheets_dk(sheets: &[DielectricSheet]) -> Option<f64> {
+    weighted_dk(
+        sheets
+            .iter()
+            .map(|s| (s.thickness_nm.to_mm_f64(), Some(s.dk))),
+    )
+    .map(|dk| (dk * 1e4).round() / 1e4)
+}
+
+/// Sheets one dielectric names, at most.
+pub const MAX_SHEETS: usize = 64;
+/// Values this near (mm, or Dk) are the same.
+const SAME: f64 = 1e-6;
 
 /// The Dk values [`Dielectric::dk`] accepts.
 pub const DK_RANGE: std::ops::RangeInclusive<f64> = 1.0..=20.0;
@@ -200,6 +243,57 @@ impl Dielectric {
     pub fn permittivity_estimated(&self) -> bool {
         self.dk.is_none()
     }
+
+    /// The sheets the Dk is calculated from; none when it was entered, and
+    /// none once the sheets no longer give this thickness and Dk.
+    pub fn calculated_from(&self) -> Option<&[DielectricSheet]> {
+        let mm: f64 = self.sheets.iter().map(|s| s.thickness_nm.to_mm_f64()).sum();
+        let gives = sheets_dk(&self.sheets)
+            .zip(self.dk)
+            .is_some_and(|(sheets, dk)| (sheets - dk).abs() < SAME);
+        (gives && (mm - self.thickness_mm).abs() < SAME).then_some(self.sheets.as_slice())
+    }
+
+    /// "Calculated by thickness from 0.1 mm 2116 of Dk 3.9 and 0.2 mm 7628
+    /// of Dk 4.2", when it is.
+    pub fn calculated_text(&self) -> Option<String> {
+        let sheets: Vec<String> = self
+            .calculated_from()?
+            .iter()
+            .map(|s| {
+                let mm = s.thickness_nm.to_mm_f64();
+                format!("{mm} mm {} of Dk {}", s.material, s.dk)
+            })
+            .collect();
+        Some(format!(
+            "Calculated by thickness from {}",
+            sheets.join(" and ")
+        ))
+    }
+
+    /// The same material, thickness, glass and Dk.
+    fn same_layer(&self, other: &Self) -> bool {
+        let dk = match (self.dk, other.dk) {
+            (Some(a), Some(b)) => (a - b).abs() < SAME,
+            (a, b) => a == b,
+        };
+        dk && self.kind == other.kind
+            && self.glass == other.glass
+            && (self.thickness_mm - other.thickness_mm).abs() < SAME
+    }
+}
+
+/// The fabricator's stackup a board's layers were picked from. It names
+/// them only while they are the ones picked: [`Stackup::picked`].
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PickedStackup {
+    /// The id `layout.stackups` lists it by.
+    pub id: String,
+    /// The fabricator's own name for it.
+    pub name: String,
+    /// The layers it was picked with ([`Stackup::layers_digest`]).
+    pub layers: String,
 }
 
 /// A value carried with the document for computation but not part of it:
@@ -284,6 +378,11 @@ pub struct Stackup {
     #[serde(skip)]
     #[schemars(skip)]
     pub dk_estimates: Unsaved<GlassDk>,
+    /// The fabricator's stackup these layers were picked from
+    /// (`layout.use_stackup`). Any edit of a layer drops it; read it through
+    /// [`Stackup::picked`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picked: Option<PickedStackup>,
 }
 
 /// The glass a preset dielectric gets: the first step whose `from_mm` its
@@ -389,6 +488,7 @@ impl StackupPresets {
             thickness_mm: layer.thickness_mm,
             glass: layer.glass,
             dk: None,
+            sheets: Vec::new(),
         }
     }
 
@@ -434,6 +534,7 @@ impl StackupPresets {
                 thickness_mm: core_mm,
                 glass: Self::glass(&self.core_glass, core_mm)?,
                 dk: None,
+                sheets: Vec::new(),
             }]
         } else {
             let prepregs = count / 2;
@@ -450,15 +551,18 @@ impl StackupPresets {
                 thickness_mm: prepreg_mm,
                 glass: Self::glass(&self.prepreg_glass, prepreg_mm)?,
                 dk: None,
+                sheets: Vec::new(),
             };
             let core = Dielectric {
                 kind: DielectricKind::Core,
                 thickness_mm: core_mm,
                 glass: Self::glass(&self.core_glass, core_mm)?,
                 dk: None,
+                sheets: Vec::new(),
             };
             (0..count - 1)
-                .map(|i| if i % 2 == 0 { prepreg } else { core })
+                .map(|i| if i % 2 == 0 { &prepreg } else { &core })
+                .cloned()
                 .collect()
         };
         let stackup = Stackup {
@@ -472,6 +576,7 @@ impl StackupPresets {
             silkscreen_top: true,
             silkscreen_bottom: true,
             dk_estimates: Unsaved(self.glass_dk.clone()),
+            picked: None,
         };
         stackup.check()?;
         Ok(stackup)
@@ -508,6 +613,7 @@ impl Default for Stackup {
             silkscreen_top: false,
             silkscreen_bottom: false,
             dk_estimates: Unsaved::default(),
+            picked: None,
         })
     }
 }
@@ -549,6 +655,82 @@ impl Stackup {
         }
         if self.dk_estimates.0.0.is_empty() {
             self.dk_estimates = current.dk_estimates.clone();
+        }
+        for (d, was) in self.dielectrics.iter_mut().zip(&current.dielectrics) {
+            if d.sheets.is_empty() && d.same_layer(was) {
+                d.sheets.clone_from(&was.sheets);
+            }
+        }
+        if self.picked.is_none() && self.same_layers(current) {
+            self.picked.clone_from(&current.picked);
+        }
+        self.settled()
+    }
+
+    /// Whether the foils and dielectrics are `other`'s: thicknesses,
+    /// materials, glass and Dk. Plane marks, mask, legend and hole wall are
+    /// not layers.
+    pub fn same_layers(&self, other: &Self) -> bool {
+        self.copper.len() == other.copper.len()
+            && self.dielectrics.len() == other.dielectrics.len()
+            && self
+                .copper
+                .iter()
+                .zip(&other.copper)
+                .all(|(a, b)| (a.thickness_um - b.thickness_um).abs() / 1000.0 < SAME)
+            && self
+                .dielectrics
+                .iter()
+                .zip(&other.dielectrics)
+                .all(|(a, b)| a.same_layer(b))
+    }
+
+    /// The layers in one word: what [`Self::same_layers`] compares, to a
+    /// nanometre.
+    pub fn layers_digest(&self) -> String {
+        let fine = |v: f64| (v / SAME).round() as i64;
+        let copper: Vec<i64> = self
+            .copper
+            .iter()
+            .map(|c| fine(c.thickness_um / 1000.0))
+            .collect();
+        let dielectrics: Vec<_> = self
+            .dielectrics
+            .iter()
+            .map(|d| (d.kind, fine(d.thickness_mm), d.glass, d.dk.map(fine)))
+            .collect();
+        let bytes = serde_json::to_vec(&(copper, dielectrics)).unwrap_or_default();
+        format!("{:016x}", crate::library::footprint_source::fnv(&bytes))
+    }
+
+    /// The fabricator's stackup the board has: the picked one, while the
+    /// layers still are the ones picked.
+    pub fn picked(&self) -> Option<&PickedStackup> {
+        self.picked
+            .as_ref()
+            .filter(|p| p.layers == self.layers_digest())
+    }
+
+    /// These layers as picked from the fabricator's stackup `id`.
+    pub fn picked_from(mut self, id: &str, name: &str) -> Self {
+        self.picked = Some(PickedStackup {
+            id: id.to_owned(),
+            name: name.to_owned(),
+            layers: self.layers_digest(),
+        });
+        self
+    }
+
+    /// This stackup without what its layers no longer say: a picked name,
+    /// sheets that no longer give the Dk.
+    pub fn settled(mut self) -> Self {
+        if self.picked().is_none() {
+            self.picked = None;
+        }
+        for d in &mut self.dielectrics {
+            if d.calculated_from().is_none() {
+                d.sheets.clear();
+            }
         }
         self
     }
@@ -621,6 +803,7 @@ impl Stackup {
                 foil.thickness_um = um;
             }
         }
+        let next = next.settled();
         next.check()?;
         Ok(next)
     }
@@ -695,6 +878,29 @@ impl Stackup {
         Ok(plating)
     }
 
+    /// The picked name and the sheets are bounded, printable text.
+    fn check_texts(&self) -> Result<()> {
+        let printable = |text: &str| {
+            !text.trim().is_empty()
+                && text.len() <= crate::rules::MAX_PROFILE_NOTES
+                && !text.chars().any(char::is_control)
+        };
+        let picked = self
+            .picked
+            .iter()
+            .all(|p| printable(&p.id) && printable(&p.name) && printable(&p.layers));
+        let sheets = self.dielectrics.iter().all(|d| {
+            d.sheets.len() <= MAX_SHEETS && d.sheets.iter().all(|s| printable(&s.material))
+        });
+        if picked && sheets {
+            Ok(())
+        } else {
+            Err(Error::Invalid(
+                "a stackup's name and its sheets' materials need printable text".into(),
+            ))
+        }
+    }
+
     /// The stackup rules: an even number of copper layers from
     /// [`MIN_COPPER_LAYERS`] to [`MAX_COPPER_LAYERS`], exactly one
     /// dielectric between neighbouring foils, finite thicknesses within
@@ -703,6 +909,7 @@ impl Stackup {
     pub fn check(&self) -> Result<()> {
         check_count(self.copper.len())?;
         self.plating()?;
+        self.check_texts()?;
         if self.dielectrics.len() + 1 != self.copper.len() {
             return Err(Error::Invalid(
                 "a stackup has one dielectric between each pair of copper layers".into(),

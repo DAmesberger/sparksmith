@@ -2042,14 +2042,10 @@ impl Session {
                 options,
                 keep_overrides,
             }),
-            Operation::Layout(LayoutCommand::UseStackup {
-                stackup,
-                moves,
-                average_dk,
-            }) => {
+            Operation::Layout(LayoutCommand::UseStackup { stackup, moves }) => {
                 let library = sparksmith_io::fab_stackups::shipped()?;
                 let stackup = sparksmith_io::fab_stackups::find(&library, &stackup)?;
-                let options = PickOptions { moves, average_dk };
+                let options = PickOptions { moves };
                 let pick = fab_stackup::pick(project, stackup, &options)?;
                 Operation::Layout(LayoutCommand::EditStackup(pick.edit))
             }
@@ -2077,7 +2073,6 @@ impl Session {
             fabricator,
             all,
             moves,
-            average_dk,
         } = query
         else {
             return Err(
@@ -2097,7 +2092,7 @@ impl Session {
             ))));
         };
         let stackup = sparksmith_io::fab_stackups::find(&library, &id)?;
-        let options = PickOptions { moves, average_dk };
+        let options = PickOptions { moves };
         Ok(QueryResult::Stackup(Box::new(fab_stackup::report(
             project, stackup, &options,
         )?)))

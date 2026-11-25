@@ -441,7 +441,7 @@ pub enum Query {
     /// `board_mm` (the thickness option it is listed under) and `fabricator`
     /// choose others, and `all` lists every one. With `id`, that stackup as
     /// published, with its sources and disagreements, the build a board takes
-    /// from it, and what taking it (with `moves` and `average_dk`) would
+    /// from it, and what taking it (with `moves`) would
     /// change, what refuses it and what the fab profile says of it.
     #[serde(rename = "layout.stackups")]
     Stackups {
@@ -457,8 +457,6 @@ pub enum Query {
         all: bool,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         moves: Vec<layout::restack::LayerMove>,
-        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-        average_dk: bool,
     },
     /// Every net class with its resolved width, via and clearance, and
     /// every net with its class and how it got it (explicit or pattern).
