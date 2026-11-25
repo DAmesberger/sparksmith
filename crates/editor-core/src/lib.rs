@@ -664,7 +664,7 @@ declare_entries!(Query in project {
     Stackups "layout.stackups" Read "List fabricators' stackups" [in layout, link, since(3, 0), returns(stackups, stackup)],
     LengthReport "layout.length_report" Read "Length report" [in layout, link, returns(length_report)],
     Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1), returns(pads)],
-    Blocks "block.list" Read "List the blocks" [in project, link, since(10, 1), returns(blocks)],
+    Blocks "block.list" Read "List the blocks" [in project, link, since(11, 0), returns(blocks)],
     RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link, returns(route_preview)],
     TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link, returns(route_preview)],
     TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link, returns(tune_preview)],

@@ -71,10 +71,10 @@ pub enum BlockCommand {
 // A new command chooses its permission class here. Who may edit the board
 // decides over what a block does there.
 declare_entries!(BlockCommand in project {
-    Add "block.add" Edit "Make a block" [since(10, 1), returns(block_added)],
-    Rename "block.rename" Edit "Rename a block" [since(10, 1)],
-    Members "block.members" Edit "Change a block's parts" [since(10, 1)],
-    Delete "block.delete" Edit "Delete blocks" [since(10, 1)],
+    Add "block.add" Edit "Make a block" [since(11, 0), returns(block_added)],
+    Rename "block.rename" Edit "Rename a block" [since(11, 0)],
+    Members "block.members" Edit "Change a block's parts" [since(11, 0)],
+    Delete "block.delete" Edit "Delete blocks" [since(11, 0)],
     BoardMove "block.board_move" Edit "Move a block on the board" [in layout, since(4, 1)],
     BoardLock "block.board_lock" Edit "Lock or unlock blocks on the board" [in layout, since(4, 1)],
 });
