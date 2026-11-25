@@ -43,7 +43,7 @@ fn length(key: &str, label: &str, context: Option<&str>) -> Param {
             step_nm: None,
         },
         default: ParamValue::Int(0),
-        help: Some("Enter the dimension for this board.".into()),
+        help: Some("Enter the dimension for this board. A Kelvin tie has none.".into()),
         group: None,
         context: context.map(String::from),
     }

@@ -77,6 +77,8 @@ impl PartEditor {
         let Some(set) = &self.draft else {
             return;
         };
+        // A Kelvin tie's ends land on other parts' pads, chosen on the board.
+        let anchored = set.footprint.pads.is_empty() && !set.component.ties.is_empty();
         let rows: Vec<(sparksmith_core::TerminalId, String, String)> = set
             .component
             .terminals
@@ -94,6 +96,7 @@ impl PartEditor {
                     .map(|p| p.number.as_str())
                     .collect();
                 let secondary = match pads.as_slice() {
+                    [] if anchored => "anchored on the board".to_owned(),
                     [] => "no pad".to_owned(),
                     [one] => format!("pad {one}"),
                     many => format!("pads {}", many.join(", ")),
