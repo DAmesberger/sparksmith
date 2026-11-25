@@ -83,7 +83,6 @@ pub const FILE: &[Entry] = &[
     C("file.new", "New Project"),
     C("file.open", "Open…"),
     Entry::Recent,
-    C("file.import-kicad", ""),
     Sep,
     C("file.save", "Save"),
     C("file.save-as", "Save As…"),
@@ -137,7 +136,6 @@ pub const WINDOW: &[Entry] = &[
     Entry::System(System::Fullscreen),
     Sep,
     C("view.messages", "Messages…"),
-    C("view.import-report", "KiCad Import Report"),
     Sep,
     Entry::System(System::BringAllToFront),
 ];
@@ -164,7 +162,6 @@ pub const IN_WINDOW_FILE: &[Entry] = &[
     C("file.new", "New project"),
     C("file.open", "Open…"),
     Entry::Recent,
-    C("file.import-kicad", ""),
     Sep,
     C("file.save", "Save"),
     C("file.save-as", "Save as…"),

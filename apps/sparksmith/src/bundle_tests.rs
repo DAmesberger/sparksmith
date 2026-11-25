@@ -28,17 +28,10 @@ fn the_bundle_takes_the_product_names() {
         [format!("{}.project", product::BUNDLE_ID_PREFIX)]
     );
     let project = format!("{} project", product::NAME);
-    // The second document type: KiCad files, which the app imports.
-    assert_eq!(
-        values("CFBundleTypeName"),
-        [project.as_str(), "KiCad project"]
-    );
+    // Its one document type: KiCad files are not imported.
+    assert_eq!(values("CFBundleTypeName"), [project.as_str()]);
     assert_eq!(values("UTTypeDescription"), [project.as_str()]);
-    let kicad: String = sparksmith_automation::kicad_import::EXTENSIONS
-        .iter()
-        .map(|e| format!("<string>{e}</string>"))
-        .collect();
-    assert!(PLIST.contains(&format!("<array>{kicad}</array>")));
+    assert!(!PLIST.contains("kicad"));
     assert!(PLIST.contains(&format!(
         "<string>{}.project</string>",
         product::BUNDLE_ID_PREFIX

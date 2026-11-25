@@ -17,7 +17,7 @@ sparksmith-generators.workspace = true
 sparksmith-generator-abi = { workspace = true, features = ["host-schema"] }
 sparksmith-solidcraft.workspace = true
 sparksmith-firmware.workspace = true
-# KiCad import for every host (`kicad_import`).
+# The KiCad translator (`kicad_import`), a building block, in no product entry point.
 sparksmith-kicad.workspace = true
 solidcraft-control.workspace = true
 serde.workspace = true

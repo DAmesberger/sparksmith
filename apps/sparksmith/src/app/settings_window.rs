@@ -632,13 +632,12 @@ impl super::App {
         }
     }
 
-    pub(super) fn open_system_windows(&self) -> [bool; 6] {
+    pub(super) fn open_system_windows(&self) -> [bool; 5] {
         [
             self.messages_open,
             self.help.open,
             self.settings_window.is_open(),
             self.live.is_open(),
-            self.import_report.is_open(),
             self.sources.card_open(),
         ]
     }
@@ -653,7 +652,7 @@ impl super::App {
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
             // A key conflict asked in Settings is answered first: no.
             && !self.settings_window.drop_question();
-        let [messages, shortcuts, settings, live, report, sources] =
+        let [messages, shortcuts, settings, live, sources] =
             super::system_windows::one_window(self.system_windows, now, escape);
         self.messages_open = messages;
         if !shortcuts {
@@ -665,13 +664,11 @@ impl super::App {
         if !live {
             self.live.close();
         }
-        if !report {
-            self.import_report.close();
-        }
+
         if !sources {
             self.sources.close_card();
         }
-        self.system_windows = [messages, shortcuts, settings, live, report, sources];
+        self.system_windows = [messages, shortcuts, settings, live, sources];
     }
 
     /// Settings › Libraries from the user settings and the running registry.

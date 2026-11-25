@@ -46,16 +46,7 @@
       <key>LSHandlerRank</key>
       <string>Owner</string>
     </dict>
-    <dict>
-      <key>CFBundleTypeName</key>
-      <string>KiCad project</string>
-      <key>CFBundleTypeExtensions</key>
-      <array><string>kicad_pro</string><string>kicad_pcb</string></array>
-      <key>CFBundleTypeRole</key>
-      <string>Viewer</string>
-      <key>LSHandlerRank</key>
-      <string>Alternate</string>
-    </dict>
+
   </array>
   <key>UTExportedTypeDeclarations</key>
   <array>

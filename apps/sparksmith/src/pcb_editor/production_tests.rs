@@ -396,7 +396,7 @@ fn a_waiver_without_a_reason_is_committed_by_default() -> TestResult {
 }
 
 /// E2E run 10, finding 7: production files take the project's name, and
-/// an Untitled project the name its first save gives it (its KiCad board's
+/// an Untitled project the name its first save gives it (its recovered file's
 /// until saved); a new project neither saved nor named is asked for one
 /// instead of writing "Untitled" files.
 #[test]
@@ -405,14 +405,14 @@ fn production_files_take_the_name_the_first_save_gives() {
     let untitled = sparksmith_core::Project::default();
     assert_eq!(untitled.name, sparksmith_core::UNTITLED);
     let options = FabricationOptions::default();
-    let kicad = Path::new("/k/sensetap/sense tap.kicad_pcb");
+    let origin = Path::new("/k/sensetap/sense tap.sparksmith");
     assert_eq!(
-        files_stem(&untitled, &options, None, Some(kicad)).as_deref(),
+        files_stem(&untitled, &options, None, Some(origin)).as_deref(),
         Some("sense_tap")
     );
     let saved = Path::new("/d/Untitled.sparksmith");
     assert_eq!(
-        files_stem(&untitled, &options, Some(saved), Some(kicad)).as_deref(),
+        files_stem(&untitled, &options, Some(saved), Some(origin)).as_deref(),
         Some("Untitled"),
         "a file saved as Untitled keeps that name"
     );
@@ -422,7 +422,7 @@ fn production_files_take_the_name_the_first_save_gives() {
         ..sparksmith_core::Project::default()
     };
     assert_eq!(
-        files_stem(&named, &options, None, Some(kicad)).as_deref(),
+        files_stem(&named, &options, None, Some(origin)).as_deref(),
         Some("USB_board")
     );
     let own = FabricationOptions {

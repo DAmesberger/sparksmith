@@ -273,124 +273,6 @@ fn automatic_cleanup_after_restore_preserves_a_changed_source() -> Fallible {
     Ok(())
 }
 
-/// An original two-resistor KiCad board (written here; no KiCad files).
-const KICAD_BOARD: &str = r#"(kicad_pcb (version 20240108) (generator "sparksmith_test")
-  (general (thickness 1.6))
-  (layers (0 "F.Cu" signal) (31 "B.Cu" signal) (44 "Edge.Cuts" user))
-  (setup (pad_to_mask_clearance 0))
-  (net 0 "") (net 1 "SIG")
-  (footprint "Demo:R_0805" (layer "F.Cu") (at 10 10)
-    (property "Reference" "R1" (at 0 -2 0) (layer "F.SilkS"))
-    (pad "1" smd rect (at -1 0) (size 0.8 0.6) (layers "F.Cu") (net 1 "SIG"))
-    (pad "2" smd rect (at 1 0) (size 0.8 0.6) (layers "F.Cu")))
-  (gr_rect (start 0 0) (end 20 20) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))
-)
-"#;
-
-/// File › Import KiCad project… with a project file: the CLI's import
-/// runs on the file worker (saying so), the new project arrives with its
-/// report, and the app adopts it unsaved, its first save proposing the
-/// KiCad project's folder and name.
-#[test]
-fn a_kicad_import_arrives_unsaved_with_its_report() -> Fallible {
-    let mut h = Harness::new()?;
-    let kicad = h.dir.path().join("kicad");
-    std::fs::create_dir_all(&kicad)?;
-    std::fs::write(kicad.join("demo.kicad_pcb"), KICAD_BOARD)?;
-    let project = kicad.join("demo.kicad_pro");
-    std::fs::write(&project, b"{}")?;
-    h.files.request(Action::ImportKicadPath(project.clone()));
-    assert!(h.files.importing());
-    h.until("the imported project", |h| {
-        h.effects
-            .iter()
-            .any(|e| matches!(e, Effect::Imported { .. }))
-    })?;
-    assert!(!h.files.importing());
-    let Some(Effect::Imported {
-        document,
-        source,
-        report,
-    }) = h
-        .effects
-        .drain(..)
-        .find(|e| matches!(e, Effect::Imported { .. }))
-    else {
-        return Err("no import".into());
-    };
-    assert_eq!(source, project);
-    assert_eq!(report.counts.footprints, 1);
-    let names: Vec<_> = document
-        .project
-        .library
-        .components
-        .iter()
-        .map(|c| c.meta.name.clone())
-        .collect();
-    assert_eq!(
-        names,
-        ["R_0805"],
-        "the footprint name without its library nickname"
-    );
-    h.engine.replace_document(*document)?;
-    h.files.adopt_imported(&h.engine, source)?;
-    assert!(h.files.dirty());
-    assert_eq!(h.files.path(), None);
-    let (folder, name) = h.files.save_proposal();
-    assert_eq!(folder, kicad.as_path());
-    assert_eq!(name, "demo.sparksmith");
-    Ok(())
-}
-
-/// Stop ends a running import: nothing is imported, and the next one runs.
-#[test]
-fn a_stopped_import_imports_nothing_and_the_next_one_runs() -> Fallible {
-    let mut h = Harness::new()?;
-    let board = h.dir.path().join("demo.kicad_pcb");
-    std::fs::write(&board, KICAD_BOARD)?;
-    h.files.request(Action::ImportKicadPath(board.clone()));
-    assert!(h.files.import_stoppable());
-    h.files.stop_import();
-    assert!(!h.files.import_stoppable());
-    assert!(
-        h.files
-            .activity()
-            .is_some_and(|(text, _)| text.starts_with("Stopping the import"))
-    );
-    h.until("the import to stop", |h| !h.files.importing())?;
-    assert!(h.effects.is_empty());
-    assert_eq!(
-        h.files.take_status().map(|(_, text)| text).as_deref(),
-        Some("Import stopped; nothing was imported")
-    );
-    h.files.request(Action::ImportKicadPath(board));
-    h.until("the imported project", |h| {
-        h.effects
-            .iter()
-            .any(|e| matches!(e, Effect::Imported { .. }))
-    })
-}
-
-/// A KiCad file that is not a board says why, and nothing is replaced.
-#[test]
-fn a_failed_kicad_import_says_why() -> Fallible {
-    let mut h = Harness::new()?;
-    let board = h.dir.path().join("broken.kicad_pcb");
-    std::fs::write(&board, b"(not a board)")?;
-    h.files.request(Action::ImportKicadPath(board));
-    h.until("the refusal", |h| !h.files.busy())?;
-    h.frame(vec![]);
-    let status = h.files.take_status().ok_or("no status")?;
-    assert_eq!(status.0, Level::Error);
-    assert!(status.1.starts_with("Import failed: "), "{}", status.1);
-    assert!(
-        h.effects
-            .iter()
-            .all(|e| !matches!(e, Effect::Imported { .. }))
-    );
-    Ok(())
-}
-
 /// Nothing unsaved: quitting closes the window at once, with no dialog.
 #[test]
 fn quitting_a_saved_project_closes_without_asking() -> Fallible {
@@ -582,7 +464,7 @@ fn a_first_save_names_an_untitled_project_after_its_file() -> Fallible {
 }
 
 /// E2E run 6, finding 6: a project file written while the project was
-/// still Untitled (an import, or a first save that did not finish) takes
+/// still Untitled (a first save that did not finish) takes
 /// its file's name at the next ⌘S; a name someone chose is kept.
 #[test]
 fn saving_an_untitled_project_under_its_file_names_it() -> Fallible {
@@ -938,23 +820,6 @@ fn an_exit_that_cannot_keep_the_work_says_why() -> Fallible {
     let kept = h.files.keep_for_recovery(&mut |_| {});
     assert!(kept.as_ref().is_err_and(|why| !why.is_empty()), "{kept:?}");
     assert!(h.files.dirty());
-    Ok(())
-}
-
-/// A running import is stopped by the exit, which keeps the work without
-/// waiting for it.
-#[test]
-fn an_exit_stops_a_running_import() -> Fallible {
-    let mut h = Harness::new()?;
-    h.edit("Kept")?;
-    let board = h.dir.path().join("demo.kicad_pcb");
-    std::fs::write(&board, KICAD_BOARD)?;
-    let ticket = h.files.begin(Kind::Import, None).ok_or("no import")?;
-    let cancel = Cancel::default();
-    h.files.send(Job::Import(ticket, board, cancel.clone()));
-    assert_eq!(h.files.keep_for_recovery(&mut |_| {}), Ok(true));
-    assert!(cancel.is_set());
-    assert_eq!(h.recoverable()?, ["Kept"]);
     Ok(())
 }
 
