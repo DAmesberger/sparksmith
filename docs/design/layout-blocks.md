@@ -1,6 +1,6 @@
 # Layout blocks: parts that belong together, with what the datasheet says about them
 
-**Status:** design of 25 November 2026. The six decisions of section 12 are the founder's of that day. Slice B1 is built; nothing else here is. Hours are agent hours, estimated. Code references are to integ-9 at 0f38f98d. Pictures: [mock-up](floorplan-mockup.html), pictures 1 to 4 (a mock-up: invented parts and documents). Related: [floorplan](autorouter.md), [repeated sheets](repeated-sheets.md), [part dimensions](../board-sketch-references.md), [copper graph](../copper-graph.md).
+**Status:** design of 25 November 2026. The decisions of section 12 are the founder's of that day. Slice B1 is built; nothing else here is. Section 13 is the schematic side, with its own open questions (13.5). Hours are agent hours, estimated. Code references are to integ-9 at 0f38f98d. Pictures: [mock-up](floorplan-mockup.html), pictures 1 to 4 and 7 (a mock-up: invented parts and documents). Related: [floorplan](autorouter.md), [repeated sheets](repeated-sheets.md), [part dimensions](../board-sketch-references.md), [copper graph](../copper-graph.md).
 
 **Founder (25 November 2026):** "lets say U1 is a DC/DC converter: maybe it is not super important where U1 exactly is, but all relevant parts that need to stay close to it (inductor, caps, with the recommended layout from the datasheet). so basically this is like a module, and maybe we should have that concept. … these modules might have infos from the datasheet attached to them in a structured way to show if it is the recommended layout." And: "we could point the user to where this might be wrong when he misses something important". He wants "a functional border" and to "show the level of detail we want". On this design he decided section 12 ("yes to all six") and asked for one addition: "I would like to see more info on hover over an area or especially over a part (maybe I dont remember what U1 is, so it would be great to show the part number, or for resistors the value, etc)". What is neither quoted here nor in section 12 is the design proposed with it.
 
@@ -171,3 +171,101 @@ Judge a layout as good; give a distance; simulate; check heat, inductance or EMI
 4. **Order of importance.** The recipe's author may rank the statements and the card marks the order as the author's. "Most critical" appears only where the document itself says so.
 5. **Approval.** A person approves a recipe revision once for the library folder, and every project sees it. Until then its hints show on the card only, marked, and never reach Issues.
 6. **First recipes.** Three to five written by hand for parts of the example board, after slice B2: facts and page numbers, our own drawings, each checked against its document by a person. A short legal look at quoting single sentences comes first. No generic recipe without a document is shipped.
+7. **Membership is explicit.** A part is in a block because a command put it there, never because of where it lies on a sheet or on the board. This holds on the schematic and on the board alike (section 13).
+
+## 13. On the schematic
+
+A block belongs to the whole design: the same block, with the same members, on the sheets and on the board. Membership is explicit (section 12, decision 7): a part joins or leaves only by a command (`block.add`, `block.members`, `block.delete`), never because of where it lies on a sheet or on the board. That is how B1 stores it: one list of component instances per block, in the project (`crates/editor-core/src/model/block.rs`). Nothing on the schematic side adds a second list. Pictures: [mock-up](floorplan-mockup.html), picture 7 (invented parts). Code references in this section are to integ-11 at 8eee1d5f.
+
+### 13.1 What the person sees
+
+1. **Make block from selected symbols.** Select symbols and choose Make block, as on the board. This is the existing `block.add` with the selected symbols' instances, so it is one undo step and MCP already has it. Selected wires and labels are ignored: only components are members.
+2. **The border is drawn, not stored.** On each sheet, the border goes around the member units drawn on that sheet, with the block's name on it. It is the same hull function the board uses, here around each unit's drawn box (body, pins, texts). The board's border has no margin, because a margin would be an invented number; on the sheet the border lies one step of the sheet's own grid outside the units, so it doesn't run through pin ends. If some members are drawn on other sheets, the border says "also on sheet 3"; that text jumps to the sheet.
+3. **Drag the border** and every member unit on that sheet moves, together with the wires and labels between them. This is the group move that exists today (`schematic.arrange`, `crates/editor-core/src/schematic.rs:92`): a wire with both ends in the group keeps its shape, a wire with one end in the group rubber-bands, and a move that would join two nets is refused with `net.moved_merge` (`nets.rs:847`). What comes along: the member units on the sheet, the labels and power ports whose wires lead only to members, and the wires between them. Units on other sheets do not move.
+4. **Lock is the board's.** `Block.locked` holds the block on the board only (`model/block.rs:25`: "symbols are not locked"). The border of a locked block can still be dragged on the sheet. The card on the sheet says "locked on the board".
+5. **Cross-probe both ways.** Selecting a border on the sheet selects the block on the board, and the other way round, through the selection the workspaces already share. A member selected alone stays a part selection. MCP's `view.select` cannot name a block today; see 13.4.
+6. **Copy and paste.** Copying the border (or all of the members) copies the members with the wires and labels between them. Pasting makes new parts and a new, separate block named after the source with the next free number ("Converter 2"), in the same undo step. A wire that leaves the block is not copied. Labels and ports join by their names under the existing paste rules: power ports and global labels join project-wide, and a local label joins on its own sheet (`schematic/clipboard.rs:1`). The pasted block remembers which of its parts was copied from which part of the source, so that the board can offer "Place like Converter" (item 8).
+7. **Update PCB.** A part Update PCB adds that belongs to a block is placed next to that block's border on the board, wherever it fits clear of other parts, and goes to the staging area beside the board if it fits nowhere near. The review names the block of each part it adds. A placed part never moves, so a locked block never moves.
+8. **"Place like Converter."** If Update PCB adds every part of a pasted block and the source block is on the board, the review offers to place the new parts like the source: the same positions relative to each other, the same sides and rotations, beside the source block. Parts only; the copper comes later (slice S6). If a source part has left the block or is not placed, its copy is staged, and the review names it.
+9. **Copy versus repeated sheet.** A copy is independent: Converter 2's parts are new parts, and editing Converter later does not change them. A repeated sheet ([repeated sheets](repeated-sheets.md)) shares one drawing and has its own physical parts per use. So a block made on a repeated sheet, with all its members in that sheet's definition, is stored once in the definition, as section 8 says. Each use then has its own block on the board, with its own place and lock, and a use added later has it too. The membership is still explicit: it is the definition's, set by a command. The help says which one to choose: copy for a variation, a repeated sheet for the same circuit twice.
+
+### 13.2 Checked against the code, and where the proposal does not hold
+
+| Proposal | What the code does today | What follows |
+|---|---|---|
+| Make block from selected symbols | `block.add { parts }` takes instances and refuses a part that is already in a block (`instances/blocks.rs`) | Holds; no new command |
+| Border per sheet, "also on sheet N" | A unit is drawn on one sheet; a multi-unit part may have units on several sheets (`symbol.place_unit` takes a sheet) | Holds. Each sheet's border is around that sheet's units only |
+| Members are components only; wires and labels come along | `schematic.arrange` moves the objects it is given and rubber-bands the rest; it does not work out which labels belong to a group | **The rule for which labels and wires come along must be in the core**, otherwise the canvas and MCP compute it twice. New entry `block.sheet_move { id, sheet, by }` that builds the object list and calls the arrange code (minor raise of `schematic` and `project`) |
+| Drag border moves as a group, no net joins | `schematic.arrange` is a move (`is_move`), so `refuse_moved_merges` applies | Holds |
+| Lock is the board's | Lock is board-only by the B1 model | Holds |
+| Cross-probe both ways | The selection is shared between workspaces for parts; `view.select` takes `ObjectRef`s, which have no block (`diagnostics.rs:152`) | Holds in the desktop. MCP needs a way to name a block (13.4) |
+| Copy/paste makes new parts and a new block | `SheetClip` has no blocks (`schematic/clipboard.rs`); `paste` makes new instances but forgets which source each came from once it returns | **The clip must carry the block**: an optional `blocks` field on `SheetClip`, and the pasted `Block` stores its source pairing (an optional `copied_from`, kept until "Place like" has been done or declined). Minor raises of `schematic` and `project`; the file format is version 1, edited in place |
+| Outgoing connections by today's paste rules | A wire end outside the clip becomes a free end (`clipboard.rs:256`); a local label joins on its sheet | **A local label inside the block, pasted onto the same sheet, joins the source block's net** (SW of Converter 2 would join SW of Converter). The pasted block is then not independent. Open question 3 |
+| Copy of a part with units on two sheets | A copy holds only the units on the copied sheet (`copy`, `clipboard.rs:183`) | The pasted part's other units are left unplaced. The paste result names them, and the new block's card says "U2: unit B not drawn" |
+| Copy keeps the part's settings | `ComponentInstance::duplicate` copies fields, Part, population; **variant overrides are not copied** (`model.rs:131`) | Holds, as for every paste. The help says so |
+| Update PCB names joining and leaving parts | Membership is one project-wide list. A `block.members` change is already on the board when it is applied; there is nothing pending for Update PCB to review. Update PCB (`layout.sync`, `layout.rs:831`) only adds unplaced parts, to the staging area (`layout/staging.rs:36`) | **Does not hold as proposed.** Joining and leaving show at once, in their own undo step, on both sides. Update PCB names the block of each part it adds and places it next to the block (a start point for the staging packer, which keeps its clearance rules) |
+| Empty block removed and named | `follow_instances` drops a block whose last member is deleted, silently, on every schematic edit (`instances/blocks.rs:255`) | The removal holds. The naming belongs in the review of the deletion that empties it, not in Update PCB. The deletion's review lists "Block Converter goes: its last part is deleted" |
+| A locked block is never moved | Update PCB never moves placed parts. But **replacing a part's component realigns its placement to the new footprint without checking the part's lock or its block's lock** (`updates/replace.rs`, `Change::ReplaceComponent`) | Holds for Update PCB. The replacement gap is a bug of its own, there today without blocks: a replacement in a locked block keeps the origin (`keep_origin`) and the review says why |
+| "Place like Converter" | Nothing like it exists; B5's `block.board_arrange` places by a recipe | New: one reviewed plan step, using the stored pairing. A held or locked part, or one that does not fit, is staged and named, as in Arrange (section 7) |
+| Each use of a repeated sheet has its own block | Each use has its own physical instances ([schematic capture](../schematic-capture.md#sheets-and-hierarchy)) | Holds, with the block stored in the definition (section 8). B1 stores blocks only with the instances, so this is new data: B6 |
+| Undo | Every `block.*` command and the paste are each one undo step | Paste and its new block must be one step. That is why the block travels in the clip rather than in a second command after the paste |
+
+### 13.3 Data
+
+- `Block` gains an optional `copied_from`: the source block and the pairs (source part, copy). It is dropped when "Place like" is done or declined, or when the source block goes. Stored in the project, so it survives save and reopen between paste and Update PCB.
+- `SheetClip` gains an optional `blocks`: each block whose members are all in the clip, with its name and members by clip identity. A block partly in the clip is not copied, and the copy result says so.
+- Nothing stores the sheet border. It is derived each time it is drawn, as on the board.
+
+### 13.4 What naming a block in `view.select` costs
+
+`view.select` takes `objects: [ObjectRef]` (view 1.5). Adding a `Block` variant to `ObjectRef` looks like the obvious way, but `ObjectRef` is also in the replies of almost every entry, inside `Finding`. A new tagged alternative in a reply is a major change (docs/extension-surface.md, reply compatibility). Counted from `surface.schemas` at 8eee1d5f, an `ObjectRef::Block` would change the replies of 231 entries:
+
+| Module | Entries whose reply reaches `ObjectRef` |
+|---|---|
+| layout | 63 of 72 |
+| schematic | 61 of 69 |
+| library | 42 of 65 |
+| project | 21 of 28 |
+| model3d | 19 of 24 |
+| rules | 12 of 20 |
+| generators | 5 of 7 |
+| checks | 4 of 5 |
+| files | 2 of 3 |
+| fab | 1 of 5 |
+| view | 1 of 3 |
+
+That is a major raise of 11 of the 13 modules (all except assist and help), and every MCP client would see it, for one selection.
+
+**Recommended:** an optional `blocks: [id or name]` field on `view.select`'s parameters. That is a minor raise of `view` only (1.5 to 1.6). `ObjectRef::Block` becomes worth its cost when a finding must name a block, which is B3's `block.part_missing`. B3 can make that major raise once, deliberately, for every module at the same time. Until then a finding names the block's anchor part and the block in its text.
+
+### 13.5 Open questions for the founder
+
+1. **"Place like Converter": offered or automatic.**
+   - *Context.* After a paste, Update PCB adds the new parts. Converter is already placed and probably tuned by hand.
+   - *Options.* (a) Automatic: the new parts are always placed like the source. (b) Offered in the review and ticked: one look, one click to decline. (c) Offered and unticked.
+   - *Consequence.* (a) moves parts the person did not ask about, and a source that was arranged badly gets copied without anyone looking. (c) makes the common case cost a click every time.
+   - *Recommendation:* (b). It is never applied to a part that is locked or held; those are staged and named.
+2. **Child sheet as a block in one click.**
+   - *Context.* A child sheet is often exactly one functional unit, such as a converter sheet.
+   - *Options.* (a) No shortcut: select everything on the sheet and choose Make block. (b) "Make block of this sheet" on a sheet symbol: it makes the members once, from the parts on that sheet at that moment, and is explicit like any other block; parts added to the sheet later do not join by themselves. On a repeated sheet it makes the definition's block, which every use has (section 8). (c) A block that follows the sheet's contents.
+   - *Consequence.* (c) is implicit membership, which section 12 decision 7 rules out; it is listed only to say no. (b) adds one command; it is `block.add` with the sheet's parts, so the surface does not change.
+   - *Recommendation:* (b).
+3. **Local labels in a block pasted onto the same sheet** (new, found while checking the code).
+   - *Context.* Today a pasted local label joins the net of the same name on its sheet. A pasted converter's SW label would therefore join the original's SW, and the two converters would share their switch node.
+   - *Options.* (a) Keep today's rule; the paste result warns and names each label that joined an existing net. (b) When a block is pasted, its internal local labels whose names already exist on the target sheet get the block's number ("SW" becomes "SW_2"), and the paste result lists them. (c) Refuse the paste onto the same sheet.
+   - *Consequence.* (a) produces a connected copy that the person must fix by hand, against "a new independent block". (b) changes the paste rule for blocks only; ports and global labels keep joining by name.
+   - *Recommendation:* (b).
+
+### 13.6 Slices
+
+| Slice | What | Useful alone for | Hours |
+|---|---|---|---|
+| **S1** | Border on the sheet with name and "also on sheet N", Make block on the sheet, cross-probe of a block both ways, `view.select` `blocks` (view 1.6) | Seeing the converter as one thing on the sheet | 8–12 |
+| **S2** | `block.sheet_move`: the core rule for what comes along, border drag on the sheet (schematic and project minor) | Moving a converter on a sheet in one drag | 6–10 |
+| **S3** | Copy and paste with the block: `SheetClip.blocks`, "Converter 2", `copied_from`, unplaced units named, open question 3 | A second converter in one paste | 8–12 |
+| **S4** | Update PCB: new members next to their block, block named per added part; the deletion review names a block that goes; replacement respects locks | New parts land where they belong | 6–10 |
+| **S5** | "Place like Converter" in the Update PCB review, one step | A pasted block placed like its source | 10–14 |
+| **S6** | Copper like the source (after S5): tracks and vias inside the block copied where the new nets allow, through the impact review | A pasted converter routed like its source | 14–20 |
+| **S7** | "Make block of this sheet" (open question 2); on a repeated sheet it waits for B6's block in the definition | A converter sheet as a block in one click | 3–5 |
+
+S1 needs B1 only. S1 to S5 together come to 38 to 58 hours, and with S6 and S7 to 55 to 83. Blocks in a repeated sheet's definition stay in B6. S4's replacement fix can go first, alone (2 to 3 hours).

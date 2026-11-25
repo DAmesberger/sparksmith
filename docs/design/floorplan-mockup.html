@@ -36,7 +36,7 @@ svg.view text{pointer-events:none}.area:focus-visible,.lane:focus-visible{outlin
 <div id="tip" role="tooltip" aria-live="polite" hidden></div>
 <main>
 <h1>Floorplan <span class="mk">MOCK-UP</span></h1>
-<p>For review of <code>docs/design/autorouter.md</code>, section 3, and <code>docs/design/layout-blocks.md</code>. A made-up four-layer board. Every part, number and sentence of the assistant is invented. The drag, the lock, the colours and the colour check run in this page only.</p>
+<p>For review of <code>docs/design/autorouter.md</code>, section 3, and <code>docs/design/layout-blocks.md</code> (picture 7 is the schematic side). A made-up four-layer board. Every part, number and sentence of the assistant is invented. The drag, the lock, the colours and the colour check run in this page only.</p>
 <div class="bar"><div class="grp"><span>Theme</span><button data-set="theme=light">Light</button><button data-set="theme=dark">Dark</button></div>
 <div class="grp"><span>Colour mode</span><button data-set="mode=layer">1 Layer pastel (recommended)</button><button data-set="mode=function">2 Function</button><button data-set="mode=edge">3 Function, layer border</button><button data-set="mode=pattern">4 Layer, function pattern</button></div>
 <div class="grp"><span>Seen with</span><button data-set="vision=none">Normal</button><button data-set="vision=protan">Protan</button><button data-set="vision=deutan">Deutan</button><button data-set="vision=tritan">Tritan</button></div></div>
@@ -72,6 +72,11 @@ svg.view text{pointer-events:none}.area:focus-visible,.lane:focus-visible{outlin
 <p>Copper already has a colour per layer, so an overlay must not look like copper and must still say its layer. Differences are OKLab distances times 100, computed here for this board; larger is easier to tell apart. Colour-vision simulation after Machado, Oliveira and Fernandes (2009), full severity. No pass mark is set: these are numbers to compare.</p>
 <div class="scroll"><table id="cvd"></table></div>
 <p><b>Recommended: 1, Layer pastel.</b> The pastel of the layer's own colour, with lightness steps so that two neighbours never share one; the function is said by the letter and the name. Copper is greyed while the plan is shown. In the product a key would show mode 2 for the one layer in view. Colour alone never carries the layer: in the peeling view the hatch direction and the name do too, because two of the layer colours look almost alike to protan and deutan vision in every mode that shows the layer.</p>
+<h2>7. A block on the schematic <span class="mk">MOCK-UP</span></h2>
+<p>The same block on the sheet. Select the converter's symbols and choose Make block: the border is drawn around them, with the name. The parts are the members; wires and labels between them come along when the border is dragged or the block copied. Copy and paste makes new parts and a new, separate block, "Converter 2". Update PCB then offers to place it like Converter. Invented parts, names and positions.</p>
+<div class="bar"><div class="grp"><button id="s7make">Make block</button><button id="s7copy" disabled>Copy and paste</button><button id="s7upd" disabled>Update PCB…</button><button id="s7reset">Start again</button></div></div>
+<div class="cols"><div class="fig"><svg id="s7sheet" class="view" viewBox="0 0 210 92" role="img" aria-label="Mock-up: a schematic sheet with a converter and its block border"></svg><p class="cap" id="s7cap" aria-live="polite"></p></div>
+<div class="fig" id="s7review"><b>Update PCB</b><p class="cap">Paste the block first, then choose Update PCB.</p></div></div>
 </main><script>
 // Colour: OKLab (Ottosson), colour-vision matrices (Machado, Oliveira, Fernandes 2009, severity 1), in linear RGB.
 const CVD={none:null,
@@ -354,4 +359,46 @@ $("send").onclick=()=>{const t=$("alt").value.trim();if(!t)return;const p=docume
 if(matchMedia("(prefers-color-scheme: dark)").matches)S.theme="dark";
 draw();
 
-</script></body></html>
+</script>
+<script>
+// Picture 7: a block on the schematic (invented data; draws and answers in this page only).
+(()=>{const $=id=>document.getElementById(id),NS="http://www.w3.org/2000/svg";
+const PARTS=[["U","1",42,26,22,26,"LMR-X"],["L","1",76,22,12,7,"4.7 µH"],["C","1",18,40,6,10,"10 µF"],["C","2",94,40,6,10,"22 µF"],["C","3",104,40,6,10,"22 µF"]];
+const WIRES=[[[12,30],[42,30]],[[21,30],[21,40]],[[64,30],[76,30]],[[88,30],[110,30]],[[97,30],[97,40]],[[107,30],[107,40]],[[21,50],[21,62]],[[53,52],[53,62]],[[97,50],[97,62]],[[107,50],[107,62]],[[21,62],[107,62]]];
+const LABELS=[["VIN",8,30,"g"],["GND",60,70,"p"],["VOUT",114,30,"g"],["SW",68,27,"l"]];
+const S={step:0,like:true};
+const el=(n,a,t)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);if(t!=null)e.textContent=t;return e};
+function group(svg,dx,num,name){const g=el("g",{transform:`translate(${dx} 0)`});
+ for(const w of WIRES)g.append(el("polyline",{points:w.map(p=>p.join(",")).join(" "),fill:"none",stroke:"var(--ink)","stroke-width":.5}));
+ for(const[p,n,x,y,w,h,v]of PARTS){g.append(el("rect",{x,y,width:w,height:h,fill:"var(--panel)",stroke:"var(--ink)","stroke-width":.5}));
+  const d=p+(p==="C"&&num>1?String(+n+3):p==="C"?n:num);g.append(el("text",{x:x+w/2,y:y-1.5,"text-anchor":"middle","font-size":3.4,class:"lab"},d));
+  g.append(el("text",{x:x+w/2,y:y+h+4,"text-anchor":"middle","font-size":2.8,class:"lab2"},v))}
+ for(const[t,x,y,k]of LABELS){if(k==="p"){g.append(el("path",{d:`M${x-4} ${y-8}h8M${x-2.6} ${y-6.6}h5.2M${x-1.2} ${y-5.2}h2.4`,stroke:"var(--ink)","stroke-width":.5}));g.append(el("text",{x,y:y-1,"text-anchor":"middle","font-size":3,class:"lab2"},t))}
+  else g.append(el("text",{x,y:y-1.5,"text-anchor":k==="g"&&x<20?"end":"start","font-size":3,class:"lab2"},(k==="l"&&num>1?t:t)))}
+ if(S.step>=1&&(num===1||S.step>=2)){g.append(el("rect",{x:4,y:12,width:116,height:62,rx:1.5,class:"bk on",style:"--s:.6"}));
+  g.append(el("text",{x:6,y:10,"font-size":3.6,class:"lname"},name))}
+ svg.append(g)}
+function draw(){const svg=$("s7sheet");svg.replaceChildren();
+ svg.append(el("text",{x:2,y:88,"font-size":2.8,class:"wm"},"MOCK-UP · sheet 1 · invented parts"));
+ group(svg,0,1,"Converter");if(S.step>=2){svg.setAttribute("viewBox","0 0 250 92");group(svg,124,2,"Converter 2")}else svg.setAttribute("viewBox","0 0 210 92");
+ $("s7cap").textContent=["U1, L1 and C1 to C3 are selected.","Block Converter: five parts. The wires, SW and the ports between them come along on a drag of the border.","Pasted: U2, L2, C4 to C6 and block Converter 2 of its own. VIN, VOUT and GND are ports, so they join the same nets by name. SW is a local label on the same sheet: see open question 3 of the design."][S.step];
+ $("s7make").disabled=S.step!==0;$("s7copy").disabled=S.step!==1;$("s7upd").disabled=S.step!==2}
+function board(){const B=[["U",14,10,8,8],["L",26,10,6,5],["C",8,12,3,2],["C",26,18,3,2],["C",30,18,3,2]];
+ const svg=el("svg",{viewBox:"0 0 100 40",class:"view",role:"img","aria-label":"Mock-up: board after Update PCB"});
+ svg.append(el("rect",{x:2,y:2,width:60,height:36,class:"lam"}));
+ const part=(x,y,w,h,t)=>{svg.append(el("rect",{x,y,width:w,height:h,fill:"var(--panel)",stroke:"var(--ink)","stroke-width":.3}));svg.append(el("text",{x:x+w/2,y:y+h/2+1,"text-anchor":"middle","font-size":2.2,class:"lab"},t))};
+ const names1=["U1","L1","C1","C2","C3"],names2=["U2","L2","C4","C5","C6"];
+ B.forEach((b,i)=>part(b[1],b[2],b[3],b[4],names1[i]));svg.append(el("rect",{x:6,y:8,width:29,height:13,class:"bk",style:"--s:.4"}));
+ if(S.like){B.forEach((b,i)=>part(b[1]+30,b[2]+12,b[3],b[4],names2[i]));svg.append(el("rect",{x:36,y:20,width:29,height:13,class:"bk on",style:"--s:.4"}))}
+ else{let x=68;B.forEach((b,i)=>{part(x,4+(i>1?12:0),b[3],b[4],names2[i]);x=i===1?68:x+b[3]+3})}
+ svg.append(el("text",{x:2,y:39.5,"font-size":2.2,class:"wm"},"MOCK-UP"));return svg}
+function review(){const r=$("s7review");r.replaceChildren();const h=document.createElement("b");h.textContent="Update PCB: review";r.append(h);
+ const t=document.createElement("table");t.className="small";t.innerHTML="<tr><th>Change</th><th>Why</th></tr><tr><td>Add U2, L2, C4, C5, C6</td><td>New on sheet 1, block Converter 2</td></tr>";r.append(t);
+ const l=document.createElement("label");l.style.display="block";l.style.margin="8px 0";const c=document.createElement("input");c.type="checkbox";c.checked=S.like;c.onchange=()=>{S.like=c.checked;review()};
+ l.append(c," Place like Converter: the same relative places, sides and rotations, beside it. Parts only; copper is not copied.");r.append(l);
+ const p=document.createElement("p");p.className="cap";p.textContent=S.like?"Converter 2 lands beside Converter, arranged like it. Converter stays where it is; one undo step.":"Unticked: the five parts go to the staging area right of the board, as today.";r.append(p,board());
+ const b=document.createElement("button");b.textContent="Apply";b.onclick=()=>{p.textContent="(Mock-up) In the product this applies the reviewed plan as one step."};r.append(b)}
+$("s7make").onclick=()=>{S.step=1;draw()};$("s7copy").onclick=()=>{S.step=2;draw()};$("s7upd").onclick=()=>review();
+$("s7reset").onclick=()=>{S.step=0;S.like=true;$("s7review").innerHTML='<b>Update PCB</b><p class="cap">Paste the block first, then choose Update PCB.</p>';draw()};draw()})();
+</script>
+</body></html>
