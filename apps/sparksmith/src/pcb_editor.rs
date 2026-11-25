@@ -53,6 +53,7 @@ pub use group::Group;
 mod hold_mark;
 #[cfg(test)]
 mod hold_tests;
+mod hover_card;
 mod impedance_view;
 mod layer_focus;
 mod menu;
@@ -606,7 +607,9 @@ pub struct PcbEditor {
     /// The one cross-highlight slot the table, Layout and 3D share.
     hover: parts_table::Hover,
     /// PCB 3D's last hover ray: the pointer and what it hit.
-    hover_3d_at: Option<(Pos2, Option<group::Pick>)>,
+    hover_3d_at: Option<hover_card::Hover3d>,
+    /// What the thing under the pointer is (`about`).
+    hover_card: hover_card::HoverCard,
 }
 
 impl Default for PcbEditor {
@@ -722,6 +725,7 @@ impl Default for PcbEditor {
             table: Default::default(),
             hover: Default::default(),
             hover_3d_at: None,
+            hover_card: hover_card::HoverCard::default(),
         }
     }
 }
@@ -1880,6 +1884,7 @@ impl PcbEditor {
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             return None;
         }
+        self.hover_card.card.begin(ui.ctx());
         // The board is drawn in all of `surface`, under the docked cards;
         // the view (fit, centre, locate) works in the part they leave clear.
         let surface = rect;
@@ -2257,13 +2262,6 @@ impl PcbEditor {
             _ => None,
         };
         self.hover_board(hovered_part.map(group::Pick::Part));
-        if self.tool == Tool::Select
-            && response.hovered()
-            && let Some(via) = cursor.and_then(|at| self.pick_via(project, at))
-        {
-            let text = via_card::hover_text(project, via);
-            response.clone().on_hover_text_at_pointer(text);
-        }
         self.paint_cross_highlight(ui, &painter, view, project);
         let shown_pointer = pointer.filter(|_| response.hovered());
         if let Some(dimensioned) =
@@ -2271,6 +2269,7 @@ impl PcbEditor {
         {
             operation = Some(dimensioned);
         }
+        self.layout_hover_card(ui, engine, &view, &response, (tolerance, metric), rect);
         // Slice R1: the docked review's canvas preview.
         if let Some(marks) = self.update.marks() {
             crate::update_preview::paint_board(

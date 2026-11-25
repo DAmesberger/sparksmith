@@ -2291,6 +2291,10 @@ pub(crate) mod ax_harness;
 mod variants_tests;
 
 #[cfg(test)]
+#[path = "app/hover_card_tests.rs"]
+mod hover_card_tests;
+
+#[cfg(test)]
 #[path = "app/ax_tests.rs"]
 mod ax_tests;
 

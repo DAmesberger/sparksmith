@@ -77,6 +77,11 @@ const EXCEPTIONS: &[(&str, usize, &str)] = &[
         "gesture: Esc ends the triad drag in progress",
     ),
     (
+        "about.rs",
+        1,
+        "hover card: Esc closes it and stays for the command it belongs to",
+    ),
+    (
         "part_editor/pins_tab.rs",
         1,
         "text field: Esc reverts the pin field",

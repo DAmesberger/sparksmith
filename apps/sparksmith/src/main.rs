@@ -1,4 +1,5 @@
 //! Sparksmith desktop editor (formerly Pcbcraft).
+mod about;
 mod app;
 mod assistant;
 #[cfg(test)]

@@ -15,6 +15,7 @@
 //!   Neither selection nor hover rebuilds board geometry.
 use super::PcbEditor;
 use super::group::{Group, Pick};
+use super::hover_card::{Body, Hover3d};
 use crate::kit::list::{
     Effect, Layout, Line, ListState, ListTokens, ListView, RowKey, Sort,
     filter::FilterBar,
@@ -929,24 +930,30 @@ impl PcbEditor {
             self.hover_3d_at = None;
             return;
         };
-        let pick = match self.hover_3d_at {
-            Some((at, pick)) if at == p => pick,
+        let pick = match &self.hover_3d_at {
+            Some(hover) if hover.at == p => hover.pick,
             _ => {
-                let pick = scene.viewport.rect().and_then(|rect| {
+                let hit = scene.viewport.rect().and_then(|rect| {
                     let id = scene.viewport.pick(
                         f64::from(p.x - rect.left()),
                         f64::from(p.y - rect.top()),
                         f64::from(rect.width()),
                         f64::from(rect.height()),
                     )?;
-                    let source = scene.source(id)?;
-                    match (source.instance, source.via) {
-                        (Some(instance), _) => Some(Pick::Part(instance)),
-                        (None, Some(via)) => Some(Pick::Via(via)),
-                        _ => None,
-                    }
+                    Some((id, scene.source(id)?))
                 });
-                self.hover_3d_at = Some((p, pick));
+                let pick = hit.and_then(|(_, source)| match (source.instance, source.via) {
+                    (Some(instance), _) => Some(Pick::Part(instance)),
+                    (None, Some(via)) => Some(Pick::Via(via)),
+                    _ => None,
+                });
+                let body = hit.and_then(|(id, source)| {
+                    Some(Body {
+                        subject: self.body_subject(source)?,
+                        bounds: scene.viewport.item_bounds(id)?,
+                    })
+                });
+                self.hover_3d_at = Some(Hover3d { at: p, pick, body });
                 pick
             }
         };

@@ -1466,7 +1466,7 @@ struct Resolution<'a> {
 
 /// Designations of the package terminals `binding` maps `terminal` to,
 /// joined (stacked terminals read "2,7"); `None` when it maps none.
-fn pin_numbers(
+pub fn pin_numbers(
     binding: &BindingDefinition,
     package: &PackageDefinition,
     terminal: TerminalId,
