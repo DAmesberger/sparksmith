@@ -2,7 +2,7 @@
 {
   "covers": {
     "entry/project.open": "7317cdb697af20e5",
-    "entry/project.save": "d6b27c72606417bf"
+    "entry/project.save": "d60ee39b134c3acd"
   },
   "id": "guide/save-recover",
   "keywords": [

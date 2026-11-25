@@ -1,14 +1,10 @@
 ---
 {
-  "id": "panel/files",
-  "kind": "panel",
-  "title": "Project files",
-  "summary": "Open, save and recover the design together with its exact component revisions.",
-  "since": "0.1.0",
   "covers": {
     "entry/project.open": "7317cdb697af20e5",
-    "entry/project.save": "d6b27c72606417bf"
+    "entry/project.save": "d60ee39b134c3acd"
   },
+  "id": "panel/files",
   "keywords": [
     "open project",
     "save as",
@@ -16,11 +12,15 @@
     "recovery",
     "offline"
   ],
+  "kind": "panel",
   "related": [
     "guide/first-board",
     "guide/libraries",
     "panel/messages"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Open, save and recover the design together with its exact component revisions.",
+  "title": "Project files"
 }
 ---
 
