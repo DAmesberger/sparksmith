@@ -35,6 +35,8 @@ const CASE: &str = "SPARKSMITH_RANDOM_CASE";
 struct Failure {
     /// The number of the atom it broke at; none: at the end.
     at: Option<usize>,
+    /// It broke before that atom was made: on the filled board.
+    before: bool,
     broken: Vec<Broken>,
 }
 
@@ -196,7 +198,8 @@ fn play(case: &Case, looking: bool, tally: &mut Tally) -> Fallible<(Engine, Opti
                 let broken = looked(&engine, &seen, Look::Files)?;
                 if !broken.is_empty() {
                     let at = Some(*number);
-                    return Ok((engine, Some(Failure { at, broken })));
+                    let before = true;
+                    return Ok((engine, Some(Failure { at, before, broken })));
                 }
             }
         }
@@ -205,7 +208,8 @@ fn play(case: &Case, looking: bool, tally: &mut Tally) -> Fallible<(Engine, Opti
             .unwrap_or_else(|e| vec![broken(Rule::Error, format!("{edit:?}: {e}"))]);
         if !broken.is_empty() {
             let at = Some(*number);
-            return Ok((engine, Some(Failure { at, broken })));
+            let before = false;
+            return Ok((engine, Some(Failure { at, before, broken })));
         }
         // As its worker does in the pauses; else the next edit meets
         // copper of before.
@@ -218,7 +222,11 @@ fn play(case: &Case, looking: bool, tally: &mut Tally) -> Fallible<(Engine, Opti
     }
     let seen = Seen::files(engine.project())?;
     let broken = invariants::all(&seen, FINE)?;
-    let failure = (!broken.is_empty()).then_some(Failure { at: None, broken });
+    let failure = (!broken.is_empty()).then_some(Failure {
+        at: None,
+        before: false,
+        broken,
+    });
     Ok((engine, failure))
 }
 
@@ -228,6 +236,7 @@ fn failure(case: &Case) -> Option<Failure> {
         Ok((_, failure)) => failure,
         Err(e) => Some(Failure {
             at: None,
+            before: false,
             broken: vec![broken(Rule::Error, e.to_string())],
         }),
     }
@@ -292,7 +301,11 @@ fn check(case: &Case) -> Fallible {
     for b in last.broken.iter().take(12) {
         text.push_str(&format!("  {:?}: {}\n", b.rule, b.text));
     }
-    text.push_str("the least that fails:\n");
+    text.push_str(match (last.before, last.at) {
+        (true, _) => "the least that fails, filled, before the edit marked:\n",
+        (false, Some(_)) => "the least that fails, after the edit marked:\n",
+        (false, None) => "the least that fails, at the end:\n",
+    });
     for (number, atom) in &least.atoms {
         let mark = if last.at == Some(*number) { '>' } else { ' ' };
         text.push_str(&format!("{mark} {number}: {atom:?}\n"));

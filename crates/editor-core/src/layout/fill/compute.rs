@@ -25,8 +25,9 @@
 //!    nothing and is removed; the fill records how many each pad or via
 //!    lost, which Issues reports as information (`fill.spokes_removed`).
 //! 4. Hatched fills keep a border and a grid of lines.
-//! 5. Islands that no copper of the fill's net touches (by the copper
-//!    graph's one joining rule) are removed, and by setting small ones.
+//! 5. Islands that no pad, via or track of the fill's net touches (by the
+//!    copper graph's one joining rule) are removed, and by setting small
+//!    ones. Another fill of the net is not asked: its copper may go too.
 //!
 //! Obstacles cover their true curves, so the fill boundary is never closer
 //! than the rule: circles (vias, drills) and track ends are drawn with

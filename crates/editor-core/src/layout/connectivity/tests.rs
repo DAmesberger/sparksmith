@@ -625,6 +625,87 @@ fn a_via_land_overlapping_an_island_joins_it() -> Result<()> {
     Ok(())
 }
 
+/// Two pours of one net on one layer are one piece of copper where they
+/// overlap or touch (the files draw their union): the pads each reaches are
+/// routed. Apart, or on another layer, they are not. A pour inside another,
+/// touching no edge, is joined to it. Pours that touch only each other
+/// float: each is reported, as each alone is.
+#[test]
+fn pours_of_one_net_join_where_their_copper_meets() -> Result<()> {
+    use crate::model::fill::IslandRemoval;
+    let left = || rect(10.4, 8.0, 18.0, 12.0);
+    let pours = |start: f64| -> Result<Project> {
+        let mut project = fixture()?;
+        filled(&mut project, left(), FillSettings::default())?;
+        filled(
+            &mut project,
+            rect(start, 8.0, 24.6, 12.0),
+            FillSettings::default(),
+        )?;
+        Ok(project)
+    };
+    // Overlapping, and touching along an edge.
+    for start in [17.0, 18.0] {
+        let project = pours(start)?;
+        let found = connectivity(&project);
+        assert_eq!(found, Vec::new(), "from {start}");
+        let graph = CopperGraph::of(&project);
+        assert!(graph.airwires().is_empty(), "from {start}");
+        assert!(
+            CopperGraph::of_nets(&project, &[SHARED])
+                .airwires()
+                .is_empty()
+        );
+        for pad in graph.pads().iter().filter(|p| p.net == SHARED) {
+            assert!(graph.moved_airwires(pad.instance, [0.0, 0.0]).is_empty());
+        }
+    }
+    // A gap wider than the joining tolerance is a gap.
+    let apart = pours(18.01)?;
+    assert_eq!(codes(&connectivity(&apart), "board.unrouted").len(), 2);
+    // So is another layer.
+    let mut below = pours(17.0)?;
+    if let Some(fill) = below.fills.last_mut() {
+        fill.layer = Layer::Bottom.into();
+    }
+    for (id, copper) in layout::fill::refill(&below, layout::fill::RefillTarget::All)? {
+        if let Some(fill) = below.fills.iter_mut().find(|f| f.id == id) {
+            fill.computed = Some(copper);
+        }
+    }
+    assert_eq!(codes(&connectivity(&below), "board.unrouted").len(), 2);
+    // Stale copper still joins nothing.
+    let mut stale = pours(17.0)?;
+    if let Some(copper) = stale.fills.last_mut().and_then(|f| f.computed.as_mut()) {
+        copper.key.clear();
+    }
+    assert_eq!(codes(&connectivity(&stale), "board.unrouted").len(), 2);
+    // A pour within another's copper, drawn before it or after it.
+    let keep = FillSettings {
+        islands: IslandRemoval::Never,
+        ..FillSettings::default()
+    };
+    let (whole, inner) = (rect(10.4, 8.0, 24.6, 12.0), rect(15.0, 9.0, 18.0, 11.0));
+    for outlines in [[whole.clone(), inner.clone()], [inner, whole]] {
+        let mut project = fixture()?;
+        for outline in outlines {
+            filled(&mut project, outline, keep)?;
+        }
+        assert_eq!(connectivity(&project), Vec::new());
+    }
+    // Two pours far from any pad, overlapping: both float.
+    let mut floating = fixture()?;
+    track(&mut floating, R1_2, R2_1, top())?;
+    let ids = [
+        filled(&mut floating, rect(14.0, 14.0, 17.0, 16.0), keep)?,
+        filled(&mut floating, rect(16.0, 14.0, 19.0, 16.0), keep)?,
+    ];
+    let found = codes(&connectivity(&floating), "fill.island_unconnected");
+    let told: Vec<_> = found.iter().flat_map(|f| f.objects.clone()).collect();
+    assert_eq!(told, ids.map(|id| ObjectRef::Fill { id }));
+    Ok(())
+}
+
 #[test]
 fn thermal_pad_barrels_connect_a_bottom_route_only_at_the_drilled_rings() -> Result<()> {
     let mut project = fixture()?;

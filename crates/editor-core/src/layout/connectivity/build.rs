@@ -12,8 +12,9 @@ use crate::layout::check_pair_budget;
 use crate::layout::copper::{CURVE_SLACK_MM, CopperRing};
 use crate::layout::fill::{self, RegionIndex};
 use crate::layout::grid::BoundsGrid;
+use crate::model::fill::FilledRegion;
 use crate::model::{Project, Track, Via};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// The farthest apart two outlines' bounds may be and still join.
 pub(super) const JOIN_REACH_MM: f64 = 2.0 * CURVE_SLACK_MM + 2.0 * JOIN_TOLERANCE_MM;
@@ -339,10 +340,72 @@ pub(crate) fn islands_joined(index: &RegionIndex, ring: &CopperRing) -> Vec<u32>
     out
 }
 
+/// The islands of an indexed fill that `region`, an island of another fill,
+/// joins by an edge or by lying in one: the one joining rule for two
+/// polygons with holes, both the fabricated copper (no slack). An indexed
+/// island that lies in `region` meets none of its edges: the caller asks
+/// `region`'s own index. The caller has checked the layer and the net.
+fn islands_meeting(index: &RegionIndex, region: &FilledRegion) -> BTreeSet<u32> {
+    let reach = JOIN_TOLERANCE_MM;
+    let mut out: BTreeSet<u32> = region
+        .outer
+        .first()
+        .and_then(|p| index.region_at(*p))
+        .into_iter()
+        .collect();
+    for (p, q) in std::iter::once(&region.outer)
+        .chain(&region.holes)
+        .flat_map(|ring| ring_edges(ring))
+    {
+        let lo = [p[0].min(q[0]) - reach, p[1].min(q[1]) - reach];
+        let hi = [p[0].max(q[0]) + reach, p[1].max(q[1]) + reach];
+        for (r, c, d) in index.edges_near(lo, hi) {
+            if !out.contains(&r) && segments_gap(p, q, c, d) <= reach {
+                out.insert(r);
+            }
+        }
+    }
+    out
+}
+
 fn ring_edges(ring: &[Point]) -> impl Iterator<Item = (Point, Point)> + '_ {
     ring.iter()
         .zip(ring.iter().cycle().skip(1))
         .map(|(a, b)| (*a, *b))
+}
+
+/// The islands of two fresh fills of one net and layer that join: (of `f`,
+/// whose index is given; of `other`).
+fn pour_joints(
+    f: &fill::Fresh<'_>,
+    index: &RegionIndex,
+    other: &fill::Fresh<'_>,
+) -> Vec<(u32, u32)> {
+    let mut out = Vec::new();
+    let mut met = BTreeSet::new();
+    for (r, region) in (0u32..).zip(&other.copper.regions) {
+        for island in islands_meeting(index, region) {
+            met.insert(island);
+            out.push((island, r));
+        }
+    }
+    // An island that meets no edge of the other's and holds none of it lies
+    // in one of them, or clear of them all.
+    let mut theirs = None;
+    for (island, region) in (0u32..).zip(&f.copper.regions) {
+        if met.contains(&island) {
+            continue;
+        }
+        let theirs = theirs.get_or_insert_with(|| RegionIndex::filled(&other.copper.regions));
+        out.extend(
+            region
+                .outer
+                .first()
+                .and_then(|p| theirs.region_at(*p))
+                .map(|r| (island, r)),
+        );
+    }
+    out
 }
 
 /// Where a track (`start`–`end`, half-width `radius`) joined to fill
@@ -762,27 +825,52 @@ impl CopperGraph {
     }
 
     /// The joints of each fresh fill's islands with the copper of its net
-    /// on its layer, by the one joining rule, with the stations where
-    /// tracks meet an island.
+    /// on its layer, the islands of other fills among it, by the one
+    /// joining rule, with the stations where tracks meet an island.
     fn fill_joints(&self, fills: &[fill::Fresh<'_>], first_fill: usize) -> Vec<Joint> {
         let mut out = Vec::new();
         let mut near = Vec::new();
         let mut first = first_fill;
-        for f in fills {
-            let fill_at = first;
-            first += f.copper.regions.len();
-            let Some(group) = self.groups.get(&f.net) else {
-                continue;
-            };
-            let Some(bounds) = Bounds::of(
+        let bounds_of = |f: &fill::Fresh<'_>| {
+            Bounds::of(
                 f.copper
                     .regions
                     .iter()
                     .flat_map(|r| r.outer.iter().copied()),
-            ) else {
+            )
+        };
+        for (k, f) in fills.iter().enumerate() {
+            let fill_at = first;
+            first += f.copper.regions.len();
+            let Some(bounds) = bounds_of(f) else {
                 continue;
             };
             let index = RegionIndex::filled(&f.copper.regions);
+            // Each pair of fills once, from the earlier.
+            let mut other_at = first;
+            for other in fills.iter().skip(k + 1) {
+                let at = other_at;
+                other_at += other.copper.regions.len();
+                let apart = || {
+                    bounds_of(other).is_none_or(|b| !b.inflated(JOIN_REACH_MM).intersects(&bounds))
+                };
+                if other.net != f.net || other.layer != f.layer || apart() {
+                    continue;
+                }
+                out.extend(
+                    pour_joints(f, &index, other)
+                        .into_iter()
+                        .map(|(island, region)| Joint {
+                            a: fill_at + island as usize,
+                            station_a: 0.0,
+                            b: at + region as usize,
+                            station_b: 0.0,
+                        }),
+                );
+            }
+            let Some(group) = self.groups.get(&f.net) else {
+                continue;
+            };
             group.grid.near(&bounds, JOIN_REACH_MM, &mut near);
             for &outline in near.iter().filter_map(|j| group.members.get(*j)) {
                 let (Some(lands), Some(ring)) = (self.lands.get(outline), self.shapes.get(outline))

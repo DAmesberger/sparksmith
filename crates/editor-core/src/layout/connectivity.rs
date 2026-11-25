@@ -20,7 +20,8 @@
 //!
 //! Fill islands of fresh fills ([`super::fill::fresh`]) join by the same
 //! rule ([`islands_joined`]), which fill compute also calls to decide which
-//! islands to keep; stale copper joins nothing until it is refilled.
+//! islands to keep, and to the islands of other fills of the net, which the
+//! files draw as one piece; stale copper joins nothing until it is refilled.
 //!
 //! The router's shove chains and via followers, the meander and the Route
 //! tool ask where copper meets a track or via and which islands lie under
