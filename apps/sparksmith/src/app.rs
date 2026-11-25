@@ -602,10 +602,19 @@ impl App {
                     self.placed(&before, counts, *instance, designator);
                 }
                 // Moved parts' dragged copper the engine re-routed, or
-                // left unrouted, in the same undo step.
+                // left unrouted, in the same undo step, and the parts their
+                // dimensions put over the board's edge: one toast, since
+                // only the newest shows.
                 let rerouted = self.engine.rerouted();
-                if let Some(line) = rerouted.line() {
-                    let level = if rerouted.unrouted.is_empty() {
+                let lines: Vec<String> = rerouted
+                    .over_edge
+                    .iter()
+                    .cloned()
+                    .chain(rerouted.line())
+                    .collect();
+                if !lines.is_empty() {
+                    let line = lines.join(". ");
+                    let level = if rerouted.unrouted.is_empty() && rerouted.over_edge.is_empty() {
                         Level::Info
                     } else {
                         Level::Warning
