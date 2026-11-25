@@ -12,6 +12,6 @@
     "entry/fill.edit",
     "entry/layout.route"
   ],
-  "explanation": "Inspect the fill’s island removal mode and its net. A kept island can remain in the drawing when it touches no other copper on that net."
+  "explanation": "Inspect the fill’s island removal mode and its net. A kept island can remain in the drawing when it reaches no pad, via or track on that net, itself or through the net’s other fills."
 }
 ---

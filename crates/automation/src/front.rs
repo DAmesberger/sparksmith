@@ -263,14 +263,14 @@ impl Surface for Session {
     }
 }
 
-/// Why a person decides about a save over a write-protected file.
+/// Why a person decides about a save or export over a write-protected file.
 const REPLACES_PROTECTED: &str =
     "It replaces the file even if it is write-protected, so a person decides.";
 
 impl Session {
     /// The gate for `request` from `who`, against what is on disk: a link
     /// inside an allowed folder cannot lead out of it. `project.save`
-    /// without a path counts as naming the file it would overwrite, and one
+    /// without a path counts as naming the file it would overwrite. A call
     /// that replaces a write-protected file is a person's to allow in every
     /// permission mode.
     pub(crate) fn gate(&self, who: &Principal<'_>, request: &Request) -> Decision {
@@ -303,7 +303,7 @@ impl Session {
                 .is_some_and(|path| folders.iter().any(|folder| path.starts_with(folder)))
         };
         let decision = gate::decide_entries(who, &subjects, &paths, &inside);
-        let replaces = matches!(request, Request::Save(params) if params.replace_write_protected);
+        let replaces = request.replaces_protected();
         match decision {
             Decision::Run if replaces => Decision::Ask(Question {
                 command: request.subject().to_owned(),
@@ -408,7 +408,7 @@ pub fn from_diagnostic(diagnostic: Diagnostic) -> Error {
             "Have the other program closed and call project.save again, or save to another path. The project is still open and unsaved.",
         ),
         (_, "file_write_protected") => Some(
-            "Save to another path, or ask the person to make the file writable. Only when the person says to replace it, call project.save with replace_write_protected. The project is still open and unsaved.",
+            "Nothing was written. Choose another path, or ask the person to make the file writable. Only when the person says to replace it, make the same call with replace_write_protected, if it takes that.",
         ),
         _ => None,
     }

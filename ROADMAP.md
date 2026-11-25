@@ -2,28 +2,28 @@
 
 The [product plan](docs/sparksmith-plan.md) defines release scope. This file tracks execution; unchecked work is not implemented.
 
-## Workflow support, 22 November 2026
+## Workflow support, 25 November 2026
 
-What a person can do today, by workflow, with the evidence and the limits that matter. "Built" means implemented and tested in this repository; it is not a production-release claim. The external codebase review of 21 November 2026 found false passes in checking and fabrication (unnetted copper, mounting-hole lands, stored fills, existing tracks below a changed width, export profiles) and in file ownership; fixes are under review and this table does not count them as fixed until they are on `main`.
+What a person can do today, by workflow, with the evidence and the limits that matter. "Built" means implemented and tested in this repository; it is not a production-release claim, and no board has been built from its output. The external codebase review of 21 November 2026 found false passes in checking and fabrication and in file ownership. Fixes and regression tests for its probes are on `main`; that they close every case is not claimed.
 
 | Workflow | Status | Evidence | Main limits |
 | --- | --- | --- | --- |
 | Component authoring | Built: Symbol, Footprint, Mapping and 3D modes, immutable revisions, multi-unit symbols, pin functions, generator families in WASM, datasheet-to-component through MCP | [editor evidence](docs/editor-evidence.md), [generator plugins](docs/generator-plugins.md) | Acceptance scenarios CE-01 to CE-07 remain open; typed field definitions need lower-level authoring |
 | Schematic capture | Built: multi-sheet hierarchy, net labels, power ports, annotation, ERC, PDF printing | [schematic capture](docs/schematic-capture.md) | No buses |
 | Schematic-to-board update and placement | Built: reviewed impact previews, one undo step | [editor evidence](docs/editor-evidence.md) | — |
-| Routing | Built: manual, walkaround and push-and-shove, track drag with shove | [push-and-shove](docs/push-and-shove.md) | Through vias only; corner drags not built |
+| Routing | Built: manual, walkaround and push-and-shove, track drag with shove | [push-and-shove](docs/push-and-shove.md) | Through vias only (no blind, buried or laser vias); corner drags not built; no autorouter; a pair does not change layer around a pad in its way |
 | Differential pairs, length tuning, impedance | Built | [high-speed routing](docs/high-speed-routing.md) | No return-path verification; pad and package delay excluded |
-| Pours | Built: fills computed on a worker, thermal relief | [editor evidence](docs/editor-evidence.md) | Stored fill results are trusted (review finding 13) |
-| Board checks and production check | Built | [fabrication output](docs/fabrication-output.md) | The review's false passes above |
+| Pours | Built: fills computed on a worker, thermal relief | [editor evidence](docs/editor-evidence.md) | The fill audit checks stored fills against the rules; the export read-back does not recompute their regions |
+| Board checks and production check | Built | [fabrication output](docs/fabrication-output.md) | A via that a pour edit leaves on one pour only is not reported |
 | Manufacturing output | Built: Gerber X2, Excellon, job file, BOM, pick-and-place, fabrication and assembly drawings; the ESP32 example re-exports byte for byte | [fabrication output](docs/fabrication-output.md) | No IPC-2581, ODB++ or panels; the example board is not reviewed by a person or built |
 | Assembly variants | Built: population and fitted part per variant, feeding BOM, placement, drawings and 3D | [assembly variants](docs/assembly-variants.md) | One variant per export |
-| 3D view and native export | Built: board plan meshed live, exact `.solidcraft` export, parity gate | [board plan and interface](docs/architecture/board-plan-and-interface.md) | A cold 3D open of a 10,000-via board takes seconds ([large board](docs/editor-evidence.md#large-board-benchmark)) |
-| Linked mechanical designs | Built: published datum slots, linked-design preview and publication (slices B0–B4, B6) | [board interface](docs/architecture/board-interface.md) | Publication does not yet bind the previewed linked file (review finding 12) |
-| KiCad import | Built: board, schematic, rules and zones, with an import report | [development](docs/development.md#kicad-import-comparison) | No net ties; one solder mask thickness for both sides |
+| 3D view and native export | Built: board plan meshed live, exact `.solidcraft` export, parity gate | [board plan and interface](docs/architecture/board-plan-and-interface.md) | A cold 3D open of a 10,000-via board takes seconds ([large board](docs/editor-evidence.md#large-board-benchmark)); its exact export is far from that ([build cost](docs/pcb-realism.md#build-cost-measured)) |
+| Linked mechanical designs | Built: published datum slots, linked-design preview and publication (slices B0–B4, B6) | [board interface](docs/architecture/board-interface.md) | Live update of a linked design is not built |
+| KiCad import | Built: board, schematic, rules and zones, with an import report | [development](docs/development.md#kicad-import-comparison) | Net ties only where the file declares their groups or copper (others are in the report); one solder mask thickness for both sides |
 | Firmware pin configuration | Built: JSON, C header, Rust and Zephyr emitters; the C header is compiled in tests | [component model](docs/component-model.md) | Pin configuration only, no clocks or registers |
 | Automation and the assistant | Built: CLI, JSON lines and MCP through one front door; the built-in assistant uses the same verbs | [extension surface](docs/extension-surface.md), [assistant panel](docs/assistant-panel.md) | — |
-| Files and recovery | Built: atomic saves, recovery snapshots, offline reopen | [development](docs/development.md) | Concurrent saves from two processes are not detected (review finding 9) |
-| Platforms | Linux CI on every push; Windows CI on `main`; macOS checked by hand in the VM | [development](docs/development.md#build-and-run) | No macOS CI job for open, save and quit |
+| Files and recovery | Built: atomic saves, recovery snapshots, offline reopen | [development](docs/development.md) | A save that finds the file changed keeps both versions; another program writing in place at the same moment is not excluded |
+| Platforms | Linux CI on every push; Windows CI on `main` ([CI](https://github.com/DAmesberger/sparksmith/actions/workflows/ci.yml)); Linux driven in the window on 24 and 25 November 2026; macOS driven in the VM, last full run 22 November 2026 ([run 13](docs/e2e-run-13.md)) | [development](docs/development.md#build-and-run) | No macOS CI job for open, save and quit; Windows not driven by hand |
 
 ## Milestone 0 — prove the foundation (open items as of 22 November 2026)
 
@@ -87,7 +87,7 @@ Candidates, not yet scheduled:
 At the user's request, execute in this order:
 
 1. **Component and schematic updates:** revision-bound impact previews, explicit affected-copper handling and one-step undo. Implemented, including live airwire preview during component dragging; tests cover stale/cancel/locked/failed updates.
-2. **File handling and recovery:** native dialogs, unsaved-work transitions, portable unpublished drafts and crash recovery. Implemented; macOS Cmd+Q still quits without the unsaved-work prompt (work survives in recovery) until a native app menu routes Quit through the close request, as Solidcraft's does.
+2. **File handling and recovery:** native dialogs, unsaved-work transitions, portable unpublished drafts and crash recovery. Implemented; Cmd+Q and the app menu's Quit ask about unsaved work. Dock › Quit and a logout on macOS do not (the recovery snapshot has the work).
 3. **Performance:** measure representative boards, then remove whole-model reconstruction from local edits. Keep timings and remaining limits explicit.
 
 Parametric design is an additional user requirement: author footprints and board geometry using Solidcraft's parameter/expression facilities. Placement references must support board edges and other components, with independently selectable placement origin, body center and pad-center anchors. Rotation and bottom-side transforms must be explicit. Persist dependencies and stable electrical identities, reject cycles/missing references, and preview footprint-driven routing changes. This follows the hardening sequence; numeric editor fields alone do not satisfy it.

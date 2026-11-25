@@ -13,6 +13,7 @@ use crate::layout::fill::{self, RefillTarget};
 use crate::layout::router::reroute::Rerouted;
 use crate::library::PadKind;
 use crate::model::board::CutoutKind;
+use crate::model::fill::{FilledRegion, IslandRemoval};
 use crate::model::{CopperLayer, Document, Fill, Layer, Project};
 use crate::rules::{CopperObject, NetClass, RuleKey, RuleValue};
 use crate::{Engine, ObjectRef, format};
@@ -43,6 +44,8 @@ pub(super) enum Rule {
     Short,
     /// A fill is the board's now, or told as stale.
     Stale,
+    /// A fill has the islands that join its net, and no others.
+    Island,
     /// A fill keeps every clearance.
     Clearance,
     /// The check before every export passes.
@@ -175,6 +178,7 @@ pub(super) fn all(seen: &Seen, pixel: f64) -> Fallible<Vec<Broken>> {
     let fresh: BTreeSet<Id> = seen.current().map(|f| f.id).collect();
     clearance(&seen.project, Some(&fresh), &mut out)?;
     if !seen.files.is_empty() {
+        islands_stay(seen, &mut out)?;
         read_back(seen, &mut out)?;
         image(seen, pixel, &mut out)?;
         inventory(seen, &mut out)?;
@@ -354,6 +358,105 @@ fn stale(seen: &Seen, out: &mut Vec<Broken>) {
             ));
         }
     }
+}
+
+fn removes(fill: &Fill) -> bool {
+    fill.net.is_some() && fill.settings.islands != IslandRemoval::Never
+}
+
+fn regions(project: &Project, id: Id) -> Vec<FilledRegion> {
+    project
+        .fill(id)
+        .and_then(|f| f.computed.as_ref())
+        .map_or_else(Vec::new, |c| c.regions.clone())
+}
+
+/// Every island of a fill that removes what joins nothing reaches a pad, via
+/// or track of its net, through its net's other fills if need be; and one
+/// the fill has when it keeps every island, but not else, does not.
+fn islands_stay(seen: &Seen, out: &mut Vec<Broken>) -> Fallible {
+    let project = &seen.made;
+    let mut pieces = truth::copper(project);
+    pieces.extend(truth::fills(project));
+    let groups = truth::grouped(&pieces, Some(REACH));
+    let reached: BTreeSet<usize> = pieces
+        .iter()
+        .zip(&groups)
+        .filter(|(p, _)| p.fill.is_none())
+        .map(|(_, g)| *g)
+        .collect();
+    for fill in project.fills.iter().filter(|f| removes(f)) {
+        let floats = pieces
+            .iter()
+            .zip(&groups)
+            .any(|(p, g)| p.fill == Some(fill.id) && !reached.contains(g));
+        if floats {
+            out.push(broken(
+                Rule::Island,
+                format!("fill {} keeps an island that joins nothing", fill.id),
+            ));
+        }
+        let mut keeps = project.clone();
+        if let Some(f) = keeps.fills.iter_mut().find(|f| f.id == fill.id) {
+            f.settings.islands = IslandRemoval::Never;
+        }
+        let keeps = refilled(&keeps)?;
+        let others = |p: &Project| -> Vec<Vec<FilledRegion>> {
+            p.fills
+                .iter()
+                .filter(|f| f.layer == fill.layer && f.net != fill.net && above(f, fill))
+                .map(|f| regions(p, f.id))
+                .collect()
+        };
+        // What it clears is other copper then: its islands say nothing.
+        if others(project) != others(&keeps) {
+            continue;
+        }
+        let kept = regions(project, fill.id);
+        for region in regions(&keeps, fill.id) {
+            if kept.contains(&region) {
+                continue;
+            }
+            let shape = Shape::of_region(&region);
+            let joins = pieces.iter().zip(&groups).find(|(p, g)| {
+                p.net == fill.net
+                    && p.on(fill.layer)
+                    && reached.contains(g)
+                    && p.fill != Some(fill.id)
+                    && p.shape.overlaps(&shape)
+                    // Not through a fill that another net's kept from it
+                    // while it was judged (`layout::fill::groups`).
+                    && !gave_up(project, fill, p.fill)
+            });
+            if let Some((p, _)) = joins {
+                out.push(broken(
+                    Rule::Island,
+                    format!("fill {} lost an island that joins {:?}", fill.id, p.object),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether `a` is poured before `b`.
+fn above(a: &Fill, b: &Fill) -> bool {
+    a.priority > b.priority || a.priority == b.priority && a.id < b.id
+}
+
+/// Whether a fill of another net between `fill` and the lower `other` gave
+/// up islands.
+fn gave_up(project: &Project, fill: &Fill, other: Option<Id>) -> bool {
+    let Some(other) = other.and_then(|id| project.fill(id)) else {
+        return false;
+    };
+    project.fills.iter().any(|f| {
+        f.layer == fill.layer
+            && f.net != fill.net
+            && above(fill, f)
+            && above(f, other)
+            && f.computed.as_ref().is_some_and(|c| c.removed_islands > 0)
+    })
 }
 
 /// What the copper checks allow for chords (`proof`).

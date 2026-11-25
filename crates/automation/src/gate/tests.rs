@@ -590,6 +590,34 @@ fn a_write_protected_file_is_a_persons_to_replace() -> Fallible {
     assert_eq!(refused["error"]["code"], "gate.needs_person", "{refused}");
     assert_eq!(std::fs::read(&file)?, before);
 
+    // So does every export that replaces a file.
+    let pdf = root.path().join("schematic.pdf").display().to_string();
+    let design = root.path().join("board.solidcraft").display().to_string();
+    for (command, mut params) in [
+        ("schematic.export_pdf", json!({"path": pdf})),
+        (
+            "interface.publish",
+            json!({"path": design, "expected_revision": 0}),
+        ),
+    ] {
+        let call = |params: &Value| json!({"command": command, "params": params});
+        assert!(
+            matches!(
+                session.check_request(&policy, &call(&params)),
+                Decision::Run
+            ),
+            "{command}"
+        );
+        params["replace_write_protected"] = json!(true);
+        assert!(
+            matches!(
+                session.check_request(&policy, &call(&params)),
+                Decision::Ask(_)
+            ),
+            "{command}"
+        );
+    }
+
     let saved = session.dispatch(replace);
     assert_eq!(saved["ok"], true, "{saved}");
     std::fs::set_permissions(&file, writable)?;

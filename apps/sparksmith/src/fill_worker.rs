@@ -297,7 +297,17 @@ mod tests {
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        assert_eq!(stored, 1);
+        // The new pour, and the showcase's pour of the net under it: whose
+        // islands stay is settled for the two together.
+        let settled: Vec<_> = engine
+            .project()
+            .fills
+            .iter()
+            .filter(|f| f.net == Some(gnd) && f.layer == CopperLayer::Bottom)
+            .map(|f| f.id)
+            .collect();
+        assert!(settled.len() == 2 && settled.contains(&fill), "{settled:?}");
+        assert_eq!(stored, settled.len());
         assert_eq!(engine.revision(), added + 1);
         let computed = engine
             .project()

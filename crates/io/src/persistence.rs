@@ -145,8 +145,9 @@ pub fn save_project(
     save_project_over(path, file, expected, WriteProtected::Refuse)
 }
 
-/// What a save does with a write-protected file. A rename needs no right to
-/// write the file it replaces, so without asking first it would go.
+/// What a save or an export does with a write-protected file. A rename
+/// needs no right to write the file it replaces, so without asking first it
+/// would go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WriteProtected {
     /// Leave it as it is and say so.
@@ -155,15 +156,59 @@ pub enum WriteProtected {
     Replace,
 }
 
-/// Whether `path` is a file that says it must not be written: without any
-/// right to write (Unix) or read-only (Windows), or on Unix one this person
-/// may not write (another's file, an access list, a locked file).
-fn write_protected(path: &Path) -> bool {
+impl WriteProtected {
+    /// `Replace` when the person said so.
+    pub fn told(replace: bool) -> Self {
+        if replace { Self::Replace } else { Self::Refuse }
+    }
+}
+
+/// While it lives, the files of one set may be replaced although they are
+/// write-protected; those there afterwards are write-protected again.
+pub(crate) struct Allowed {
+    #[cfg(windows)]
+    _writable: Vec<windows::Writable>,
+}
+
+/// Whether the files at `paths` may be replaced, all of them or none: with
+/// [`WriteProtected::Refuse`] the first write-protected one is named, and
+/// nothing has changed.
+pub(crate) fn allow(paths: &[&Path], protected: WriteProtected) -> Result<Allowed> {
+    if protected == WriteProtected::Refuse
+        && let Some(path) = paths.iter().find(|p| write_protected(p))
+    {
+        return Err(Error::WriteProtected(path.to_path_buf()));
+    }
+    Ok(Allowed {
+        #[cfg(windows)]
+        _writable: paths
+            .iter()
+            .filter_map(|p| windows::Writable::for_replacement(p).transpose())
+            .collect::<Result<_>>()?,
+    })
+}
+
+/// [`atomic_write`] over a file the person chose: a write-protected one as
+/// `protected` says.
+pub(crate) fn atomic_write_over(
+    path: &Path,
+    bytes: &[u8],
+    protected: WriteProtected,
+) -> Result<()> {
+    let _allowed = allow(&[path], protected)?;
+    atomic_write(path, bytes)
+}
+
+/// Whether `path` says it must not be written: without any right to write
+/// (Unix) or read-only (Windows), or on Unix a file this person may not write
+/// (another's, an access list, a locked file). A folder counts on Unix only:
+/// Windows gives the attribute another meaning there.
+pub(crate) fn write_protected(path: &Path) -> bool {
     let Ok(meta) = std::fs::metadata(path) else {
         return false;
     };
     if !meta.is_file() {
-        return false;
+        return cfg!(unix) && meta.permissions().readonly();
     }
     #[cfg(unix)]
     let refused = matches!(
@@ -191,11 +236,7 @@ fn save_project_over(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => path.to_owned(),
         Err(error) => return Err(error.into()),
     };
-    if protected == WriteProtected::Refuse && write_protected(&target) {
-        return Err(Error::WriteProtected(target));
-    }
-    #[cfg(windows)]
-    let _writable = windows::Writable::for_replacement(&target)?;
+    let _allowed = allow(&[&target], protected)?;
     container::save_container(&target, file, expected)
 }
 

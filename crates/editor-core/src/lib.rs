@@ -451,7 +451,7 @@ pub enum Query {
     /// `board_mm` (the thickness option it is listed under) and `fabricator`
     /// choose others, and `all` lists every one. With `id`, that stackup as
     /// published, with its sources and disagreements, the build a board takes
-    /// from it, and what taking it (with `moves` and `average_dk`) would
+    /// from it, and what taking it (with `moves`) would
     /// change, what refuses it and what the fab profile says of it.
     #[serde(rename = "layout.stackups")]
     Stackups {
@@ -467,8 +467,6 @@ pub enum Query {
         all: bool,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         moves: Vec<layout::restack::LayerMove>,
-        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-        average_dk: bool,
     },
     /// Every net class with its resolved width, via and clearance, and
     /// every net with its class and how it got it (explicit or pattern).
@@ -666,7 +664,7 @@ declare_entries!(Query in project {
     Stackups "layout.stackups" Read "List fabricators' stackups" [in layout, link, since(3, 0), returns(stackups, stackup)],
     LengthReport "layout.length_report" Read "Length report" [in layout, link, returns(length_report)],
     Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1), returns(pads)],
-    Blocks "block.list" Read "List the blocks" [in project, link, since(10, 0), returns(blocks)],
+    Blocks "block.list" Read "List the blocks" [in project, link, since(10, 1), returns(blocks)],
     RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link, returns(route_preview)],
     TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link, returns(route_preview)],
     TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link, returns(tune_preview)],

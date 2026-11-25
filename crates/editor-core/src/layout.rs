@@ -173,16 +173,15 @@ pub enum LayoutCommand {
     /// it and what the board's fab profile says of it. Copper layers keep
     /// their place from the top and the bottom stays the bottom; `moves`
     /// sends the copper of a layer the stackup lacks to one it has. A layer
-    /// whose plies state several Dk has none, or with `average_dk` their
-    /// average by thickness. A host with the stackup library carries this out
+    /// whose sheets state several Dk takes their average by thickness, with
+    /// the sheets it is calculated from. The board keeps the stackup's id and
+    /// name until a layer is edited. A host with the stackup library carries this out
     /// as `layout.edit_stackup`.
     #[serde(rename = "layout.use_stackup")]
     UseStackup {
         stackup: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         moves: Vec<restack::LayerMove>,
-        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-        average_dk: bool,
     },
     /// Add a board via; the outcome names it (`Outcome::ViaAdded`).
     #[serde(rename = "layout.add_via")]

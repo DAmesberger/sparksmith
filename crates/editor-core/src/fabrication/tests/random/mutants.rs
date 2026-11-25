@@ -9,6 +9,7 @@ use super::invariants::{self, Broken, Kept, Rule, Seen, State};
 use super::plan::{Atom, Case, Edit, Form, Opening, Pour};
 use crate::layout::fill;
 use crate::layout::router::reroute::Rerouted;
+use crate::model::fill::FilledRegion;
 use crate::model::{Layer, Project};
 use crate::rules::{CopperObject, RuleKey, RuleOverride, RuleValue};
 use crate::{Engine, format};
@@ -32,8 +33,26 @@ fn pour(layer: usize) -> Atom {
     }))
 }
 
+/// A pour of RAIL2 on the second layer, drawn.
+fn drawn(from: [f64; 2], to: [f64; 2], priority: u32) -> Atom {
+    Atom::Copper(Edit::Pour(Pour {
+        net: 2,
+        free: false,
+        layer: 1,
+        plane: false,
+        from,
+        to,
+        priority,
+        clearance: None,
+        islands: false,
+        solid: false,
+        hatched: false,
+    }))
+}
+
 /// Four layers; a part on each side; RAIL0 from one to the other through a
-/// via, RAIL1 a stub, RAIL2 the pours of both outer layers.
+/// via, RAIL1 a stub, RAIL2 the pours of both outer layers and, on the
+/// second, one at a pad and a patch on from it.
 fn case() -> Case {
     let pad = |part: usize, spot: usize, form: Form, net: usize| {
         [
@@ -88,6 +107,8 @@ fn case() -> Case {
         line(1, 0, [5.1, 5.1], [5.1, 16.0]),
         pour(0),
         pour(3),
+        drawn([8.0, 3.0], [16.0, 7.5], 0),
+        drawn([15.0, 3.5], [20.0, 7.0], 1),
     ]);
     Case {
         seed: 0,
@@ -186,6 +207,31 @@ fn loose_fill(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
     // The host's own fills have the fault too.
     seen.made = project;
     invariants::all(&seen, PIXEL)
+}
+
+/// The patch's copper changed, in the board and in what a host fills.
+fn patched(seen: &Seen, change: impl Fn(&mut Vec<FilledRegion>)) -> Fallible<Vec<Broken>> {
+    let mut seen = seen.clone();
+    for project in [&mut seen.project, &mut seen.made] {
+        let patch = project.fills.last_mut().and_then(|f| f.computed.as_mut());
+        change(&mut patch.ok_or("the patch")?.regions);
+    }
+    invariants::all(&seen, PIXEL)
+}
+
+/// The patch left out, as if it joined nothing.
+fn patch_lost(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
+    patched(seen, Vec::clear)
+}
+
+/// An island that joins nothing, kept.
+fn floating_kept(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
+    patched(seen, |regions| {
+        regions.push(FilledRegion {
+            outer: vec![[25.0, 4.0], [27.0, 4.0], [27.0, 6.0], [25.0, 6.0]],
+            holes: Vec::new(),
+        });
+    })
 }
 
 fn moved_hole(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
@@ -396,6 +442,16 @@ const FAULTS: [(&str, &[Rule], Fault); 20] = [
         "old fill copper passed off as current",
         &[Rule::Stale, Rule::Clearance],
         old_fill,
+    ),
+    (
+        "a pour joined through another left out",
+        &[Rule::Island],
+        patch_lost,
+    ),
+    (
+        "an island that joins nothing kept",
+        &[Rule::Island],
+        floating_kept,
     ),
     ("an old copper graph", &[Rule::Connectivity], old_graph),
     ("an engine that kept its graph", &[Rule::Cache], old_engine),

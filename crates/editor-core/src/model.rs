@@ -34,8 +34,9 @@ pub use sheet::{
 };
 pub use stackup::{
     BarrelPlating, COPPER_UM_RANGE, CopperFoil, CopperLayer, DIELECTRIC_MM_RANGE, DK_RANGE,
-    Dielectric, DielectricKind, GlassDk, GlassStep, GlassStyle, MASK_UM_RANGE, MAX_COPPER_LAYERS,
-    MIN_COPPER_LAYERS, OUNCE_UM, PresetDielectric, Stackup, StackupPresets, Unsaved,
+    Dielectric, DielectricKind, DielectricSheet, GlassDk, GlassStep, GlassStyle, MASK_UM_RANGE,
+    MAX_COPPER_LAYERS, MIN_COPPER_LAYERS, OUNCE_UM, PickedStackup, PresetDielectric, Stackup,
+    StackupPresets, Unsaved, sheets_dk, weighted_dk,
 };
 pub use variants::{AssemblyVariant, AssemblyVariants, Population, VariantOverride};
 pub use via::{Via, ViaFill, ViaSpan};
@@ -776,6 +777,7 @@ impl NewBoard {
                 silkscreen_top: false,
                 silkscreen_bottom: false,
                 dk_estimates: Unsaved::default(),
+                picked: None,
             },
         }
     }

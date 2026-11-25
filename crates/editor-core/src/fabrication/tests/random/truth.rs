@@ -81,7 +81,7 @@ impl Shape {
         Self::new(vec![outline_ring(outline)])
     }
 
-    fn of_region(region: &FilledRegion) -> Self {
+    pub(super) fn of_region(region: &FilledRegion) -> Self {
         let mut rings = vec![region.outer.clone()];
         rings.extend(region.holes.iter().cloned());
         Self::new(rings)
@@ -779,6 +779,19 @@ pub(super) fn joined(
     pieces: &[Copper],
     reach: Option<f64>,
 ) -> BTreeMap<Id, BTreeMap<(Id, PadId), usize>> {
+    let groups = grouped(pieces, reach);
+    let mut out: BTreeMap<Id, BTreeMap<(Id, PadId), usize>> = BTreeMap::new();
+    for (piece, at) in pieces.iter().zip(groups) {
+        if let (Some(net), Some(ObjectRef::Pad { instance, pad })) = (piece.net, piece.object) {
+            out.entry(net).or_default().insert((instance, pad), at);
+        }
+    }
+    out
+}
+
+/// Each piece's group: those it joins ([`joined`]), directly or through
+/// others, by the least number among them.
+pub(super) fn grouped(pieces: &[Copper], reach: Option<f64>) -> Vec<usize> {
     let mut root: Vec<usize> = (0..pieces.len()).collect();
     fn top(root: &mut [usize], mut k: usize) -> usize {
         while root[k] != k {
@@ -803,12 +816,5 @@ pub(super) fn joined(
             }
         }
     }
-    let mut out: BTreeMap<Id, BTreeMap<(Id, PadId), usize>> = BTreeMap::new();
-    for (k, piece) in pieces.iter().enumerate() {
-        if let (Some(net), Some(ObjectRef::Pad { instance, pad })) = (piece.net, piece.object) {
-            let at = top(&mut root, k);
-            out.entry(net).or_default().insert((instance, pad), at);
-        }
-    }
-    out
+    (0..pieces.len()).map(|k| top(&mut root, k)).collect()
 }

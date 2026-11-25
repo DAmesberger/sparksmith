@@ -3103,6 +3103,9 @@ fn canvas_hint(editor: &SchematicEditor, project: &Project) -> Option<String> {
         Tool::Select if editor.selected.is_some() => {
             format!("Drag to move · {COMMAND_KEY}+R rotates · Shift+X mirrors")
         }
+        Tool::Select if project.instances.is_empty() => {
+            "This project has no parts yet · P finds and places one".to_owned()
+        }
         Tool::Select => "Click to select · drag to move · P places".to_owned(),
     })
 }

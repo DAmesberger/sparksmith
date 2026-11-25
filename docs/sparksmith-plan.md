@@ -1,6 +1,6 @@
 # Sparksmith first edition plan
 
-Product plan, updated 30 October 2026. This combines established user requirements with proposed scope boundaries. Implementation is partial; see [editor evidence](editor-evidence.md). The [component-editor acceptance scenarios](part-library-design.md#component-editor-acceptance-scenarios) define the accepted component workflow.
+Product plan, written 30 October 2026. It sets the scope of the first release and is not a record of what is built: the [roadmap](../ROADMAP.md) is. Several things it postpones are built already, among them push-and-shove, several sheets, more than two copper layers, differential pairs, length tuning and the in-app assistant. This combines established user requirements with proposed scope boundaries. Implementation is partial; see [editor evidence](editor-evidence.md). The [component-editor acceptance scenarios](part-library-design.md#component-editor-acceptance-scenarios) define the accepted component workflow.
 
 Sparksmith should deliver one complete electronics workflow: **create a component → draw a schematic → place and route a PCB → inspect the same PCB in 3D → export manufacturing files and a native parametric `.solidcraft` assembly**. Each editor starts with a small, usable toolset. The first release is complete across this workflow, rather than deep in only one editor.
 
@@ -21,7 +21,7 @@ The UI and interaction style should match Solidcraft. Altium informs the integra
 
 ## What to carry over from Solidcraft
 
-The inspected checkout is [tangency-labs/solidcraft at 4f3ac07](https://github.com/tangency-labs/solidcraft/tree/4f3ac07aec69489183185071f07d7fbcf4f51e64), cloned into `~/dev/solidcraft`. Its workspace declares Rust 2024, Rust 1.95, egui/eframe 0.36 and wgpu 30. These are the inspected versions, not a promise to track every upstream update. [Dependency manifest](https://github.com/tangency-labs/solidcraft/blob/4f3ac07aec69489183185071f07d7fbcf4f51e64/Cargo.toml).
+The inspected checkout is [tangency-labs/solidcraft at 4f3ac07](https://github.com/tangency-labs/solidcraft/tree/4f3ac07aec69489183185071f07d7fbcf4f51e64). Its workspace declares Rust 2024, Rust 1.95, egui/eframe 0.36 and wgpu 30. These are the inspected versions, not a promise to track every upstream update. [Dependency manifest](https://github.com/tangency-labs/solidcraft/blob/4f3ac07aec69489183185071f07d7fbcf4f51e64/Cargo.toml).
 
 Carry over these architectural commitments:
 
@@ -180,4 +180,4 @@ The user requirements above are fixed inputs. The following are proposed scope b
 - Native parametric `.solidcraft` generation and direct Solidcraft engine use are first-release requirements; STEP is optional. Live cross-application synchronization follows later.
 - Desktop is the first polished delivery, with wasm compatibility checked from the beginning.
 
-Planning and the agent-instruction bootstrap are complete. Product implementation and executable CI gates have not started; [ROADMAP.md](../ROADMAP.md) tracks the next work. No upstream modifications or publishing were performed.
+[ROADMAP.md](../ROADMAP.md) tracks the work.

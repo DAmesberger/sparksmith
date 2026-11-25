@@ -12,7 +12,7 @@
 //! and confirm critical stackups with the fabricator's field solver.
 use crate::diagnostics::{Error, Result};
 use crate::ids::Id;
-use crate::model::{CopperLayer, Project, Stackup};
+use crate::model::{CopperLayer, Project, Stackup, weighted_dk};
 use crate::rules::{CopperObject, NetClassId, RuleKey};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -275,7 +275,7 @@ pub struct LayerLine {
 /// marked, its neighbouring copper layers. An outer layer over a plane is
 /// microstrip; an inner layer between two planes stripline; an inner
 /// layer with one plane embedded microstrip. The dielectric between the
-/// trace and its planes is averaged by thickness.
+/// trace and its planes is averaged by thickness ([`weighted_dk`]).
 pub fn structure(stackup: &Stackup, layer: CopperLayer) -> Result<LayerLine> {
     let layers = stackup.layers();
     let index = stackup
@@ -306,14 +306,14 @@ pub fn structure(stackup: &Stackup, layer: CopperLayer) -> Result<LayerLine> {
     }
     // Dielectrics between foil `a` and foil `b` (a < b): thickness-weighted Dk.
     let er_between = |a: usize, b: usize| {
-        let parts: Vec<_> = stackup.dielectrics.get(a..b).unwrap_or_default().to_vec();
-        let thick: f64 = parts.iter().map(|d| d.thickness_mm).sum();
-        let weighted: f64 = parts
-            .iter()
-            .map(|d| d.thickness_mm * stackup.permittivity(d).unwrap_or(f64::NAN))
-            .sum();
+        let parts = stackup.dielectrics.get(a..b).unwrap_or_default();
+        let dk = weighted_dk(
+            parts
+                .iter()
+                .map(|d| (d.thickness_mm, stackup.permittivity(d))),
+        );
         let estimated = parts.iter().any(|d| d.permittivity_estimated());
-        ((weighted / thick.max(1e-9)), estimated)
+        (dk.unwrap_or(f64::NAN), estimated)
     };
     let h_above = above.and_then(span).map(|(ref_bottom, _)| ref_bottom - top);
     let h_below = below.and_then(span).map(|(_, ref_top)| bottom - ref_top);

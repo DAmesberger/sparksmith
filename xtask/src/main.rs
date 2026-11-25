@@ -12,6 +12,7 @@ mod kicad_compare;
 mod layers;
 mod licences;
 mod no_builtin_data;
+mod package;
 mod raw_keys;
 mod ui_containers;
 mod ui_forms;
@@ -43,6 +44,19 @@ pub(crate) fn root() -> Result<PathBuf> {
         .parent()
         .map(Path::to_path_buf)
         .ok_or_else(|| "cannot find workspace root".into())
+}
+
+/// The folder Cargo builds into, as it says itself.
+pub(crate) fn cargo_metadata_target() -> Result<PathBuf> {
+    let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+        .args(["metadata", "--locked", "--no-deps", "--format-version", "1"])
+        .current_dir(root()?)
+        .output()?;
+    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    metadata["target_directory"]
+        .as_str()
+        .map(PathBuf::from)
+        .ok_or_else(|| "cargo names no target directory".into())
 }
 
 fn cargo(args: &[&str]) -> Result<()> {
@@ -88,6 +102,11 @@ fn run() -> Result<()> {
         && command == "help"
     {
         return help::run(rest);
+    }
+    if let Some((command, rest)) = args.split_first()
+        && command == "package"
+    {
+        return package::run(rest);
     }
     if let Some((command, rest)) = args.split_first()
         && command == "agent-bench"
@@ -177,7 +196,7 @@ fn run() -> Result<()> {
         "ui-forms" => ui_forms::check(),
         "raw-keys" => raw_keys::check(),
         _ => Err(
-            "usage: cargo xtask agent-bench ARGS | ci | ci-native | fast [--base REV] | affected [--base REV] [--run] | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
+            "usage: cargo xtask agent-bench ARGS | package [--out DIR] | ci | ci-native | fast [--base REV] | affected [--base REV] [--run] | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
              | licences --check | brand-crates | clean-room | no-builtin-data | generic-terms | ui-containers | ui-forms | raw-keys | generators build [--ship] | check | reproduce | measure \
              | surface --check | --update | help --check | --update | --stamp <topic-id> | --site <out> | kicad-compare [--design PATH]"
                 .into(),

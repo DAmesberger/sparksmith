@@ -2,12 +2,13 @@
 //! to repeat under every geometry tab (docs/sidebar-ia.md, "Properties card
 //! by subject"). DEFINITION, FIELDS, PARTS, LIBRARY and PROVENANCE, in that
 //! order; the footer's Update placed instances… opens the instance review.
-use super::{FieldText, PartEditor};
+use super::{FieldText, PartEditor, Request};
 use crate::kit;
 use egui::Ui;
 use sparksmith_core::fields::{self, FieldDefinition, FieldSelection, FieldValue, MAX_FIELDS};
 use sparksmith_core::library::{
-    ComponentDefinition, FieldView, Library, Published, designator_prefix_valid, standard_fields,
+    ComponentDefinition, Definition, FieldView, Library, Published, designator_prefix_valid,
+    standard_fields,
 };
 use sparksmith_core::{DefinitionId, Engine, FieldRef, Id, LibraryCommand, Operation};
 use sparksmith_ui::ui_kit::{self, Button};
@@ -22,7 +23,55 @@ impl PartEditor {
         let operation = self.part_section(ui, engine, None).or(standard);
         self.library_section(ui, engine);
         self.provenance_section(ui);
+        self.discard_row(ui, engine, unpublished);
         operation
+    }
+
+    /// Discard draft… of a component with changes, or never published, and
+    /// its confirmation; the app runs it, as one undo step.
+    fn discard_row(&mut self, ui: &mut Ui, engine: &Engine, unpublished: bool) {
+        let Some(set) = &self.draft else {
+            return;
+        };
+        let component = set.ids.component;
+        let published = set.published(engine).map(|r| r.revision);
+        if !unpublished {
+            self.discarding = false;
+            return;
+        }
+        let summary = match published {
+            Some(r) => format!("{r} stays published"),
+            None => String::new(),
+        };
+        if kit::summary_row(ui, &summary, Some("Discard draft\u{2026}")) {
+            self.discarding = true;
+        }
+        if !self.discarding {
+            return;
+        }
+        let parts = published.is_none()
+            && engine.drafts().items.iter().any(
+                |d| matches!(&d.definition, Definition::Part(p) if p.component.id == component),
+            );
+        let text = match published {
+            Some(r) => format!("Drop this draft? The published {r} stays as it is."),
+            None if parts => "Drop this new component draft and its Part drafts?".to_owned(),
+            None => "Drop this new component draft?".to_owned(),
+        };
+        match kit::dialog::confirm(
+            ui.ctx(),
+            egui::Id::unique("discard-component-draft"),
+            "Discard component draft",
+            &text,
+            "Discard",
+        ) {
+            Some(true) => {
+                self.discarding = false;
+                self.request = Some(Request::Discard(component));
+            }
+            Some(false) => self.discarding = false,
+            None => {}
+        }
     }
 
     /// Name, designator prefix and revision state of the component.

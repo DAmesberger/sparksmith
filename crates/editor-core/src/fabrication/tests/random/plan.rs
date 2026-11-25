@@ -543,7 +543,14 @@ impl Case {
             atoms.push(Atom::Copper(copper(rng, layers)));
         }
         for _ in 0..2 + rng.below(3) {
-            atoms.push(Atom::Copper(Edit::Pour(pour(rng, layers))));
+            let pour = pour(rng, layers);
+            atoms.push(Atom::Copper(Edit::Pour(pour)));
+            // A patch that goes on from it, of its net. Drawn from numbers
+            // of its own: the rest of a seed's board is as without it.
+            let own = &mut Rng::new(seed ^ 0x70a7_c4e5 ^ atoms.len() as u64);
+            if own.chance(5) {
+                atoms.push(Atom::Copper(Edit::Pour(patch(own, &pour))));
+            }
         }
         for k in 0..EDITS {
             // The last kind goes by the seed, so every kind is tried.
@@ -647,6 +654,29 @@ fn pour(rng: &mut Rng, layers: usize) -> Pour {
         islands: rng.chance(5),
         solid: rng.chance(4),
         hatched: rng.below(8) == 0,
+    }
+}
+
+/// A pour of the net and layer of another, partly over it.
+fn patch(rng: &mut Rng, over: &Pour) -> Pour {
+    let from = match over.plane {
+        true => rng.place(),
+        false => [
+            rng.steps(over.from[0], over.to[0], 0.25),
+            rng.steps(over.from[1], over.to[1], 0.25),
+        ],
+    };
+    Pour {
+        from,
+        to: [
+            from[0] + rng.steps(2.0, 8.0, 0.25),
+            from[1] + rng.steps(2.0, 8.0, 0.25),
+        ],
+        plane: false,
+        priority: rng.below(3) as u32,
+        islands: rng.chance(1),
+        hatched: false,
+        ..*over
     }
 }
 

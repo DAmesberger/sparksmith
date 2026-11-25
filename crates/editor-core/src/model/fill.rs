@@ -28,7 +28,8 @@ pub struct Hatch {
 pub enum IslandRemoval {
     /// Keep every island.
     Never,
-    /// Remove islands that touch no pad, via or track of the fill's net.
+    /// Remove islands that join no pad, via or track of the fill's net,
+    /// themselves or through its other fills on the layer.
     #[default]
     Unconnected,
     /// Remove unconnected islands and connected ones below this area.

@@ -32,6 +32,9 @@ pub(super) enum Done {
     PublishPreview(Result<PublishPreview, String>),
     /// The record to apply, and the revision the design was published at.
     Published(Result<(Operation, u32), String>),
+    /// Nothing was published: a file of the pair is write-protected, which
+    /// the person may replace; what to say.
+    Protected(String),
     AssemblyPreview(Result<AssemblyPreview, String>),
     /// `assembly.record_link` or `assembly.record_update` to apply.
     AssemblyRead(Result<Operation, String>),
@@ -96,18 +99,24 @@ pub(super) fn run(session: &mut Session, job: Job) -> Done {
                 .map_err(|e| crate::refusal::automation_error(&e))
                 .and_then(|v| serde_json::from_value(v).map_err(|e| e.to_string())),
         ),
-        Job::Publish(params) => Done::Published(
-            session
-                .interface_write(&params)
-                .map(|(operation, published)| {
-                    let revision = published["revision"]
-                        .as_u64()
-                        .and_then(|r| u32::try_from(r).ok())
-                        .unwrap_or_default();
-                    (operation, revision)
-                })
-                .map_err(|e| crate::refusal::automation_error(&e)),
-        ),
+        Job::Publish(params) => match session.interface_write(&params) {
+            Ok((operation, published)) => {
+                let revision = published["revision"]
+                    .as_u64()
+                    .and_then(|r| u32::try_from(r).ok())
+                    .unwrap_or_default();
+                Done::Published(Ok((operation, revision)))
+            }
+            Err(error) => {
+                let said = crate::refusal::automation_error(&error);
+                match error {
+                    sparksmith_automation::Error::File(sparksmith_io::Error::WriteProtected(_)) => {
+                        Done::Protected(said)
+                    }
+                    _ => Done::Published(Err(said)),
+                }
+            }
+        },
         Job::AssemblyPreview(params) => Done::AssemblyPreview(
             session
                 .execute(Request::AssemblyPreview(params))

@@ -14,7 +14,7 @@
 //! (`defaults/new-project.json`, [`crate::new_project`]), unless the
 //! user's Settings name another.
 use crate::library_folder::{pretty, read_bounded};
-use crate::persistence::{atomic_create, atomic_write};
+use crate::persistence::{WriteProtected, atomic_create, atomic_write, atomic_write_over};
 use crate::settings::UserDirs;
 use crate::shipped::{Shelf, ShippedLibrary};
 use crate::{Error, Result};
@@ -226,14 +226,14 @@ pub fn export(profile: &RuleProfile, path: &Path) -> Result<()> {
 }
 
 /// [`export`], replacing an existing file at `path` (the desktop's save
-/// dialog has already asked).
+/// dialog has already asked), but not a write-protected one.
 pub fn export_replacing(profile: &RuleProfile, path: &Path) -> Result<()> {
     if path.extension().is_none_or(|e| e != EXTENSION) {
         return Err(Error::Invalid(
             "use a .json filename for a fab profile".into(),
         ));
     }
-    atomic_write(path, &encode(profile)?)
+    atomic_write_over(path, &encode(profile)?, WriteProtected::Refuse)
 }
 
 fn not_found(id: &str) -> Error {
