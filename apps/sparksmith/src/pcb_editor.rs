@@ -2065,7 +2065,10 @@ impl PcbEditor {
                 let at = world(start);
                 // A track under the press drags with shove (`track_drag`).
                 let hit = self.hit_at(project, at, tolerance, metric);
-                let part = self.pick_instance(project, at, tolerance, metric);
+                // A kind the selection filter leaves out is not dragged.
+                let part = self
+                    .pick_instance(project, at, tolerance, metric)
+                    .filter(|id| group::allows(&self.filter, group::Pick::Part(*id)));
                 let add = ui.input(|i| i.modifiers.shift || i.modifiers.command);
                 // ⇧ or ⌘, or a press on nothing a drag moves, draws a
                 // selection rectangle; a press on a part of the group
@@ -2090,7 +2093,7 @@ impl PcbEditor {
                     if self.needs_profile(&project.rules, "Can't drag the track") {
                         self.track_drag = Some(drag);
                     }
-                } else if let Some(id) = self.pick_instance(project, at, tolerance, metric) {
+                } else if let Some(id) = part {
                     self.set_selection(Some(id), None, None);
                     // A locked part, or one its dimensions hold in place,
                     // does not follow the pointer: the engine says why, in
@@ -2248,9 +2251,9 @@ impl PcbEditor {
         // Part dimensions, the body traces and the Dimension tool, as in
         // 3D (`dimensions`).
         let hovered_part = match (self.tool, cursor) {
-            (Tool::Select, Some(at)) if response.hovered() => {
-                self.pick_instance(project, at, tolerance, metric)
-            }
+            (Tool::Select, Some(at)) if response.hovered() => self
+                .pick_instance(project, at, tolerance, metric)
+                .filter(|id| group::allows(&self.filter, group::Pick::Part(*id))),
             _ => None,
         };
         self.hover_board(hovered_part.map(group::Pick::Part));

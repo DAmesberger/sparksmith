@@ -807,3 +807,31 @@ fn picking_a_washer_inspects_the_board_hole_in_both_views() -> Fallible {
     assert_eq!(editor.inspected(engine.project()), Inspected::Hole(hole));
     Ok(())
 }
+
+/// GUI check 2, N4: a kind the filter leaves out is not dragged (the press
+/// draws a rectangle), and switching it off deselects it, so Delete, Rotate
+/// and Flip have nothing of it.
+#[test]
+fn a_drag_obeys_the_filter_and_switching_a_kind_off_deselects_it() -> Fallible {
+    let engine = board(ROUTED)?;
+    let r1 = by(&engine, "R1")?;
+    let (mut editor, ctx) = setup(&engine);
+    let none = egui::Modifiers::NONE;
+    let a = part_at(&editor, &engine, r1)?;
+    let to = a + egui::vec2(0.0, 60.0);
+    // With Parts on the same drag moves it.
+    assert!(drag(&mut editor, &engine, &ctx, a, to, none).is_some());
+    editor.filter_mut().parts = false;
+    editor.deselect_filtered(engine.project());
+    assert!(editor.selected().is_empty(), "R1 is deselected");
+    assert!(drag(&mut editor, &engine, &ctx, a, to, none).is_none());
+    assert!(editor.selected().parts.is_empty());
+    // A mixed selection keeps what is still allowed.
+    *editor.filter_mut() = SelectFilter::default();
+    editor.select_all(engine.project());
+    editor.filter_mut().parts = false;
+    editor.deselect_filtered(engine.project());
+    let track = engine.project().tracks.first().ok_or("no track")?.id;
+    assert_eq!(editor.selected_track(), Some(track));
+    Ok(())
+}

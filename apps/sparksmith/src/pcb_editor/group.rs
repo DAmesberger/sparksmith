@@ -8,7 +8,7 @@
 //! distribute one `layout.align` or `layout.distribute` (the registry's
 //! `pcb.align-*` and `pcb.distribute-*` commands).
 //!
-//! The selection filter decides which kinds a click, the rectangle and ⌘A
+//! The selection filter decides which kinds a click, a drag, the rectangle and ⌘A
 //! may take. It is kept per user in the settings, so it outlasts the session.
 //!
 //! The rectangle follows Solidcraft's (`selection::BoxSel`), as the
@@ -569,7 +569,10 @@ impl PcbEditor {
     }
 
     /// The selection filter's popover rows, beside the view popover.
-    pub fn filter_menu(&mut self, ui: &mut Ui) {
+    /// A kind switched off leaves the selection too: Delete, Rotate and Flip
+    /// act on what is selected.
+    pub fn filter_menu(&mut self, ui: &mut Ui, project: &Project) {
+        let before = self.filter;
         kit::form(ui, |ui| {
             ui.set_width(sparksmith_ui::theme::Tokens::get().form_label_width * 2.4);
             kit::section(ui, "pcb-select-filter", "Select", true, None, |ui| {
@@ -579,12 +582,36 @@ impl PcbEditor {
                 kit::check(ui, "Vias", &mut f.vias);
                 kit::check(ui, "Fills", &mut f.fills);
                 let all = format!(
-                    "Clicks, the rectangle and {}+A take these",
+                    "Clicks, drags, the rectangle and {}+A take these",
                     crate::keys::COMMAND_KEY
                 );
                 kit::hint(ui, &all, "");
             });
         });
+        if self.filter != before {
+            self.deselect_filtered(project);
+        }
+    }
+
+    /// Deselect what the filter leaves out.
+    pub(super) fn deselect_filtered(&mut self, project: &Project) {
+        let (f, all) = (self.filter, self.selected());
+        let mut kept = all.clone();
+        if !f.parts {
+            kept.parts.clear();
+        }
+        if !f.tracks {
+            kept.tracks.clear();
+        }
+        if !f.vias {
+            kept.vias.clear();
+        }
+        if !f.fills {
+            kept.fills.clear();
+        }
+        if kept != all {
+            self.set_group(kept, project);
+        }
     }
 
     /// Whether the selection filter leaves some kind out (its button is
