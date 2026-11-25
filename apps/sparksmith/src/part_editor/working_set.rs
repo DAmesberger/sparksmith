@@ -1,6 +1,7 @@
 //! The five drafts the component editor authors together: a component, one
 //! symbol, its package, one footprint and the binding between them. Every
 //! change reaches the engine as public library commands.
+use sparksmith_core::library::bundle::{RefSite, references};
 #[cfg(test)]
 use sparksmith_core::library::fixtures::{self, SampleRefs};
 use sparksmith_core::library::{
@@ -11,6 +12,7 @@ use sparksmith_core::{
     BindingRef, ComponentRef, DefinitionId, DefinitionKind, DefinitionRef, Engine, Error,
     FootprintRef, LibraryCommand, Operation, PackageRef, Result, Revision, SymbolRef,
 };
+use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ids {
@@ -474,18 +476,70 @@ pub fn open_drafts(engine: &mut Engine, component: ComponentRef) -> Result<usize
     if idle.is_empty() {
         return draft_closure(engine, component);
     }
-    engine.begin_group("Open a component")?;
-    let made = idle
-        .into_iter()
-        .try_for_each(|id| {
-            engine
-                .apply(
-                    engine.revision(),
-                    Operation::Library(LibraryCommand::DiscardDraft { id }),
-                )
-                .map(drop)
-        })
-        .and_then(|()| draft_closure(engine, component));
+    one_step(engine, "Open a component", |engine| {
+        discard_each(engine, idle)?;
+        draft_closure(engine, component)
+    })
+}
+
+/// Discard the drafts of the open component `component`: its working set,
+/// and for one never published its Part drafts, which name nothing else.
+/// A draft another component's drafts name (a shared package) stays. One
+/// undo step of `library.discard_draft`.
+pub fn discard(engine: &mut Engine, component: DefinitionId) -> Result<()> {
+    let drafts = engine.drafts();
+    let Some(set) = WorkingSet::of(drafts, component) else {
+        return Err(Error::NotFound("That draft no longer exists".into()));
+    };
+    let published = engine.project().library.latest(component).is_some();
+    let part_of = |definition: &Definition| matches!(definition, Definition::Part(part) if part.component.id == component);
+    let mut dropped: BTreeSet<DefinitionId> = set.ids.all().into_iter().collect();
+    if !published {
+        let parts = drafts.items.iter().filter(|d| part_of(&d.definition));
+        dropped.extend(parts.map(|d| d.id));
+    }
+    loop {
+        let mut named = Vec::new();
+        for draft in &drafts.items {
+            if !dropped.contains(&draft.id) && !part_of(&draft.definition) {
+                named.extend(references(&draft.definition)?);
+            }
+        }
+        let before = dropped.len();
+        for site in named {
+            let (RefSite::Exact {
+                target: DefinitionRef { id, .. },
+            }
+            | RefSite::Lineage { id, .. }) = site;
+            dropped.remove(&id);
+        }
+        if dropped.len() == before {
+            break;
+        }
+    }
+    one_step(engine, "Discard draft", |engine| {
+        discard_each(engine, dropped)
+    })
+}
+
+fn discard_each(engine: &mut Engine, ids: BTreeSet<DefinitionId>) -> Result<()> {
+    for id in ids {
+        engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::DiscardDraft { id }),
+        )?;
+    }
+    Ok(())
+}
+
+/// `steps` as one undo step named `label`; refused, nothing has changed.
+fn one_step<T>(
+    engine: &mut Engine,
+    label: &str,
+    steps: impl FnOnce(&mut Engine) -> Result<T>,
+) -> Result<T> {
+    engine.begin_group(label)?;
+    let made = steps(engine);
     let stepped = engine.end_group().is_some();
     if made.is_err() && stepped {
         engine.undo()?;
