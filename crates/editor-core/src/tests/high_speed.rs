@@ -1468,7 +1468,7 @@ fn the_production_check_warns_on_open_pair_copper_and_skew() -> Result<()> {
 }
 
 #[test]
-fn shallow_diverging_tracks_couple_only_within_the_gap_band_in_either_direction() -> Result<()> {
+fn shallow_diverging_tracks_couple_out_to_three_pair_gaps_in_either_direction() -> Result<()> {
     let engine = Engine::showcase()?;
     let mut project = engine.project().clone();
     let nets: Vec<_> = project
@@ -1511,13 +1511,67 @@ fn shallow_diverging_tracks_couple_only_within_the_gap_band_in_either_direction(
             std::mem::swap(&mut t.start, &mut t.end);
         }
         let c = layout::length::coupling(&project, &pair);
-        let fraction = 0.020 / 0.450;
+        // The negative half runs from 0.2 mm to 0.65 mm off the positive
+        // one, edge to edge; it counts as coupled out to three pair gaps
+        // (0.6 mm), farther than the 0.2 mm gap and its 0.02 mm tolerance.
+        let fraction = (3.0 * 0.200 - 0.200) / 0.450;
         assert!((c.coupled[0] - 30. * fraction).abs() < 1e-8);
         assert!((c.coupled[1] - 30_f64.hypot(0.45) * fraction).abs() < 1e-8);
         let mut gaps: Vec<_> = c.coupled_runs.iter().map(|sample| sample.4).collect();
         gaps.sort_by(f64::total_cmp);
         assert_eq!(gaps.len(), 2);
-        assert!((gaps[0] - 0.200).abs() < 1e-8 && (gaps[1] - 0.220).abs() < 1e-8);
+        assert!((gaps[0] - 0.200).abs() < 1e-8 && (gaps[1] - 0.600).abs() < 1e-8);
+    }
+    Ok(())
+}
+
+/// A pair routed at the width and gap one profile derives keeps running
+/// coupled after a switch to a profile that derives another pair of them
+/// on the same stackup: its gap is one of many that meet the target, so
+/// the switch adds no uncoupled length and no impedance finding, and its
+/// review names none (GUI run 3, A23: 32.7 mm counted uncoupled).
+#[test]
+fn a_pair_stays_coupled_when_a_profile_switch_derives_another_gap() -> Result<()> {
+    let mut usb = usb(usb90())?;
+    let positive = usb.nets[0];
+    let derived = |engine: &Engine| {
+        layout::impedance::pair_width_gap(engine.project(), positive, CopperLayer::Top)
+    };
+    let before = derived(&usb.engine);
+    let legs = straight(&usb);
+    routed(&mut usb, legs)?;
+    let uncoupled = |engine: &Engine| -> Result<f64> { Ok(report(engine)?.pairs[0].uncoupled) };
+    let fan_out = uncoupled(&usb.engine)?;
+    assert!(fan_out > 0.0 && fan_out < 3.0, "{fan_out}");
+    let four = crate::rules::fixtures::parse(include_str!(
+        "../../../../library/profiles/jlcpcb-4-layer.json"
+    ))?;
+    let QueryResult::ProfileImpact(impact) = usb.engine.query(Query::PreviewProfile {
+        profile: crate::rules::ProfileChoice::Profile(Box::new(four.clone())),
+        options: Default::default(),
+        keep_overrides: false,
+    })?
+    else {
+        return Err(Error::Invalid("not an impact".into()));
+    };
+    assert!(
+        !impact.new_issues.iter().any(|t| t.starts_with("USB_D")),
+        "{:?}",
+        impact.new_issues
+    );
+    apply(
+        &mut usb.engine,
+        Operation::Rules(RulesCommand::set_profile(four, false)),
+    )?;
+    let after = derived(&usb.engine);
+    assert!(
+        (after.1 - before.1).abs() > 0.05,
+        "the profiles derive different gaps: {before:?} {after:?}"
+    );
+    assert!((uncoupled(&usb.engine)? - fan_out).abs() < 1e-6);
+    let codes = board_codes(&usb.engine);
+    for code in ["pair.uncoupled", "pair.gap", "impedance.mismatch"] {
+        assert!(!codes.contains(&code.to_owned()), "{code}: {codes:?}");
     }
     Ok(())
 }

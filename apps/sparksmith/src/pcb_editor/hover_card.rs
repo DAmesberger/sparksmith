@@ -68,7 +68,9 @@ impl PcbEditor {
             Hit::Part(id) | Hit::Tie(id, _) => Subject::Part(id),
             Hit::Via(id, _) => Subject::Via(id),
             Hit::Track(id, _) => Subject::Track(id),
-            Hit::Hole(_) | Hit::Fill(..) | Hit::Nothing => return None,
+            Hit::Hole(_) | Hit::Fill(..) | Hit::Block(_) | Hit::Keepout(_) | Hit::Nothing => {
+                return None;
+            }
         };
         let place = self.place_of(project, subject)?;
         // A part's drawing may reach past its body and pads.
@@ -296,7 +298,7 @@ impl PcbEditor {
             (Pick::Part(id), _) => Subject::Part(id),
             (Pick::Via(id), _) => Subject::Via(id),
             (Pick::Track(id), _) => Subject::Track(id),
-            (Pick::Fill(_), _) => return None,
+            (Pick::Fill(_) | Pick::Block(_), _) => return None,
         })
     }
 }
