@@ -184,7 +184,7 @@ impl GlassStyle {
 pub struct DielectricSheet {
     pub material: String,
     /// As pressed.
-    pub thickness_mm: f64,
+    pub thickness_nm: Nm,
     pub dk: f64,
 }
 
@@ -222,8 +222,12 @@ pub fn weighted_dk(parts: impl IntoIterator<Item = (f64, Option<f64>)>) -> Optio
 
 /// The Dk a dielectric of `sheets` takes: [`weighted_dk`] to four decimals.
 pub fn sheets_dk(sheets: &[DielectricSheet]) -> Option<f64> {
-    weighted_dk(sheets.iter().map(|s| (s.thickness_mm, Some(s.dk))))
-        .map(|dk| (dk * 1e4).round() / 1e4)
+    weighted_dk(
+        sheets
+            .iter()
+            .map(|s| (s.thickness_nm.to_mm_f64(), Some(s.dk))),
+    )
+    .map(|dk| (dk * 1e4).round() / 1e4)
 }
 
 /// Sheets one dielectric names, at most.
@@ -243,7 +247,7 @@ impl Dielectric {
     /// The sheets the Dk is calculated from; none when it was entered, and
     /// none once the sheets no longer give this thickness and Dk.
     pub fn calculated_from(&self) -> Option<&[DielectricSheet]> {
-        let mm: f64 = self.sheets.iter().map(|s| s.thickness_mm).sum();
+        let mm: f64 = self.sheets.iter().map(|s| s.thickness_nm.to_mm_f64()).sum();
         let gives = sheets_dk(&self.sheets)
             .zip(self.dk)
             .is_some_and(|(sheets, dk)| (sheets - dk).abs() < SAME);
@@ -256,7 +260,10 @@ impl Dielectric {
         let sheets: Vec<String> = self
             .calculated_from()?
             .iter()
-            .map(|s| format!("{} mm {} of Dk {}", s.thickness_mm, s.material, s.dk))
+            .map(|s| {
+                let mm = s.thickness_nm.to_mm_f64();
+                format!("{mm} mm {} of Dk {}", s.material, s.dk)
+            })
             .collect();
         Some(format!(
             "Calculated by thickness from {}",

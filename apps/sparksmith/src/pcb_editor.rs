@@ -4473,6 +4473,15 @@ mod tests {
         let library = sparksmith_io::fab_stackups::shipped()?;
         let taken = sparksmith_io::fab_stackups::find(&library, "jlc0216a")?;
         assert!(taken.is_build_of(&engine.project().stackup));
+        let picked = engine.project().stackup.picked().ok_or("no name")?;
+        assert_eq!(picked.name, taken.name);
+        // The dialog shows the name of the board's stackup.
+        frame(&mut editor, &engine, &ctx, vec![]);
+        editor.open_stackup(engine.project());
+        let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
+        let shown = texts(&output);
+        assert!(shown.contains(&taken.name), "{shown:?}");
+        click(&mut editor, &engine, &ctx, "Cancel")?;
         frame(&mut editor, &engine, &ctx, vec![]);
         assert_eq!(editor.subject(), Subject::Properties);
         engine.undo()?;

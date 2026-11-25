@@ -12,6 +12,7 @@ use crate::model::{
     Stackup, sheets_dk,
 };
 use crate::rules::ProfileSource;
+use crate::units::Nm;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -257,7 +258,7 @@ impl FabDielectric<'_> {
             .map(|p| {
                 Some(DielectricSheet {
                     material: p.material_text(),
-                    thickness_mm: p.pressed_mm(),
+                    thickness_nm: Nm::from_mm_f64_rounded(p.pressed_mm()).ok()?,
                     dk: p.dk?,
                 })
             })
