@@ -1072,6 +1072,8 @@ pub fn stage(
                     });
                 }
             }
+            let numbered =
+                number_empty_package(drafts, &component, document, accept, &matched, &mut out)?;
             out.drafts.push(StagedDraft {
                 id: *id,
                 create: false,
@@ -1079,6 +1081,7 @@ pub fn stage(
                 definition: Definition::Component(component),
             });
             out.drafts.extend(symbols);
+            out.drafts.extend(numbered);
         }
         PinoutTarget::New { name, row } => {
             if !text_ok(name, MAX_LABEL) {
@@ -1197,6 +1200,108 @@ pub fn stage(
         }
     }
     Ok(out)
+}
+
+/// The package and binding drafts of a component's working set whose
+/// package has no terminals yet and whose binding maps nothing (Blank
+/// component, then Paste table…): the rows' numbers become the package's
+/// terminals and the binding maps each to its row's terminal, as a new
+/// import's package and binding do. Only with one variant, whose numbers
+/// are then the package's; with several, no package is guessed.
+fn number_empty_package(
+    drafts: &Drafts,
+    component: &ComponentDefinition,
+    document: &PinoutDocument,
+    accept: &PinoutAccept,
+    matched: &Matches,
+    out: &mut StagedImport,
+) -> Result<Vec<StagedDraft>> {
+    let [variant] = document.variants.as_slice() else {
+        return Ok(Vec::new());
+    };
+    // Each accepted row's terminal: kept by the match, or added now.
+    let terminal_of = |row: &str| {
+        matched.matched.get(row).copied().or_else(|| {
+            out.changes
+                .iter()
+                .find(|c| c.object == "terminal" && c.row.as_deref() == Some(row))
+                .and_then(|c| c.terminal)
+        })
+    };
+    let mut staged = Vec::new();
+    let mut added = Vec::new();
+    for implementation in &component.implementations {
+        let Some(binding_draft) = drafts.get(implementation.id) else {
+            continue;
+        };
+        let Definition::Binding(binding) = &binding_draft.definition else {
+            continue;
+        };
+        let Some(package_draft) = drafts.get(binding.package.id) else {
+            continue;
+        };
+        let Definition::Package(package) = &package_draft.definition else {
+            continue;
+        };
+        if !binding.mappings.is_empty() || !package.terminals.is_empty() {
+            continue;
+        }
+        let mut package = package.clone();
+        let mut binding = binding.clone();
+        for pin in document.pins.iter().filter(|p| accepted(accept, &p.row)) {
+            let (Some(numbers), Some(terminal)) =
+                (pin.number.get(&variant.name), terminal_of(&pin.row))
+            else {
+                continue;
+            };
+            for number in numbers.iter() {
+                if package.terminals.len() >= crate::library::MAX_PACKAGE_TERMINALS {
+                    return Err(Error::Limit(format!(
+                        "pinout.document: {} has more than {} package terminals",
+                        variant.name,
+                        crate::library::MAX_PACKAGE_TERMINALS
+                    )));
+                }
+                let id = PackageTerminalId(package.next_local);
+                package.next_local = package
+                    .next_local
+                    .checked_add(1)
+                    .ok_or_else(|| Error::Limit("too many package terminals".into()))?;
+                package.terminals.push(PackageTerminal {
+                    id,
+                    designation: number.clone(),
+                });
+                binding.mappings.push(TerminalMap {
+                    package_terminal: id,
+                    terminal,
+                });
+                added.push(change(
+                    ChangeKind::Added,
+                    "package_terminal",
+                    Some(&pin.row),
+                    Some(terminal),
+                    format!("{} terminal {number} carries ‘{}’", variant.name, pin.name),
+                ));
+            }
+        }
+        if package.terminals.is_empty() {
+            continue;
+        }
+        staged.push(StagedDraft {
+            id: package_draft.id,
+            create: false,
+            meta: package_draft.meta.clone(),
+            definition: Definition::Package(package),
+        });
+        staged.push(StagedDraft {
+            id: binding_draft.id,
+            create: false,
+            meta: binding_draft.meta.clone(),
+            definition: Definition::Binding(binding),
+        });
+    }
+    out.changes.extend(added);
+    Ok(staged)
 }
 
 /// A pinout names no package row: a row is a generator's values now
