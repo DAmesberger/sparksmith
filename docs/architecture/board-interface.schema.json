@@ -1781,6 +1781,25 @@
             "type": "object"
           },
           {
+            "description": "Text on the board's silkscreen that belongs to no part.",
+            "properties": {
+              "id": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "board_text",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
             "description": "The board as a whole, for a finding about the board rather than any\none object on it (a check that stopped at its limit). Locating it\nframes the board.",
             "properties": {
               "kind": {
@@ -2623,6 +2642,25 @@
               },
               "kind": {
                 "const": "keepout",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Text on the board's silkscreen that belongs to no part.",
+            "properties": {
+              "id": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "board_text",
                 "type": "string"
               }
             },

@@ -15,6 +15,7 @@ use std::sync::Arc;
 pub mod assembly_link;
 pub mod block;
 pub mod board;
+pub mod board_text;
 pub mod dimension;
 pub mod fill;
 pub mod import_review;
@@ -26,6 +27,7 @@ pub mod variants;
 mod via;
 pub use block::Block;
 pub use board::{BoardShape, SolvedBoard};
+pub use board_text::{BoardText, BoardTextSpec};
 pub use dimension::PartDimension;
 pub use fill::{Fill, Keepout};
 pub use sheet::{
@@ -676,6 +678,9 @@ pub struct Project {
     pub fills: Shared<Vec<Fill>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub keepouts: Shared<Vec<Keepout>>,
+    /// Text on the board's silkscreen that belongs to no part.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub board_texts: Shared<Vec<BoardText>>,
     /// Blocks: parts that belong together (`instances::blocks`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocks: Shared<Vec<Block>>,
@@ -819,6 +824,7 @@ impl Project {
             model_traces: Shared::default(),
             fills: Shared::default(),
             keepouts: Shared::default(),
+            board_texts: Shared::default(),
             blocks: Shared::default(),
             sheets: Sheets::default(),
             properties: ProjectProperties::default(),
@@ -927,6 +933,9 @@ impl Project {
     }
     pub fn keepout(&self, id: Id) -> Option<&Keepout> {
         by_id(&self.keepouts, id, |k| k.id)
+    }
+    pub fn board_text(&self, id: Id) -> Option<&BoardText> {
+        by_id(&self.board_texts, id, |t| t.id)
     }
     /// The solved board outline: the sketch's last solve, or the
     /// `board_size` rectangle.

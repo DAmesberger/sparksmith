@@ -685,6 +685,7 @@ impl Command {
                 "board-shape" => "entry/board.start_sketch",
                 "fill" => "entry/fill.add",
                 "keepout" => "entry/keepout.add",
+                "text" => "entry/layout.text_add",
                 "refill" => "entry/fill.refill",
                 "production" => "entry/project.export_fabrication",
                 "update" => "entry/layout.sync",
@@ -1920,6 +1921,9 @@ fn defaults() -> Vec<Command> {
         )
         .icon("suppress")
         .keywords("keep out keepout no copper restrict area forbid"),
+        tool("pcb.text", "Text", C::PcbLayout, Workspace::Pcb, "text")
+            .icon("list")
+            .keywords("board text silkscreen silk legend label write name revision"),
         // Layout and 3D share one Dimension tool and its key.
         tool(
             "pcb.dimension",

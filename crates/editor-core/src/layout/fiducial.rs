@@ -22,7 +22,7 @@
 use super::legend::text_strokes;
 use super::limits::cite;
 use super::placed::{
-    BoardDrawing, PlacedItem, opposite, placed_graphics, placed_keepouts, placed_pads,
+    BoardDrawing, PlacedItem, Whose, opposite, placed_graphics, placed_keepouts, placed_pads,
 };
 use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, Measured, ObjectRef, Unit};
@@ -300,14 +300,15 @@ fn silk_findings(project: &Project, fiducials: &[PlacedFiducial]) -> Vec<Finding
         return Vec::new();
     }
     let silk = project.rules.effective().silkscreen;
-    let mut reported: BTreeSet<(Id, usize)> = BTreeSet::new();
+    let mut reported: BTreeSet<(Whose, usize)> = BTreeSet::new();
     let mut out = Vec::new();
     for graphic in placed_graphics(project) {
         let BoardDrawing::Silkscreen(layer) = graphic.layer else {
             continue;
         };
         for (i, f) in fiducials.iter().enumerate() {
-            if f.layer != layer || reported.contains(&(graphic.instance, i)) {
+            let key = graphic.whose();
+            if f.layer != layer || reported.contains(&(key, i)) {
                 continue;
             }
             let enters = f.clear.iter().any(|ring| match &graphic.item {
@@ -333,18 +334,28 @@ fn silk_findings(project: &Project, fiducials: &[PlacedFiducial]) -> Vec<Finding
                 }
             });
             if enters {
-                reported.insert((graphic.instance, i));
-                let owner = designator(project, graphic.instance);
+                reported.insert((key, i));
                 let fid = designator(project, f.instance);
-                let whose = if graphic.instance == f.instance {
-                    format!("{owner}'s own silkscreen")
-                } else {
-                    format!("Silkscreen of {owner}")
+                let (whose, mut objects) = match key {
+                    Whose::Part(instance) if instance == f.instance => (
+                        format!("{}'s own silkscreen", designator(project, instance)),
+                        vec![ObjectRef::Instance { id: instance }],
+                    ),
+                    Whose::Part(instance) => (
+                        format!("Silkscreen of {}", designator(project, instance)),
+                        vec![ObjectRef::Instance { id: instance }],
+                    ),
+                    Whose::BoardText(id) => (
+                        format!(
+                            "Board text {}",
+                            project.board_text(id).map_or_else(String::new, |t| {
+                                crate::model::board_text::first_line(&t.text)
+                            })
+                        ),
+                        vec![ObjectRef::BoardText { id }],
+                    ),
                 };
-                let mut objects = vec![ObjectRef::Instance {
-                    id: graphic.instance,
-                }];
-                if graphic.instance != f.instance {
+                if key != Whose::Part(f.instance) {
                     objects.push(ObjectRef::Instance { id: f.instance });
                 }
                 out.push(Finding::new(

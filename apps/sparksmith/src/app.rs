@@ -2251,6 +2251,9 @@ mod block_tests;
 #[path = "app/board_param_tests.rs"]
 mod board_param_tests;
 #[cfg(test)]
+#[path = "app/board_text_tests.rs"]
+mod board_text_tests;
+#[cfg(test)]
 #[path = "app/browser_pcb_tests.rs"]
 mod browser_pcb_tests;
 #[cfg(test)]

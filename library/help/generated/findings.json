@@ -960,6 +960,21 @@
     }
   },
   {
+    "id": "finding/board.text_height",
+    "title": "Small board text",
+    "summary": "Small board text",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "finding",
+      "severity": "warning",
+      "blocks": null,
+      "group": "Small board text",
+      "fix": "",
+      "fixed_by": [],
+      "checks": null
+    }
+  },
+  {
     "id": "finding/board.track_dangling",
     "title": "Track ends joining nothing",
     "summary": "Track ends joining nothing",

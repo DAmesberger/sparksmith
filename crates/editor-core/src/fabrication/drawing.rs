@@ -598,13 +598,14 @@ fn assembly_sides(project: &Project) -> Result<Vec<AssemblySide>> {
             BoardDrawing::Courtyard(side) => (&mut courtyard, side),
             BoardDrawing::Silkscreen(_) => continue,
         };
+        let layout::GraphicOwner::Part { instance, graphic } = g.owner else {
+            continue;
+        };
         if let PlacedItem::Shape { shape, .. } = &g.item {
-            let name = format!("assembly graphic {} of part {}", g.graphic.0, g.instance);
+            let name = format!("assembly graphic {} of part {instance}", graphic.0);
             let ring = drawing_shape(shape, DRAWING_CHORD_MM, &name)?;
             if ring.len() >= 2 {
-                map.entry((g.instance, bottom(side)))
-                    .or_default()
-                    .push(ring);
+                map.entry((instance, bottom(side))).or_default().push(ring);
             }
         }
     }

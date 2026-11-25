@@ -261,7 +261,7 @@ fn graphics_place_mirrored_on_the_bottom_and_pick_by_stroke_and_text_box() -> Re
     })?;
     let graphics: Vec<PlacedGraphic> = placed_graphics(&project)
         .into_iter()
-        .filter(|g| g.instance == r1)
+        .filter(|g| g.instance() == Some(r1))
         .collect();
     assert_eq!(graphics.len(), 3);
     assert_eq!(graphics[0].layer, BoardDrawing::Silkscreen(Layer::Bottom));
@@ -276,15 +276,15 @@ fn graphics_place_mirrored_on_the_bottom_and_pick_by_stroke_and_text_box() -> Re
     // The silk line is mirrored to y = 9 on the bottom.
     let line = pick_graphic(&graphics, [10.5, 9.05], 0.0, m, |_| true)
         .ok_or_else(|| Error::NotFound("line pick".into()))?;
-    assert_eq!(line.graphic, crate::GraphicId(10));
+    assert_eq!(line.graphic(), Some(crate::GraphicId(10)));
     assert!(
-        pick_graphic(&graphics, [10.5, 11.0], 0.0, m, |g| g.graphic
-            != crate::GraphicId(12))
+        pick_graphic(&graphics, [10.5, 11.0], 0.0, m, |g| g.graphic()
+            != Some(crate::GraphicId(12)))
         .is_none()
     );
     let label = pick_graphic(&graphics, [10.0, 8.5], 0.0, m, |_| true)
         .ok_or_else(|| Error::NotFound("text pick".into()))?;
-    assert_eq!(label.graphic, crate::GraphicId(11));
+    assert_eq!(label.graphic(), Some(crate::GraphicId(11)));
     // Hidden layers do not pick; the courtyard picks on its stroke only.
     assert!(
         pick_graphic(&graphics, [10.0, 8.5], 0.0, m, |g| !matches!(
@@ -295,7 +295,7 @@ fn graphics_place_mirrored_on_the_bottom_and_pick_by_stroke_and_text_box() -> Re
     );
     let courtyard = pick_graphic(&graphics, [12.0, 10.0], 0.01, m, |_| true)
         .ok_or_else(|| Error::NotFound("courtyard pick".into()))?;
-    assert_eq!(courtyard.graphic, crate::GraphicId(12));
+    assert_eq!(courtyard.graphic(), Some(crate::GraphicId(12)));
     Ok(())
 }
 

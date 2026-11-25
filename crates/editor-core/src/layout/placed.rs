@@ -187,21 +187,74 @@ pub enum PlacedItem {
     Text(PlacedText),
 }
 
-/// One footprint graphic of one placed part.
+/// Whose a placed graphic is: a footprint graphic of a placed part, or a
+/// board text.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "owner", rename_all = "snake_case")]
+pub enum GraphicOwner {
+    Part { instance: Id, graphic: GraphicId },
+    BoardText { id: Id },
+}
+
+/// Whose board graphics are: one placed part's, or one board text's. A
+/// check that reports a part's legend once names it by this.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Whose {
+    Part(Id),
+    BoardText(Id),
+}
+
+/// One graphic on the board: a footprint graphic of one placed part, or a
+/// board text on the silkscreen.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct PlacedGraphic {
-    pub instance: Id,
-    pub graphic: GraphicId,
+    pub owner: GraphicOwner,
     pub layer: BoardDrawing,
     pub item: PlacedItem,
 }
 
+impl PlacedGraphic {
+    /// The placed part it belongs to; `None` for a board text.
+    pub fn instance(&self) -> Option<Id> {
+        match self.owner {
+            GraphicOwner::Part { instance, .. } => Some(instance),
+            GraphicOwner::BoardText { .. } => None,
+        }
+    }
+
+    /// The footprint graphic it is; `None` for a board text.
+    pub fn graphic(&self) -> Option<GraphicId> {
+        match self.owner {
+            GraphicOwner::Part { graphic, .. } => Some(graphic),
+            GraphicOwner::BoardText { .. } => None,
+        }
+    }
+
+    /// Whose ink it is: a part's (any of its graphics) or a board text's.
+    pub fn whose(&self) -> Whose {
+        match self.owner {
+            GraphicOwner::Part { instance, .. } => Whose::Part(instance),
+            GraphicOwner::BoardText { id } => Whose::BoardText(id),
+        }
+    }
+
+    /// The board text it is; `None` for a part's graphic.
+    pub fn board_text(&self) -> Option<Id> {
+        match self.owner {
+            GraphicOwner::BoardText { id } => Some(id),
+            GraphicOwner::Part { .. } => None,
+        }
+    }
+}
+
 /// Every footprint graphic of every placed part, including parts without
-/// nets. `Side::Component` maps to the placement layer; on the bottom, text
-/// is marked mirrored and arcs reverse (through `Shape::transformed`).
-/// Designator text shows the instance designator and literal text itself;
-/// other text content resolves to empty text for now. Hidden text is left
-/// out. A text the instance moved (`text_placements`) is placed there.
+/// nets, then every board text. `Side::Component` maps to the placement
+/// layer; on the bottom, text is marked mirrored and arcs reverse (through
+/// `Shape::transformed`). Designator text shows the instance designator
+/// and literal text itself; other text content resolves to empty text for
+/// now. Hidden text is left out. A text the instance moved
+/// (`text_placements`) is placed there. A board text prints centred on its
+/// position on its side's silkscreen, mirrored on the bottom.
 pub fn placed_graphics(project: &Project) -> Vec<PlacedGraphic> {
     let mut result = Vec::new();
     for placement in &project.placements {
@@ -267,14 +320,39 @@ pub fn placed_graphics(project: &Project) -> Vec<PlacedGraphic> {
                 }
             };
             result.push(PlacedGraphic {
-                instance: instance.id,
-                graphic: graphic.id,
+                owner: GraphicOwner::Part {
+                    instance: instance.id,
+                    graphic: graphic.id,
+                },
                 layer,
                 item,
             });
         }
     }
+    result.extend(project.board_texts.iter().map(board_text_graphic));
     result
+}
+
+/// A board text as the legend prints it.
+pub fn board_text_graphic(text: &crate::model::BoardText) -> PlacedGraphic {
+    use crate::library::graphics::{HAlign, Justify, TEXT_LINE_SPACING, VAlign};
+    PlacedGraphic {
+        owner: GraphicOwner::BoardText { id: text.id },
+        layer: BoardDrawing::Silkscreen(text.side),
+        item: PlacedItem::Text(PlacedText {
+            graphic: None,
+            text: text.text.clone(),
+            at: text.position.to_mm_f64(),
+            height: text.height_nm.to_mm_f64(),
+            rotation_deg: text.rotation.degrees(),
+            justify: Justify {
+                h: HAlign::Center,
+                v: VAlign::Middle,
+            },
+            mirrored: text.side == Layer::Bottom,
+            line_spacing: TEXT_LINE_SPACING,
+        }),
+    }
 }
 
 /// A footprint's copper keep-out placed on the board, as a board keepout

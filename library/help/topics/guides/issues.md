@@ -1,7 +1,7 @@
 ---
 {
   "covers": {
-    "entry/project.issues": "8179456145cb1eba"
+    "entry/project.issues": "c8b7fbd7ea9a1af3"
   },
   "id": "guide/issues",
   "keywords": [

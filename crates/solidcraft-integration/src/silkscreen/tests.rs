@@ -382,7 +382,9 @@ fn a_designator_over_a_pour_stands_on_its_mask() -> Result<()> {
     let (instance, centre) = sparksmith_core::layout::placed_graphics(&project)
         .into_iter()
         .find_map(|g| match (&g.layer, &g.item) {
-            (BoardDrawing::Silkscreen(Layer::Top), PlacedItem::Text(t)) => Some((g.instance, t.at)),
+            (BoardDrawing::Silkscreen(Layer::Top), PlacedItem::Text(t)) => {
+                g.instance().map(|i| (i, t.at))
+            }
             _ => None,
         })
         .ok_or_else(|| crate::Error::Verification("no top designator".into()))?;
@@ -412,5 +414,61 @@ fn a_designator_over_a_pour_stands_on_its_mask() -> Result<()> {
             && (g.min[1]..=g.max[1]).contains(&centre[1])
     });
     assert!(over, "the designator's ink stands above the pour's mask");
+    Ok(())
+}
+
+/// A board text prints as its own legend film in 3D, on its side, where
+/// the legend writer puts it: the 3D view and the Gerber read one legend.
+#[test]
+fn a_board_text_prints_its_own_film_on_its_side() -> Result<()> {
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    use sparksmith_core::layout::LayoutCommand;
+    use sparksmith_core::model::BoardTextSpec;
+    use sparksmith_core::units::{Nm, PointNm};
+    use sparksmith_core::{Layer, Operation};
+    let fail = |e: sparksmith_core::Error| crate::Error::Verification(e.to_string());
+    let engine = Engine::demo().map_err(fail)?;
+    let [w, h] = engine.project().board_size;
+    let films = |project: &sparksmith_core::Project| -> Result<Vec<([f64; 3], [f64; 3])>> {
+        Ok(crate::project::build(project)?
+            .geometry
+            .iter()
+            .filter(|g| g.kind == BodyKind::Silkscreen)
+            .map(|g| (g.min, g.max))
+            .collect())
+    };
+    let before = films(engine.project())?;
+    let at = [w / 2.0, h / 2.0];
+    let mut z = Vec::new();
+    for side in [Layer::Top, Layer::Bottom] {
+        let mut engine = Engine::demo().map_err(fail)?;
+        let revision = engine.revision();
+        engine
+            .apply(
+                revision,
+                Operation::Layout(LayoutCommand::AddText {
+                    text: Box::new(BoardTextSpec {
+                        text: "REV A".into(),
+                        position: PointNm::from_mm_f64_rounded(at).map_err(fail)?,
+                        height_nm: Nm::from_mm_f64_rounded(1.5).map_err(fail)?,
+                        rotation: Default::default(),
+                        side,
+                    }),
+                }),
+            )
+            .map_err(fail)?;
+        let after = films(engine.project())?;
+        let new: Vec<_> = after.iter().filter(|f| !before.contains(f)).collect();
+        let [(min, max)] = new.as_slice() else {
+            return Err(crate::Error::Verification(format!(
+                "{side:?}: {} new films",
+                new.len()
+            )));
+        };
+        assert!(min[0] < at[0] && max[0] > at[0] && min[1] < at[1] && max[1] > at[1]);
+        z.push((min[2], max[2]));
+    }
+    // The top film stands above the bottom one.
+    assert!(z[0].0 > z[1].1, "{z:?}");
     Ok(())
 }

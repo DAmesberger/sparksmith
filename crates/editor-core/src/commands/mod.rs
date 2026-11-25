@@ -45,6 +45,10 @@ pub enum Outcome {
     ViaAdded {
         via: Id,
     },
+    /// The board text `layout.text_add` created.
+    TextAdded {
+        text: Id,
+    },
     /// The block `block.add` made.
     BlockAdded {
         block: Id,

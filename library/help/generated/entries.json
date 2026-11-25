@@ -776,7 +776,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "c539a5a143c73477",
+      "schema_digest": "54a2d08dbd7fbdc7",
       "examples": []
     }
   },
@@ -790,7 +790,7 @@
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "f33d56e8e295e093",
+      "schema_digest": "ee0597f8e89d2f43",
       "examples": []
     }
   },
@@ -1757,6 +1757,63 @@
       "class": "edit",
       "entry_kind": "operation",
       "schema_digest": "8c0ca73827fa1a28",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.text_add",
+    "title": "Add text to the silkscreen",
+    "summary": "Add text to the board's silkscreen; the outcome names it (`Outcome::TextAdded`).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "7c971b45d206bbe6",
+      "examples": [
+        {
+          "entry": "entry/layout.text_add",
+          "params": {
+            "text": {
+              "height_nm": 1000000,
+              "position": {
+                "x_nm": 20000000,
+                "y_nm": 5000000
+              },
+              "side": "Top",
+              "text": "Sensor node rev A"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "entry/layout.text_delete",
+    "title": "Delete a board text",
+    "summary": "Delete a board text.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "244adef7c3868093",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.text_edit",
+    "title": "Edit a board text",
+    "summary": "Replace a board text with an edited one of the same id: its words, place, height, turn or side.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "8412c745919504d0",
       "examples": []
     }
   },
@@ -3067,7 +3124,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "175bc588e014eef3",
+      "schema_digest": "0930717222df09e4",
       "examples": []
     }
   },
@@ -3081,7 +3138,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "f8b82c61dc4c2b67",
+      "schema_digest": "a2603973693f85a0",
       "examples": []
     }
   },
@@ -3165,7 +3222,7 @@
       "module": "checks",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "8179456145cb1eba",
+      "schema_digest": "c8b7fbd7ea9a1af3",
       "examples": []
     }
   },
@@ -3263,7 +3320,7 @@
       "module": "project",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "ca6d988ddef6b170",
+      "schema_digest": "7c5a770930c0170f",
       "examples": []
     }
   },
@@ -4293,7 +4350,7 @@
       "module": "view",
       "class": "show",
       "entry_kind": "show",
-      "schema_digest": "74fda399933448fc",
+      "schema_digest": "5cda9cf6fa83864e",
       "examples": []
     }
   },

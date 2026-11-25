@@ -5,7 +5,7 @@
     "entry/layout.place": "29400de56d6ae471",
     "entry/layout.sync": "8c0ca73827fa1a28",
     "entry/library.search": "b8b0cb4373806d60",
-    "entry/project.issues": "8179456145cb1eba",
+    "entry/project.issues": "c8b7fbd7ea9a1af3",
     "entry/schematic.connect": "b7e09bfd74ef037e",
     "entry/schematic.pins": "8649c33cede45de9"
   },

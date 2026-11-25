@@ -114,6 +114,7 @@ declare_findings! {
     BoardShapeRange => ("board.shape_range", Warning, None, "Shape range"),
     BoardShapeUnsolved => ("board.shape_unsolved", Error, None, "Board shape does not solve"),
     BoardSketchEdit => ("board.sketch_edit", Warning, None, "Sketch edit"),
+    BoardTextHeight => ("board.text_height", Warning, None, "Small board text"),
     BoardTrackDangling => ("board.track_dangling", Warning, None, "Track ends joining nothing"),
     BoardTrackWidth => ("board.track_width", Error, None, "Tracks under the minimum width"),
     BoardUnplaced => ("board.unplaced", ToDo, None, "Not placed"),

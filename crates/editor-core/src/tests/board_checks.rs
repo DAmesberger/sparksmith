@@ -428,7 +428,7 @@ fn a_legend_over_a_cutout_is_reported_as_one() -> Result<()> {
     let graphic = crate::instances::text::target(&project, instance, None)?;
     let (at, name) = layout::placed_graphics(&project)
         .into_iter()
-        .filter(|g| g.instance == instance && g.graphic == graphic)
+        .filter(|g| g.instance() == Some(instance) && g.graphic() == Some(graphic))
         .find_map(|g| match g.item {
             PlacedItem::Text(t) => Some((t.at, t.text)),
             PlacedItem::Shape { .. } => None,
@@ -463,9 +463,11 @@ fn a_legend_line_past_the_board_edge_is_not_reported() -> Result<()> {
         .into_iter()
         .filter(|g| matches!(g.layer, BoardDrawing::Silkscreen(_)))
         .find_map(|g| match &g.item {
-            PlacedItem::Shape { shape, .. } => {
-                shape.flatten(0.01).first().map(|p| (g.instance, p[0]))
-            }
+            PlacedItem::Shape { shape, .. } => shape
+                .flatten(0.01)
+                .first()
+                .zip(g.instance())
+                .map(|(p, i)| (i, p[0])),
             PlacedItem::Text(_) => None,
         })
         .ok_or_else(|| Error::NotFound("a legend line".into()))?;
@@ -477,7 +479,7 @@ fn a_legend_line_past_the_board_edge_is_not_reported() -> Result<()> {
     }
     let crosses = layout::placed_graphics(&project)
         .into_iter()
-        .filter(|g| g.instance == instance)
+        .filter(|g| g.instance() == Some(instance))
         .any(|g| match &g.item {
             PlacedItem::Shape { shape, .. } => shape.flatten(0.01).iter().any(|p| p[0] < 0.0),
             PlacedItem::Text(_) => false,
