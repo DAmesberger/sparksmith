@@ -20,6 +20,11 @@
 //! the core ships, so that every export reads its own files back; other crates
 //! may use it as a dev-dependency only; `xtask` uses it directly.
 //!
+//! `sparksmith-parts-contract` (the wire contract with an online parts
+//! library: routes, documents, limits, hashes, sign-in) is a leaf, so a
+//! parts server can build against it without the editor; the core uses its
+//! identities and bounds.
+//!
 //! Generator plugins sit beside the layers:
 //! - `sparksmith-generator-abi` is a leaf: wire types any crate may use; it
 //!   depends on no workspace crate.
@@ -73,7 +78,9 @@ const UI_USERS: &[&str] = &["sparksmith", "sparksmith-ui"];
 const CORE_FORBIDDEN: &[&str] = &["tempfile"];
 
 /// Leaf crates: below every layer, depending on no workspace crate.
-const LEAVES: &[&str] = &["sparksmith-generator-abi", READERS];
+const LEAVES: &[&str] = &["sparksmith-generator-abi", READERS, PARTS_CONTRACT];
+/// The wire contract with an online parts library (`docs/parts-contract.md`).
+const PARTS_CONTRACT: &str = "sparksmith-parts-contract";
 /// The verification readers (Gerber, Excellon, comparison): a leaf the core
 /// ships (`fabrication::readback`), so the check before an export is one;
 /// other workspace crates may use it only as a dev-dependency.

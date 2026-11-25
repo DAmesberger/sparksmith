@@ -5,6 +5,9 @@ use super::*;
 use crate::library_folder::folder_tests::part_bundle;
 use crate::library_folder::{create_folder, write_bundle};
 use sparksmith_core::catalog::source_catalog;
+use sparksmith_parts_contract::documents::{Index as RegistryIndex, ShardInfo};
+use sparksmith_parts_contract::limits::MAX_CATALOG_BYTES;
+use sparksmith_parts_contract::version::FORMAT;
 
 fn fixture(dir: &Path) -> Result<(Bundle, Shard, Vec<u8>, ContentHash)> {
     let folder = create_folder(&dir.join("folder"), "Registry fixture")?;

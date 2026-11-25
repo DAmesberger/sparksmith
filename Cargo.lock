@@ -7391,6 +7391,7 @@ dependencies = [
  "sparksmith-automation",
  "sparksmith-core",
  "sparksmith-io",
+ "sparksmith-parts-contract",
  "sparksmith-solidcraft",
  "tempfile",
  "thiserror 2.0.21",
@@ -7418,6 +7419,7 @@ dependencies = [
  "sparksmith-help-search",
  "sparksmith-io",
  "sparksmith-kicad",
+ "sparksmith-parts-contract",
  "sparksmith-solidcraft",
  "tempfile",
  "thiserror 2.0.21",
@@ -7454,6 +7456,7 @@ dependencies = [
  "sha2 0.10.9",
  "sparksmith-fabcheck",
  "sparksmith-generator-abi",
+ "sparksmith-parts-contract",
  "sparksmith-units-derive",
  "thiserror 2.0.21",
 ]
@@ -7709,6 +7712,7 @@ dependencies = [
  "sha2 0.10.9",
  "sparksmith-core",
  "sparksmith-generators",
+ "sparksmith-parts-contract",
  "tempfile",
  "thiserror 2.0.21",
  "zip",
@@ -7723,6 +7727,16 @@ dependencies = [
  "serde_json",
  "sparksmith-core",
  "sparksmith-fabcheck",
+]
+
+[[package]]
+name = "sparksmith-parts-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

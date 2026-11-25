@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 /// Bytes of one query, checked before parsing.
-pub const MAX_QUERY: usize = 512;
+pub const MAX_QUERY: usize = sparksmith_parts_contract::limits::MAX_QUERY;
 /// Terms of one query.
 pub const MAX_TERMS: usize = 16;
 /// Field names listed in an unknown-key message.

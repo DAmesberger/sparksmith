@@ -7,8 +7,14 @@ use crate::model::keys::memory::Memory;
 use account::{Account, Known, Poll};
 use sparksmith_core::catalog::source_catalog;
 use sparksmith_core::ids::{DefinitionKind, DefinitionRef};
-use sparksmith_io::registry_mirror::{ShardEntry, ShardInfo};
-use std::collections::{BTreeMap, VecDeque};
+use sparksmith_parts_contract::account::{DeviceCodeReply, DeviceTokenReply, Token, read_bearer};
+use sparksmith_parts_contract::documents::{ShardEntry, ShardInfo};
+use sparksmith_parts_contract::hash::bytes_hash;
+use sparksmith_parts_contract::limits::MAX_SEARCH_ROWS;
+use sparksmith_parts_contract::route::{MEDIA_TYPE, Refused};
+use sparksmith_parts_contract::status::codes;
+use sparksmith_parts_contract::version::FORMAT;
+use std::collections::{BTreeSet, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::AtomicBool;
@@ -17,10 +23,25 @@ type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
 const LIBRARY: LibraryId = LibraryId(0x5eed);
 
-/// The ExampleCo resistor Part's bundle and its shard.
+/// The ExampleCo resistor Part's bundle and its shard; the Part's
+/// reference carries an attached copy, so the bundle packs one asset.
 fn fixture() -> std::result::Result<(Bundle, Shard), Box<dyn std::error::Error>> {
-    let library =
+    let mut library =
         sparksmith_core::catalog::synthetic::project_with_parts(1, &NewBoard::fixture())?.library;
+    let data = b"An original datasheet of the fixture registry.".to_vec();
+    let packed = sparksmith_core::library::bundle::PackedAsset {
+        hash: bytes_hash(&data),
+        media_type: "application/pdf".into(),
+        data: sparksmith_core::library::bundle::AssetBytes::new(data),
+    };
+    let first = library.parts.first_mut().ok_or("no Part")?;
+    let reference = first
+        .definition
+        .references
+        .first_mut()
+        .ok_or("the synthetic Part has no reference")?;
+    reference.asset = Some(packed.hash.to_string());
+    library.assets.push(packed);
     let part = library.parts.first().ok_or("no Part")?;
     let root = DefinitionRef {
         kind: DefinitionKind::Part,
@@ -53,7 +74,7 @@ fn fixture() -> std::result::Result<(Bundle, Shard), Box<dyn std::error::Error>>
     Ok((
         plan.bundle,
         Shard {
-            format: mirror::FORMAT,
+            format: FORMAT,
             catalog,
             entries,
         },
@@ -90,6 +111,8 @@ struct Registry {
     polls: Mutex<VecDeque<&'static str>>,
     /// Request bodies of the device endpoints.
     bodies: Mutex<Vec<serde_json::Value>>,
+    /// The tokens it knows: [`TOKEN`] until revoked.
+    tokens: Mutex<BTreeSet<String>>,
 }
 
 /// The token the fixture registry issues.
@@ -99,32 +122,73 @@ const TOKEN: &str = "ssp_fixturetoken0123456789abcdefghijklmnopqrstu";
 type Answer = (u16, Vec<(&'static str, String)>, Vec<u8>);
 
 fn error_body(code: &str, message: &str) -> Vec<u8> {
-    serde_json::to_vec(&serde_json::json!({"error": {"code": code, "message": message}}))
-        .unwrap_or_default()
+    ErrorBody::new(code, message).bytes()
 }
 
-fn decode(text: &str) -> String {
-    let mut out = Vec::new();
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'%' if i + 2 < bytes.len() => {
-                let hex = text.get(i + 1..i + 3).unwrap_or("20");
-                out.push(u8::from_str_radix(hex, 16).unwrap_or(b' '));
-                i += 3;
-            }
-            b'+' => {
-                out.push(b' ');
-                i += 1;
-            }
-            b => {
-                out.push(b);
-                i += 1;
-            }
+fn json(value: &impl serde::Serialize) -> Vec<u8> {
+    serde_json::to_vec(value).unwrap_or_default()
+}
+
+/// The bundle of `root`, one of `whole`'s records: it and the records it
+/// reaches (records are dependencies first), and the assets they name.
+fn closure(whole: &Bundle, root: SourceRevision) -> Bundle {
+    let mut wanted = BTreeSet::from([root.lineage]);
+    let mut records = Vec::new();
+    for record in whole.records.iter().rev() {
+        if wanted.contains(&record.lineage) {
+            wanted.extend(record.links.iter().map(|l| l.lineage));
+            records.push(record.clone());
         }
     }
-    String::from_utf8_lossy(&out).into_owned()
+    records.reverse();
+    let named: BTreeSet<_> = records.iter().flat_map(|r| r.assets.iter()).collect();
+    Bundle {
+        root,
+        assets: whole
+            .assets
+            .iter()
+            .filter(|a| named.contains(&a.hash))
+            .cloned()
+            .collect(),
+        records,
+        ..whole.clone()
+    }
+}
+
+/// What the fixture registry answers a sign-in code request with.
+fn device_code() -> DeviceCodeReply {
+    DeviceCodeReply {
+        device_code: Token("dev-secret-code".into()),
+        user_code: "BCDF-GHJK".into(),
+        verification_uri: "https://parts.example/device".into(),
+        verification_uri_complete: "https://parts.example/device?code=BCDF-GHJK".into(),
+        expires_in: 900,
+        interval: 1,
+    }
+}
+
+/// An approved sign-in of the fixture registry.
+fn approved() -> DeviceTokenReply {
+    DeviceTokenReply {
+        access_token: Token(TOKEN.into()),
+        token_type: "bearer".into(),
+        token_id: "t1".into(),
+        account: Account {
+            email: "maker@example.com".into(),
+            display_name: "Maker".into(),
+            ..Account::default()
+        },
+    }
+}
+
+/// `GET /v1/account` of the fixture registry.
+fn account_reply() -> Account {
+    Account {
+        id: "a1".into(),
+        email: "maker@example.com".into(),
+        display_name: String::new(),
+        providers: vec!["email".into()],
+    }
 }
 
 impl Registry {
@@ -140,24 +204,30 @@ impl Registry {
                 Vec::new(),
             );
         }
-        let bearer = auth == Some(&format!("Bearer {TOKEN}"));
-        let body: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
-        match (method, path) {
-            ("POST", "/v1/device/code") => {
-                if let Ok(mut b) = self.bodies.lock() {
-                    b.push(body);
-                }
-                let reply = serde_json::json!({
-                    "device_code": "dev-secret-code", "user_code": "BCDF-GHJK",
-                    "verification_uri": "https://parts.example/device",
-                    "verification_uri_complete": "https://parts.example/device?code=BCDF-GHJK",
-                    "expires_in": 900, "interval": 1});
-                return (200, vec![], serde_json::to_vec(&reply).unwrap_or_default());
+        let bearer = auth
+            .and_then(read_bearer)
+            .is_some_and(|token| self.tokens.lock().is_ok_and(|t| t.contains(token)));
+        let route = match Route::parse(method, path) {
+            Ok(route) => route,
+            Err(Refused::Query(message)) => {
+                return (400, vec![], error_body(codes::CATALOG_QUERY, &message));
             }
-            ("POST", "/v1/device/token") => {
-                if let Ok(mut b) = self.bodies.lock() {
-                    b.push(body);
-                }
+            Err(Refused::NotFound) => {
+                return (404, vec![], error_body(codes::NOT_FOUND, "no such thing"));
+            }
+        };
+        let keep = |body: &[u8]| {
+            if let Ok(mut b) = self.bodies.lock() {
+                b.push(serde_json::from_slice(body).unwrap_or_default());
+            }
+        };
+        match route {
+            Route::DeviceCode => {
+                keep(body);
+                return (200, vec![], json(&device_code()));
+            }
+            Route::DeviceToken => {
+                keep(body);
                 let next = self
                     .polls
                     .lock()
@@ -165,112 +235,322 @@ impl Registry {
                     .and_then(|mut p| p.pop_front())
                     .unwrap_or("pending");
                 if next == "approve" {
-                    let reply = serde_json::json!({"access_token": TOKEN, "token_type": "bearer",
-                        "token_id": "t1", "account": {"email": "maker@example.com", "display_name": "Maker"}});
-                    return (200, vec![], serde_json::to_vec(&reply).unwrap_or_default());
+                    return (200, vec![], json(&approved()));
                 }
                 return (400, vec![], error_body(&format!("device.{next}"), next));
             }
-            ("GET", "/v1/account") if bearer => {
-                let reply = serde_json::json!({"id": "a1", "email": "maker@example.com",
-                    "display_name": "", "providers": ["email"]});
-                return (200, vec![], serde_json::to_vec(&reply).unwrap_or_default());
+            Route::Account if bearer => return (200, vec![], json(&account_reply())),
+            Route::Revoke if bearer => {
+                if let (Ok(mut tokens), Some(token)) =
+                    (self.tokens.lock(), auth.and_then(read_bearer))
+                {
+                    tokens.remove(token);
+                }
+                return (204, vec![], Vec::new());
             }
-            ("DELETE", "/v1/auth/token") if bearer => return (204, vec![], Vec::new()),
-            ("GET", "/v1/account") | ("DELETE", "/v1/auth/token") => {
-                return (401, vec![], error_body("auth.required", "Sign in"));
+            Route::Account | Route::Revoke => {
+                return (401, vec![], error_body(codes::AUTH_REQUIRED, "Sign in"));
+            }
+            Route::Bundle(_) => {
+                if self.limited.load(Ordering::SeqCst) {
+                    let mut refusal = ErrorBody::new(codes::RATE_LIMITED, "Too many");
+                    refusal.retry_after = Some(300);
+                    return (429, vec![("retry-after", "300".into())], refusal.bytes());
+                }
+                if self.needs_account.load(Ordering::SeqCst) && !bearer {
+                    return (
+                        401,
+                        vec![("www-authenticate", "Bearer".into())],
+                        error_body(codes::AUTH_REQUIRED, "Sign in to download parts."),
+                    );
+                }
             }
             _ => {}
         }
-        if path.starts_with("/v1/bundles/") {
-            if self.limited.load(Ordering::SeqCst) {
-                return (
-                    429,
-                    vec![("retry-after", "300".into())],
-                    br#"{"error":{"code":"rate.limited","message":"Too many"},"retry_after":300}"#
-                        .to_vec(),
-                );
-            }
-            if self.needs_account.load(Ordering::SeqCst) && !bearer {
-                return (
-                    401,
-                    vec![("www-authenticate", "Bearer".into())],
-                    error_body("auth.required", "Sign in to download parts."),
-                );
-            }
-        }
-        let (status, body) = self.answer(path);
+        let (status, body) = self.answer(&route);
         (status, vec![], body)
     }
 
-    fn answer(&self, path: &str) -> (u16, Vec<u8>) {
-        let (route, query) = path.split_once('?').unwrap_or((path, ""));
-        let params: BTreeMap<&str, String> = query
-            .split('&')
-            .filter_map(|p| p.split_once('='))
-            .map(|(k, v)| (k, decode(v)))
-            .collect();
-        let hash = sparksmith_core::library::bundle::asset_hash(&self.shard_bytes);
-        if route == "/v1/index" {
-            let index = RegistryIndex {
-                format: mirror::FORMAT,
-                snapshot: "fixture-1".into(),
-                shards: vec![ShardInfo {
-                    library: LIBRARY,
-                    name: self.shard.catalog.name.clone(),
-                    sha256: hash,
-                    entries: self.shard.catalog.entries.len(),
-                }],
-            };
-            return (200, serde_json::to_vec(&index).unwrap_or_default());
-        }
-        if route == format!("/v1/shards/{hash}") {
-            return (200, self.shard_bytes.clone());
-        }
-        if route == "/v1/search" {
-            let text = params.get("q").cloned().unwrap_or_default();
-            if let Some((slow, wait)) = &self.slow
-                && *slow == text
-            {
-                std::thread::sleep(*wait);
+    fn answer(&self, route: &Route) -> (u16, Vec<u8>) {
+        let hash = bytes_hash(&self.shard_bytes);
+        match route {
+            Route::Index => {
+                let index = RegistryIndex {
+                    format: FORMAT,
+                    snapshot: "fixture-1".into(),
+                    shards: vec![ShardInfo {
+                        library: LIBRARY,
+                        name: self.shard.catalog.name.clone(),
+                        sha256: hash,
+                        entries: self.shard.catalog.entries.len(),
+                    }],
+                };
+                (200, json(&index))
             }
-            if let Ok(mut s) = self.searched.lock() {
-                s.push(text.clone());
-            }
-            return match search_shards(std::slice::from_ref(&self.shard), &text, 30, 0) {
-                Ok(report) => {
-                    let rows: Vec<serde_json::Value> = report
-                        .results
-                        .iter()
-                        .map(|r| serde_json::json!({"hit": r.hit, "id": r.id, "review": r.review}))
-                        .collect();
-                    let body = serde_json::json!({"format": 1, "snapshot": "fixture-1", "query": text,
-                        "chips": report.chips, "total": report.total, "offset": 0, "results": rows, "took_us": 7});
-                    (200, serde_json::to_vec(&body).unwrap_or_default())
+            Route::Shard(asked) if *asked == hash => (200, self.shard_bytes.clone()),
+            Route::Search(query) => {
+                let text = query.text.clone();
+                if let Some((slow, wait)) = &self.slow
+                    && *slow == text
+                {
+                    std::thread::sleep(*wait);
                 }
-                Err(message) => (
-                    400,
-                    serde_json::to_vec(&serde_json::json!({"error": {"code": "catalog.query", "message": message}}))
-                        .unwrap_or_default(),
-                ),
-            };
-        }
-        let root = self.bundle.root;
-        if route == format!("/v1/bundles/{}/{}", root.lineage, root.revision.0) {
-            let mut bundle = self.bundle.clone();
-            if self.tamper.load(Ordering::SeqCst)
-                && let Some(record) = bundle.records.last_mut()
-            {
-                record.meta.description.push_str(" (changed on the way)");
+                if let Ok(mut s) = self.searched.lock() {
+                    s.push(text.clone());
+                }
+                let limit = usize::try_from(query.limit).unwrap_or(MAX_SEARCH_ROWS);
+                let offset = usize::try_from(query.offset).unwrap_or(usize::MAX);
+                let shards = std::slice::from_ref(&self.shard);
+                match search_shards(shards, &text, limit.min(MAX_SEARCH_ROWS), offset) {
+                    Ok(report) => {
+                        let reply = wire::SearchReply {
+                            format: FORMAT,
+                            snapshot: "fixture-1".into(),
+                            query: text,
+                            chips: report.chips,
+                            total: report.total,
+                            offset: query.offset,
+                            hidden: Vec::new(),
+                            results: report
+                                .results
+                                .into_iter()
+                                .map(|r| wire::SearchRow {
+                                    hit: r.hit,
+                                    id: r.id,
+                                    review: r.review,
+                                })
+                                .collect(),
+                            took_us: 7,
+                        };
+                        (200, json(&reply))
+                    }
+                    Err(message) => (400, error_body(codes::CATALOG_QUERY, &message)),
+                }
             }
-            let body = serde_json::json!({"format": 1, "bundle": bundle});
-            return (200, serde_json::to_vec(&body).unwrap_or_default());
+            Route::Bundle(root)
+                if self
+                    .bundle
+                    .records
+                    .iter()
+                    .any(|r| r.lineage == root.lineage && r.revision == root.revision) =>
+            {
+                let mut bundle = closure(&self.bundle, *root);
+                if self.tamper.load(Ordering::SeqCst)
+                    && let Some(record) = bundle.records.last_mut()
+                {
+                    record.meta.description.push_str(" (changed on the way)");
+                }
+                (
+                    200,
+                    json(&wire::BundleReply {
+                        format: FORMAT,
+                        bundle,
+                    }),
+                )
+            }
+            _ => (404, error_body(codes::NOT_FOUND, "no such thing")),
         }
-        (
-            404,
-            br#"{"error":{"code":"registry.not_found","message":"no such thing"}}"#.to_vec(),
-        )
     }
+}
+
+/// A second token the fixture registry knows, for the conformance test to
+/// revoke.
+const SPEND: &str = "ssp_fixturespend0123456789abcdefghijklmnopqrst";
+
+/// The parts contract's example documents (`crates/parts-contract/vectors`)
+/// are what the core and the fixture registry write, byte for byte. Set
+/// `SPARKSMITH_BLESS=1` to rewrite them after a deliberate change.
+#[test]
+fn the_contract_vectors_are_what_the_core_writes() -> TestResult {
+    use sparksmith_parts_contract::account::{DeviceCodeRequest, DeviceTokenRequest};
+    use sparksmith_parts_contract::vectors;
+    let registry = registry(None)?;
+    let root = registry.bundle.root;
+    let search = Route::Search(SearchQuery {
+        text: "EX-R0603".into(),
+        limit: 2,
+        offset: 0,
+    });
+    let mut rate_limited = ErrorBody::new(codes::RATE_LIMITED, "Too many");
+    rate_limited.retry_after = Some(300);
+    let routes = [
+        Route::Index,
+        Route::Shard(bytes_hash(&registry.shard_bytes)),
+        search.clone(),
+        Route::Bundle(root),
+        Route::DeviceCode,
+        Route::DeviceToken,
+        Route::Account,
+        Route::Revoke,
+    ];
+    let line = |method: &str, target: String| (method.to_owned(), target);
+    let cases = vectors::Cases {
+        shard: bytes_hash(&registry.shard_bytes),
+        records: registry
+            .bundle
+            .records
+            .iter()
+            .map(sparksmith_core::library::bundle::content_hash)
+            .collect::<std::result::Result<_, _>>()?,
+        assets: registry.bundle.assets.iter().map(|a| a.hash).collect(),
+        routes: routes
+            .iter()
+            .map(|r| line(r.method().as_str(), r.target()))
+            .collect(),
+        refused: vec![
+            line("POST", "/v1/index".into()),
+            line("GET", "/v1/index/".into()),
+            line("GET", "/v2/index".into()),
+            line("GET", "/v1/shards/ABCDEF".into()),
+            line("GET", format!("/v1/shards/{}", "A".repeat(64))),
+            line(
+                "GET",
+                format!("/v1/bundles/{}/r{}", root.lineage, root.revision.0),
+            ),
+            line(
+                "GET",
+                format!("/v1/bundles/{}/0{}", root.lineage, root.revision.0),
+            ),
+            line("GET", format!("/v1/bundles/{}/4294967296", root.lineage)),
+            line("GET", "/v1/search?q=%E2%28".into()),
+            line("GET", "/v1/search?q=ok&limit=many".into()),
+            line("GET", format!("/v1/search?q={}", "x".repeat(513))),
+            line("DELETE", "/v1/account".into()),
+        ],
+    };
+    let files: [(&str, &[u8], Vec<u8>); 11] = [
+        (
+            "index.json",
+            vectors::INDEX,
+            registry.answer(&Route::Index).1,
+        ),
+        ("shard.json", vectors::SHARD, registry.shard_bytes.clone()),
+        ("search.json", vectors::SEARCH, registry.answer(&search).1),
+        (
+            "bundle.json",
+            vectors::BUNDLE,
+            registry.answer(&Route::Bundle(root)).1,
+        ),
+        (
+            "code-request.json",
+            vectors::CODE_REQUEST,
+            json(&DeviceCodeRequest {
+                client_name: "Sparksmith on bench".into(),
+            }),
+        ),
+        ("code.json", vectors::CODE, json(&device_code())),
+        (
+            "token-request.json",
+            vectors::TOKEN_REQUEST,
+            json(&DeviceTokenRequest {
+                device_code: device_code().device_code,
+            }),
+        ),
+        ("token.json", vectors::TOKEN, json(&approved())),
+        ("account.json", vectors::ACCOUNT, json(&account_reply())),
+        (
+            "rate-limited.json",
+            vectors::RATE_LIMITED,
+            rate_limited.bytes(),
+        ),
+        (
+            "cases.json",
+            vectors::CASES,
+            serde_json::to_vec_pretty(&cases)?,
+        ),
+    ];
+    let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("../parts-contract/vectors");
+    let bless = std::env::var_os("SPARKSMITH_BLESS").is_some();
+    for (name, held, written) in files {
+        if bless {
+            std::fs::write(folder.join(name), &written)?;
+        } else {
+            assert!(
+                held == written.as_slice(),
+                "vectors/{name} is not what the core writes; SPARKSMITH_BLESS=1 rewrites it"
+            );
+        }
+    }
+    assert!(bless || vectors::cases()? == cases);
+    Ok(())
+}
+
+/// The fixture registry passes the parts contract's conformance test,
+/// asked over its socket as a server's own test-suite would.
+#[test]
+fn the_fixture_registry_passes_the_contracts_conformance_test() -> TestResult {
+    use sparksmith_parts_contract::conformance::{self, Expected, Outcome, Setup};
+    use sparksmith_parts_contract::route::Method;
+    let registry = registry(None)?;
+    registry.needs_account.store(true, Ordering::SeqCst);
+    if let Ok(mut tokens) = registry.tokens.lock() {
+        tokens.insert(SPEND.into());
+    }
+    if let Ok(mut polls) = registry.polls.lock() {
+        polls.extend(["pending", "slow_down", "expired", "denied", "approve"]);
+    }
+    let base = serve(registry)?;
+    let agent = ureq::Agent::new_with_config(
+        ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .max_redirects(0)
+            .build(),
+    );
+    let mut transport =
+        |request: &conformance::Request| -> std::result::Result<conformance::Reply, String> {
+            let url = format!("{base}{}", request.target);
+            let auth = request.authorization.clone().unwrap_or_default();
+            let sent = match request.method {
+                Method::Get => agent.get(&url).header("authorization", &auth).call(),
+                Method::Delete => agent.delete(&url).header("authorization", &auth).call(),
+                Method::Post => agent
+                    .post(&url)
+                    .header("authorization", &auth)
+                    .header("content-type", MEDIA_TYPE)
+                    .send(request.body.clone().unwrap_or_default()),
+            };
+            let mut reply = sent.map_err(|e| e.to_string())?;
+            let content_type = reply
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned);
+            let body = reply
+                .body_mut()
+                .with_config()
+                .limit(request.max_reply)
+                .read_to_vec()
+                .map_err(|e| e.to_string())?;
+            Ok(conformance::Reply {
+                status: reply.status().as_u16(),
+                content_type,
+                body,
+            })
+        };
+    let polls = [
+        ("dev-secret-code", Expected::SlowDown),
+        ("dev-secret-code", Expected::Expired),
+        ("dev-secret-code", Expected::Denied),
+        ("dev-secret-code", Expected::Approved),
+    ];
+    let report = conformance::run(
+        &mut transport,
+        Setup {
+            search: "EX-R0603",
+            refused_search: Some("pins:many"),
+            token: Some(TOKEN),
+            spend: Some(SPEND),
+            polls: &polls,
+        },
+    );
+    let failures = conformance::failures(&report);
+    assert!(failures.is_empty(), "{failures}");
+    let skipped: Vec<_> = report
+        .iter()
+        .filter(|(_, outcome)| *outcome != Outcome::Passed)
+        .collect();
+    assert!(skipped.is_empty(), "{skipped:?}");
+    Ok(())
 }
 
 /// Serve `registry` on a local port; the URL.
@@ -363,6 +643,7 @@ fn registry(
         closed: AtomicBool::new(false),
         polls: Mutex::new(VecDeque::new()),
         bodies: Mutex::new(Vec::new()),
+        tokens: Mutex::new(BTreeSet::from([TOKEN.to_owned()])),
     }))
 }
 
@@ -930,8 +1211,10 @@ fn signing_out_revokes_and_forgets_the_token() -> TestResult {
     assert_eq!(
         client.refresh_account()?,
         Some(Account {
+            id: "a1".into(),
             email: "maker@example.com".into(),
             display_name: String::new(),
+            providers: vec!["email".into()],
         })
     );
     let out = client.sign_out()?;
@@ -998,23 +1281,23 @@ fn registry_credentials_follow_the_parsed_endpoint() -> TestResult {
         let client = plain(base, None)?;
         assert_eq!(client.endpoint.is_loopback(), local, "{base}");
         assert_eq!(client.may_sign_in(), allowed, "{base}");
-        assert!(
-            client
-                .request_url(Request::Read(Some(&token)), "parts.example")
-                .is_err()
-        );
         assert_eq!(
-            client.request_url(Request::Read(None), "/v1/index")?,
+            client.request_url(Request::Read(None), &Route::Index)?,
             format!("{base}/v1/index")
         );
-        for (request, path) in [
-            (Request::SignIn("test"), "/v1/device/code"),
-            (Request::Poll(&poll), "/v1/device/token"),
-            (Request::Read(Some(&token)), "/v1/bundles/1/1"),
-            (Request::Read(Some(&token)), "/v1/account"),
-            (Request::Revoke(&token), "/v1/auth/token"),
+        let root = SourceRevision {
+            lineage: SourceLineageId(1),
+            revision: Revision(1),
+        };
+        for (request, route) in [
+            (Request::SignIn("test"), Route::DeviceCode),
+            (Request::Poll(&poll), Route::DeviceToken),
+            (Request::Read(Some(&token)), Route::Bundle(root)),
+            (Request::Read(Some(&token)), Route::Account),
+            (Request::Revoke(&token), Route::Revoke),
         ] {
-            let url = client.request_url(request, path);
+            let url = client.request_url(request, &route);
+            let path = route.target();
             if allowed {
                 assert_eq!(url?, format!("{base}{path}"));
             } else {

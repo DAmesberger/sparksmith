@@ -99,4 +99,16 @@ impl Error {
     }
 }
 
+/// A parts-contract refusal as io's.
+impl From<sparksmith_parts_contract::Error> for Error {
+    fn from(error: sparksmith_parts_contract::Error) -> Self {
+        use sparksmith_parts_contract::Error as Contract;
+        match error {
+            Contract::TooLarge(message) => Self::TooLarge(message),
+            Contract::Invalid(message) => Self::Invalid(message),
+            Contract::Unreadable(error) => Self::Json(error),
+        }
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;

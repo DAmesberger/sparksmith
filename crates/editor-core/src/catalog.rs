@@ -41,9 +41,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 /// Results one search returns.
-pub const MAX_RESULTS: usize = 500;
+pub const MAX_RESULTS: usize = sparksmith_parts_contract::limits::MAX_SEARCH_ROWS;
 /// Results returned when the caller gives no limit.
-pub const DEFAULT_LIMIT: usize = 50;
+pub const DEFAULT_LIMIT: usize = sparksmith_parts_contract::limits::DEFAULT_SEARCH_ROWS;
 /// Distinct values listed per facet.
 pub const MAX_FACET_VALUES: usize = 12;
 /// Entries one index holds.
@@ -1283,13 +1283,7 @@ fn tier(entry: &CatalogEntry, folded: &Folded, query: &CatalogQuery) -> Option<M
     }
 }
 
-/// Entries hidden from results, by reason. They are counted, never dropped
-/// silently.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct Hidden {
-    pub reason: String,
-    pub count: usize,
-}
+pub use sparksmith_parts_contract::documents::Hidden;
 
 /// One ranked result.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]

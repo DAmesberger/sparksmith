@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 use sparksmith_core::catalog::{Hit, term_spans};
 use sparksmith_core::ids::{LibraryId, Revision, SourceLineageId};
 use sparksmith_core::library::bundle::Bundle;
+use sparksmith_parts_contract::documents::Review;
 use std::sync::Arc;
 
 /// Said when no registry is installed.
@@ -32,7 +33,7 @@ pub struct OnlineHit {
     /// The registry's entry id (`publisher/name`).
     #[serde(default)]
     pub id: String,
-    /// `reviewed`, `in_review`, or anything else: not reviewed.
+    /// A review word of the parts contract ([`Review`]).
     #[serde(default)]
     pub review: String,
 }
@@ -40,14 +41,14 @@ pub struct OnlineHit {
 impl OnlineHit {
     /// Whether a person has reviewed the entry.
     pub fn reviewed(&self) -> bool {
-        self.review == "reviewed"
+        Review::of(&self.review) == Review::Reviewed
     }
     /// The review badge's words.
     pub fn review_label(&self) -> &'static str {
-        match self.review.as_str() {
-            "reviewed" => "reviewed",
-            "in_review" => "in review",
-            _ => "not reviewed",
+        match Review::of(&self.review) {
+            Review::Reviewed => "reviewed",
+            Review::InReview => "in review",
+            Review::NotReviewed => "not reviewed",
         }
     }
 }

@@ -16,6 +16,8 @@ test-fixtures = ["sparksmith-automation/test-fixtures"]
 sparksmith-core.workspace = true
 sparksmith-automation.workspace = true
 sparksmith-io.workspace = true
+# The online parts library's routes, documents and sign-in.
+sparksmith-parts-contract.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_path_to_error = "0.1"
@@ -34,6 +36,8 @@ gethostname = "1.1"
 keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 
 [dev-dependencies]
+# The contract's example documents and its conformance test.
+sparksmith-parts-contract = { workspace = true, features = ["test-fixtures"] }
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
 sparksmith-automation = { workspace = true, features = ["test-fixtures"] }
 tempfile.workspace = true

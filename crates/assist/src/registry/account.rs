@@ -11,9 +11,14 @@
 use super::{RegistryClient, Reply, Request, unreachable};
 use crate::model::Secret;
 use crate::model::keys::{Keychain, Store};
-use serde::Deserialize;
-use serde_json::Value;
 use sparksmith_automation::session::online::{OnlineAccount, SignOut};
+pub use sparksmith_parts_contract::account::Account;
+use sparksmith_parts_contract::account::{
+    DevicePoll, SLOW_DOWN_SECONDS, decode_account, decode_code,
+};
+pub use sparksmith_parts_contract::limits::MAX_CLIENT_NAME;
+use sparksmith_parts_contract::route::Route;
+use sparksmith_parts_contract::status::ErrorBody;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -24,32 +29,8 @@ pub const SERVICE: &str = "sparksmith-parts";
 /// A download refused for want of a sign-in.
 pub const SIGN_IN_NEEDED: &str = "Sign in to the online library in Settings to download parts. \
      Searching works without an account.";
-/// Characters of the client name the registry shows on the account page.
-pub const MAX_CLIENT_NAME: usize = 80;
-/// Bytes of an account or device reply.
-const MAX_ACCOUNT_BYTES: u64 = 64 * 1024;
-/// What `slow_down` adds to the polling interval (the contract's 5 s).
-const SLOW_DOWN: Duration = Duration::from_secs(5);
-
-/// The account a sign-in belongs to.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
-pub struct Account {
-    #[serde(default)]
-    pub email: String,
-    #[serde(default)]
-    pub display_name: String,
-}
-
-impl Account {
-    /// How Settings names it: the display name, else the email.
-    pub fn label(&self) -> &str {
-        if self.display_name.trim().is_empty() {
-            &self.email
-        } else {
-            &self.display_name
-        }
-    }
-}
+/// What `slow_down` adds to the polling interval.
+const SLOW_DOWN: Duration = Duration::from_secs(SLOW_DOWN_SECONDS);
 
 /// A sign-in code the person confirms in the browser.
 #[derive(Clone, Debug)]
@@ -115,25 +96,6 @@ impl VerificationPages {
             format!("Open identity provider {origin}")
         }
     }
-}
-
-#[derive(Deserialize)]
-struct WireCode {
-    device_code: String,
-    user_code: String,
-    verification_uri: String,
-    #[serde(default)]
-    verification_uri_complete: String,
-    expires_in: u64,
-    #[serde(default)]
-    interval: u64,
-}
-
-#[derive(Deserialize)]
-struct WireToken {
-    access_token: String,
-    #[serde(default)]
-    account: Account,
 }
 
 /// One poll of a sign-in code.
@@ -224,11 +186,9 @@ fn retry_in(seconds: u64) -> String {
 
 /// A 429's words: when to try again.
 pub(super) fn rate_limited(reply: &Reply) -> String {
-    let after = reply.retry_after.or_else(|| {
-        serde_json::from_slice::<Value>(&reply.bytes)
-            .ok()
-            .and_then(|v| v["retry_after"].as_u64())
-    });
+    let after = reply
+        .retry_after
+        .or_else(|| ErrorBody::read(&reply.bytes).retry_after);
     match after {
         Some(seconds) => format!(
             "The online library's download limit is reached. Try again {}.",
@@ -236,14 +196,6 @@ pub(super) fn rate_limited(reply: &Reply) -> String {
         ),
         None => "The online library's download limit is reached. Try again later.".into(),
     }
-}
-
-/// The error code of a refusal (`device.pending`).
-fn error_code(reply: &Reply) -> String {
-    serde_json::from_slice::<Value>(&reply.bytes)
-        .ok()
-        .and_then(|v| v["error"]["code"].as_str().map(str::to_owned))
-        .unwrap_or_default()
 }
 
 /// Sleep `wait` in short steps; whether `cancel` was set meanwhile.
@@ -345,13 +297,12 @@ impl RegistryClient {
         };
         let reply = self.send(
             Request::Read(Some(&token)),
-            "/v1/account",
+            &Route::Account,
             self.silence(|n| n.account),
-            MAX_ACCOUNT_BYTES,
         )?;
         match reply.status {
             200..=299 => {
-                let account: Account = serde_json::from_slice(&reply.bytes)
+                let account = decode_account(&reply.bytes)
                     .map_err(|_| "the registry's account reply is unreadable")?;
                 if let Ok(mut held) = self.auth.account.lock() {
                     *held = Some(account.clone());
@@ -371,22 +322,21 @@ impl RegistryClient {
         let name: String = client_name.chars().take(MAX_CLIENT_NAME).collect();
         let reply = self.send(
             Request::SignIn(&name),
-            "/v1/device/code",
+            &Route::DeviceCode,
             self.silence(|n| n.account),
-            MAX_ACCOUNT_BYTES,
         )?;
         if reply.status >= 300 {
             return Err(self.refusal(&reply));
         }
-        let wire: WireCode = serde_json::from_slice(&reply.bytes)
-            .map_err(|_| "the registry's sign-in code is unreadable")?;
-        let device_code =
-            Secret::new(&wire.device_code).ok_or("the registry sent an empty sign-in code")?;
+        let wire =
+            decode_code(&reply.bytes).map_err(|_| "the registry's sign-in code is unreadable")?;
+        let device_code = Secret::new(wire.device_code.expose())
+            .ok_or("the registry sent an empty sign-in code")?;
         let pages =
             VerificationPages::parse(&wire.verification_uri, &wire.verification_uri_complete)?;
         Ok(DeviceCode {
             device_code,
-            user_code: wire.user_code.chars().take(32).collect(),
+            user_code: wire.shown_code(),
             pages,
             expires_in: wire.expires_in,
             interval: wire.interval,
@@ -398,16 +348,15 @@ impl RegistryClient {
     pub fn poll_sign_in(&self, code: &DeviceCode) -> Result<Poll, String> {
         let reply = self.send(
             Request::Poll(&code.device_code),
-            "/v1/device/token",
+            &Route::DeviceToken,
             self.silence(|n| n.account),
-            MAX_ACCOUNT_BYTES,
         )?;
-        match reply.status {
-            200..=299 => {
-                let wire: WireToken = serde_json::from_slice(&reply.bytes)
-                    .map_err(|_| "the registry's sign-in reply is unreadable".to_owned())?;
-                let token =
-                    Secret::new(&wire.access_token).ok_or("the registry sent an empty sign-in")?;
+        let poll = DevicePoll::read(reply.status, &reply.bytes)
+            .map_err(|_| "the registry's sign-in reply is unreadable".to_owned())?;
+        match poll {
+            DevicePoll::Approved(wire) => {
+                let token = Secret::new(wire.access_token.expose())
+                    .ok_or("the registry sent an empty sign-in")?;
                 self.auth
                     .store
                     .set(SERVICE, self.endpoint.base(), token.expose())
@@ -424,14 +373,11 @@ impl RegistryClient {
                 }
                 Ok(Poll::Approved(wire.account))
             }
-            429 => Ok(Poll::SlowDown),
-            _ => match error_code(&reply).as_str() {
-                "device.pending" => Ok(Poll::Pending),
-                "device.slow_down" => Ok(Poll::SlowDown),
-                "device.expired" => Ok(Poll::Expired),
-                "device.denied" => Ok(Poll::Denied),
-                _ => Err(self.refusal(&reply)),
-            },
+            DevicePoll::Pending => Ok(Poll::Pending),
+            DevicePoll::SlowDown => Ok(Poll::SlowDown),
+            DevicePoll::Expired => Ok(Poll::Expired),
+            DevicePoll::Denied => Ok(Poll::Denied),
+            DevicePoll::Refused => Err(self.refusal(&reply)),
         }
     }
 
@@ -480,9 +426,8 @@ impl RegistryClient {
         };
         let revoked = self.send(
             Request::Revoke(&token),
-            "/v1/auth/token",
+            &Route::Revoke,
             self.silence(|n| n.sign_out),
-            MAX_ACCOUNT_BYTES,
         );
         let (revoked, problem) = match revoked {
             // 401: the registry already does not know it.

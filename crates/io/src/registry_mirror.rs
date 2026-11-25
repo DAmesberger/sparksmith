@@ -13,8 +13,8 @@
 //! refused, naming the record, and nothing is stored. Reading the mirror
 //! back checks the same again, so a changed cache file is never trusted.
 //!
-//! The wire types ([`RegistryIndex`], [`Shard`]) are what the registry
-//! serves at `/v1/index` and `/v1/shards/{sha256}`. Run off the UI thread.
+//! The wire types and their bounds are the parts contract's
+//! (`sparksmith_parts_contract`). Run off the UI thread.
 use crate::persistence::atomic_write_with;
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -24,17 +24,10 @@ use sparksmith_core::library::bundle::{
     AssetBytes, Bundle, PackedAsset, RevisionRecord, SourceRevision, asset_hash, content_hash,
     validate_bundle,
 };
+use sparksmith_parts_contract::documents::{self, Index};
+use sparksmith_parts_contract::limits::{MAX_INDEX_BYTES, MAX_SHARD_BYTES};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-
-/// The format of the registry's index and shard files this build reads.
-pub const FORMAT: u32 = 1;
-/// Shards one index lists.
-pub const MAX_SHARDS: usize = 4096;
-/// Bytes of one shard file.
-pub const MAX_SHARD_BYTES: u64 = 64 * 1024 * 1024;
-/// Aggregate shard inputs retained for one catalog, using the project packed-data budget.
-pub const MAX_CATALOG_BYTES: u64 = sparksmith_core::library::bundle::MAX_PACKED_BYTES as u64;
 
 pub struct ShardBudget(pub u64);
 
@@ -57,8 +50,8 @@ impl ShardBudget {
             return Ok(None);
         }
         self.charge(bytes.len())?;
-        match parse_shard(&bytes) {
-            Ok(shard) => Ok(Some(shard)),
+        match documents::parse_shard(&bytes) {
+            Ok(shard) => Ok(Some(online(shard))),
             Err(_) => {
                 self.0 += bytes.len() as u64;
                 Ok(None)
@@ -67,8 +60,6 @@ impl ShardBudget {
     }
 }
 
-/// Bytes of the index file.
-pub const MAX_INDEX_BYTES: u64 = 4 * 1024 * 1024;
 /// Bytes of one mirrored record file.
 pub const MAX_RECORD_BYTES: u64 = 16 * 1024 * 1024;
 /// Bytes of one mirrored asset.
@@ -76,51 +67,14 @@ pub const MAX_ASSET_BYTES: u64 = sparksmith_core::library::bundle::MAX_ASSET_BYT
 /// Bytes of a registry host key (the mirror's folder name).
 pub const MAX_HOST_KEY: usize = 96;
 
-/// `GET /v1/index`: the current snapshot and its shards.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct RegistryIndex {
-    pub format: u32,
-    pub snapshot: String,
-    pub shards: Vec<ShardInfo>,
-}
-
-/// One shard the index names.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct ShardInfo {
-    pub library: LibraryId,
-    pub name: String,
-    /// SHA-256 of the shard file's exact bytes.
-    pub sha256: ContentHash,
-    pub entries: usize,
-}
-
-/// `GET /v1/shards/{sha256}`: one library's catalog, its entries marked
-/// [`Source::Online`], and what the registry says about each root.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Shard {
-    pub format: u32,
-    pub catalog: SourceCatalog,
-    #[serde(default)]
-    pub entries: Vec<ShardEntry>,
-}
-
-/// The registry's facts about one root lineage of a shard.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct ShardEntry {
-    pub lineage: SourceLineageId,
-    /// The entry's registry id (`publisher/name`).
-    pub id: String,
-    /// `reviewed`, `in_review`, or anything else: not reviewed.
-    pub review: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub glb: Option<String>,
-}
+/// `GET /v1/shards/{sha256}`, its entries marked [`Source::Online`].
+pub type Shard = documents::Shard<SourceCatalog>;
 
 /// The mirror's own copy of the index, with when it was fetched.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct MirroredIndex {
-    pub index: RegistryIndex,
+    pub index: Index,
     /// Seconds since the Unix epoch when the index was fetched.
     pub fetched: u64,
 }
@@ -221,55 +175,15 @@ pub fn now() -> u64 {
 /// Check a shard's bytes against the hash the index gave and decode it,
 /// with every entry marked as coming from this registry.
 pub fn decode_shard(bytes: &[u8], expected: ContentHash) -> Result<Shard> {
-    if bytes.len() as u64 > MAX_SHARD_BYTES {
-        return Err(Error::TooLarge(format!(
-            "registry shard {expected} exceeds {MAX_SHARD_BYTES} bytes"
-        )));
-    }
-    let actual = asset_hash(bytes);
-    if actual != expected {
-        return Err(Error::Invalid(format!(
-            "registry shard {expected} does not match its hash (it hashes to {actual})"
-        )));
-    }
-    parse_shard(bytes)
+    Ok(online(documents::decode_shard(bytes, expected)?))
 }
 
-fn parse_shard(bytes: &[u8]) -> Result<Shard> {
-    let mut shard: Shard = serde_json::from_slice(bytes)?;
-    if shard.format != FORMAT {
-        return Err(Error::Invalid(format!(
-            "registry shard format {} is not supported ({FORMAT} is)",
-            shard.format
-        )));
-    }
+fn online(mut shard: Shard) -> Shard {
     let library = shard.catalog.library;
     for entry in &mut shard.catalog.entries {
         entry.source = Source::Online(library);
     }
-    Ok(shard)
-}
-
-/// Decode `/v1/index`, refusing another format and too many shards.
-pub fn decode_index(bytes: &[u8]) -> Result<RegistryIndex> {
-    if bytes.len() as u64 > MAX_INDEX_BYTES {
-        return Err(Error::TooLarge(format!(
-            "the registry index exceeds {MAX_INDEX_BYTES} bytes"
-        )));
-    }
-    let index: RegistryIndex = serde_json::from_slice(bytes)?;
-    if index.format != FORMAT {
-        return Err(Error::Invalid(format!(
-            "registry index format {} is not supported ({FORMAT} is)",
-            index.format
-        )));
-    }
-    if index.shards.len() > MAX_SHARDS {
-        return Err(Error::TooLarge(format!(
-            "a registry index lists at most {MAX_SHARDS} shards"
-        )));
-    }
-    Ok(index)
+    shard
 }
 
 /// Check a registry bundle before it is used or stored: it is the asked
@@ -400,7 +314,7 @@ impl Mirror {
     }
 
     /// Keep `index` as the mirror's current one.
-    pub fn store_index(&self, index: &RegistryIndex, fetched: u64) -> Result<()> {
+    pub fn store_index(&self, index: &Index, fetched: u64) -> Result<()> {
         let bytes = serde_json::to_vec(&IndexFile {
             origin: self.origin.clone(),
             snapshot: MirroredIndex {
@@ -436,7 +350,7 @@ impl Mirror {
 
     /// Every shard of the stored index that is mirrored and still checks,
     /// in index order. Missing or changed ones are left out.
-    pub fn shards(&self, index: &RegistryIndex, limit: u64) -> Result<Vec<Shard>> {
+    pub fn shards(&self, index: &Index, limit: u64) -> Result<Vec<Shard>> {
         let mut budget = ShardBudget(limit);
         let mut shards = Vec::new();
         for info in &index.shards {

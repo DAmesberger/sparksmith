@@ -21,37 +21,27 @@ use crate::fields::{
 };
 use crate::ids::{
     BindingRef, ComponentRef, ContentHash, DefinitionId, DefinitionKind, DefinitionRef, FieldRef,
-    FootprintRef, LibraryId, MAX_LABEL, PackageRef, QuantityKindRef, Revision, SourceLineageId,
-    SymbolRef,
+    FootprintRef, LibraryId, PackageRef, QuantityKindRef, Revision, SourceLineageId, SymbolRef,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use sparksmith_parts_contract::hash::{self, base64_decode, base64_encode};
+pub use sparksmith_parts_contract::hash::{bytes_hash as asset_hash, encoded_len};
+pub use sparksmith_parts_contract::ids::SourceRevision;
+use sparksmith_parts_contract::limits::MAX_LIBRARY_NAME;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
 
-/// Revision records one bundle carries (a root and its closure).
-pub const MAX_BUNDLE_RECORDS: usize = 1024;
-/// Links one record lists.
-pub const MAX_LINKS: usize = 256;
-/// Assets one bundle or project snapshot packs.
-pub const MAX_ASSETS: usize = 256;
-/// Bytes of one packed asset: the container's per-asset target (D0).
-pub const MAX_ASSET_BYTES: usize = 64 * 1024 * 1024;
+/// The parts contract's bounds of a bundle, which project snapshots keep too:
+/// the encoded bytes of all packed assets stay well below the 512 MiB
+/// container target because the document's asset bytes are still copied by
+/// every command and kept by every undo step. Raising [`MAX_PACKED_BYTES`]
+/// toward that target waits for shared asset bytes.
+pub use sparksmith_parts_contract::limits::{
+    MAX_ASSET_BYTES, MAX_ASSETS, MAX_BUNDLE_RECORDS, MAX_LINKS, MAX_MEDIA_TYPE, MAX_PACKED_BYTES,
+};
 const _: () = assert!(MAX_ASSET_BYTES as u64 == crate::format::CONTAINER_MAX_ASSET_BYTES);
-/// Encoded bytes all packed assets of one bundle or project snapshot may
-/// take together: their base64 text, 4 bytes per 3 (padded), as bundles
-/// and automation payloads carry them. The project file stores assets as
-/// raw container entries (D0), so this no longer competes with the 16 MiB
-/// document. It stays well below the 512 MiB container target because the
-/// document's asset bytes are still copied by every command and kept by
-/// every undo step; one asset of [`MAX_ASSET_BYTES`] fits. Raising it
-/// toward the container target waits for shared asset bytes.
-pub const MAX_PACKED_BYTES: usize = 96 * 1024 * 1024;
-const _: () = assert!(MAX_ASSET_BYTES.div_ceil(3) * 4 <= MAX_PACKED_BYTES);
 const _: () = assert!((MAX_PACKED_BYTES as u64) < crate::format::CONTAINER_MAX_BYTES);
-/// Bytes of a media type.
-pub const MAX_MEDIA_TYPE: usize = 128;
 
 /// The library item an imported copy was made from (D1). The dedupe key of
 /// an import: re-importing an equal origin reuses the existing copy.
@@ -293,16 +283,6 @@ pub struct Bundle {
     /// The root and every revision it reaches, dependencies first.
     pub records: Vec<RevisionRecord>,
     pub assets: Vec<PackedAsset>,
-}
-
-/// One revision of one source lineage.
-#[derive(
-    Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
-)]
-#[serde(deny_unknown_fields)]
-pub struct SourceRevision {
-    pub lineage: SourceLineageId,
-    pub revision: Revision,
 }
 
 /// One place a definition body names another lineage.
@@ -997,13 +977,7 @@ pub fn local_library(records: &[RevisionRecord]) -> Result<LocalLibrary> {
 /// fixed field order and sorted links). io compares it with the hash an
 /// origin recorded to detect an edited rN.
 pub fn content_hash(record: &RevisionRecord) -> Result<ContentHash> {
-    let bytes = serde_json::to_vec(record)?;
-    Ok(ContentHash(Sha256::digest(&bytes).into()))
-}
-
-/// SHA-256 of asset bytes.
-pub fn asset_hash(bytes: &[u8]) -> ContentHash {
-    ContentHash(Sha256::digest(bytes).into())
+    Ok(hash::record_hash(record)?)
 }
 
 /// Structural checks of a bundle before anything is imported: bounds, one
@@ -1015,7 +989,7 @@ pub fn asset_hash(bytes: &[u8]) -> ContentHash {
 /// assets hashing to their names. Publish rules run again on the project
 /// candidate.
 pub fn validate_bundle(bundle: &Bundle) -> Result<()> {
-    if bundle.name.len() > MAX_LABEL {
+    if bundle.name.len() > MAX_LIBRARY_NAME {
         return Err(Error::Limit("library name is too long".into()));
     }
     if bundle.records.is_empty() || bundle.records.len() > MAX_BUNDLE_RECORDS {
@@ -1226,11 +1200,6 @@ pub fn validate_assets(assets: &[PackedAsset]) -> Result<()> {
     Ok(())
 }
 
-/// Bytes of the padded base64 text of `n` bytes.
-pub fn encoded_len(n: usize) -> usize {
-    n.div_ceil(3).saturating_mul(4)
-}
-
 /// Snapshot checks of `Library::origins` and `Library::assets`. Each origin
 /// names a published revision of its own kind; per library a project
 /// revision has at most one origin, a source revision is copied at most
@@ -1334,76 +1303,9 @@ pub fn packed(library: &Library, hashes: &BTreeSet<ContentHash>) -> Result<Vec<P
         .collect()
 }
 
-const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-fn base64_encode(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let b = [
-            chunk.first().copied().unwrap_or(0),
-            chunk.get(1).copied().unwrap_or(0),
-            chunk.get(2).copied().unwrap_or(0),
-        ];
-        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-        for i in 0..4 {
-            if i <= chunk.len() {
-                let index = usize::try_from((n >> (18 - 6 * i)) & 0x3f).unwrap_or(0);
-                out.push(char::from(ALPHABET[index]));
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
-}
-
-fn base64_decode(text: &str) -> Option<Vec<u8>> {
-    fn value(c: u8) -> Option<u32> {
-        ALPHABET
-            .iter()
-            .position(|a| *a == c)
-            .and_then(|p| u32::try_from(p).ok())
-    }
-    let raw = text.as_bytes();
-    if !raw.len().is_multiple_of(4) {
-        return None;
-    }
-    let mut out = Vec::with_capacity(raw.len() / 4 * 3);
-    let chunks = raw.len() / 4;
-    for (index, chunk) in raw.chunks_exact(4).enumerate() {
-        let padding = chunk.iter().rev().take_while(|c| **c == b'=').count();
-        if padding > 2 || (padding > 0 && index + 1 != chunks) {
-            return None;
-        }
-        let mut n = 0u32;
-        for (i, c) in chunk.iter().enumerate() {
-            let v = if i >= 4 - padding { 0 } else { value(*c)? };
-            n = (n << 6) | v;
-        }
-        let bytes = n.to_be_bytes();
-        out.extend_from_slice(&bytes[1..4 - padding]);
-    }
-    // Reject non-canonical encodings (stray bits under the padding).
-    (base64_encode(&out) == text).then_some(out)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn base64_round_trips_and_rejects_noise() {
-        for len in 0..10 {
-            let bytes: Vec<u8> = (0..len).map(|i| (i * 37 + 5) as u8).collect();
-            let text = base64_encode(&bytes);
-            assert_eq!(base64_decode(&text), Some(bytes));
-        }
-        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
-        assert_eq!(base64_encode(b"fo"), "Zm8=");
-        assert_eq!(base64_decode("Zm9=x"), None);
-        assert_eq!(base64_decode("Zm9"), None);
-        assert_eq!(base64_decode("Zm9="), None, "stray bits under padding");
-    }
 
     #[test]
     fn hashes_are_stable_hex() -> Result<()> {

@@ -315,6 +315,8 @@ fn wasm() -> Result<()> {
         "sparksmith-solidcraft",
         "-p",
         "sparksmith-generators",
+        "-p",
+        "sparksmith-parts-contract",
         "--lib",
         "--target",
         "wasm32-unknown-unknown",
