@@ -172,20 +172,26 @@ pub(super) fn job(r: &mut Reading<'_, '_>) -> Fallible<()> {
             );
         }
     }
-    let written: Vec<(String, String, Option<f64>)> = job["MaterialStackup"]
+    let written: Vec<Material> = job["MaterialStackup"]
         .as_array()
         .into_iter()
         .flatten()
         .map(|m| {
             let word = |k: &str| m[k].as_str().unwrap_or_default().to_owned();
-            (word("Type"), word("Name"), m["Thickness"].as_f64())
+            let thickness = m["Thickness"].as_f64();
+            (word("Type"), word("Name"), thickness, word("Notes"))
         })
         .collect();
     let design = materials(project);
     for k in 0..written.len().max(design.len()) {
-        let words = |m: Option<&(String, String, Option<f64>)>| match m {
-            Some((kind, name, Some(mm))) => format!("{kind} “{name}” of {mm:.6} mm"),
-            Some((kind, name, None)) => format!("{kind} “{name}”"),
+        let words = |m: Option<&Material>| match m {
+            Some((kind, name, Some(mm), notes)) if notes.is_empty() => {
+                format!("{kind} “{name}” of {mm:.6} mm")
+            }
+            Some((kind, name, Some(mm), notes)) => {
+                format!("{kind} “{name}” of {mm:.6} mm, “{notes}”")
+            }
+            Some((kind, name, None, _)) => format!("{kind} “{name}”"),
             None => "nothing".into(),
         };
         let (a, b) = (words(written.get(k)), words(design.get(k)));
@@ -196,39 +202,53 @@ pub(super) fn job(r: &mut Reading<'_, '_>) -> Fallible<()> {
     Ok(())
 }
 
+/// A material: type, name, thickness and notes.
+type Material = (String, String, Option<f64>, String);
+
 /// The board's materials, top to bottom.
-fn materials(project: &Project) -> Vec<(String, String, Option<f64>)> {
+fn materials(project: &Project) -> Vec<Material> {
     let stack = &project.stackup;
     let mut out = Vec::new();
     let mask = Some(stack.mask_um / 1000.0);
-    let mut put = |kind: &str, name: String, mm: Option<f64>| out.push((kind.to_owned(), name, mm));
+    let mut put = |kind: &str, name: String, mm: Option<f64>, notes: String| {
+        out.push((kind.to_owned(), name, mm, notes));
+    };
+    let none = String::new;
     if stack.silkscreen_top {
-        put("Legend", "Top legend".into(), None);
+        put("Legend", "Top legend".into(), None, none());
     }
     if stack.mask_top {
-        put("SolderMask", "Top solder mask".into(), mask);
+        put("SolderMask", "Top solder mask".into(), mask, none());
     }
     for (k, foil) in stack.copper.iter().enumerate() {
         let layer = stack.layers().get(k).map(|l| l.name());
         let name = format!("{} copper", layer.unwrap_or_default());
-        put("Copper", name, Some(foil.thickness_um / 1000.0));
+        put("Copper", name, Some(foil.thickness_um / 1000.0), none());
         if let Some(d) = stack.dielectrics.get(k) {
             let kind = match d.kind {
                 DielectricKind::Core => "Core",
                 DielectricKind::Prepreg => "Prepreg",
             };
+            let mut notes = Vec::new();
+            if let Some(glass) = d.glass.designation() {
+                notes.push(format!("{glass} glass"));
+            }
+            if let Some(picked) = stack.picked() {
+                notes.push(format!("stackup {}", picked.name));
+            }
             put(
                 "Dielectric",
                 format!("{kind} {}", k + 1),
                 Some(d.thickness_mm),
+                notes.join(", "),
             );
         }
     }
     if stack.mask_bottom {
-        put("SolderMask", "Bottom solder mask".into(), mask);
+        put("SolderMask", "Bottom solder mask".into(), mask, none());
     }
     if stack.silkscreen_bottom {
-        put("Legend", "Bottom legend".into(), None);
+        put("Legend", "Bottom legend".into(), None, none());
     }
     out
 }

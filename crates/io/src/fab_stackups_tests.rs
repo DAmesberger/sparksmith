@@ -43,7 +43,7 @@ fn every_shipped_stackup_loads_and_builds() -> Fallible<()> {
             assert_eq!(profile.fabricator.as_deref(), Some(s.fabricator.as_str()));
         }
         let board = Stackup::preset(s.copper_layers)?;
-        let taken = s.stackup(&board, false)?;
+        let taken = s.stackup(&board)?;
         let dielectrics: f64 = taken.dielectrics.iter().map(|d| d.thickness_mm).sum();
         let listed: f64 = s
             .layers
@@ -53,10 +53,13 @@ fn every_shipped_stackup_loads_and_builds() -> Fallible<()> {
             .sum();
         assert!((dielectrics - listed).abs() < 1e-5, "{}", s.id);
         assert!(s.is_build_of(&taken), "{}", s.id);
-        // A layer has a Dk exactly where its plies state one.
+        assert_eq!(taken.picked().map(|p| p.id.as_str()), Some(s.id.as_str()));
+        // A layer of several Dk has their average, and says so.
         for (d, listed) in taken.dielectrics.iter().zip(s.dielectrics()) {
-            assert_eq!(d.dk, listed.dk(), "{}", s.id);
-            let averaged = listed.average_dk().ok_or("a ply has no Dk")?;
+            let averaged = d.dk.ok_or("a ply has no Dk")?;
+            let several = listed.dk().is_none();
+            assert_eq!(d.calculated_from().is_some(), several, "{}", s.id);
+            assert!(several || Some(averaged) == listed.dk(), "{}", s.id);
             let (low, high) = listed
                 .plies
                 .iter()
@@ -76,26 +79,26 @@ fn every_shipped_stackup_loads_and_builds() -> Fallible<()> {
 fn known_stackups_read_as_published() -> Fallible<()> {
     let all = load(&ShippedLibrary::for_checkout()?)?;
     let board = Stackup::preset(4)?;
-    let a = find(&all, "jlc04161h-7628")?.stackup(&board, false)?;
+    let a = find(&all, "jlc04161h-7628")?.stackup(&board)?;
     let mm: Vec<f64> = a.dielectrics.iter().map(|d| d.thickness_mm).collect();
     assert_eq!(mm, [0.2104, 1.065, 0.2104]);
     let um: Vec<f64> = a.copper.iter().map(|c| c.thickness_um).collect();
     assert_eq!(um, [35.0, 15.2, 15.2, 35.0]);
     assert_eq!(a.dielectrics[1].kind, DielectricKind::Core);
     assert_eq!(a.dielectrics[1].glass, GlassStyle::Unspecified);
-    let b = find(&all, "jlc04161h-3313")?.stackup(&board, false)?;
+    let b = find(&all, "jlc04161h-3313")?.stackup(&board)?;
     assert_eq!(b.dielectrics[0].glass, GlassStyle::Style3313);
     assert_eq!(b.dielectrics[0].dk, Some(4.1));
     assert_eq!(b.layers().len(), 4);
     assert_eq!(b.index(CopperLayer::Bottom), Some(3));
     let c = find(&all, "pcbway-4-layer-0-8mm-1oz-1oz-30pc")?;
-    let taken = c.stackup(&board, false)?;
+    let taken = c.stackup(&board)?;
     assert_eq!(taken.dielectrics[0].thickness_mm, 0.1715);
     assert_eq!(taken.copper[0].thickness_um, 35.0);
     assert_eq!(c.layers_sum_mm, 0.727);
     assert_eq!(c.pressed_sum_mm(), 0.678);
     // A 7628 prepreg of a brand is 7628 glass.
-    let d = find(&all, "jlc06101h-7628a")?.stackup(&Stackup::preset(6)?, false)?;
+    let d = find(&all, "jlc06101h-7628a")?.stackup(&Stackup::preset(6)?)?;
     assert_eq!(d.dielectrics[0].glass, GlassStyle::Style7628);
     Ok(())
 }

@@ -196,7 +196,8 @@ pub fn export(
     })
 }
 
-/// A ZIP must be a new `.zip` file; a folder must be new or empty.
+/// A ZIP must be a new `.zip` file; a folder must be new or empty, and not
+/// write-protected. No file is replaced, write-protected or not.
 fn check_output(output: &Path, zip: bool) -> Result<()> {
     if zip {
         if output.extension().and_then(|e| e.to_str()) != Some("zip") {
@@ -217,6 +218,9 @@ fn check_output(output: &Path, zip: bool) -> Result<()> {
             "fabrication.output: {} exists and is not an empty folder; choose a new folder",
             output.display()
         )));
+    }
+    if crate::persistence::write_protected(output) {
+        return Err(Error::WriteProtected(output.to_path_buf()));
     }
     Ok(())
 }
@@ -1017,6 +1021,26 @@ mod tests {
         Ok(())
     }
 
+    /// A board of a picked fabricator's stackup is released with its name in
+    /// the order notes, and its drawing reads back.
+    #[test]
+    fn a_picked_stackup_is_released_with_its_name() -> Result<()> {
+        let mut project = sparksmith_core::Engine::showcase()?.project().clone();
+        project.stackup = project
+            .stackup
+            .clone()
+            .picked_from("test-4", "TEST-4-7628 1.6 mm");
+        let dir = tempfile::tempdir()?;
+        let output = dir.path().join("fab");
+        run(&project, &output, false)?;
+        let notes = std::fs::read_to_string(output.join("b-order-notes.txt"))?;
+        assert!(
+            notes.contains("\nStackup: TEST-4-7628 1.6 mm (test-4)\n"),
+            "{notes}"
+        );
+        Ok(())
+    }
+
     /// Every kind of fault in every kind of file is refused, as a folder and
     /// as a ZIP, naming the file, and nothing is written; no waiver releases
     /// it.
@@ -1147,6 +1171,47 @@ mod tests {
         assert!(refused.contains("exists; choose a new file"), "{refused}");
         assert_eq!(std::fs::read(&output)?, b"another program's file");
         assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+        Ok(())
+    }
+
+    /// A set goes over nothing that is there: not over a write-protected
+    /// ZIP or file in the folder, and not into a write-protected folder.
+    #[test]
+    fn a_set_replaces_nothing_that_is_write_protected() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let folder = dir.path().join("fab");
+        std::fs::create_dir(&folder)?;
+        let mut kept = Vec::new();
+        for (file, output, zip) in [
+            (dir.path().join("fab.zip"), dir.path().join("fab.zip"), true),
+            (folder.join("board.gbr"), folder.clone(), false),
+        ] {
+            std::fs::write(&file, b"theirs")?;
+            let writable = std::fs::metadata(&file)?.permissions();
+            let mut protected = writable.clone();
+            protected.set_readonly(true);
+            std::fs::set_permissions(&file, protected)?;
+            let refused = check_output(&output, zip).err().map(|e| e.to_string());
+            let named = refused.is_some_and(|e| e.contains(&output.display().to_string()));
+            assert!(named, "{output:?}");
+            kept.push((file, writable));
+        }
+        for (file, writable) in kept {
+            assert_eq!(std::fs::read(&file)?, b"theirs");
+            std::fs::set_permissions(&file, writable)?;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let empty = dir.path().join("empty");
+            std::fs::create_dir(&empty)?;
+            std::fs::set_permissions(&empty, std::fs::Permissions::from_mode(0o555))?;
+            let refused = check_output(&empty, false);
+            assert!(
+                matches!(refused, Err(Error::WriteProtected(_))),
+                "{refused:?}"
+            );
+        }
         Ok(())
     }
 

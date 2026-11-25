@@ -46,7 +46,8 @@ pub struct StackupEdit {
 }
 
 /// Replace the stackup and move copper between layers, as the caller's one
-/// step. Refused, changing nothing the caller keeps, when the stackup
+/// step. A picked fabricator's name stays only with the layers it was picked
+/// with. Refused, changing nothing the caller keeps, when the stackup
 /// breaks its rules, a move names a layer either stackup lacks or names a
 /// layer twice, or copper would be left on a layer the new stackup lacks.
 pub(super) fn apply(project: &mut Project, edit: StackupEdit) -> Result<()> {

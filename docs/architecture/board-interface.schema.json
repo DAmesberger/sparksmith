@@ -4911,6 +4911,10 @@
         "type": "string",
         "x-kind": "path"
       },
+      "replace_write_protected": {
+        "description": "Replace write-protected files, when the person said so (they are asked).",
+        "type": "boolean"
+      },
       "tier": {
         "$ref": "#/$defs/Tier",
         "default": "mechanical"

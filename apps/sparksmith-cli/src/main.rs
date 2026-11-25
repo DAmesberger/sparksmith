@@ -28,6 +28,7 @@ const USAGE: &str = concat!(
     "usage: ",
     sparksmith_core::product_short_name!(),
     " <command>
+  --version                        print the version
   commands                         print request, document and diagnostic schemas
   stdio [--permission-mode MODE] [--allow-folder DIR]... [FILE.sparksmith]
                                    JSON-lines requests on stdin, replies on stdout,
@@ -265,6 +266,14 @@ impl McpOptions {
 }
 
 fn run() -> Result<()> {
+    if std::env::args().nth(1).is_some_and(|a| a == "--version") {
+        println!(
+            "{} {}",
+            sparksmith_core::product::NAME,
+            sparksmith_core::product::version()
+        );
+        return Ok(());
+    }
     // The standards and materials every engine of this run draws on, from
     // the shipped library: current on this thread for the whole run, and
     // handed to every engine it makes.

@@ -183,9 +183,13 @@ pub enum Request {
     Blank,
     /// Draft the lineages of a published component revision.
     Draft(ComponentRef),
+    /// Discard the open component's drafts.
+    Discard(DefinitionId),
 }
 
 pub struct PartEditor {
+    /// The Discard confirmation is open.
+    discarding: bool,
     /// Working copy edited by widgets.
     draft: Option<WorkingSet>,
     /// What the working copy was loaded from; a difference is uncommitted work.
@@ -300,6 +304,7 @@ pub struct PartEditor {
 impl Default for PartEditor {
     fn default() -> Self {
         Self {
+            discarding: false,
             draft: None,
             baseline: None,
             source: None,
@@ -2119,6 +2124,19 @@ pub fn run(engine: &mut Engine, request: Request) -> sparksmith_core::Result<Opt
         #[cfg(test)]
         Request::Create(template) => working_set::create(engine, template).map(|_| None),
         Request::Blank => working_set::create_blank(engine).map(|_| None),
+        Request::Discard(component) => {
+            let name = engine
+                .drafts()
+                .get(component)
+                .map(|d| d.meta.name.clone())
+                .unwrap_or_default();
+            working_set::discard(engine, component)?;
+            let stays = match engine.project().library.latest(component) {
+                Some((_, revision)) => format!("; {revision} stays published"),
+                None => String::new(),
+            };
+            Ok(Some(format!("Discarded the draft of {name}{stays}")))
+        }
         Request::Draft(component) => {
             let created = working_set::open_drafts(engine, component)?;
             let name = engine
@@ -2890,6 +2908,88 @@ mod draft_tests {
         let after = engine.revision();
         assert_eq!(run(&mut engine, Request::Draft(open))?, None);
         assert_eq!(engine.revision(), after);
+        Ok(())
+    }
+
+    /// Founder 2026-11-25: Discard drops the open component's drafts in one
+    /// undo step, a published revision stays, and a new component goes whole.
+    #[test]
+    fn discarding_a_components_drafts_is_one_undo_step() -> Result<(), Box<dyn std::error::Error>> {
+        let mut engine = Engine::default();
+        run(&mut engine, Request::Create(Template::TwoTerminal))?;
+        let component = engine
+            .drafts()
+            .items
+            .iter()
+            .find(|d| d.definition.kind() == sparksmith_core::DefinitionKind::Component)
+            .ok_or("a component draft")?
+            .id;
+        let drafted = engine.drafts().clone();
+        let said = run(&mut engine, Request::Discard(component))?.ok_or("nothing said")?;
+        assert_eq!(said, "Discarded the draft of Resistor");
+        assert!(engine.drafts().items.is_empty());
+        engine.undo()?;
+        assert_eq!(engine.drafts(), &drafted, "one undo step");
+
+        engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::Publish {
+                drafts: drafted.items.iter().map(|d| d.id).collect(),
+                close: true,
+            }),
+        )?;
+        let published = engine.project().library.clone();
+        let revision = published.latest(component).ok_or("published")?.1;
+        run(
+            &mut engine,
+            Request::Draft(ComponentRef::new(component, revision)),
+        )?;
+        let said = run(&mut engine, Request::Discard(component))?.ok_or("nothing said")?;
+        assert_eq!(said, "Discarded the draft of Resistor; r1 stays published");
+        assert!(engine.drafts().items.is_empty());
+        assert_eq!(engine.project().library, published);
+        assert!(run(&mut engine, Request::Discard(component)).is_err());
+        Ok(())
+    }
+
+    /// Discard keeps a package another component's drafts name, and takes a
+    /// new component's Part drafts along.
+    #[test]
+    fn discarding_keeps_what_another_component_uses() -> Result<(), Box<dyn std::error::Error>> {
+        use sparksmith_core::library::{Definition, DefinitionMeta, DraftEdit};
+        let mut engine = Engine::default();
+        let first = working_set::create(&mut engine, Template::TwoTerminal)?;
+        let second = working_set::create(&mut engine, Template::Header)?;
+        let of = |engine: &Engine, id| WorkingSet::of(engine.drafts(), id).ok_or("a set");
+        let shared = of(&engine, first)?.ids.package;
+        let mut set = of(&engine, second)?;
+        set.binding.package.id = shared;
+        engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::Edit {
+                edits: vec![DraftEdit {
+                    id: set.ids.binding,
+                    meta: set.metas.binding,
+                    definition: Definition::Binding(set.binding),
+                }],
+            }),
+        )?;
+        let mut part = Definition::empty(sparksmith_core::DefinitionKind::Part);
+        if let Definition::Part(part) = &mut part {
+            part.component = ComponentRef::new(first, sparksmith_core::Revision::FIRST);
+        }
+        engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::NewDraft {
+                meta: DefinitionMeta::default(),
+                definition: part,
+            }),
+        )?;
+        assert_eq!(engine.drafts().items.len(), 11);
+        run(&mut engine, Request::Discard(first))?;
+        assert!(engine.drafts().get(shared).is_some(), "the other names it");
+        assert!(engine.drafts().get(first).is_none());
+        assert_eq!(engine.drafts().items.len(), 6, "and the Part draft went");
         Ok(())
     }
 

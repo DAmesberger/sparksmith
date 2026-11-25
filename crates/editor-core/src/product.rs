@@ -34,6 +34,19 @@ pub const BUNDLE_ID_PREFIX: &str = "io.sparksmith";
 pub const BUNDLE_ID: &str = "io.sparksmith.app";
 /// The product's website.
 pub const WEBSITE: &str = "https://sparksmith.io";
+/// The version.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// The commit a package was made of (`cargo xtask package` sets it); a build
+/// from a checkout has none.
+pub const COMMIT: Option<&str> = option_env!("SPARKSMITH_COMMIT");
+
+/// The version as people read it: "0.1.0 (1a2b3c4d5e)".
+pub fn version() -> String {
+    match COMMIT {
+        Some(commit) => format!("{VERSION} ({commit})"),
+        None => format!("{VERSION} (built from source)"),
+    }
+}
 
 #[cfg(test)]
 mod tests {

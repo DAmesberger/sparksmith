@@ -62,9 +62,10 @@ pub enum Error {
     /// A save could not replace its file: another program has it open.
     #[error("{0}")]
     InUse(Box<persistence::InUse>),
-    /// A save did not replace its file, which is write-protected.
+    /// A save or an export did not replace a file, which is write-protected;
+    /// nothing was written.
     #[error(
-        "{} is write-protected and was not replaced. Save under another name, or make the file writable and save again.",
+        "{} is write-protected and was not replaced. Choose another name, or make it writable and try again.",
         .0.display()
     )]
     WriteProtected(std::path::PathBuf),

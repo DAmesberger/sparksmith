@@ -616,6 +616,31 @@ fn the_publish_preview_waits_then_shows_changes_and_the_dry_run() -> TestResult 
     Ok(())
 }
 
+/// A publish refused for a write-protected file says so and offers to
+/// replace it, unticked; a new preview asks again only when refused again.
+#[test]
+fn a_write_protected_publish_offers_to_replace() -> TestResult {
+    let engine = demo()?;
+    let ctx = context();
+    let mut editor = PcbEditor::default();
+    editor.open_publish(&ctx, &engine);
+    let _hold = waiting(&mut editor);
+    let previewed = || Done::PublishPreview(Ok(preview(&engine, "J1 opening")));
+    editor.interface_answer(&ctx, previewed());
+    const REPLACE: &str = "Replace write-protected files";
+    let shown = shows(&mut editor, &engine, &ctx);
+    assert!(!shown.iter().any(|t| t == REPLACE), "{shown:?}");
+    editor.interface_answer(&ctx, Done::Protected("board is write-protected".into()));
+    let shown = shows(&mut editor, &engine, &ctx);
+    for text in [REPLACE, "board is write-protected"] {
+        assert!(shown.iter().any(|t| t == text), "{text} in {shown:?}");
+    }
+    editor.interface_answer(&ctx, previewed());
+    let shown = shows(&mut editor, &engine, &ctx);
+    assert!(!shown.iter().any(|t| t == REPLACE), "{shown:?}");
+    Ok(())
+}
+
 #[test]
 fn a_stale_or_failed_publish_preview_offers_to_compute_it_again() -> TestResult {
     let mut engine = demo()?;

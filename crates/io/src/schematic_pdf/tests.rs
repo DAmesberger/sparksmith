@@ -152,14 +152,40 @@ fn export_writes_the_file_atomically_and_counts_pages() -> TestResult {
     let (engine, _) = two_sheets()?;
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("schematic.pdf");
-    let count = export_schematic_pdf(engine.project(), &[], &path)?;
+    let refuse = WriteProtected::Refuse;
+    let count = export_schematic_pdf(engine.project(), &[], &path, refuse)?;
     assert_eq!(count, 2);
     let bytes = std::fs::read(&path)?;
     assert!(bytes.starts_with(b"%PDF-"));
+    let other = dir.path().join("x.pdf");
+    assert!(export_schematic_pdf(engine.project(), &[SheetId(42)], &other, refuse).is_err());
+    assert!(!other.exists());
+    Ok(())
+}
+
+/// A write-protected PDF is replaced only when the person said so, and stays
+/// write-protected.
+#[test]
+fn a_write_protected_pdf_is_replaced_only_when_told() -> TestResult {
+    let (engine, _) = two_sheets()?;
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("schematic.pdf");
+    std::fs::write(&path, b"theirs")?;
+    let writable = std::fs::metadata(&path)?.permissions();
+    let mut protected = writable.clone();
+    protected.set_readonly(true);
+    std::fs::set_permissions(&path, protected.clone())?;
+    let refused = export_schematic_pdf(engine.project(), &[], &path, WriteProtected::Refuse);
     assert!(
-        export_schematic_pdf(engine.project(), &[SheetId(42)], &dir.path().join("x.pdf")).is_err()
+        matches!(refused, Err(Error::WriteProtected(_))),
+        "{refused:?}"
     );
-    assert!(!dir.path().join("x.pdf").exists());
+    assert_eq!(std::fs::read(&path)?, b"theirs");
+    export_schematic_pdf(engine.project(), &[], &path, WriteProtected::Replace)?;
+    assert!(std::fs::read(&path)?.starts_with(b"%PDF-"));
+    assert_eq!(std::fs::metadata(&path)?.permissions(), protected);
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    std::fs::set_permissions(&path, writable)?;
     Ok(())
 }
 
