@@ -376,8 +376,22 @@ impl CopperGraph {
                 islands.entry(pad.net).or_default().insert(island);
             }
         }
+        // A complete graph names the pads its airwires join: the
+        // connections still to route, as Layout draws them. A pad already
+        // joined to the rest of its net (through a pour, say) is not
+        // unrouted because another island of the net is.
+        let ends: Option<BTreeSet<(Id, crate::ids::PadId)>> = proven.is_none().then(|| {
+            self.airwires()
+                .iter()
+                .flat_map(|(a, b)| [(a.instance, a.pad), (b.instance, b.pad)])
+                .collect()
+        });
         for pad in &self.pads {
-            if islands.get(&pad.net).is_some_and(|i| i.len() > 1) {
+            if islands.get(&pad.net).is_some_and(|i| i.len() > 1)
+                && ends
+                    .as_ref()
+                    .is_none_or(|e| e.contains(&(pad.instance, pad.pad)))
+            {
                 let label = format!(
                     "{} pad {}",
                     project
@@ -419,8 +433,8 @@ impl CopperGraph {
         }
     }
 
-    /// The connectivity findings: `board.unrouted` (one per pad of a net
-    /// whose pads lie in more than one island), `board.track_dangling` (one
+    /// The connectivity findings: `board.unrouted` (one per pad an airwire
+    /// joins, on a net whose pads lie in more than one island), `board.track_dangling` (one
     /// per stub with tracks, naming its tracks and vias) and
     /// `board.via_dangling` (a via joining nothing, or whose island holds
     /// no pad, that no stub finding names). A partial graph preserves known

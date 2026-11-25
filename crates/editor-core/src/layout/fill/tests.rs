@@ -2236,3 +2236,109 @@ fn the_fill_keeps_the_edge_rule_from_a_corner_that_goes_in() -> Fallible<()> {
     assert_eq!(edge(&project), 1);
     Ok(())
 }
+
+/// GUI run 3 (A21): after pours, Issues named every pad of a split net
+/// "unrouted", pads the pour had joined too, while Layout's airwires showed
+/// only the connections left. Both read the one copper graph; Issues now
+/// names the pads the airwires join, so the two agree. The board here has
+/// ground pours on both sides, so the through-hole header pin is in two
+/// pours, with thermal spokes and the showcase's stitching vias.
+#[test]
+fn unrouted_pads_are_the_ones_the_airwires_join() -> Fallible<()> {
+    use crate::issues::IssueScope;
+    use std::collections::BTreeSet;
+    // Pours on both sides over the left part of the board; the bare part
+    // at the right keeps some ground copper apart. The first split (from
+    // the left) that leaves the ground net in more than one island is used.
+    let mut found = None;
+    for split in [8.0, 12.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0] {
+        // The ground net's tracks are taken out, so only the pours
+        // (and the showcase's stitching vias) join its pads.
+        let mut file = showcase()?.to_file();
+        let gnd = file
+            .project
+            .nets
+            .iter()
+            .find(|n| n.name == "GND")
+            .map(|n| n.id)
+            .ok_or("no GND")?;
+        file.project.tracks.retain(|t| t.net != gnd);
+        let mut engine = Engine::from_file(file)?;
+        for layer in [CopperLayer::Top, CopperLayer::Bottom] {
+            add(
+                &mut engine,
+                spec(Some(gnd), layer, rect(0.0, 0.0, split, 28.0)),
+            )?;
+        }
+        refill(&mut engine)?;
+        let graph = layout::CopperGraph::of(engine.project());
+        if graph.airwires().iter().any(|(a, _)| a.net == gnd) {
+            found = Some((engine, gnd));
+            break;
+        }
+    }
+    let (engine, gnd) = found.ok_or("no split leaves the ground net apart")?;
+    let p = engine.project();
+    let graph = layout::CopperGraph::of(p);
+    let ends: BTreeSet<_> = graph
+        .airwires()
+        .iter()
+        .flat_map(|(a, b)| [(a.instance, a.pad), (b.instance, b.pad)])
+        .collect();
+    let named: BTreeSet<_> = layout::checks(p, &Default::default())
+        .iter()
+        .filter(|f| f.code == "board.unrouted")
+        .filter_map(|f| {
+            f.objects.iter().find_map(|o| match *o {
+                ObjectRef::Pad { instance, pad } => Some((instance, pad)),
+                _ => None,
+            })
+        })
+        .collect();
+    assert_eq!(named, ends, "Issues names exactly the airwires' pads");
+    // A ground pad the pour joins and no airwire ends at is not unrouted.
+    let gnd_pads: Vec<_> = graph.pads().iter().filter(|p| p.net == gnd).collect();
+    let quiet = gnd_pads
+        .iter()
+        .filter(|p| !named.contains(&(p.instance, p.pad)))
+        .count();
+    assert!(
+        quiet > 0,
+        "every ground pad named although the pours join them"
+    );
+    assert!(
+        gnd_pads
+            .iter()
+            .any(|p| named.contains(&(p.instance, p.pad))),
+        "the bare strip keeps a ground pad apart from the pour"
+    );
+    // The Unrouted connections group is one row per net it counts, and
+    // each row counts its own pads.
+    let QueryResult::Issues(report) = engine.query(Query::Issues {
+        scope: IssueScope::All,
+    })?
+    else {
+        return Err("no report".into());
+    };
+    let rows: Vec<_> = report
+        .rows
+        .iter()
+        .filter(|r| r.finding.code == "board.unrouted")
+        .collect();
+    let nets: BTreeSet<_> = graph
+        .pads()
+        .iter()
+        .filter(|p| named.contains(&(p.instance, p.pad)))
+        .map(|p| p.net)
+        .collect();
+    assert_eq!(rows.len(), nets.len());
+    for row in rows {
+        let pads = 1 + row.also.len();
+        assert!(
+            row.title.ends_with(&format!("{pads} pads unrouted")) || pads == 1,
+            "{}",
+            row.title
+        );
+    }
+    Ok(())
+}
