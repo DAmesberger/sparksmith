@@ -352,7 +352,7 @@ fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
 fn copper_the_board_cannot_hold_is_listed_and_the_rest_imported() -> Fallible<()> {
     let mut board = routed();
     board.items.push_str(
-        "  (segment (start 35 5) (end 2045 5) (width 0.25) (layer \"F.Cu\") (net 1))
+        "  (segment (start 35 5) (end 35 1200) (width 0.25) (layer \"F.Cu\") (net 1))
   (via (at 20 5) (size 0.3) (drill 0.3) (layers \"F.Cu\" \"B.Cu\") (net 1))\n",
     );
     let imported = import(board.text().as_bytes())?;
@@ -366,7 +366,7 @@ fn copper_the_board_cannot_hold_is_listed_and_the_rest_imported() -> Fallible<()
     for (case, says) in [
         (
             Case::TrackRefused,
-            "Track on SIG (Top) from (35, 15) to (2045, 15) mm: track copper must lie inside the working area",
+            "Track on SIG (Top) from (35, 15) to (35, -1180) mm: track copper must lie inside the working area",
         ),
         (
             Case::ViaRefused,
