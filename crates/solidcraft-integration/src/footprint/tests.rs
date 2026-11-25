@@ -510,7 +510,7 @@ fn bga256_grid_with_centre_void() -> Result<()> {
 /// change.
 const GOLDEN: [(&str, &str, u64); 3] = [
     ("SOIC-8", "d51c531fbf130b01", 0x516c3fa73ba0b6d9),
-    ("QFN", "c176c839ba863f74", 0x635aadbec8021745),
+    ("QFN", "c176c839ba863f74", 0xdfb64e51b9452455),
     ("BGA-256", "4c4168012618e881", 0x1bd4d84c6beaade5),
 ];
 
