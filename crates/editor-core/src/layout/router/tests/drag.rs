@@ -330,3 +330,33 @@ fn a_dragged_tracks_end_in_a_pour_stays_in_it() -> Fallible {
     assert!(close(track_of(&p, id)?.start, [20.0, 28.0]), "the open end");
     Ok(())
 }
+
+/// A drag along the track itself moves nothing and is no error, whatever
+/// holds its ends; the next step moves it by a jog the engine takes.
+#[test]
+fn a_drag_along_the_track_is_no_edit() -> Fallible {
+    let mut p = board()?;
+    let id = track(&mut p, A, [20.0, 25.0], [35.0, 25.0])?;
+    for at in [[20.0, 25.0], [35.0, 25.0]] {
+        via(&mut p, A, at)?;
+    }
+    for posture in [Posture::Diagonal, Posture::Orthogonal] {
+        for offset in [0.0, 0.004, -0.01, 0.01] {
+            let request = TrackDragRequest {
+                posture,
+                ..drag(id, offset, RouteMode::Shove)
+            };
+            let plan = run_drag(&p, &request);
+            assert_eq!(plan.edits, Default::default(), "{posture:?} {offset}");
+            assert!(plan.reached && plan.blocked.is_none(), "{plan:?}");
+        }
+        let request = TrackDragRequest {
+            posture,
+            ..drag(id, 0.02, RouteMode::Shove)
+        };
+        let mut moved = p.clone();
+        commit(&mut moved, &run_drag(&p, &request))?;
+        assert!((track_of(&moved, id)?.start[1] - 25.02).abs() < 1e-9);
+    }
+    Ok(())
+}

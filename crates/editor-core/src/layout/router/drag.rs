@@ -596,6 +596,20 @@ fn refused(request: &TrackDragRequest, why: String, at: Point, layer: CopperLaye
 /// [`PairDrag::Alone`] the track moves alone whatever that does to the pair.
 pub fn drag_plan(project: &Project, index: &RouteIndex, request: &TrackDragRequest) -> RoutePlan {
     let ctx = Ctx::new(project, index);
+    // Along the track itself: no offset a jog could make up, so no edit,
+    // and nothing is in the way.
+    if request.offset.abs() < MIN_SEGMENT_MM + 1e-9
+        && let Some(t) = project.tracks.iter().find(|t| t.id == request.track)
+    {
+        let mut plan = refused(
+            request,
+            String::new(),
+            add(t.start, sub(t.end, t.start), 0.5),
+            t.layer,
+        );
+        (plan.reached, plan.blocked) = (true, None);
+        return plan;
+    }
     let one = match grip(&ctx, request.track) {
         Ok(grip) => grip,
         Err(why) => {
