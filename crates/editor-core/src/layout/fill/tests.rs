@@ -2193,5 +2193,46 @@ fn the_fill_keeps_the_edge_rule_from_a_corner_that_goes_in() -> Fallible<()> {
         );
         assert!(gap < rule + 0.02, "{gap} mm from {corner:?}");
     }
+    let edge = |p: &Project| {
+        layout::checks(p, &Default::default())
+            .into_iter()
+            .filter(|f| f.code == "fill.board_edge")
+            .count()
+    };
+    assert_eq!(edge(&project), 0);
+    // Copper stored before that, a few µm short of the rule here and along
+    // the straight sides, under a key that is current: told, so it is
+    // refilled before any file holds it. Chords are allowed for only where
+    // the outline has arcs.
+    if let Some(f) = project.fills.iter_mut().find(|f| f.id == id)
+        && let Some(copper) = f.computed.as_mut()
+    {
+        let regions: Vec<super::geom::Region> = copper
+            .regions
+            .iter()
+            .map(|r| {
+                std::iter::once(r.outer.clone())
+                    .chain(r.holes.clone())
+                    .collect()
+            })
+            .collect();
+        copper.regions = super::geom::offset(&regions, 0.008, FILL_CHORD_MM)
+            .into_iter()
+            .filter_map(|mut r| {
+                let outer = r.first().cloned()?;
+                Some(crate::model::fill::FilledRegion {
+                    outer,
+                    holes: r.split_off(1),
+                })
+            })
+            .collect();
+    }
+    let stored = project
+        .fills
+        .iter()
+        .find(|f| f.id == id)
+        .ok_or("the fill")?;
+    assert!(!super::is_stale(&project, stored), "current");
+    assert_eq!(edge(&project), 1);
     Ok(())
 }
