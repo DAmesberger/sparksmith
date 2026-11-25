@@ -30,6 +30,8 @@ Per-user files (settings, keymap, fab and AI profiles, live-MCP tokens) live in 
 
 `cargo xtask package` makes the download for the system it runs on ([packages](packages.md)).
 
+`nix develop .#windows -c cargo xtask windows-check [-p PACKAGE]...` is strict Clippy of the workspace, tests included, for Windows on a machine that is not one (Linux; not tried on macOS). The shell adds the `x86_64-pc-windows-gnu` target and a MinGW C compiler for the dependencies' build scripts. It type-checks and lints what `cfg(windows)` and `cfg(not(unix))` compile; it links and runs nothing, and `cfg(target_env = "msvc")` is not seen. Run it before every push: hosted Windows takes hours to say the same. Measured on one Linux machine with other builds running, 25 November 2026: 8 min 42 s into an empty target folder, 1 min after a change in the core.
+
 Hosted CI (`.github/workflows/ci.yml`) runs `cargo xtask ci` on Linux for every push and pull request, and on Windows for pushes to `main` and manual runs. There is no macOS job: the native open, save and quit lifecycle on macOS is checked only by hand runs in the macOS VM (the e2e run notes in this folder), not by CI. This is a known gap.
 
 Navigation: scroll zooms; middle-drag pans; right-drag orbits in 3D. Cmd/Ctrl+S saves, +Shift+S saves as, +O opens, +N starts a new project, +Z/+Shift+Z undo and redo.

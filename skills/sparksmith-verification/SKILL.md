@@ -13,8 +13,9 @@ A full `cargo xtask ci` takes long and shares one machine with other agents, so 
 
 1. **While iterating:** `cargo xtask affected --run` tests the changed crates and every crate that depends on them, plus the crates whose tests read changed shared data (`xtask/affected.txt`). Run focused tests (`cargo test --profile ci -p CRATE NAME`) between edits as before.
 2. **Before any full CI:** `cargo xtask fast` must pass. It checks formatting, the structural gates that run in seconds, strict Clippy on the changed crates and the surface lock when the automation crate is affected. It stops after the first class of gates that fails.
-3. **Once per merge batch:** one full `cargo xtask ci`, through the full-CI lock when one is in use. Green means the log's own last line: `cargo xtask ci` printed no `xtask:` error and exited 0.
-4. **On push:** hosted CI runs `cargo xtask ci` again, as the extra safety net, not as the first check.
+3. **Before any push:** `nix develop .#windows -c cargo xtask windows-check` must pass. It is strict Clippy of the whole workspace, tests included, for Windows, on this machine: hosted Windows fails first on what it finds. Run it with `-p CRATE` after a change to `cfg(unix)`, `cfg(windows)` or path code. It runs no test and does not see `cfg(target_env = "msvc")`.
+4. **Once per merge batch:** one full `cargo xtask ci`, through the full-CI lock when one is in use. Green means the log's own last line: `cargo xtask ci` printed no `xtask:` error and exited 0.
+5. **On push:** hosted CI runs `cargo xtask ci` again, as the extra safety net, not as the first check.
 
 `--base REV` compares with another revision than the merge-base with `main`. A test that reads files outside its crate's folder needs a rule in `xtask/affected.txt`, or `affected` will not select it. [Milestone 0](../../docs/milestone-0.md) defines the remaining acceptance evidence; report unimplemented gates explicitly.
 
