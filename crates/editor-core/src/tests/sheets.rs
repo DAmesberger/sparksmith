@@ -698,7 +698,7 @@ fn an_unnamed_sheet_is_numbered_after_the_existing_ones() -> Result<()> {
 }
 
 #[test]
-fn annotation_numbers_across_sheets_and_keeps_existing_designators() -> Result<()> {
+fn annotation_numbers_across_sheets_and_keeps_given_designators() -> Result<()> {
     let mut engine = Engine::default();
     let f = two_pin(&mut engine)?;
     let s1 = engine.project().sheets.first();
@@ -709,6 +709,9 @@ fn annotation_numbers_across_sheets_and_keeps_existing_designators() -> Result<(
     let kept = place_on(&mut engine, &f, "U2", s1, [50.0, -50.0])?;
     let right = place_on(&mut engine, &f, "U?b", s1, [80.0, -10.0])?;
     let left = place_on(&mut engine, &f, "U?c", s1, [10.0, -30.0])?;
+    // Names a person gave: other letters, and a leading zero.
+    let given = place_on(&mut engine, &f, "J1", s1, [120.0, -10.0])?;
+    let zero = place_on(&mut engine, &f, "U07", s1, [120.0, -50.0])?;
     let annotate = |mode, numbering| C::Annotate {
         order: AnnotateOrder::Rows,
         mode,
@@ -734,6 +737,8 @@ fn annotation_numbers_across_sheets_and_keeps_existing_designators() -> Result<(
     assert_eq!(designator(&engine, left), "U3");
     assert_eq!(designator(&engine, late), "U4");
     assert_eq!(designator(&engine, kept), "U2");
+    assert_eq!(designator(&engine, given), "J1");
+    assert_eq!(designator(&engine, zero), "U07");
     // Annotating again changes nothing and takes no undo step's worth of
     // changes.
     match run(
@@ -748,11 +753,13 @@ fn annotation_numbers_across_sheets_and_keeps_existing_designators() -> Result<(
         annotate(AnnotateMode::All, Numbering::SheetHundreds),
     )?;
     assert_eq!(designator(&engine, right), "U101");
-    assert_eq!(designator(&engine, left), "U102");
-    assert_eq!(designator(&engine, kept), "U103");
+    assert_eq!(designator(&engine, left), "U103");
+    assert_eq!(designator(&engine, kept), "U104");
     assert_eq!(designator(&engine, late), "U201");
+    assert_eq!(designator(&engine, given), "U102");
     engine.undo()?;
     assert_eq!(designator(&engine, kept), "U2");
+    assert_eq!(designator(&engine, given), "J1");
     Ok(())
 }
 

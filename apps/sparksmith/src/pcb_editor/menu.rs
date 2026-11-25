@@ -26,6 +26,8 @@ pub(super) enum Hit {
     /// A block's border, or a block drawn as its border alone.
     Block(Id),
     Fill(Id, Option<Id>),
+    /// A board keepout: its edge, or its inside where nothing else is.
+    Keepout(Id),
     Nothing,
 }
 
@@ -36,6 +38,7 @@ pub(super) enum Target {
     Track(Id),
     Via(Id),
     Fill(Id),
+    Keepout(Id),
     Block(Id),
     /// The group selection a right-click landed on.
     Group,
@@ -66,6 +69,7 @@ pub(super) enum Act {
     Population(Id),
     /// The same for every part of the group, in one step.
     GroupPopulation,
+    DeleteKeepout(Id),
     RotateBlock(Id),
     FlipBlock(Id),
     LockBlock(Id, bool),
@@ -124,6 +128,10 @@ impl PcbEditor {
             Hit::Hole(_) => {
                 self.select_hit(hit);
                 Target::Board
+            }
+            Hit::Keepout(id) => {
+                self.select_hit(hit);
+                Target::Keepout(id)
             }
             Hit::Nothing => Target::Board,
         }
@@ -284,6 +292,10 @@ impl PcbEditor {
                     ),
                 ]
             }
+            Target::Keepout(id) => vec![Some(
+                Entry::act("Delete", "delete", Act::DeleteKeepout(id), !reviewing)
+                    .key_of(ctx, "pcb.delete"),
+            )],
             Target::Block(id) => {
                 let Some(block) = project.block(id) else {
                     return Vec::new();
@@ -453,6 +465,7 @@ impl PcbEditor {
                 target: RefillTarget::One(id),
             })),
             Act::DeleteFill(id) => Some(Operation::Fill(FillCommand::Delete { id })),
+            Act::DeleteKeepout(id) => Some(Operation::Fill(FillCommand::DeleteKeepout { id })),
             Act::DeleteGroup => self.take_group_delete(),
             Act::LockGroup(locked) => self.take_group_lock(locked),
             Act::Population(instance) => crate::variants::toggle(project, vec![instance]),

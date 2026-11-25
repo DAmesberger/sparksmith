@@ -2276,6 +2276,9 @@ pub(crate) fn sheet_rows(
 }
 
 #[cfg(test)]
+#[path = "app/annotate_tests.rs"]
+mod annotate_tests;
+#[cfg(test)]
 #[path = "app/block_tests.rs"]
 mod block_tests;
 #[cfg(test)]
@@ -2303,11 +2306,20 @@ mod flow_tests;
 #[path = "app/generator_wait_tests.rs"]
 mod generator_wait_tests;
 #[cfg(test)]
+#[path = "app/keepout_tests.rs"]
+mod keepout_tests;
+#[cfg(test)]
+#[path = "app/mapping_scroll_tests.rs"]
+mod mapping_scroll_tests;
+#[cfg(test)]
 #[path = "app/open_project_tests.rs"]
 mod open_project_tests;
 #[cfg(test)]
 #[path = "app/parts_band_tests.rs"]
 mod parts_band_tests;
+#[cfg(test)]
+#[path = "app/via_tests.rs"]
+mod via_tests;
 
 #[cfg(test)]
 #[path = "app/ax_harness.rs"]

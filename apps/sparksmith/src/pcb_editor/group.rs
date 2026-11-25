@@ -58,7 +58,7 @@ impl Pick {
             Hit::Block(id) => Some(Self::Block(id)),
             // Sketch features are inspected individually; layout group commands
             // accept only parts, tracks, vias, fills and blocks.
-            Hit::Hole(_) | Hit::Nothing => None,
+            Hit::Hole(_) | Hit::Keepout(_) | Hit::Nothing => None,
         }
     }
 

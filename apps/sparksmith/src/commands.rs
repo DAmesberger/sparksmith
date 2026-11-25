@@ -689,6 +689,7 @@ impl Command {
                 "place-part" => "entry/layout.place_part_file",
                 "board-shape" => "entry/board.start_sketch",
                 "fill" => "entry/fill.add",
+                "keepout" => "entry/keepout.add",
                 "refill" => "entry/fill.refill",
                 "production" => "entry/project.export_fabrication",
                 "update" => "entry/layout.sync",
@@ -1921,6 +1922,15 @@ fn defaults() -> Vec<Command> {
             .chord(Chord::key(K::P))
             .icon("polygon")
             .keywords("pour zone plane copper area copper pour"),
+        tool(
+            "pcb.keepout",
+            "Keepout",
+            C::PcbLayout,
+            Workspace::Pcb,
+            "keepout",
+        )
+        .icon("suppress")
+        .keywords("keep out keepout no copper restrict area forbid"),
         // Layout and 3D share one Dimension tool and its key.
         tool(
             "pcb.dimension",
