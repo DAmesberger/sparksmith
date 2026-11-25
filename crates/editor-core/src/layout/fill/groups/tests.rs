@@ -260,3 +260,20 @@ fn a_pour_goes_stale_with_what_joins_it_and_is_filled_once() -> Result<()> {
     assert_eq!(islands(&project, &ids), [(1, 0); 5]);
     Ok(())
 }
+
+/// What a move is told to have opened is counted as the refill joins it.
+#[test]
+fn pads_in_two_pours_that_come_together_are_one_group() -> Result<()> {
+    let groups = |pours: &[Pour]| -> Result<usize> {
+        let (project, _) = board(pours)?;
+        let mut bare = project.clone();
+        bare.fills.clear();
+        Ok(layout::CopperGraph::of_nets(&bare, &[SHARED]).pad_groups(&project, SHARED))
+    };
+    let on = |x0: f64| (SHARED, 0, [x0, 8.0, 24.6, 12.0], UNCONNECTED);
+    let plane = (SHARED, 1, PLANE, UNCONNECTED);
+    assert_eq!(groups(&[plane])?, 2);
+    assert_eq!(groups(&[plane, on(18.5)])?, 2);
+    assert_eq!(groups(&[plane, on(17.0)])?, 1);
+    Ok(())
+}
