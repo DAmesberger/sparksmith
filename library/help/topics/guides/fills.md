@@ -3,7 +3,9 @@
   "covers": {
     "entry/fill.add": "dc27fe15e5c1dc6d",
     "entry/fill.refill": "3995183b00d92f49",
-    "entry/keepout.add": "ecdadc61edde2063"
+    "entry/keepout.add": "ecdadc61edde2063",
+    "entry/keepout.delete": "244adef7c3868093",
+    "entry/keepout.edit": "c8578dc526a9cb49"
   },
   "id": "guide/fills",
   "keywords": [
@@ -42,3 +44,7 @@ A fill is an area of copper on one layer, usually connected to ground.
 If the fill does not touch a pad: the pad may be on another net, or the fill's layer may not reach it. Under Connections, the card says how pads join: Solid, Thermal relief (thin spokes) or Not connected. A clearance keeps copper of other nets away. Copper islands that reach no pad of the net are removed, as Remove islands says.
 
 An area where no copper may be, such as under an antenna, is a keepout. A part's own keepout comes with its footprint.
+
+- To draw one, choose Keepout. On the card, choose the layers (all copper layers, or one) and what it forbids: fills, tracks, vias, pads. Click the corners and close it on its first point, Enter or Finish; A draws arcs.
+- Click its edge, or inside it where nothing else is, to select it. Its card changes the name, the layers and the rules; Delete removes it.
+- Fills leave a keepout out, and copper inside it is listed in Issues.

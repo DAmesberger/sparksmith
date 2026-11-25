@@ -49,6 +49,7 @@ mod fill_paint;
 mod fill_tests;
 mod fill_tool;
 mod group;
+mod keepout_tool;
 mod pad_fill_card;
 pub use group::Group;
 mod hold_mark;
@@ -133,6 +134,8 @@ enum Tool {
     Via,
     /// Draw a copper fill's outline.
     Fill,
+    /// Draw a board keepout's outline (`keepout_tool`).
+    Keepout,
     /// Meander a track segment to its length target (`tune_tool`).
     Tune,
     /// Dimension a part to a face, edge, hole or board edge, in Layout or
@@ -366,6 +369,7 @@ enum Inspected {
     Track(Id),
     Via(Id),
     Fill(Id),
+    Keepout(Id),
     Block(Id),
     /// Two or more objects (`group`).
     Group,
@@ -568,6 +572,13 @@ pub struct PcbEditor {
     fill: Option<Id>,
     /// The selected block.
     block: Option<Id>,
+    /// The selected board keepout.
+    keepout: Option<Id>,
+    /// The keepout card's Name row: the keepout, its name last seen and
+    /// the text being edited.
+    keepout_name: (Option<Id>, String, String),
+    /// The Keepout tool's settings.
+    keepout_draw: keepout_tool::KeepoutDraw,
     /// The blocks as they are drawn, and their card (`blocks`).
     blocks: blocks::Blocks,
     /// The fills' display copper, kept while their copper is unchanged.
@@ -716,6 +727,9 @@ impl Default for PcbEditor {
             reports: Default::default(),
             fill: None,
             block: None,
+            keepout: None,
+            keepout_name: Default::default(),
+            keepout_draw: Default::default(),
             blocks: Default::default(),
             fill_meshes: Default::default(),
             stale_fills: BTreeSet::new(),
@@ -905,6 +919,7 @@ impl PcbEditor {
         self.via = None;
         self.fill = None;
         self.block = None;
+        self.keepout = None;
         self.fill_drag = None;
         self.discard_staged();
     }
@@ -1004,7 +1019,10 @@ impl PcbEditor {
             // A copper tool still armed when its board lost its profile
             // (undo took it back) ends: it would draw at no width.
             if engine.project().rules.profile.is_none()
-                && matches!(self.tool, Tool::Route | Tool::Via | Tool::Fill | Tool::Tune)
+                && matches!(
+                    self.tool,
+                    Tool::Route | Tool::Via | Tool::Fill | Tool::Keepout | Tool::Tune
+                )
             {
                 self.end_route();
             }
@@ -1041,6 +1059,12 @@ impl PcbEditor {
                 .is_some_and(|id| engine.project().block(id).is_none())
             {
                 self.block = None;
+            }
+            if self
+                .keepout
+                .is_some_and(|id| engine.project().keepout(id).is_none())
+            {
+                self.keepout = None;
             }
             self.graph = engine.copper_graph();
             self.airwires = self.graph.airwires();
@@ -1338,6 +1362,10 @@ impl PcbEditor {
                             .enabled(!self.view_3d)
                             .selected(self.tool == Tool::Fill)
                             .tip("Draw a copper fill outline; switch to Layout to draw"),
+                        Button::new("keepout", "suppress", "Keepout")
+                            .enabled(!self.view_3d)
+                            .selected(self.tool == Tool::Keepout)
+                            .tip("Draw an area copper may not enter; switch to Layout to draw"),
                         Button::new("refill", "update", "Refill")
                             .enabled(!engine.project().fills.is_empty())
                             .tip("Compute the copper of every fill from the board as it is now"),
@@ -1403,6 +1431,10 @@ impl PcbEditor {
                     self.fill_draw.net = self.highlighted;
                 }
             }
+            "keepout" => {
+                self.end_route();
+                self.tool = Tool::Keepout;
+            }
             "production" => self.open_production(),
             "place-part" => self.open_part_chooser(),
             "place" => {
@@ -1445,6 +1477,9 @@ impl PcbEditor {
         }
         if let Some(id) = self.fill.filter(|id| project.fill(*id).is_some()) {
             return Inspected::Fill(id);
+        }
+        if let Some(id) = self.keepout.filter(|id| project.keepout(*id).is_some()) {
+            return Inspected::Keepout(id);
         }
         if let Some(id) = self.block.filter(|id| project.block(*id).is_some()) {
             return Inspected::Block(id);
@@ -1520,6 +1555,11 @@ impl PcbEditor {
                 let name = project.block(id).map_or("", |b| b.name.as_str());
                 Header::new("select", name, "Block")
             }
+            Inspected::Keepout(id) => {
+                let name = project.keepout(id).map_or("", |k| k.name.as_str());
+                let title = if name.is_empty() { "Keepout" } else { name };
+                Header::new("suppress", title, "Keepout")
+            }
             Inspected::Hole(_) => Header::new("circle", "Mounting hole", "Board feature"),
             Inspected::Board => Header::new("plane", "Board", "Board"),
             Inspected::Group => Header::new(
@@ -1550,7 +1590,10 @@ impl PcbEditor {
         {
             Subject::Dialog
         } else if ((self.shape.active
-            || matches!(self.tool, Tool::Route | Tool::Via | Tool::Fill | Tool::Tune))
+            || matches!(
+                self.tool,
+                Tool::Route | Tool::Via | Tool::Fill | Tool::Keepout | Tool::Tune
+            ))
             && !self.view_3d)
             || self.tool == Tool::Dimension
         {
@@ -1573,6 +1616,7 @@ impl PcbEditor {
                     | Inspected::Track(_)
                     | Inspected::Via(_)
                     | Inspected::Fill(_)
+                    | Inspected::Keepout(_)
                     | Inspected::Block(_)
                     | Inspected::Group
             ),
@@ -1610,6 +1654,9 @@ impl PcbEditor {
             Subject::Tool if self.shape.active => CardResponse::output(self.shape_card(ui, engine)),
             Subject::Tool if self.tool == Tool::Via => {
                 CardResponse::output(self.via_tool_card(ui, engine.project()))
+            }
+            Subject::Tool if self.tool == Tool::Keepout => {
+                CardResponse::output(self.keepout_tool_card(ui))
             }
             Subject::Tool if self.tool == Tool::Fill => {
                 CardResponse::output(self.fill_tool_card(ui, engine.project()))
@@ -1784,6 +1831,7 @@ impl PcbEditor {
                 None
             }
             Inspected::Block(id) => self.block_section(ui, project, project.block(id)?),
+            Inspected::Keepout(id) => self.keepout_section(ui, project, project.keepout(id)?),
             Inspected::Group => self.group_section(ui, project),
             Inspected::Board | Inspected::Review => {
                 let renamed = self.board_section(ui, project);
@@ -1837,6 +1885,7 @@ impl PcbEditor {
             }
             Inspected::Fill(id) => fill_card::fill_footer(ui, project.fill(id)?),
             Inspected::Block(id) => self.block_footer(ui, project, project.block(id)?),
+            Inspected::Keepout(id) => Self::keepout_footer(ui, project.keepout(id)?),
             Inspected::Group => self.group_footer(ui, project),
             _ => None,
         }
@@ -1863,6 +1912,7 @@ impl PcbEditor {
                 Inspected::Track(_)
                 | Inspected::Via(_)
                 | Inspected::Fill(_)
+                | Inspected::Keepout(_)
                 | Inspected::Block(_) => true,
                 Inspected::Group => self.delete_group().is_some(),
                 _ => false,
@@ -1884,6 +1934,9 @@ impl PcbEditor {
             Inspected::Track(id) => Operation::Layout(LayoutCommand::DeleteTrack { id }),
             Inspected::Via(id) => Operation::Layout(LayoutCommand::DeleteVia { id }),
             Inspected::Fill(id) => Operation::Fill(layout::fill::FillCommand::Delete { id }),
+            Inspected::Keepout(id) => {
+                Operation::Fill(layout::fill::FillCommand::DeleteKeepout { id })
+            }
             Inspected::Block(id) => Operation::Block(BlockCommand::Delete { ids: vec![id] }),
             Inspected::Group => {
                 self.delete_group()?;
@@ -2301,7 +2354,7 @@ impl PcbEditor {
                 }
             } else if self.tool == Tool::Via {
                 operation = self.place_via(project, at, scale);
-            } else if self.tool == Tool::Fill {
+            } else if matches!(self.tool, Tool::Fill | Tool::Keepout) {
                 operation = self.fill_click(view, at);
             } else if self.tool == Tool::Tune {
                 operation = self.tune_click(ui.ctx(), project, engine.revision());
@@ -2419,6 +2472,7 @@ impl PcbEditor {
                     Tool::Route => "Route",
                     Tool::Via => "Via",
                     Tool::Fill => "Fill (A arcs, Enter closes)",
+                    Tool::Keepout => "Keepout (A arcs, Enter closes)",
                     Tool::Tune => "Tune",
                     Tool::Dimension => "Dimension",
                     Tool::Select if self.dragging_pair_half(project) => {
@@ -2782,6 +2836,10 @@ impl PcbEditor {
                 self.pick_via(project, at)
                     .and_then(|via| pass(Hit::Via(via.id, via.net)))
             })
+            .or_else(|| {
+                self.pick_keepout(project, at, tolerance, true)
+                    .map(Hit::Keepout)
+            })
             .or_else(|| track.and_then(|track| pass(Hit::Track(track.id, track.net))))
             .or_else(|| {
                 // A block's border runs along its parts' courtyards: on it
@@ -2810,6 +2868,10 @@ impl PcbEditor {
             .or_else(|| {
                 self.pick_fill(project, at, tolerance)
                     .and_then(|fill| pass(Hit::Fill(fill.id, fill.net)))
+            })
+            .or_else(|| {
+                self.pick_keepout(project, at, tolerance, false)
+                    .map(Hit::Keepout)
             })
             .unwrap_or(Hit::Nothing)
     }
@@ -2899,6 +2961,7 @@ impl PcbEditor {
                 self.set_selection(None, None, None);
                 self.hole = Some(id);
             }
+            Hit::Keepout(id) => self.select_keepout(id),
             Hit::Nothing => self.set_selection(None, None, None),
         }
     }
@@ -3946,6 +4009,8 @@ fn issue_slot_of(
         Inspected::Fill(_) => return None,
         // A group's and a block's findings are on their objects' own cards.
         Inspected::Group | Inspected::Block(_) => return None,
+        // Findings name the copper in a keepout, not the keepout.
+        Inspected::Keepout(_) => return None,
     };
     let report = whole.scoped(&scope, project);
     let mut counts = sparksmith_core::issues::IssueCounts::default();

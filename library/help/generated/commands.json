@@ -1699,6 +1699,28 @@
     ]
   },
   {
+    "id": "command/pcb.keepout",
+    "title": "Keepout",
+    "summary": "Draw an area copper may not enter; switch to Layout to draw",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/keepout.add"
+    },
+    "keywords": [
+      "keep",
+      "out",
+      "keepout",
+      "no",
+      "copper",
+      "restrict",
+      "area",
+      "forbid"
+    ]
+  },
+  {
     "id": "command/pcb.layer-1",
     "title": "Switch to stackup layer 1",
     "summary": "PCB › Layout: Switch to stackup layer 1.",
