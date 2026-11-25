@@ -1014,7 +1014,7 @@
       "module": "model3d",
       "class": "ask",
       "entry_kind": "action",
-      "schema_digest": "6609a1e45512ad08",
+      "schema_digest": "16251eef82ba600c",
       "examples": []
     }
   },
@@ -3579,7 +3579,7 @@
       "module": "fab",
       "class": "ask",
       "entry_kind": "action",
-      "schema_digest": "25eb940b6114128a",
+      "schema_digest": "ada7bcf37d13b5f1",
       "examples": []
     }
   },

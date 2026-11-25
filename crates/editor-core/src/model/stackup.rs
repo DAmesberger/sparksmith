@@ -188,6 +188,17 @@ pub struct DielectricSheet {
     pub dk: f64,
 }
 
+impl DielectricSheet {
+    /// A sheet `mm` thick; none when the thickness is not a storable length.
+    pub fn from_mm(material: String, mm: f64, dk: f64) -> Option<Self> {
+        Some(Self {
+            material,
+            thickness_nm: Nm::from_mm_f64_rounded(mm).ok()?,
+            dk,
+        })
+    }
+}
+
 /// One dielectric between two consecutive copper foils.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]

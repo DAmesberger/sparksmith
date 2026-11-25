@@ -277,14 +277,14 @@
   {"name":"fabrication.waive","class":"ask","schema":"e3f58b214de05103","reply":"2cacab60f28dfa35","fields":[["keys","1e052309e6b92305"],["profile","a3b3c2b554ff5c19"],["reason","12a58c6f6b36f1bf"]],"required":["keys"]},
   {"name":"project.issues","class":"read","schema":"8179456145cb1eba","reply":"8e859854e4cc2260","fields":[["scope","2015d78ab725b874"]],"required":["scope"]}
  ]},
- {"id": "fab", "version": "2.0", "digest": "sha256:103a4b413467a2053ebaba438af12e424fce21b5bfe2db29e97e589816580668", "entries": [
+ {"id": "fab", "version": "2.1", "digest": "sha256:613a5586b5431dfb2861662618e60815a3dc9fa629325b5444902d4a17add23f", "entries": [
   {"name":"firmware.export","class":"ask","schema":"f95242d5ae761fe0","reply":"2573acdb468756c4","fields":[["emitter","69912512f59befcc"],["instance","9295ea67127970c6"],["path","40bd5b57f4261fe2"],["template_file","40bd5b57f4261fe2"]],"required":["emitter","instance"]},
   {"name":"firmware.export_preview","class":"read","schema":"f95242d5ae761fe0","reply":"72fe1173c7959a2c","fields":[["emitter","69912512f59befcc"],["instance","9295ea67127970c6"],["path","40bd5b57f4261fe2"],["template_file","40bd5b57f4261fe2"]],"required":["emitter","instance"]},
   {"name":"project.export_fabrication","class":"ask","schema":"f0b41d7ede081315","reply":"cff4496001a348fd","fields":[["options","1955035054071ff6"],["output","f186891b5656c9ae"],["profile","40bd5b57f4261fe2"],["zip","e3ce44acd037492c"]],"required":["output"]},
   {"name":"project.pin_config","class":"read","schema":"d0db1335626b7e65","reply":"59ecd3abe3a710d3","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
-  {"name":"schematic.export_pdf","class":"ask","schema":"25eb940b6114128a","reply":"7946d4f3dadce356","fields":[["path","f186891b5656c9ae"],["sheets","43c73dc4f3bbbf88"]],"required":["path"]}
+  {"name":"schematic.export_pdf","class":"ask","schema":"ada7bcf37d13b5f1","reply":"7946d4f3dadce356","fields":[["path","f186891b5656c9ae"],["replace_write_protected","90c3f0cfcf6ff8f0"],["sheets","43c73dc4f3bbbf88"]],"required":["path"]}
  ]},
- {"id": "model3d", "version": "4.1", "digest": "sha256:f8fd02e1d12c1fc7f9d6b375d6f72e8a672aad0ce1ed5a418e9d1e1d3839967c", "entries": [
+ {"id": "model3d", "version": "4.1", "digest": "sha256:212404afdcfcbe221334c0660412fa71e339a77b59a21af95cf0b1cb8cf5cf85", "entries": [
   {"name":"assembly.follow","class":"ask","schema":"17fdb7c01b03424b","reply":"55d77f9d39af599e","fields":[["assembly_param","40bd5b57f4261fe2"],["board_param","40bd5b57f4261fe2"],["body","40bd5b57f4261fe2"],["design","f186891b5656c9ae"],["expected_revision","9295ea67127970c6"],["face","40bd5b57f4261fe2"],["name","40bd5b57f4261fe2"],["path","f186891b5656c9ae"],["pick","60be797d51410d16"]],"required":["design","expected_revision","path"]},
   {"name":"assembly.preview","class":"read","schema":"d81d9ab4c291ff99","reply":"ae19f148fed7639e","fields":[["design","f186891b5656c9ae"],["path","f186891b5656c9ae"]],"required":["design","path"]},
   {"name":"assembly.record_binding","class":"edit","schema":"a5c5d22903ed2827","reply":"2cacab60f28dfa35","fields":[["binding","2ddd70c41a214bde"]],"required":["binding"]},
@@ -299,7 +299,7 @@
   {"name":"interface.auto","class":"edit","schema":"a2f859dc7c551627","reply":"2cacab60f28dfa35","fields":[["on","90c3f0cfcf6ff8f0"],["rule","71eee240ee95e32f"]],"required":["on","rule"]},
   {"name":"interface.export","class":"edit","schema":"05d7ea349015c3f7","reply":"2cacab60f28dfa35","fields":[["name","40bd5b57f4261fe2"],["target","94bb6d1f891fc493"]],"required":["target"]},
   {"name":"interface.list","class":"read","schema":"2c692f52f8c0092b","reply":"6b41de1b3814cc45","fields":[],"required":[]},
-  {"name":"interface.publish","class":"ask","schema":"6609a1e45512ad08","reply":"72b899cbc735ac11","fields":[["assembly_path","40bd5b57f4261fe2"],["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"],["tier","f68f07ffbe12713d"],["token","40bd5b57f4261fe2"],["write_anyway","e3ce44acd037492c"]],"required":["expected_revision","path"]},
+  {"name":"interface.publish","class":"ask","schema":"16251eef82ba600c","reply":"72b899cbc735ac11","fields":[["assembly_path","40bd5b57f4261fe2"],["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"],["replace_write_protected","90c3f0cfcf6ff8f0"],["tier","f68f07ffbe12713d"],["token","40bd5b57f4261fe2"],["write_anyway","e3ce44acd037492c"]],"required":["expected_revision","path"]},
   {"name":"interface.publish_preview","class":"read","schema":"c5d68723ec82a718","reply":"68804ad00a530e3e","fields":[["assembly_path","40bd5b57f4261fe2"],["path","40bd5b57f4261fe2"],["tier","c3fbb7780a5890a7"]],"required":[]},
   {"name":"interface.record_publish","class":"edit","schema":"0f2a893b0b12043c","reply":"2cacab60f28dfa35","fields":[["record","bb209bb2b22f2e6e"],["source_id","661ab81fdf807860"]],"required":["record","source_id"]},
   {"name":"interface.rename","class":"edit","schema":"a69afd1d463fc9bc","reply":"2cacab60f28dfa35","fields":[["datum","dd016f7f1c3e2ab4"],["name","40bd5b57f4261fe2"]],"required":["datum"]},

@@ -70,7 +70,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "fab",
-        (2, 0),
+        (2, 1),
         "Fabrication",
         "Fabrication output, the schematic PDF and firmware pin configuration.",
     ),
