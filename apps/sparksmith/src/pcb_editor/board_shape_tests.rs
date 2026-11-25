@@ -478,6 +478,11 @@ fn edge_values_evaluate_board_parameters() -> Fallible {
         edge_card::evaluate(project, &Expr("2.5 mm".into())),
         Some(2.5)
     );
+    // As the guide on units says.
+    for (text, mm) in [("1 in", 25.4), ("100 mil", 2.54)] {
+        let v = edge_card::evaluate(project, &Expr(text.into())).ok_or(text)?;
+        assert!((v - mm).abs() < 1e-9, "{text}: {v}");
+    }
     assert!(edge_card::expression_error(project, "width / 2").is_none());
     assert!(edge_card::expression_error(project, "depth").is_some());
     // A plain rectangle board reads `width` and `height` as the dimension
