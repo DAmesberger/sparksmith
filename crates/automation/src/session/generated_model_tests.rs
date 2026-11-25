@@ -736,3 +736,46 @@ fn every_gull_wing_and_grid_preset_draws_one_lead_per_land() -> TestResult {
     }
     Ok(())
 }
+
+/// A Kelvin tie has no lands of its own (docs/design/net-ties.md): no pad of
+/// 0 mm is made for it. Every form with lands is refused, with the reason,
+/// until its dimensions are set. Red when one is made without them.
+#[test]
+fn a_tie_is_made_with_the_lands_its_form_has_or_refused() -> TestResult {
+    for form in ["copper", "solder", "trace"] {
+        let mut session = session(Path::new(SHIPPED))?;
+        let reply = call(
+            &mut session,
+            "library.generate_part",
+            json!({"generator": "tie", "scope": "component", "params": {"form": form}}),
+        );
+        assert_eq!(reply["ok"], false, "{form}: {reply}");
+        assert!(
+            reply.to_string().contains("Supply positive pad dimensions"),
+            "{form}: {reply}"
+        );
+        assert!(session.engine().project().library.components.is_empty());
+    }
+    let session = made("tie", "zero-ohm-resistor-0603", &json!({}))?;
+    let library = &session.engine().project().library;
+    let pads = |library: &sparksmith_core::library::Library| {
+        library
+            .footprints
+            .first()
+            .map(|f| f.definition.pads.len())
+            .ok_or("a footprint")
+    };
+    assert_eq!(pads(library)?, 2);
+    let mut session = self::session(Path::new(SHIPPED))?;
+    let reply = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "tie", "scope": "component", "params": {"form": "kelvin"}}),
+    );
+    assert_eq!(reply["ok"], true, "{reply}");
+    let library = &session.engine().project().library;
+    assert_eq!(pads(library)?, 0);
+    let component = library.components.first().ok_or("a component")?;
+    assert_eq!(component.definition.ties.len(), 1);
+    Ok(())
+}

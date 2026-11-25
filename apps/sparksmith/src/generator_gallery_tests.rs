@@ -614,3 +614,14 @@ fn a_package_edit_during_generation_requires_a_fresh_replacement() -> TestResult
     assert_eq!(engine.document(), &edited);
     Ok(())
 }
+
+/// Red when a part without pads is said to have a footprint like any other.
+#[test]
+fn a_made_kelvin_tie_says_it_has_no_pads() {
+    let said = made_text("Kelvin tie", false, true);
+    assert!(
+        said.contains("no pads of its own") && said.contains("anchor"),
+        "{said}"
+    );
+    assert!(!made_text("R 0603", false, false).contains("anchor"));
+}

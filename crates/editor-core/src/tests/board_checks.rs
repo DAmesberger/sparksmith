@@ -992,7 +992,8 @@ fn the_default_rules_keep_every_former_verdict() -> Result<()> {
 #[test]
 fn shrinking_the_board_names_the_copper_left_outside() -> Result<()> {
     let mut project = Engine::showcase()?.project().clone();
-    crate::layout::copper_fits(&project, project.board_size)?;
+    let none = Default::default();
+    crate::layout::copper_fits(&project, project.board_size, &none)?;
     let net = project
         .nets
         .first()
@@ -1006,7 +1007,7 @@ fn shrinking_the_board_names_the_copper_left_outside() -> Result<()> {
     .into();
     project.vias = vec![via(4, net, [30.0, 20.0], 0.3, 0.6)].into();
     let name = project.net_name(net).to_owned();
-    let error = crate::layout::copper_fits(&project, [25.0, 64.0])
+    let error = crate::layout::copper_fits(&project, [25.0, 64.0], &none)
         .err()
         .ok_or_else(|| Error::NotFound("a refusal".into()))?
         .to_string();
@@ -1016,7 +1017,10 @@ fn shrinking_the_board_names_the_copper_left_outside() -> Result<()> {
         )),
         "{error}"
     );
-    crate::layout::copper_fits(&project, [31.0, 64.0])?;
+    crate::layout::copper_fits(&project, [31.0, 64.0], &none)?;
+    // Copper that was off the board before does not stand in the way.
+    let outside = [2, 4].into();
+    crate::layout::copper_fits(&project, [30.5, 64.0], &outside)?;
     Ok(())
 }
 

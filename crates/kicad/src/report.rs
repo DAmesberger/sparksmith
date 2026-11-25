@@ -150,10 +150,16 @@ pub enum Case {
     /// sketch engine).
     OutlineRectangle,
     /// `Edge.Cuts` drawings that do not close into one board: the board
-    /// keeps its rectangle.
+    /// keeps a provisional rectangle until they do.
     OutlineNotClosed,
-    /// No outline: the board keeps its new-board rectangle.
+    /// No outline: the board's sketch is empty, its shape a provisional
+    /// rectangle until one is drawn.
     OutlineMissing,
+    /// No outline and no board sketch engine: the rectangle round
+    /// everything stands for it.
+    OutlineProvisional,
+    /// Tracks and vias outside the board's box, imported where they are.
+    CopperOutside,
     /// An outline that cannot be imported (no rules, or reaching below the
     /// origin without a sketch engine).
     OutlineNotImported,
@@ -513,9 +519,23 @@ impl Case {
             Self::OutlineNotClosed => (
                 "B1",
                 Refused,
-                "outline drawings that do not close into one board (rectangle kept)",
+                "outline drawings that leave an end open or do not close into one board (where there is no outline a provisional rectangle is shown): fix the outline in Edit shape before production",
             ),
-            Self::OutlineMissing => ("B1", Report, "no board outline (new-board rectangle kept)"),
+            Self::OutlineMissing => (
+                "B1",
+                Refused,
+                "no board outline in the file: the rectangle shown is provisional; draw the outline in Edit shape before production",
+            ),
+            Self::OutlineProvisional => (
+                "B1",
+                Approximate,
+                "no board outline in the file: a rectangle round everything stands for it (no board sketch engine); check it before production",
+            ),
+            Self::CopperOutside => (
+                "R1",
+                Report,
+                "tracks and vias outside the board outline, imported; the board check lists them",
+            ),
             Self::OutlineNotImported => (
                 "B1",
                 Refused,
@@ -865,7 +885,7 @@ pub struct RefusedCopper {
     pub case: Case,
     /// "Track on VIN (Top) from (4, 16.8) to (10, 16.8) mm".
     pub what: String,
-    /// "track copper must lie inside the board outline".
+    /// "track copper must lie inside the working area".
     pub check: String,
 }
 

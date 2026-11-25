@@ -487,16 +487,16 @@ impl GeneratorGallery {
         if !engine.still_at(sent.revision) {
             let sent = sent.clone();
             let made = generators::made_component(engine, &self.shelf, &sent.request);
-            let name = made
-                .and_then(|c| engine.project().library.component(c))
-                .map_or_else(|| "the part".to_owned(), |c| c.meta.name.clone());
+            let component = made.and_then(|c| engine.project().library.component(c));
+            let name = component.map_or_else(|| "the part".to_owned(), |c| c.meta.name.clone());
+            let landless = component.is_some_and(|c| landless(engine, &c.definition));
             match sent.sent {
                 Sent::Create => {
                     self.created = made.map(|c| c.id);
                     post(
                         ctx,
                         Level::Ok,
-                        made_text(&name, sent.update),
+                        made_text(&name, sent.update, landless),
                         vec![ToastAction::Undo],
                     );
                 }
@@ -837,10 +837,31 @@ impl GeneratorGallery {
     }
 }
 
+/// Whether `component` is a tie whose every footprint is without pads: a
+/// Kelvin tie, whose ends are anchored on other parts' pads.
+fn landless(engine: &Engine, component: &sparksmith_core::library::ComponentDefinition) -> bool {
+    let library = &engine.project().library;
+    !component.ties.is_empty()
+        && !component.implementations.is_empty()
+        && component.implementations.iter().all(|b| {
+            library.binding(*b).is_some_and(|b| {
+                b.definition.footprints.iter().all(|f| {
+                    library
+                        .footprint(*f)
+                        .is_some_and(|f| f.definition.pads.is_empty())
+                })
+            })
+        })
+}
+
 /// The toast of a made part.
-fn made_text(name: &str, update: bool) -> String {
+fn made_text(name: &str, update: bool, landless: bool) -> String {
     if update {
         format!("Made the next revision of {name}; placed parts keep theirs until you update them")
+    } else if landless {
+        format!(
+            "Made {name}: it has no pads of its own; anchor its ends on another part's pads once it is placed"
+        )
     } else {
         format!("Made {name}: component, symbol, package, footprint and 3D model")
     }

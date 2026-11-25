@@ -168,6 +168,9 @@ No check for local fiducials of fine-pitch parts yet: JLCPCB's blog places them 
 
 ## Board shape, cutouts and edge-relative placement
 
+- **Copper off the board.** A document may hold tracks and vias off its board, within the working area: an import's copper is never dropped. The board check tells them (`board.outside_outline`). No edit puts copper there: routing refuses it, and an edit that leaves a track or via off the board's box that was on it before is refused (`layout::copper_stays`); what was off it already stays in no one's way.
+- **An import without an outline** (no Edge.Cuts, or drawings that do not close) leaves the board's sketch without one: `board.shape_invalid` or `board.shape_open`, which block production and are never waived. The last valid shape, which the views show, is then a provisional rectangle round everything on the board with a 2 mm margin; no line of it is in the sketch, so closing the outline is drawing it. Only a host without a sketch engine keeps that rectangle as the board's (`OutlineProvisional`); the desktop app, the CLI and MCP all have one.
+
 - **Model** (`model/board.rs`, `layout/outline.rs`):
   - `BoardShape` is a `Rectangle` (from `board_size`) or a `Sketch(BoardSketch)`. A sketched board keeps `board_size` at its solved bounding box.
   - `Project::board()` returns the solved shape: the outer outline, cutouts, slots, mounting holes and named edges. For a rectangle, the edges are bottom/right/top/left.

@@ -1216,6 +1216,9 @@ fn apply_routes(project: &mut Project, edits: RouteEditSet) -> Result<()> {
     }
     validate(project)?;
     let vias: BTreeSet<Id> = added_vias.into_iter().chain(moved_vias).collect();
+    for via in project.vias.iter().filter(|v| vias.contains(&v.id)) {
+        via::check_inside(project, via)?;
+    }
     router::check_committed(project, &changed, &vias)
 }
 
@@ -1251,8 +1254,9 @@ pub struct ImportedCopper {
 /// Add an imported board's tracks and vias as its file has them. Only what
 /// a document cannot hold is left out ([`validate`]: a net or copper layer
 /// the board lacks, a size out of range, a via without a ring or not
-/// through, copper off the board). No rule is read: what breaks the fab
-/// profile is the board checks' to report, as in an opened file. Not an
+/// through, copper off the working area). No rule is read: what breaks the
+/// fab profile or lies off the board is the board checks' to report, as in
+/// an opened file. Not an
 /// operation: an importer adds it to the document it builds, which
 /// [`crate::Engine::replace_document`] validates.
 pub fn import_copper(
@@ -1280,7 +1284,7 @@ pub fn import_copper(
         out.tracks += 1;
     }
     for request in vias {
-        if let Err(why) = via::check_held(project, &request, &nets) {
+        if let Err(why) = via::check_held(&request, &nets) {
             out.refused_vias.push((request, why));
             continue;
         }
@@ -1300,7 +1304,13 @@ fn check_held(project: &Project, request: &RouteRequest, nets: &BTreeSet<Id>) ->
     if !project.stackup.has(request.layer) {
         return invalid("track lies on a copper layer the stackup lacks");
     }
-    check_track_inside(project, request)
+    if ![request.start, request.end]
+        .into_iter()
+        .all(in_working_area)
+    {
+        return invalid("track copper must lie inside the working area");
+    }
+    Ok(())
 }
 
 fn check_track_shape(request: &RouteRequest) -> Result<()> {
@@ -1522,8 +1532,11 @@ pub fn validate(project: &Project) -> Result<()> {
         if !project.stackup.has(track.layer) {
             return invalid("track lies on a copper layer the stackup lacks");
         }
-        if !track_inside_board(project, track) {
-            return invalid("track copper lies outside board outline");
+        // Copper off the board is kept (an import's is never dropped); the
+        // board check tells it, and no edit puts copper there
+        // ([`copper_stays`]).
+        if ![track.start, track.end].into_iter().all(in_working_area) {
+            return invalid("track copper lies outside the working area");
         }
     }
     Ok(())
@@ -1592,26 +1605,66 @@ fn track_within(track: &Track, size: Point) -> bool {
     })
 }
 
+/// The tracks and vias whose copper is not wholly on the board's box.
+pub fn outside_board(project: &Project) -> BTreeSet<Id> {
+    let size = project.board_size;
+    let tracks = project
+        .tracks
+        .iter()
+        .filter(|t| !track_within(t, size))
+        .map(|t| t.id);
+    let vias = project
+        .vias
+        .iter()
+        .filter(|v| !via::within(v, size))
+        .map(|v| v.id);
+    tracks.chain(vias).collect()
+}
+
+/// Refuse an edit that leaves copper off the board: a track or via outside
+/// the box now that was not outside it in `base`. What was outside already
+/// (an imported board's) stays as it is.
+pub(crate) fn copper_stays(base: &Project, project: &Project) -> Result<()> {
+    let now = outside_board(project);
+    if now.is_empty() {
+        return Ok(());
+    }
+    let before = outside_board(base);
+    if project.board_size != base.board_size {
+        return copper_fits(project, project.board_size, &before);
+    }
+    for track in &project.tracks {
+        if now.contains(&track.id) && !before.contains(&track.id) {
+            return invalid("track copper must lie inside the board outline");
+        }
+    }
+    for via in &project.vias {
+        if now.contains(&via.id) && !before.contains(&via.id) {
+            return via::check_inside(project, via);
+        }
+    }
+    Ok(())
+}
+
 /// Refuse a board `size` that would leave tracks or vias off the board,
 /// naming them by count and net ("2 tracks on GND and CC2 would lie
 /// outside 38 × 64 mm"), so a designer knows what to move or remove.
 /// A resized board is judged once its dimensioned parts have carried their
 /// copper (`updates::finalize`): copper that follows the edges is no
 /// refusal.
-pub(crate) fn copper_fits(project: &Project, size: Point) -> Result<()> {
+///
+/// Copper among `outside` was off the board before and stays there.
+pub(crate) fn copper_fits(project: &Project, size: Point, outside: &BTreeSet<Id>) -> Result<()> {
     let tracks: Vec<Id> = project
         .tracks
         .iter()
-        .filter(|t| !track_within(t, size))
+        .filter(|t| !track_within(t, size) && !outside.contains(&t.id))
         .map(|t| t.net)
         .collect();
     let vias: Vec<Id> = project
         .vias
         .iter()
-        .filter(|v| {
-            let (r, [x, y]) = (v.diameter / 2.0, v.position);
-            x - r < -EPS || y - r < -EPS || x + r > size[0] + EPS || y + r > size[1] + EPS
-        })
+        .filter(|v| !via::within(v, size) && !outside.contains(&v.id))
         .map(|v| v.net)
         .collect();
     let counted = |nets: &[Id], one: &str, many: &str| -> Option<String> {

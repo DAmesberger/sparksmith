@@ -473,8 +473,13 @@ fn a_definition_frame_is_independent_of_placement() -> Fallible<()> {
     // KiCad's (1, 0.5) with y down is (1, −0.5) with y up.
     assert_eq!(def.position(), [1.0, -0.5]);
     assert_eq!(def.rotation_deg(), 0.0);
+    // Without an outline the board's corner goes where everything lies on
+    // it: R1's origin, 10 mm left of R2's.
+    let first = placed[0].pad_transform().apply([0.0, 0.0]);
+    let origin = [first[0] - 1.0, first[1] + 0.5];
+    assert!(origin[0] > 0.0 && origin[1] > 0.0, "{origin:?}");
     let turned = Transform2 {
-        translate: [20.0, -10.0],
+        translate: [origin[0] + 10.0, origin[1]],
         rotation_deg: 90.0,
         mirror: false,
     };

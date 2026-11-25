@@ -908,6 +908,19 @@ pub fn import_with_models(
     })
 }
 
+/// The size of the provisional rectangle: from the origin round everything on
+/// the board and the box of its outline drawings, within the sizes a board
+/// can have. What lies past the largest stays off the board. `None` for an
+/// empty board.
+fn provisional_size(board: &Board, drawn: Option<Bounds>) -> Option<[f64; 2]> {
+    let on_board = board::extent(board).map(|[min, max]| {
+        let corner = translate::board_point(board, [max[0], min[1]]);
+        Bounds::point(corner)
+    });
+    let all = drawn.into_iter().chain(on_board).reduce(Bounds::union)?;
+    Some(all.max.map(|v| v.clamp(5.0, 1000.0)))
+}
+
 /// The designator prefix of a reference: its leading capital letters.
 /// Place each schematic part whose reference no placed part has (the
 /// board has no footprint of it) as a part of its KiCad symbol alone,
@@ -1464,16 +1477,38 @@ impl Session<'_> {
 
     /// The board outline: a board sketch of the `Edge.Cuts` drawings (with
     /// a board evaluator), else the rectangle from the origin around them.
+    ///
+    /// Drawings that are no outline (none at all, or none that closes) leave
+    /// the board's sketch with a fault that blocks production and no waiver
+    /// accepts; the board's last valid shape is then a provisional rectangle
+    /// round everything on it. No line of that rectangle is in the sketch.
     fn outline(&mut self, board: &Board, report: &mut Report) -> Result<(), ImportError> {
-        let Some(bounds) = crate::shape::outline_bounds(board) else {
-            report.add(Case::OutlineMissing);
-            return Ok(());
-        };
+        let drawn = crate::shape::outline_bounds(board);
         if self.engine.project().rules.require().is_err() {
-            report.add(Case::OutlineNotImported);
+            report.add(match drawn {
+                Some(_) => Case::OutlineNotImported,
+                None => Case::OutlineMissing,
+            });
             return Ok(());
         }
         let curves = crate::shape::outline_edits(board, report);
+        // With drawings and no sketch engine their own box is the board.
+        if (drawn.is_none() || self.evaluators.board.is_some())
+            && let Some(size) = provisional_size(board, drawn)
+        {
+            self.apply(
+                "board.set_rectangle",
+                Operation::Board(BoardCommand::SetRectangle { size }),
+            )?;
+        }
+        let Some(bounds) = drawn else {
+            if self.evaluators.board.is_none() {
+                report.add(Case::OutlineProvisional);
+                return Ok(());
+            }
+            report.add(Case::OutlineMissing);
+            return self.draw_outline(curves);
+        };
         if self.evaluators.board.is_none() {
             // The box's corner is the origin, up to its fitted arcs.
             if bounds.min[0] < -1e-6 || bounds.min[1] < -1e-6 {
@@ -1487,6 +1522,19 @@ impl Session<'_> {
             report.add(Case::OutlineRectangle);
             return Ok(());
         }
+        self.draw_outline(curves)?;
+        match &self.engine.project().board_shape {
+            BoardShape::Sketch(sketch) if sketch.fault.is_none() => {
+                report.add(Case::OutlineSketch);
+                report.counts.cutouts = sketch.solved.cutouts.len();
+            }
+            _ => report.add(Case::OutlineNotClosed),
+        }
+        Ok(())
+    }
+
+    /// Make the board a sketch of `curves` and nothing else.
+    fn draw_outline(&mut self, curves: Vec<SketchEdit>) -> Result<(), ImportError> {
         self.apply(
             "board.start_sketch",
             Operation::Board(BoardCommand::StartSketch),
@@ -1525,13 +1573,6 @@ impl Session<'_> {
                     edits: chunk.to_vec(),
                 }),
             )?;
-        }
-        match &self.engine.project().board_shape {
-            BoardShape::Sketch(sketch) if sketch.fault.is_none() => {
-                report.add(Case::OutlineSketch);
-                report.counts.cutouts = sketch.solved.cutouts.len();
-            }
-            _ => report.add(Case::OutlineNotClosed),
         }
         Ok(())
     }
