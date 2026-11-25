@@ -31,6 +31,10 @@
           )
         );
 
+      # rustup has no MSVC C compiler outside Windows; the GNU target compiles the same
+      # `cfg(windows)` code.
+      windowsTarget = "x86_64-pc-windows-gnu";
+
       # Linux only (adapted from Solidcraft's flake): winit dlopens Wayland/X11, wgpu
       # loads EGL/Vulkan and rfd reaches the desktop portal through libdbus. macOS
       # uses AppKit and Metal and needs none of these.
@@ -85,6 +89,29 @@
               export SCCACHE_BASEDIRS="''${dirs%:}"
             fi
             echo "sparksmith: $(rustc --version); run cargo xtask ci"
+          '';
+        };
+        # `cargo xtask windows-check`: the same toolchain with the Windows target, and a
+        # MinGW C compiler for the C that some dependencies' build scripts compile.
+        windows = pkgs.mkShell {
+          name = "sparksmith-windows";
+          packages = [
+            ((pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
+              targets = [ windowsTarget ];
+            })
+            pkgs.git
+            pkgs.sccache
+          ];
+          depsBuildBuild = [ pkgs.pkgsCross.mingwW64.stdenv.cc ];
+          CC_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-gcc";
+          CXX_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-g++";
+          AR_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-ar";
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = "x86_64-w64-mingw32-gcc";
+          shellHook = ''
+            export CARGO_TARGET_DIR="''${CARGO_TARGET_DIR:-target/nix-windows}"
+            export RUSTC_WRAPPER="''${RUSTC_WRAPPER-sccache}"
+            export SCCACHE_CACHE_SIZE="''${SCCACHE_CACHE_SIZE:-60G}"
+            echo "sparksmith: $(rustc --version) for ${windowsTarget}; run cargo xtask windows-check"
           '';
         };
       });
