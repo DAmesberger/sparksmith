@@ -352,6 +352,14 @@ fn kelvin_contact_allows_the_land_and_reports_a_track_at_the_same_land() -> Resu
             && f.objects
                 .contains(&crate::ObjectRef::Track { id: offending })
     }));
+    // It is the short it is, which no waiver accepts.
+    assert!(
+        crate::layout::checks(&project, &Default::default())
+            .iter()
+            .any(|f| f.code == "board.overlap"
+                && f.objects
+                    .contains(&crate::ObjectRef::Track { id: offending }))
+    );
     Ok(())
 }
 
