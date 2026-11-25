@@ -762,7 +762,18 @@ pub(crate) fn staged_with(
     access: Access,
     fill: impl FnOnce(&mut File) -> Result<()>,
 ) -> Result<tempfile::NamedTempFile> {
-    let mut temporary = temporary_in(parent_of(path), path, access, std::ffi::OsStr::new(""))?;
+    let parent = parent_of(path);
+    let mut temporary =
+        temporary_in(parent, path, access, std::ffi::OsStr::new("")).map_err(|e| match e {
+            // Said of the folder, in words: never the hidden file it refused.
+            Error::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => {
+                Error::Invalid(format!(
+                    "Choose another folder: {} is write-protected, so nothing can be written in it",
+                    parent.display()
+                ))
+            }
+            other => other,
+        })?;
     fill(temporary.as_file_mut())?;
     temporary.as_file().sync_all()?;
     Ok(temporary)

@@ -880,3 +880,27 @@ fn a_set_of_new_files_is_published_whole_or_not_at_all() -> Result<()> {
     assert_eq!(names(dir.path())?, files);
     Ok(())
 }
+
+/// A file written into a write-protected folder is refused in words, of the
+/// folder, never the hidden temporary file it could not make (run 3, A27).
+#[cfg(unix)]
+#[test]
+fn a_write_protected_folder_is_said_in_words() -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir()?;
+    let folder = dir.path().join("kept");
+    std::fs::create_dir(&folder)?;
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o555))?;
+    let refused = atomic_write(&folder.join("schematic.pdf"), b"%PDF");
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755))?;
+    let said = refused.err().map(|e| e.to_string()).unwrap_or_default();
+    assert_eq!(
+        said,
+        format!(
+            "Choose another folder: {} is write-protected, so nothing can be written in it",
+            folder.display()
+        )
+    );
+    assert_eq!(std::fs::read_dir(&folder)?.count(), 0);
+    Ok(())
+}

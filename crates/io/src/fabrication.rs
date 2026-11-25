@@ -213,16 +213,39 @@ fn check_output(output: &Path, zip: bool) -> Result<()> {
         }
         return Ok(());
     }
+    // What to do comes first: a card or a toast may show only the start.
     if output.try_exists()? && (!output.is_dir() || std::fs::read_dir(output)?.next().is_some()) {
         return Err(Error::Invalid(format!(
-            "fabrication.output: {} exists and is not an empty folder; choose a new folder",
+            "fabrication.output: choose a new folder; {} already holds files, which are never replaced",
             output.display()
         )));
     }
     if crate::persistence::write_protected(output) {
         return Err(Error::WriteProtected(output.to_path_buf()));
     }
+    // The folder it is made in.
+    let folder = existing_folder(output)?;
+    if folder.is_dir() && crate::persistence::write_protected(folder) {
+        return Err(protected_folder(folder));
+    }
     Ok(())
+}
+
+/// A folder nothing may be written in, in words.
+fn protected_folder(folder: &Path) -> Error {
+    Error::Invalid(format!(
+        "fabrication.output: choose another folder; {} is write-protected, so nothing can be written in it",
+        folder.display()
+    ))
+}
+
+/// The nearest folder of `output` that exists: where its files are staged.
+fn existing_folder(output: &Path) -> Result<&Path> {
+    let mut parent = folder_of(output);
+    while !parent.try_exists()? && parent != Path::new(".") {
+        parent = folder_of(parent);
+    }
+    Ok(parent)
 }
 
 /// A set made and not released: dropped, it leaves nothing.
@@ -312,10 +335,7 @@ fn folder_of(path: &Path) -> &Path {
 fn stage_folder(output: &Path, files: &[FabFile]) -> Result<Staged> {
     // Beside the output, or above it where that folder is not made yet: a
     // refused set leaves no folder behind.
-    let mut parent = folder_of(output);
-    while !parent.try_exists()? && parent != Path::new(".") {
-        parent = folder_of(parent);
-    }
+    let parent = existing_folder(output)?;
     let mut builder = tempfile::Builder::new();
     builder.prefix(".sparksmith-fab-");
     // tempfile's folders are owner-only. The output folder gets the usual
@@ -334,7 +354,12 @@ fn stage_folder(output: &Path, files: &[FabFile]) -> Result<Staged> {
         ));
         existing
     };
-    let staging = builder.tempdir_in(parent)?;
+    // A folder that refuses the staging folder is write-protected to this
+    // person, whatever its mode says.
+    let staging = builder.tempdir_in(parent).map_err(|e| match e.kind() {
+        std::io::ErrorKind::PermissionDenied => protected_folder(parent),
+        _ => e.into(),
+    })?;
     for file in files {
         let path = staging.path().join(&file.name);
         let mut f = std::fs::File::create(&path)?;
@@ -1068,7 +1093,37 @@ mod tests {
                 matches!(refused, Err(Error::WriteProtected(_))),
                 "{refused:?}"
             );
+            // A new folder in a write-protected one (run 3, A27): said in
+            // words, what to do first, never a hidden temporary file.
+            let inside = empty.join("fab");
+            let said = check_output(&inside, false).err().map(|e| e.to_string());
+            let said = said.unwrap_or_default();
+            assert!(
+                said.starts_with("fabrication.output: choose another folder; ")
+                    && said.contains(&empty.display().to_string())
+                    && said.contains("write-protected")
+                    && !said.contains(".sparksmith-fab"),
+                "{said}"
+            );
+            std::fs::set_permissions(&empty, std::fs::Permissions::from_mode(0o755))?;
         }
+        Ok(())
+    }
+
+    /// An output that already holds files says what to do first, so a card
+    /// that shows only the start of it still says it (run 3, A26).
+    #[test]
+    fn a_full_folder_says_to_choose_a_new_one_first() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        std::fs::write(dir.path().join("board.gbr"), b"theirs")?;
+        let said = check_output(dir.path(), false)
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_default();
+        assert!(
+            said.starts_with("fabrication.output: choose a new folder; "),
+            "{said}"
+        );
         Ok(())
     }
 
