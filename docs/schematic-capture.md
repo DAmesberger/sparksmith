@@ -95,7 +95,7 @@ Each traversal has a stable path made from its root sheet ID and the sheet-symbo
 
 ## Annotation
 
-`schematic.annotate { order, mode, numbering, sheets }` numbers designators across sheets in page order, then by position on the sheet at each instance's first placed unit (`rows`: top to bottom then left to right; `columns`: left to right then top to bottom); unplaced instances come last. An annotated designator is the component's prefix plus a number without leading zeros (`R12`). Mode `unannotated` (default) numbers only the others (`R?`, `R`) with the lowest free numbers, so existing designators stay stable; `all` renumbers every visited instance. `numbering: sheet_hundreds` starts each page at 100 × page + 1. The outcome lists every change.
+`schematic.annotate { order, mode, numbering, sheets }` numbers designators across sheets in page order, then by position on the sheet at each instance's first placed unit (`rows`: top to bottom then left to right; `columns`: left to right then top to bottom); unplaced instances come last. A designator that ends in a digit is numbered (`R12`, and a name a person gave, such as `J1` on a component whose prefix is `U`). Mode `unannotated` (default) numbers only the others (`R?`, `R`, `U_new`), as the component's prefix with the lowest free number, so a numbered designator never changes; `all` renumbers every visited instance. In the window, Annotate with Renumber all lists the numbered designators it would rename on the sheet card, and renames them only on Rename. The toast names what changed. `numbering: sheet_hundreds` starts each page at 100 × page + 1. The outcome lists every change.
 
 ## Copy and paste
 

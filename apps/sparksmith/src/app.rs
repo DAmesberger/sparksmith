@@ -2276,6 +2276,9 @@ pub(crate) fn sheet_rows(
 }
 
 #[cfg(test)]
+#[path = "app/annotate_tests.rs"]
+mod annotate_tests;
+#[cfg(test)]
 #[path = "app/block_tests.rs"]
 mod block_tests;
 #[cfg(test)]

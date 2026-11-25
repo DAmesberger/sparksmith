@@ -243,9 +243,15 @@ pub struct SchematicEditor {
         sparksmith_core::schematic::AnnotateMode,
         sparksmith_core::schematic::Numbering,
     ),
-    /// An annotation sent at this revision and the changes it previews:
-    /// the toast follows once it applied.
-    annotate_watch: Option<(u64, usize, Option<u64>)>,
+    /// An annotation sent at this revision and the toast that says what it
+    /// changed, once it applied.
+    annotate_watch: Option<(u64, String, Option<u64>)>,
+    /// An annotation that renames numbered designators, shown on the sheet
+    /// card before it is sent: the revision it was previewed at and its
+    /// changes.
+    annotate_review: Option<(u64, Vec<sparksmith_core::schematic::annotate::Renumbered>)>,
+    /// Every row of that review instead of the first eight.
+    annotate_all: bool,
     /// The sheet of every wire and junction dot, once per revision.
     wire_sheets: BTreeMap<Id, sparksmith_core::SheetId>,
     dot_sheets: BTreeMap<WireEnd, sparksmith_core::SheetId>,
@@ -407,6 +413,8 @@ impl Default for SchematicEditor {
             notice: None,
             annotate: Default::default(),
             annotate_watch: None,
+            annotate_review: None,
+            annotate_all: false,
             wire_sheets: BTreeMap::new(),
             dot_sheets: BTreeMap::new(),
             component: None,

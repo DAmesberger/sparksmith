@@ -3,11 +3,12 @@
 //! Instances are visited in page order, then by position on their sheet
 //! (rows: top to bottom, then left to right; columns: left to right, then
 //! top to bottom), at their first placed unit; unplaced instances come last
-//! in creation order. An *annotated* designator is the component's prefix
-//! followed by a number without leading zeros (`R12`). By default only the
-//! other designators (`R?`, `R`, `U_new`) are numbered, with the lowest
-//! free numbers, so existing designators never change; `all` renumbers
-//! every visited instance in order.
+//! in creation order. A *numbered* designator ends in a digit (`R12`, and a
+//! name a person gave, such as `J1` on a component whose prefix is `U`). By
+//! default only the others (`R?`, `R`, `U_new`) are numbered, as the
+//! component's prefix with the lowest free number, so a numbered designator
+//! never changes; `all` renumbers every visited instance, which a person
+//! sees listed first in the window.
 use super::{Result, invalid};
 use crate::ids::{Id, SheetId};
 use crate::instances;
@@ -29,8 +30,8 @@ pub enum AnnotateOrder {
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AnnotateMode {
-    /// Number only designators that are not yet prefix + number; keep the
-    /// rest unchanged.
+    /// Number only designators that do not end in a digit; keep the rest,
+    /// whatever their letters.
     #[default]
     Unannotated,
     /// Renumber every visited instance.
@@ -55,17 +56,14 @@ pub struct Renumbered {
     pub to: String,
 }
 
-/// The number of an annotated designator under `prefix`.
-fn number(designator: &str, prefix: &str) -> Option<usize> {
-    let (head, digits) = designator.split_at_checked(prefix.len())?;
-    if !head.eq_ignore_ascii_case(prefix)
-        || digits.is_empty()
-        || digits.starts_with('0')
-        || !digits.bytes().all(|b| b.is_ascii_digit())
-    {
-        return None;
-    }
-    digits.parse().ok()
+/// Whether `designator` is numbered: it ends in a digit. Annotation keeps
+/// it unless asked to renumber all, whatever its letters: a name a person
+/// gave (`J1` on a component with the prefix `U`) is theirs.
+pub fn numbered(designator: &str) -> bool {
+    designator
+        .bytes()
+        .last()
+        .is_some_and(|b| b.is_ascii_digit())
 }
 
 /// Where an instance is visited: page, then the order's coordinates.
@@ -141,7 +139,7 @@ pub fn annotate(
                         .is_some_and(|(s, _)| sheets.contains(&s.id))
             };
             let prefix = prefix_of(i.id)?;
-            let annotated = number(&i.designator, &prefix).is_some();
+            let annotated = numbered(&i.designator);
             let target = match mode {
                 AnnotateMode::All => true,
                 AnnotateMode::Unannotated => !annotated,

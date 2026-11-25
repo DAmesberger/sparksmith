@@ -8,6 +8,7 @@ use crate::kit;
 use crate::refusal::{self, Origin};
 use crate::shell::Header;
 use sparksmith_core::library::Rotation;
+use sparksmith_core::schematic::annotate::{Renumbered, numbered};
 use sparksmith_core::schematic::{AnnotateMode, AnnotateOrder, Numbering, SchematicCommand};
 use sparksmith_core::units::{Nm, PointNm};
 use sparksmith_core::{
@@ -850,6 +851,18 @@ impl SchematicEditor {
             }
         });
         let mut annotate = false;
+        let mut review = None;
+        // A review is for the document it was made of.
+        if self
+            .annotate_review
+            .as_ref()
+            .is_some_and(|(at, _)| !engine.still_at(*at))
+        {
+            self.annotate_review = None;
+        }
+        if self.annotate_review.is_some() {
+            kit::open_section(ui, "annotate");
+        }
         kit::section(ui, "annotate", "Annotate", false, None, |ui| {
             let (order, mode, numbering) = &mut self.annotate;
             kit::choice_row(
@@ -879,29 +892,55 @@ impl SchematicEditor {
                     (Numbering::SheetHundreds, "By page: 101, 201 …".to_owned()),
                 ],
             );
-            annotate = kit::summary_row(ui, "", Some("Annotate"));
+            if let Some((_, changes)) = &self.annotate_review {
+                review = renames_review(ui, changes, &mut self.annotate_all);
+            } else {
+                annotate = kit::summary_row(ui, "", Some("Annotate"));
+            }
         });
-        if annotate {
-            output = self.annotation(engine);
+        match review {
+            Some(true) => {
+                self.annotate_review = None;
+                output = self.annotation_sent(engine);
+            }
+            Some(false) => self.annotate_review = None,
+            None if annotate => output = self.annotation(engine),
+            None => {}
         }
         output
     }
 
     /// `schematic.annotate` with the card's options, previewed on a copy
     /// so a design with nothing to number gets a note instead of an empty
-    /// undo step; the applied count is a toast on the next frame.
+    /// undo step. Renaming a numbered designator (Renumber all) is listed on
+    /// the sheet card first and sent only from there. What changed is a
+    /// toast on the next frame.
     pub(super) fn annotation(&mut self, engine: &Engine) -> Option<Operation> {
-        let (order, mode, numbering) = self.annotate;
-        let mut copy = engine.project().clone();
-        let count =
-            sparksmith_core::schematic::annotate::annotate(&mut copy, order, mode, numbering, &[])
-                .map(|changes| changes.len())
-                .unwrap_or(0);
-        if count == 0 {
+        let changes = self.annotation_preview(engine);
+        if changes.is_empty() {
             self.notice = Some("Every designator is already numbered".into());
             return None;
         }
-        self.annotate_watch = Some((engine.revision(), count, None));
+        if changes.iter().any(|c| numbered(&c.from)) {
+            self.annotate_review = Some((engine.revision(), changes));
+            self.annotate_all = false;
+            return None;
+        }
+        self.annotation_sent(engine)
+    }
+
+    fn annotation_preview(&self, engine: &Engine) -> Vec<Renumbered> {
+        let (order, mode, numbering) = self.annotate;
+        let mut copy = engine.project().clone();
+        sparksmith_core::schematic::annotate::annotate(&mut copy, order, mode, numbering, &[])
+            .unwrap_or_default()
+    }
+
+    /// The annotation itself, its toast watched for.
+    fn annotation_sent(&mut self, engine: &Engine) -> Option<Operation> {
+        let (order, mode, numbering) = self.annotate;
+        let said = renames_line(&self.annotation_preview(engine));
+        self.annotate_watch = Some((engine.revision(), said, None));
         op(SchematicCommand::Annotate {
             order,
             mode,
@@ -913,29 +952,24 @@ impl SchematicEditor {
     /// The toast of an applied annotation or a pending notice.
     pub(super) fn say_notices(&mut self, ctx: &egui::Context, engine: &Engine) {
         let frame = ctx.cumulative_frame_nr();
-        if let Some((revision, count, seen)) = self.annotate_watch {
+        if let Some((revision, said, seen)) = self.annotate_watch.take() {
             // Decided on the frame after the command was sent: applied
             // (the revision moved) or refused (it did not).
             let Some(seen) = seen else {
-                self.annotate_watch = Some((revision, count, Some(frame)));
+                self.annotate_watch = Some((revision, said, Some(frame)));
                 return;
             };
             if frame == seen {
+                self.annotate_watch = Some((revision, said, Some(seen)));
                 return;
             }
-            self.annotate_watch = None;
             if engine.still_at(revision) {
                 return;
             }
-            let text = if count == 1 {
-                "Annotated 1 designator".to_owned()
-            } else {
-                format!("Annotated {count} designators")
-            };
             kit::toast::post(
                 ctx,
                 kit::severity::Level::Ok,
-                text,
+                said,
                 vec![kit::toast::ToastAction::Undo],
             );
         }
@@ -943,4 +977,59 @@ impl SchematicEditor {
             kit::toast::post(ctx, kit::severity::Level::Info, text, Vec::new());
         }
     }
+}
+
+/// Designators a toast or a review names before it shortens to "…".
+const NAMED_RENAMES: usize = 4;
+
+/// "Annotated 3 designators: R? → R1, U? → U2, J? → J1".
+fn renames_line(changes: &[Renumbered]) -> String {
+    let mut named: Vec<String> = changes
+        .iter()
+        .take(NAMED_RENAMES)
+        .map(|c| format!("{} → {}", c.from, c.to))
+        .collect();
+    if changes.len() > NAMED_RENAMES {
+        named.push("…".into());
+    }
+    let count = match changes.len() {
+        1 => "1 designator".to_owned(),
+        n => format!("{n} designators"),
+    };
+    format!("Annotated {count}: {}", named.join(", "))
+}
+
+/// The renames an annotation would make of numbered designators, every
+/// one, before anything is sent: `Some(true)` for Rename, `Some(false)` for
+/// Cancel.
+fn renames_review(ui: &mut egui::Ui, changes: &[Renumbered], all: &mut bool) -> Option<bool> {
+    let given = changes.iter().filter(|c| numbered(&c.from)).count();
+    let words = match given {
+        1 => "Renames 1 numbered designator".to_owned(),
+        n => format!("Renames {n} numbered designators"),
+    };
+    kit::hint(ui, &words, "Its own name is kept with Only unnumbered");
+    let max = if *all {
+        changes.len()
+    } else {
+        kit::LIST_MAX_ROWS
+    };
+    let list = kit::list_frame(ui, changes.len(), max, |ui, index| {
+        if let Some(c) = changes.get(index) {
+            kit::value_row(ui, &c.from, &c.to);
+        }
+    });
+    if list.show_all {
+        *all = true;
+    }
+    let mut answer = None;
+    ui.horizontal(|ui| {
+        if ui_kit::button(ui, "Rename", Button::Normal).clicked() {
+            answer = Some(true);
+        }
+        if ui_kit::button(ui, "Cancel", Button::Normal).clicked() {
+            answer = Some(false);
+        }
+    });
+    answer
 }
