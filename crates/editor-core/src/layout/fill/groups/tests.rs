@@ -277,3 +277,27 @@ fn pads_in_two_pours_that_come_together_are_one_group() -> Result<()> {
     assert_eq!(groups(&[plane, on(17.0)])?, 1);
     Ok(())
 }
+
+/// The limit of judging in rank order (`layout::fill::groups`): an island
+/// that a pour of another net kept apart from its own net's, and that pour
+/// goes. The island is not poured, which costs copper, not truth: what is
+/// poured is what the graph reads, and it joins no less than it says.
+#[test]
+fn an_island_not_asked_again_is_left_out_and_nothing_else() -> Result<()> {
+    let first = (SHARED, 2, [14.0, 14.0, 18.0, 18.0], UNCONNECTED);
+    let between = (OTHER, 1, [9.0, 12.5, 19.0, 30.0], UNCONNECTED);
+    let near = (OTHER, 0, [18.5, 25.0, 22.0, 30.0], UNCONNECTED);
+    let last = (SHARED, 0, [10.4, 8.0, 15.0, 16.0], UNCONNECTED);
+    let (project, ids) = filled(&[first, between, near, last])?;
+    assert_eq!(
+        islands(&project, &ids),
+        [(0, 1), (0, 1), (0, 1), (1, 0)],
+        "the first is left out though the last reaches its place"
+    );
+    assert!(covers(&project, ids[3], [14.5, 15.0])?);
+    // Drawn without the pour between, it is kept: what is left out depends
+    // on the board, not on the order of filling (`filled` fills in several).
+    let (project, ids) = filled(&[first, last])?;
+    assert_eq!(islands(&project, &ids), [(1, 0), (1, 0)]);
+    Ok(())
+}
