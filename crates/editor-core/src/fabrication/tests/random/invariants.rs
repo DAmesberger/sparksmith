@@ -47,6 +47,8 @@ pub(super) enum Rule {
     Blocks,
     /// A board without a valid outline gives no files.
     Outline,
+    /// Copper off the board is told with how far it reaches past it.
+    Overhang,
     /// A fill is the board's now, or told as stale.
     Stale,
     /// A fill has the islands that join its net, and no others.
@@ -188,6 +190,7 @@ pub(super) fn all(seen: &Seen, pixel: f64) -> Fallible<Vec<Broken>> {
     connectivity(seen, &mut out);
     shorts(seen, &mut out);
     close(seen, &mut out);
+    overhang(seen, &mut out);
     blocks(seen, &mut out)?;
     stale(seen, &mut out);
     clearance(&seen.made, None, &mut out)?;
@@ -418,6 +421,59 @@ fn close(seen: &Seen, out: &mut Vec<Broken>) {
                     format!("{x:?} and {y:?} are {gap:.4} mm apart, {need:.4} needed"),
                 ));
             }
+        }
+    }
+}
+
+/// Pads, tracks and vias reaching past the board, measured again by points
+/// along their outlines at most `STEP` apart: each is a finding naming it
+/// that says how far, within the chords of both and the step.
+fn overhang(seen: &Seen, out: &mut Vec<Broken>) {
+    const STEP: f64 = 0.005;
+    const NEAR: f64 = 0.02;
+    let board = seen.project.board();
+    let outer = Shape::of_outline(&board.outer);
+    let cutouts: Vec<Shape> = board
+        .cutouts
+        .iter()
+        .map(|c| Shape::of_outline(&c.outline))
+        .collect();
+    let off = |p: Point| {
+        let mut off: f64 = if outer.inside(p) { 0.0 } else { outer.edge(p) };
+        for c in cutouts.iter().filter(|c| c.inside(p)) {
+            off = off.max(c.edge(p));
+        }
+        off
+    };
+    for piece in truth::copper(&seen.project) {
+        let Some(object) = piece.object else {
+            continue;
+        };
+        let mut far: f64 = 0.0;
+        for ring in &piece.shape.rings {
+            for (k, a) in ring.iter().enumerate() {
+                let b = ring[(k + 1) % ring.len()];
+                let n = ((b[0] - a[0]).hypot(b[1] - a[1]) / STEP).ceil().max(1.0);
+                for i in 0..n as usize {
+                    let t = i as f64 / n;
+                    far = far.max(off([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]));
+                }
+            }
+        }
+        if far <= NEAR {
+            continue;
+        }
+        let told = seen.findings.iter().any(|f| {
+            f.code == FindingCode::BoardCheckLimit
+                || f.code == FindingCode::BoardOutsideOutline
+                    && f.objects.contains(&object)
+                    && f.measured.iter().any(|m| (m.value - far).abs() <= NEAR)
+        });
+        if !told {
+            out.push(broken(
+                Rule::Overhang,
+                format!("{object:?} reaches {far:.4} mm past the board, not told so"),
+            ));
         }
     }
 }

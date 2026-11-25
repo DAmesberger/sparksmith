@@ -426,6 +426,28 @@ fn open_board(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
     invariants::all(&open, PIXEL)
 }
 
+/// A track off the board, told as reaching half as far as it does.
+fn overhang_halved(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
+    let off = after(&seen.project, |p| {
+        if let Some(t) = p.tracks.last_mut() {
+            t.end = [t.start[0], super::plan::BOARD[1] + 3.0];
+        }
+    });
+    let mut off = Seen::board(&off)?;
+    if invariants::all(&off, PIXEL)?
+        .iter()
+        .any(|b| b.rule == Rule::Overhang)
+    {
+        return Err("the product's own number is not taken".into());
+    }
+    for f in &mut off.findings {
+        for m in &mut f.measured {
+            m.value /= 2.0;
+        }
+    }
+    invariants::all(&off, PIXEL)
+}
+
 /// The tie's bridge, left out of its layer.
 fn bridge_not_drawn(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
     let seen = filed(seen, "copper-l1-top.gbr", |l| {
@@ -476,7 +498,12 @@ fn redo_lost(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
     Ok(invariants::history(a, b, a, a).into_iter().collect())
 }
 
-const FAULTS: [(&str, &[Rule], Fault); 24] = [
+const FAULTS: [(&str, &[Rule], Fault); 25] = [
+    (
+        "copper off the board told as nearer",
+        &[Rule::Overhang],
+        overhang_halved,
+    ),
     (
         "copper too close that no finding tells",
         &[Rule::Close],

@@ -325,3 +325,125 @@ fn a_board_without_a_valid_outline_gives_no_file() -> Fallible<()> {
     assert!(text.contains("outline"), "{text}");
     Ok(())
 }
+
+/// A waiver of copper off the board accepts how far it reaches past the
+/// edge: farther, and the error is back; nearer, and it still holds. One
+/// saved without that number is accepted again, like every other waiver
+/// of a measured finding.
+#[test]
+fn a_waiver_off_the_board_holds_only_as_far_as_it_was_accepted() -> Fallible<()> {
+    use crate::fabrication::FabricationCommand;
+    use crate::{Engine, Operation};
+    let showcase = Engine::showcase()?;
+    let [width, height] = showcase.project().board_size;
+    let x = width / 2.0;
+    // A track up from the middle of the top edge, `to` mm past it: the one
+    // there, or a new one.
+    let with = |file: &crate::format::EditorFile, to: f64| -> Fallible<Engine> {
+        let mut file = file.clone();
+        let start = [x, height + 2.0];
+        let end = [x, height + to - 0.2];
+        match file.project.tracks.iter_mut().find(|t| t.start == start) {
+            Some(t) => t.end = end,
+            None => {
+                let net = file.project.tracks.first().ok_or("a track")?.net;
+                let id = file.project.allocate()?;
+                file.project.tracks.push(Track {
+                    id,
+                    net,
+                    start,
+                    end,
+                    width: 0.4,
+                    layer: CopperLayer::Top,
+                    locked: false,
+                });
+            }
+        }
+        let mut engine = Engine::from_file(file)?;
+        engine.refill_stale()?;
+        Ok(engine)
+    };
+    let report = |engine: &Engine| {
+        preflight::report(
+            engine.project(),
+            engine.drafts(),
+            None,
+            engine.check_settings(),
+        )
+    };
+    let off = |r: &preflight::PreflightReport| -> Fallible<preflight::PreflightItem> {
+        let item = r.items.iter().find(|i| i.code == "board.outside_outline");
+        Ok(item.ok_or("the track off the board")?.clone())
+    };
+    let mut engine = with(&showcase.to_file(), 5.0)?;
+    let item = off(&report(&engine)?)?;
+    assert!(item.blocks() && item.waiver.is_none());
+    let past = item.measured.first().ok_or("how far")?.value;
+    assert!((past - 5.0).abs() < 0.002, "{past}");
+    let keys = report(&engine)?
+        .items
+        .iter()
+        .filter(|i| i.blocks())
+        .map(|i| i.key.clone())
+        .collect();
+    engine.apply(
+        engine.revision(),
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys,
+            reason: "a coupon in the frame".into(),
+            profile: None,
+        }),
+    )?;
+    assert!(report(&engine)?.ready());
+    let accepted = engine.to_file();
+    // Farther: told again, and why.
+    let farther = with(&accepted, 6.0)?;
+    let item = off(&report(&farther)?)?;
+    let lapsed = item.lapsed.as_ref().ok_or("lapsed")?;
+    assert!(item.blocks() && !report(&farther)?.ready());
+    assert!(
+        lapsed.text.starts_with("Was accepted at 5"),
+        "{}",
+        lapsed.text
+    );
+    // Nearer: still accepted.
+    assert!(report(&with(&accepted, 4.5)?)?.ready());
+    // Saved without its number: accepted again.
+    let mut old = accepted.clone();
+    for w in &mut old.project.production.waivers {
+        w.accepted.clear();
+    }
+    let item = off(&report(&with(&old, 5.0)?)?)?;
+    let lapsed = item.lapsed.as_ref().ok_or("lapsed")?;
+    assert!(item.blocks());
+    assert!(lapsed.text.contains("without its value"), "{}", lapsed.text);
+    Ok(())
+}
+
+/// A hole off the board, and copper into a cutout, say how far.
+#[test]
+fn what_is_off_the_board_says_how_far() -> Fallible<()> {
+    let project = board()?;
+    let findings = layout::checks(&project, &Default::default());
+    let mut holes = 0;
+    for f in &findings {
+        let off = f.code == "board.outside_outline"
+            || f.code == "board.edge_clearance" && f.message.contains("beyond the board edge");
+        if !off {
+            continue;
+        }
+        holes += usize::from(f.code == "board.edge_clearance");
+        let past = f.measured.first().map(|m| m.value);
+        assert!(past.is_some_and(|v| v > 0.0), "{}: {past:?}", f.message);
+    }
+    assert!(holes > 0, "{findings:#?}");
+    // The via over the cutout, 0.6 mm across, lies wholly in it.
+    let over = project.vias.iter().find(|v| v.position == [30.0, 32.0]);
+    let over = ObjectRef::Via {
+        id: over.ok_or("the via")?.id,
+    };
+    let f = findings.iter().find(|f| f.objects.contains(&over));
+    let past = f.and_then(|f| f.measured.first()).map(|m| m.value);
+    assert!(past.is_some_and(|v| v > 0.0 && v < 3.0), "{past:?}");
+    Ok(())
+}
