@@ -72,7 +72,7 @@ fn the_absolute_minimum_admits_the_rings_but_not_the_locating_holes() -> Fallibl
     Ok(())
 }
 
-/// A shipped PCBWay profile, at its defaults or under its published
+/// A shipped profile (PCBWay's, or JLCPCB's at its defaults), at its defaults or under its published
 /// minimum values (`limits: minimum`).
 fn pcbway(id: &str, minimum: bool) -> Fallible<sparksmith_core::rules::RuleProfile> {
     let profile = sparksmith_io::rule_profiles::shipped_from_env()?
@@ -125,22 +125,25 @@ fn pcbway_admits_the_usb4105_footprint_under_its_minimum_values() -> Fallible {
     Ok(())
 }
 
-/// The 4-layer example board is designed under PCBWay 4-layer at its
-/// minimum values (the replay sets the profile, chooses `limits: minimum`
-/// and routes the USB pair with `layout.route_pair`, which takes its width
-/// and gap from the profile). It holds no waiver. The only preflight item
-/// names the lengths excluded from the USB pair's impedance calculation.
+/// The 4-layer example board is designed under JLCPCB 4-layer at its own
+/// (recommended) values (founder decision, 25 November 2026). JLCPCB states
+/// "NPTH to Track" and no value for pads, so J1's two locating holes,
+/// 0.175 mm from their GND lands as GCT draws them, are not stated, and the
+/// board accepts them with a reason: its only two waivers. The only other
+/// preflight item names the lengths excluded from the USB pair's impedance
+/// calculation.
 #[test]
-fn the_example_board_passes_pcbway_4_layer_without_waivers() -> Fallible {
+fn the_example_board_passes_jlcpcb_4_layer_with_j1_waived() -> Fallible {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
     let file = sparksmith_io::read_project(&path)?;
+    let jlcpcb = pcbway("jlcpcb-4-layer", false)?;
     assert_eq!(
         file.project.rules.profile,
-        Some(pcbway("pcbway-4-layer", true)?),
-        "the board pins the shipped PCBWay 4-layer profile at its minimum values"
+        Some(jlcpcb),
+        "the board pins the shipped JLCPCB 4-layer profile at its defaults"
     );
-    assert!(file.project.production.waivers.is_empty());
+    assert_eq!(file.project.production.waivers.len(), 2);
     let mut engine = sparksmith_core::Engine::from_file(file)?;
     // A file holds no fill copper; fill it as opening does.
     engine.refill_stale()?;

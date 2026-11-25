@@ -765,10 +765,12 @@ fn a_reroute_after_a_board_edit_is_one_toast() -> Fallible {
         .items()
         .map(|t| (t.text.clone(), t.actions.clone()))
         .collect();
+    // The pair's two halves; IO42 was re-routed too while the board was
+    // under PCBWay 4-layer.
     assert_eq!(
         shown,
         [(
-            "Re-routed 3 connections".to_owned(),
+            "Re-routed 2 connections".to_owned(),
             vec![ToastAction::Undo]
         )]
     );

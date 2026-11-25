@@ -1,0 +1,20 @@
+ORDER NOTES: ESP32-S31 dev board
+Release f412e1de84cd2b96
+JLCPCB 4-layer: 4 copper layers, 1.586 mm
+Stackup: JLC04161H-7628 (jlc04161h-7628)
+
+On the order form
+  Via covering: Epoxy Filled & Capped (form label not verified)
+
+Fill and cap
+  T1  0.250 mm  9 holes
+
+JLCPCB 4-layer asks: "For epoxy-filled vias, please leave a note or upload an image along with your design files to explain which vias should be filled. Alternatively, you can specify to fill all vias of a particular diameter."
+    https://jlcpcb.com/help/article/pcb-via-covering (read 2026-11-24)
+
+Leave open
+  T2  0.300 mm  46 holes
+
+Charges
+  "POFV for 4-layer PCBs still requires charges."
+    https://jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv (read 2026-11-24); no amount is published.

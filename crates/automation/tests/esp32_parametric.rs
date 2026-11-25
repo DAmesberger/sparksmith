@@ -731,7 +731,9 @@ fn a_parameter_change_that_breaks_the_design_is_reported() -> Fallible {
     else {
         return Err("not a preflight report".into());
     };
-    assert_eq!((report.errors, report.blocking), (1, 1), "{report:?}");
+    // J1's two locating holes are errors too, waived (not stated under
+    // JLCPCB): they do not block.
+    assert_eq!((report.errors, report.blocking), (3, 1), "{report:?}");
     let item = report
         .items
         .iter()
@@ -852,6 +854,8 @@ fn assert_never_waived(
         .collect();
     let key = outline["key"].as_str().ok_or("a key")?.to_owned();
     let revision = session.engine().revision();
+    // The board's own two waivers (J1's locating holes) stay as they are.
+    let waivers = session.engine().project().production.waivers.clone();
     for asked in [vec![key.clone()], keys.clone()] {
         let reply = session.dispatch(json!({"command": "project.apply", "params": {
             "expected_revision": revision,
@@ -866,7 +870,7 @@ fn assert_never_waived(
         );
     }
     assert_eq!(session.engine().revision(), revision);
-    assert!(session.engine().project().production.waivers.is_empty());
+    assert_eq!(session.engine().project().production.waivers, waivers);
 
     // A project saved with every finding waived, as one saved before the
     // rule may be.
@@ -874,6 +878,8 @@ fn assert_never_waived(
     let mut all = keys;
     all.sort();
     all.dedup();
+    // The board's own waivers stay as they were given.
+    all.retain(|k| waivers.iter().all(|w| &w.key != k));
     file.project.production.waivers = all
         .into_iter()
         .map(|key| sparksmith_core::model::production::Waiver {
@@ -883,7 +889,12 @@ fn assert_never_waived(
             footprints: Vec::new(),
             given_for: None,
         })
+        .chain(waivers.iter().cloned())
         .collect();
+    file.project
+        .production
+        .waivers
+        .sort_by(|a, b| a.key.cmp(&b.key));
     let saved = dir.join("waived.sparksmith");
     save_at(Engine::from_file(file)?, &saved)?;
     let mut reopened = open_at(&saved)?;

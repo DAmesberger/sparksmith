@@ -24,9 +24,12 @@ class Router:
                 return False
         return True
 
-    def via(self, net, at, drill=0.3, dia=0.6):
-        r = self.s.op("layout.add_via", {"via": {"net": self.nets[net], "position": list(at), "drill": drill, "diameter": dia,
-                                                "span": "through", "tented": True}}, f"via {net} {at}", ok_required=False)
+    def via(self, net, at, drill=0.3, dia=0.6, fill=None):
+        via = {"net": self.nets[net], "position": list(at), "drill": drill, "diameter": dia,
+               "span": "through", "tented": True}
+        if fill:
+            via["fill"] = fill
+        r = self.s.op("layout.add_via", {"via": via}, f"via {net} {at}", ok_required=False)
         if not r.get("ok"):
             self.short.append((net, "via", at, None, r["error"]["message"][:300]))
             return False
@@ -123,8 +126,11 @@ def build(s, L, S, PCB):
     R.drop("GND", pad("U1", "26"), (11.075, 36.0), 0.3)
     R.path("GND", [pad("U1", "47"), pad("U1", "97"), pad("U1", "48")], 0.3, note="bottom-right GND")
     R.drop("GND", pad("U1", "47"), (28.925, 36.0), 0.3)
+    # The module's thermal pad: nine vias, filled and capped so no solder
+    # runs down them, on a 0.25 mm drill of their own (the open vias are
+    # 0.3 mm), so the fabricator can tell them apart by size.
     for i in range(9):
-        R.via("GND", pad("U1", "95", i))
+        R.via("GND", pad("U1", "95", i), drill=0.25, fill="capped")
 
     # --- GPIO buses to the headers (bottom layer) ----------------------------
     for k in range(9):            # IO4 (pin 10) .. IO12 (pin 18) -> J2.12 .. J2.4

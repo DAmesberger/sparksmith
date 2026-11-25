@@ -2,13 +2,13 @@
 
 Release plan step 5: a real ESP32-S31-WROOM-3 development board designed from components to Gerbers through Sparksmith's own command engine, as a CLI/MCP client would. The run, its friction and its gaps are in [docs/e2e-esp32-devboard.md](../../docs/e2e-esp32-devboard.md).
 
-**Status: an unreviewed design.** ERC is clear. The production check reports ten warnings and zero errors or waivers under PCBWay 4-layer. One is that the 90 Ω check excludes 7.934 mm on each USB signal path; nine are the ground vias in the module's exposed pad, whose holes are open under solder paste. An independent Gerber parser cross-checked the fabrication outputs. No person has reviewed it, and no board has been built. Several limits are listed below. Do not order it unreviewed.
+**Status: an unreviewed design.** ERC is clear. Under JLCPCB 4-layer the production check reports one warning, that the 90 Ω check excludes 7.932 mm on each USB signal path, and two findings accepted with a reason: J1's locating holes, which JLCPCB's published rules do not cover ([what was waived and why](#what-was-waived-and-why)). Nothing blocks the export. An independent Gerber parser cross-checked the fabrication outputs. No person has reviewed it, and no board has been built. Several limits are listed below. Do not order it unreviewed.
 
 ## Files
 
 | File | What |
 |---|---|
-| `esp32-s31-devboard.sparksmith` | The project. Open it in the desktop app. It holds the parts library, two schematic sheets, the 4-layer board, the fills and the waiver-free production state. |
+| `esp32-s31-devboard.sparksmith` | The project. Open it in the desktop app. It holds the parts library, two schematic sheets, the 4-layer board, the fills and the production state with its two waivers. |
 | `esp32-s31-devboard.replay.jsonl` | The full command sequence: 648 JSON-lines requests through `sparksmith stdio --operator`. It replays to the committed project, byte for byte (`cargo test -p sparksmith-automation --features test-fixtures --test example_replay` checks it). |
 | `regenerate.sh` | Replays the board and writes `fab/` and the schematic PDF. With `NATIVE=1` it also writes the `.solidcraft` model (about 10 s of CPU). |
 | `fab/` | Gerber X2 for 4 copper layers, masks, top paste, top legend and profile; plated and non-plated Excellon; drill map and table; job file; top pick-and-place; both BOMs; fabrication and assembly PDFs. |
@@ -33,11 +33,11 @@ After a generator changes, run `sh examples/esp32-s31-devboard/regenerate.sh --r
   - three M2.5 mounting holes (2.7 mm NPTH), each `inset` (3.5 mm) from its two edges, and in the right ear a mounting slot 2.7 mm wide with 1 mm of travel along the width, which takes up the tolerance of an enclosure's boss spacing;
   - a pass-through window, 8 × 10 mm, between the headers and left of the USB pair, for wiring or an enclosure post;
   - 1.5 mm outside corners and 0.5 mm inside corners (the router bit's radius); the tab's own two corners are square.
-- **Stackup:** 4 layers, 1.6 mm finished. From the top: signal, prepreg 0.2 mm (2116), GND plane, core 1.06 mm (7628), 3V3 plane, prepreg 0.2 mm, signal. Both inner foils are marked as reference planes. The Dk values are Sparksmith's generic estimates.
-- **Rules:** the profile file [`library/profiles/pcbway-4-layer.json`](../../library/profiles/pcbway-4-layer.json), written from PCBWay's [manufacturing tolerances](https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html) and [capabilities](https://www.pcbway.com/capabilities.html) pages (read 2026-11-16; every rule cites its row), with *PCBWay values* set to *Minimum* (`rules.set_fab_options`, `limits: minimum`). The board uses PCBWay because its published minimum, 0.15 mm from an unplated hole to copper, admits J1's land pattern as GCT draws it; JLCPCB's 0.2 mm does not, with no option that relaxes it. Overrides: copper (track, pad, via, fill) to board edge 0.3 mm, which is PCBWay's own value, so the override only pins it, and legend to edge 0.2 mm (PCBWay publishes no legend-to-edge limit).
+- **Stackup:** JLCPCB's JLC04161H-7628 (`layout.use_stackup`, from [`library/stackups/jlcpcb`](../../library/stackups/jlcpcb/jlc04161h-7628.json)), 4 layers, 1.586 mm by its layers. From the top: signal (1 oz), 7628 prepreg 0.2104 mm (Dk 4.4), GND plane (0.5 oz), core 1.065 mm (Dk 4.38), 3V3 plane (0.5 oz), 7628 prepreg 0.2104 mm, signal (1 oz). Both inner foils are marked as reference planes. The Dk values are Sparksmith's generic estimates.
+- **Rules:** the profile file [`library/profiles/jlcpcb-4-layer.json`](../../library/profiles/jlcpcb-4-layer.json), written from JLCPCB's [capabilities page](https://jlcpcb.com/capabilities/pcb-capabilities) (every rule cites its row), at its own (recommended) values. JLCPCB states filled and capped vias, which the module's thermal pad takes. Overrides, the board's own margins: copper (track, pad, via, fill) to board edge 0.3 mm (JLCPCB's is 0.2 mm) and legend to edge 0.2 mm.
 - **Net classes:**
   - Power (GND, +3V3, VBUS): 0.5 mm tracks, 0.3 mm minimum.
-  - USB: 90 Ω differential. On top this derives a 0.246 mm width and a 0.127 mm gap (PCBWay's minimum spacing), as microstrip over the GND plane.
+  - USB: 90 Ω differential, with the class's pair gap 0.127 mm (5 mil). On top this derives a 0.249 mm width (0.2486 mm), as microstrip over the GND plane.
 - **Fills:** each follows the board outline (`region: board`), so changing a board parameter on the Board card moves the pours with the outline, the window, the slot and the holes; a refill fills the new shape.
   - GND on Inner 1 and on Bottom.
   - +3V3 on Inner 2.
@@ -133,14 +133,14 @@ Schematic (sheet 1: power and USB; sheet 2: module and IO):
 ![Schematic sheet 1](images/schematic-1.png)
 ![Schematic sheet 2](images/schematic-2.png)
 
-Copper, rendered from the Gerber files by PyGerber 2.4.3 (MIT), an independent parser. In order: top, Inner 1 (GND), Inner 2 (3V3), bottom.
+Copper, rendered from the Gerber files by PyGerber 2.4.3 (MIT), an independent parser, before the move to JLCPCB 4-layer (its stackup and clearances changed the pours and the USB pair a little); they are to be rendered again. In order: top, Inner 1 (GND), Inner 2 (3V3), bottom.
 
 ![Top copper](images/gerber-copper-l1-top.png)
 ![Inner 1](images/gerber-copper-l2-inner1.png)
 ![Inner 2](images/gerber-copper-l3-inner2.png)
 ![Bottom copper](images/gerber-copper-l4-bottom.png)
 
-The board in the desktop app, PCB 2D and the integrated 3D view. Both screenshots show the board's earlier outline, a 40 × 64 mm rounded rectangle with four mounting holes, before its fiducials, legend moves and the switch to PCBWay's clearances; they are to be retaken:
+The board in the desktop app, PCB 2D and the integrated 3D view. Both screenshots show the board's earlier outline, a 40 × 64 mm rounded rectangle with four mounting holes, before its fiducials, legend moves and the move to JLCPCB; they are to be retaken:
 
 ![PCB 2D in the desktop app](images/app-pcb-2d.png)
 ![PCB 3D in the desktop app](images/app-pcb-3d.png)
@@ -151,8 +151,16 @@ The board in the desktop app, PCB 2D and the integrated 3D view. Both screenshot
   - The plug orientations are joined at the receptacle: A6 to B6 by a short top track, and A7 to B7 by two vias and a bottom track under the receptacle. The vias are tented, under the connector body.
   - USB_DP runs from J1.B6 to U1.43 and USB_DN from J1.B7 to U1.42. Each path measures 29.886 mm, of which 21.951 mm overlaps the other path at the target gap. Both have 7.934 mm outside the coupled-line impedance calculation, within the class’s 12 mm uncoupled-length limit. The connector joins to J1.A6 (2.245 mm) and J1.A7 (6.98 mm) are additional copper outside those paths.
 - **GPIO buses.** They run on the bottom layer, so no part sits in their way. The header order follows the module's pin order (J2 pin 4 = IO12 … pin 12 = IO4), so the buses route without crossings.
-- **USB-C land pattern.** J1's footprint is GCT's recommended layout (drawing rev B4) as drawn: its two Ø0.65 mm locating holes sit 0.175 mm from the GND lands beside them, and its shell slots keep 0.2 mm rings. Both meet PCBWay 4-layer at its minimum values, so the board needs no waiver (`crates/io/tests/usb_c_part.rs`).
-- **EPAD.** Each of its nine squares has a via to the GND plane. The datasheet makes soldering the EPAD optional and recommends a moderate amount of paste. The paste follows the footprint's default.
+- **USB-C land pattern.** J1's footprint is GCT's recommended layout (drawing rev B4) as drawn: its two Ø0.65 mm locating holes sit 0.175 mm from the GND lands beside them, and its shell slots keep 0.2 mm rings, which JLCPCB 4-layer allows. The holes are waived (below; `crates/io/tests/usb_c_part.rs`).
+- **EPAD.** Each of its nine squares has a via to the GND plane, filled and capped (`fill: capped`), so no solder runs down them. They have a drill of their own, 0.25 mm (the board's other vias are 0.3 mm), because JLCPCB is told which vias to fill by their size: the order notes (`fab/esp32-s31-devboard-order-notes.txt`) say to fill the 0.25 mm tool and leave the 0.3 mm one open, and quote JLCPCB on the charge for it on four layers, for which it publishes no amount. The datasheet makes soldering the EPAD optional and recommends a moderate amount of paste. The paste follows the footprint's default.
+
+### What was waived and why
+
+Two findings, both J1's, are accepted with this reason:
+
+> GCT's USB4105 drawing places the 0.65 mm locating holes 0.175 mm from the A1B12 and B1A12 GND lands. JLCPCB publishes "NPTH to Track" 0.2 mm and no pad-to-NPTH row, so this is not stated, not refused.
+
+JLCPCB's capabilities page gives 0.2 mm from an unplated hole to a track and nothing for a pad. The profile keeps the track's value and says that nearer than that, for a pad, JLCPCB does not state what it makes (founder decision, 25 November 2026). A waiver holds at the measured 0.175 mm only: closer, it blocks again. Nothing else is waived. Ask JLCPCB before ordering if it matters to you.
 - **3D models.** The module uses its parametric part file. The passives, the LEDs (the chip-LED row, from the Kingbright drawing), the SOT parts and the headers use generated models. The USB-C receptacle uses the example's `parts/usb4105.solidcraft`, and the two switches use the example's own part file, `parts/b3u-1000p.solidcraft`: a parametric Solidcraft design (housing, metal cover, plunger and terminals) whose defaults are the B3U-1000P drawing's dimensions.
 - **Legend.** U1's footprint outline runs over the antenna notch and passes the top edge by 0.225 mm at the antenna end; the fabricator trims those lines (the production check covers legend text, not lines). J2's and U1's designators are moved onto the board with `instance.set_text_placement`. The switch footprint prints its designator outside the body outline, on the side away from SW2's neighbour U1, whose pads its old spot touched.
 - **Antenna.** The module's antenna end is on the top edge and its antenna hangs over the notch, so no laminate and no copper lie under it. The ears beside the notch carry the pours, a mounting hole and the mounting slot within 2 mm of the module's sides. Espressif's guidelines ask for about 15 mm of clearance around the antenna on the host side; the board does not give that beside the module.

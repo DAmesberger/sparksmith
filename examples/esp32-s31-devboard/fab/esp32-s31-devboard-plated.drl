@@ -1,23 +1,35 @@
 M48
 ; Sparksmith 0.1.0 drill file: plated
 ; #@! TF.GenerationSoftware,Sparksmith,Sparksmith,0.1.0
-; #@! TF.ProjectId,ESP32-S31 dev board,9d4c4bd2-be22-8861-a9de-89d05d947a87,45108ebb034ed328
+; #@! TF.ProjectId,ESP32-S31 dev board,63270af6-102a-8b40-92e4-1207c0fb0a7c,f412e1de84cd2b96
 ; #@! TF.SameCoordinates
 ; #@! TF.FileFunction,Plated,1,4,PTH
 ; #@! TF.FilePolarity,Positive
 FMAT,2
 METRIC
 ; Hole sizes are finished sizes; the drill file lists finished sizes. The fabricator does not publish how it reads drill files: confirm with it.
+; #@! TA.AperFunction,ViaDrill,VII
+T1C0.250
 ; #@! TA.AperFunction,ViaDrill
-T1C0.300
+T2C0.300
 ; #@! TA.AperFunction,ComponentDrill
-T2C0.600
+T3C0.600
 ; #@! TA.AperFunction,ComponentDrill
-T3C1.005
+T4C1.005
 %
 G90
 G05
 T1
+X16.677Y46.000
+X18.338Y47.662
+X20.000Y49.323
+X18.338Y44.338
+X20.000Y46.000
+X21.662Y47.662
+X20.000Y42.677
+X21.662Y44.338
+X23.323Y46.000
+T2
 X20.250Y6.000
 X19.250Y6.000
 X20.000Y10.500
@@ -44,15 +56,6 @@ X22.125Y56.300
 X28.075Y56.300
 X11.075Y36.000
 X28.925Y36.000
-X16.677Y46.000
-X18.338Y47.662
-X20.000Y49.323
-X18.338Y44.338
-X20.000Y46.000
-X21.662Y47.662
-X20.000Y42.677
-X21.662Y44.338
-X23.323Y46.000
 X8.300Y48.550
 X7.500Y47.700
 X8.300Y46.850
@@ -73,12 +76,12 @@ X31.700Y41.750
 X31.700Y40.900
 X31.700Y40.050
 X31.700Y39.200
-T2
+T3
 X15.680Y2.200G85X15.680Y3.000
 X24.320Y2.200G85X24.320Y3.000
 X15.680Y6.230G85X15.680Y7.330
 X24.320Y6.230G85X24.320Y7.330
-T3
+T4
 X2.540Y7.030
 X2.540Y9.570
 X2.540Y12.110

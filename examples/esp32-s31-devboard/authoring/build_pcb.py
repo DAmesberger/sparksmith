@@ -57,6 +57,9 @@ def build(s, L, S):
                                 "dielectrics": [pre, {"kind": "core", "thickness_mm": 1.2, "glass": "style7628"}, pre],
                                 "mask_top": True, "mask_bottom": True, "silkscreen_top": True, "silkscreen_bottom": True},
          "4-layer stackup: signal / GND / power / signal")
+    # JLCPCB's own 1.6 mm impedance stackup (7628 prepregs), which its
+    # impedance calculator states, for the USB pair's 90 ohms.
+    s.op("layout.use_stackup", {"stackup": "jlc04161h-7628"}, "JLCPCB stackup JLC04161H-7628")
     s.op("board.set_rectangle", {"size": [W, H]})
     s.op("board.start_sketch", None)
     # Mounting holes need sketch points; the created point ids are not
@@ -81,11 +84,11 @@ def build(s, L, S):
          "mounting holes inset from the edges")
     out["holes"] = pts
 
-    # The fab profile (PCBWay 4-layer, Minimum) was set before the parts
-    # (build.py); list the profiles to read it back.
+    # The fab profile (JLCPCB 4-layer) was set before the parts (build.py);
+    # list the profiles to read it back.
     out["profiles"] = s.query("rules.fab_profiles", {})
-    # Overrides: copper to the board edge 0.3 mm (PCBWay's own value,
-    # pinned) and legend to the edge 0.2 mm (PCBWay publishes no limit).
+    # Overrides, the board's own margins: copper to the board edge 0.3 mm
+    # (above JLCPCB's 0.2 mm) and legend to the edge 0.2 mm.
     for a in ("track", "fill", "pad", "via"):
         s.op("rules.set_override", {"key": {"rule": "clearance", "a": a, "b": "board_edge"},
                                     "value": {"kind": "length", "value": 0.3}}, f"{a} to edge 0.3 mm")
@@ -133,7 +136,10 @@ def build(s, L, S):
                                          "via_drill": 0.4, "via_diameter": 0.8}}, "Power class")
     power = oid(r)
     s.op("net_class.assign", {"class": power, "nets": [nets["GND"], nets["+3V3"], nets["VBUS"]]}, "assign Power")
+    # The pair's gap is the class's, 0.127 mm (5 mil): JLCPCB's smallest
+    # spacing would make the pair narrower than its 90 ohms needs.
     r = s.op("net_class.add", {"class": {"name": "USB", "track_width_min": 0.12, "via_drill": 0.3, "via_diameter": 0.6,
+                                         "diff_pair_gap": 0.127,
                                          "signal": {"diff_impedance": 90.0, "impedance_tolerance": 10.0,
                                                     "pair_max_skew": 0.15, "pair_max_uncoupled": 12.0}}}, "USB class")
     usb = oid(r)

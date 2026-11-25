@@ -75,12 +75,26 @@ fn turn(engine: &Engine, designator: &str, by: f64) -> Fallible<Operation> {
 
 /// Rule errors on the board (clearance, hole and keepout findings, and any
 /// blocking one) and the USB pair's findings, once the stale fills are
-/// refilled without an undo step.
+/// refilled without an undo step; but those the board accepts at their value
+/// (J1's two locating holes, which JLCPCB does not state).
 fn issues(engine: &mut Engine) -> Fallible<Vec<String>> {
+    use sparksmith_core::fabrication::preflight;
     let fresh = compute_stale(engine.project(), &mut FillCache::default())?;
     engine.store_fills(engine.revision(), fresh)?;
+    let accepted: std::collections::BTreeSet<String> = preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?
+    .items
+    .into_iter()
+    .filter(|i| i.waiver.is_some())
+    .map(|i| i.key)
+    .collect();
     Ok(layout::checks(engine.project(), engine.check_settings())
         .into_iter()
+        .filter(|f| !accepted.contains(&preflight::key(&f.code, &f.objects)))
         .filter(|f| {
             f.blocks.is_some()
                 || f.code.starts_with("pair.")
@@ -285,15 +299,16 @@ fn the_reply_names_what_was_rerouted() -> Fallible {
         operation: j1_right(session.engine(), 0.5)?,
     }))?;
     assert_eq!(vias(&session), before, "no via is lost");
-    // The pair and the power LED's route beside J1. The regulator's +3V3
-    // via is clear of the pair once that is re-routed, so it stays.
+    // The pair beside J1 (IO42 was re-routed too while the board was under
+    // PCBWay 4-layer). The regulator's +3V3 via is clear of the pair once
+    // that is re-routed, so it stays.
     let rerouted = &reply["rerouted"];
     assert_eq!(
         rerouted["rerouted"],
-        serde_json::json!(["USB_DP", "USB_DN", "IO42"])
+        serde_json::json!(["USB_DP", "USB_DN"])
     );
     assert_eq!(rerouted["unrouted"], serde_json::json!([]));
-    assert_eq!(rerouted["summary"], "Re-routed 3 connections");
+    assert_eq!(rerouted["summary"], "Re-routed 2 connections");
     // An edit that moves nothing has no report.
     let reply = session.execute(Request::Apply(ApplyParams {
         expected_revision: session.engine().revision(),

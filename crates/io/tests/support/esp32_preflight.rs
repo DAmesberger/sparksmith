@@ -2,16 +2,22 @@ use sparksmith_core::ObjectRef;
 use sparksmith_core::fabrication::PreflightReport;
 use sparksmith_core::issues::Severity;
 
-/// The committed J1.B6→U1.43 and J1.B7→U1.42 paths each measure 29.885562 mm.
-/// Their parallel overlap at the 0.127 mm gap is 21.951411 mm per side.
-pub(super) const USB_UNCOUPLED_MM: f64 = 7.934_151;
+/// What the 90 Ω check excludes of each of the committed J1.B6→U1.43 and
+/// J1.B7→U1.42 paths, at the class's 0.127 mm gap on JLCPCB's
+/// JLC04161H-7628 stackup.
+pub(super) const USB_UNCOUPLED_MM: f64 = 7.932_388;
 
-/// The module's exposed pad (U1) has nine ground vias, all open under its
-/// solder paste.
-const OPEN_IN_PAD: usize = 9;
+/// J1's (instance 106) two locating holes against the GND land beside each,
+/// as GCT draws them: hole pad 17 by A1B12 (pad 1), hole pad 18 by B1A12
+/// (pad 12).
+const J1_HOLES: [(u32, u32, &str); 2] = [(17, 1, "A1B12"), (18, 12, "B1A12")];
 
 /// The actual project uses net 6 for USB_DP and net 5 for USB_DN. Assert the
-/// entire preflight so a missing coverage warning or any extra issue fails.
+/// entire preflight so a missing coverage warning or any extra issue fails:
+/// under JLCPCB 4-layer J1's two locating holes are not stated (JLCPCB
+/// states "NPTH to Track" and no value for pads) and waived with a reason,
+/// and the module's nine thermal-pad vias are filled and capped, so nothing
+/// is said of them.
 pub(super) fn assert_usb_preflight(report: &PreflightReport, uncoupled_mm: f64) {
     assert_eq!(
         (
@@ -20,27 +26,47 @@ pub(super) fn assert_usb_preflight(report: &PreflightReport, uncoupled_mm: f64) 
             report.warnings,
             report.waived
         ),
-        (0, 0, 1 + OPEN_IN_PAD, 0),
+        (0, 2, 1, 2),
         "{report:?}"
     );
-    assert_eq!(report.items.len(), 1 + OPEN_IN_PAD, "{report:?}");
-    let (open, rest): (Vec<_>, Vec<_>) = report
+    assert_eq!(report.items.len(), 3, "{report:?}");
+    let (holes, rest): (Vec<_>, Vec<_>) = report
         .items
         .iter()
-        .partition(|i| i.code == "board.via_in_pad_open");
-    let mut vias = std::collections::BTreeSet::new();
-    for item in &open {
-        assert_eq!(item.severity, Severity::Warning);
-        assert!(item.waiver.is_none());
-        assert_eq!(item.title, "Via on GND in U1 95 is open under solder paste");
-        let via = match item.objects[..] {
-            [ObjectRef::Via { id }, ObjectRef::Pad { instance: 124, .. }] => Some(id),
-            _ => None,
-        };
-        assert!(via.is_some(), "{item:?}");
-        vias.extend(via);
+        .partition(|i| i.code == "board.pad_hole_clearance");
+    for (hole, land, name) in J1_HOLES {
+        let item = holes.iter().find(|i| {
+            i.objects
+                == [
+                    ObjectRef::Pad {
+                        instance: 106,
+                        pad: sparksmith_core::ids::PadId(hole),
+                    },
+                    ObjectRef::Pad {
+                        instance: 106,
+                        pad: sparksmith_core::ids::PadId(land),
+                    },
+                ]
+        });
+        assert!(item.is_some(), "J1 pad {hole}: {report:?}");
+        let Some(item) = item else { continue };
+        assert_eq!(item.severity, Severity::Error);
+        assert_eq!(
+            item.title,
+            format!("J1 pad {hole}: hole is 0.175 mm from J1 pad {name} on GND")
+        );
+        assert!(
+            item.not_stated.is_some() && item.needs.is_none(),
+            "{item:?}"
+        );
+        assert!(
+            item.waiver
+                .as_ref()
+                .is_some_and(|w| w.reason.contains("GCT")),
+            "{item:?}"
+        );
+        assert!(!item.blocks());
     }
-    assert_eq!(vias.len(), OPEN_IN_PAD, "each via once");
     assert_eq!(rest.len(), 1, "{report:?}");
     let item = rest[0];
     assert_eq!(item.code, "impedance.uncoupled");

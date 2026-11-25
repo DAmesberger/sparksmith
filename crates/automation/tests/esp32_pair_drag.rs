@@ -113,12 +113,26 @@ fn track(engine: &Engine, id: Id) -> Fallible<Track> {
 
 /// Rule errors on the board (clearance, hole and keepout findings, and any
 /// blocking one) and the USB pair's findings, once the stale fills are
-/// refilled without an undo step.
+/// refilled without an undo step; but those the board accepts at their value
+/// (J1's two locating holes, which JLCPCB does not state).
 fn issues(engine: &mut Engine) -> Fallible<Vec<String>> {
+    use sparksmith_core::fabrication::preflight;
     let fresh = compute_stale(engine.project(), &mut FillCache::default())?;
     engine.store_fills(engine.revision(), fresh)?;
+    let accepted: std::collections::BTreeSet<String> = preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?
+    .items
+    .into_iter()
+    .filter(|i| i.waiver.is_some())
+    .map(|i| i.key)
+    .collect();
     Ok(layout::checks(engine.project(), engine.check_settings())
         .into_iter()
+        .filter(|f| !accepted.contains(&preflight::key(&f.code, &f.objects)))
         .filter(|f| {
             f.blocks.is_some()
                 || f.code.starts_with("pair.")

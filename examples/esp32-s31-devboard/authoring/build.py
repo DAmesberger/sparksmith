@@ -13,15 +13,14 @@ os.makedirs(out, exist_ok=True)
 s = Session(record=out + "/replay.jsonl")
 s.raw("project.open", {"expected_revision": 0, "path": MODULE})
 s.rev = None
-# Fabrication profile: the shipped PCBWay 4-layer file, previewed, then its
-# minimum values ("PCBWay values: Minimum"), which admit the GCT USB4105
-# land pattern as drawn. Set first, so every later stage is checked by it.
-pcbway = json.load(open("library/profiles/pcbway-4-layer.json"))["fab_profile"]
+# Fabrication profile: the shipped JLCPCB 4-layer file, previewed, at its
+# own (recommended) values. It states filled and capped vias, which the
+# module's thermal pad takes (build_route.py). Set first, so every later
+# stage is checked by it.
+jlcpcb = json.load(open("library/profiles/jlcpcb-4-layer.json"))["fab_profile"]
 s.rev = s.revision()
-s.query("rules.preview_fab_profile", {"profile": pcbway})
-s.op("rules.set_fab_profile", {"profile": pcbway}, "profile PCBWay 4-layer")
-s.query("rules.preview_fab_options", {"options": {"limits": "minimum"}})
-s.op("rules.set_fab_options", {"options": {"limits": "minimum"}}, "PCBWay values: Minimum")
+s.query("rules.preview_fab_profile", {"profile": jlcpcb})
+s.op("rules.set_fab_profile", {"profile": jlcpcb}, "profile JLCPCB 4-layer")
 s.rev = None
 stages =["lib", "sch", "pcb", "route", "fab"]
 state = {}
@@ -42,6 +41,23 @@ try:
         short = build_route.build(s, L, state["sch"], state["pcb"])
         build_pcb.place_fiducials(s)
         s.op("project.rename", {"name": "ESP32-S31 dev board"})
+        # J1's two locating holes are 0.175 mm from its GND lands, as GCT
+        # draws the USB4105 land pattern. JLCPCB states "NPTH to Track"
+        # (0.2 mm) and no value for pads, so the profile says it does not
+        # state this; it is accepted, with why, at its measured value.
+        pre = s.query("fabrication.preflight", {})
+        pre = pre.get("preflight", pre)
+        j1 = state["sch"]["instances"]["J1"]["id"]
+        keys = [i["key"] for i in pre["items"]
+                if i["code"] == "board.pad_hole_clearance"
+                and any(o.get("kind") == "pad" and o.get("instance") == j1 for o in i["objects"])]
+        if len(keys) != 2:
+            raise SystemExit(f"expected J1's two locating-hole findings, got {keys}")
+        s.op("fabrication.waive", {"keys": keys, "reason":
+             "GCT's USB4105 drawing places the 0.65 mm "
+             "locating holes 0.175 mm from the A1B12 and B1A12 GND lands. JLCPCB publishes "
+             "\"NPTH to Track\" 0.2 mm and no pad-to-NPTH row, so this is not stated, not refused."},
+             "accept J1's locating holes")
         json.dump(short, open(out + "/route-short.json", "w"), indent=1)
         for x in short: print("SHORT", x)
 except Refused as e:

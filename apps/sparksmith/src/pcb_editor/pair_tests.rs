@@ -881,7 +881,9 @@ fn a_pair_changes_layer_on_its_first_leg_and_at_a_corner() -> TestResult {
         let at: Vec<Point> = sent.vias.iter().map(|v| v.position).collect();
         assert_eq!(at.len(), 2, "{name}");
         let apart = sparksmith_core::geometry::distance(at[0], at[1]);
-        assert!((0.8..0.9).contains(&apart), "{name}: {at:?}");
+        // The USB class's 0.6 mm vias and JLCPCB 4-layer's 0.09 mm via to
+        // via, with 5 µm to spare, rounded up: 0.70 mm (`layout::pair::via_pitch`).
+        assert!((0.69..0.71).contains(&apart), "{name}: {at:?}");
         for net in nets {
             assert!(
                 sent.add

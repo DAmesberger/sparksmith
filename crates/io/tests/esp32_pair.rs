@@ -5,17 +5,21 @@
 //! Hand-derived from the board's tracks. Along x = 20.75 and x = 19.25 the
 //! halves reach the ESD pads, then run coupled to the module:
 //! B6/B7 to U3 is 4.645 + 1.563 mm; U3 to U1 is 23.678 mm on each half at the
-//! pair width (0.246 mm) and gap (0.127 mm) the board's PCBWay 4-layer
-//! profile gives: 1.080 + 0.486 + 7.212 + 1.461 + 0.338 mm of fan-out,
-//! bend and landing, and 13.1 mm of straight run either side of the bend
-//! (12.123 + 0.977 on the positive half, 12.277 + 0.823 on the negative,
-//! whose corners cancel), so 29.886 mm each.
+//! pair width (0.246 mm) and gap (0.127 mm) the board had under PCBWay
+//! 4-layer: 1.080 + 0.486 + 7.212 + 1.461 + 0.338 mm of fan-out, bend and
+//! landing, and 13.1 mm of straight run either side of the bend (12.123 +
+//! 0.977 on the positive half, 12.277 + 0.823 on the negative, whose corners
+//! cancel), so 29.886 mm each. On JLCPCB's JLC04161H-7628 stackup the pair
+//! is 0.2486 mm wide at the class's 0.127 mm gap, and each path measures
+//! 29.884 mm (the length report's figure; the breakdown above was not
+//! derived again at the new width).
 //! - The positive jumper, A6 to the T on B6's track, is 1.245 + 1.0 =
 //!   2.245 mm.
 //! - The negative jumper, A7 through a via, the bottom jumper and a via to
-//!   B7, is 1.355 + 1.0 + 1.355 = 3.71 mm of track and two 1.565 mm barrels
-//!   (the 1.6 mm board's outer-foil mid-planes: 1.46 mm of dielectric,
-//!   two inner foils and half of each outer 35 µm one), 6.84 mm.
+//!   B7, is 1.355 + 1.0 + 1.355 = 3.71 mm of track and two 1.551 mm barrels
+//!   (the JLC04161H-7628 board's outer-foil mid-planes: 0.2104 + 1.065 +
+//!   0.2104 mm of dielectric, two 15.2 µm inner foils and half of each
+//!   outer 35 µm one), 6.812 mm.
 #[path = "support/esp32_preflight.rs"]
 mod esp32_preflight;
 
@@ -76,8 +80,8 @@ fn the_receptacle_jumpers_are_off_the_path_and_not_skew() -> Fallible {
     let report = length::report(&p);
     let usb = row(&report)?;
     assert_eq!(usb.measured, PairMeasured::Derived);
-    assert!(close(usb.positive, 29.886, 0.002), "{usb:?}");
-    assert!(close(usb.negative, 29.886, 0.002), "{usb:?}");
+    assert!(close(usb.positive, 29.884, 0.002), "{usb:?}");
+    assert!(close(usb.negative, 29.884, 0.002), "{usb:?}");
     assert!(usb.skew < 1e-3, "{usb:?}");
     let paths = usb.paths.as_ref().ok_or("no paths")?;
     assert_eq!(
@@ -91,7 +95,7 @@ fn the_receptacle_jumpers_are_off_the_path_and_not_skew() -> Fallible {
         "{paths:?}"
     );
     assert!(paths.iter().all(|p| !p.via_fill), "{paths:?}");
-    // Total copper still holds the jumpers: the 6.84 − 2.245 = 4.595 mm difference.
+    // Total copper still holds the jumpers: the 6.812 − 2.245 = 4.567 mm difference.
     let total = |name: &str| -> Fallible<f64> {
         Ok(report
             .nets
@@ -102,11 +106,11 @@ fn the_receptacle_jumpers_are_off_the_path_and_not_skew() -> Fallible {
             .total)
     };
     assert!(
-        close((total("USB_DN")? - total("USB_DP")?).abs(), 4.595, 0.002),
+        close((total("USB_DN")? - total("USB_DP")?).abs(), 4.567, 0.002),
         "the copper difference is unchanged"
     );
     assert!(close(total("USB_DP")? - usb.positive, 2.245, 0.002));
-    assert!(close(total("USB_DN")? - usb.negative, 6.84, 0.005));
+    assert!(close(total("USB_DN")? - usb.negative, 6.812, 0.005));
     let findings = layout::checks(&p, &Default::default());
     assert!(pair_findings(&findings).is_empty(), "{findings:?}");
     // The report CLI and MCP callers read lists the paths and nothing off
@@ -213,10 +217,10 @@ fn set_endpoints_are_measured_and_validated() -> Fallible {
     let usb = row(&report)?;
     assert_eq!(usb.measured, PairMeasured::Set);
     // A6 joins 1.245 mm up B6's track after 2.245 mm: 1 mm longer than B6.
-    assert!(close(usb.positive, 30.886, 0.002), "{usb:?}");
-    // A7 through the jumper to B7: the whole 6.84 mm jumper joins the path.
-    assert!(close(usb.negative, 29.886 + 6.84, 0.01), "{usb:?}");
-    assert!(close(usb.skew, 5.84, 0.01), "{usb:?}");
+    assert!(close(usb.positive, 30.884, 0.002), "{usb:?}");
+    // A7 through the jumper to B7: the whole 6.812 mm jumper joins the path.
+    assert!(close(usb.negative, 29.884 + 6.812, 0.01), "{usb:?}");
+    assert!(close(usb.skew, 5.812, 0.01), "{usb:?}");
     assert!(
         layout::checks(engine.project(), engine.check_settings())
             .iter()
@@ -325,11 +329,11 @@ fn a_track_across_the_pair_never_tears_it() -> Fallible {
 /// The founder's "Issues says 44, the production check says 50": the skew
 /// was in both counts, so gap 2 takes one from each. The difference was
 /// the findings only production makes: the two switches' envelope models.
-/// The switches now use the example's B3U-1000P part file, and the board's
-/// PCBWay 4-layer profile (at its minimum values) admits the GCT USB4105
-/// land pattern as drawn. Both reports now show one unwaived USB coverage
-/// warning for the uncoupled lengths on the connector-to-module paths, and
-/// the module's nine ground vias open under its exposed pad's paste.
+/// The switches now use the example's B3U-1000P part file. Under the
+/// board's JLCPCB 4-layer profile J1's two locating holes are not stated
+/// and waived, and the module's nine ground vias are filled and capped.
+/// Both reports now show one unwaived USB coverage warning for the
+/// uncoupled lengths on the connector-to-module paths.
 /// Information is not counted: the production check leaves it out, and the
 /// only information on this board is the fills' removed thermal spokes
 /// (`fill.spokes_removed`, never blocking).
@@ -366,26 +370,10 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
             issues.counts.warning,
             issues.counts.to_do
         ),
-        (0, 10, 0),
+        (0, 1, 0),
         "{:?}",
         issues.counts
     );
-    let (open, counted): (Vec<_>, Vec<_>) = counted
-        .into_iter()
-        .partition(|r| r.finding.code == "board.via_in_pad_open");
-    // The same vias in both, each its own row.
-    let listed: std::collections::BTreeSet<String> = open
-        .iter()
-        .map(|r| format!("{:?}", r.finding.objects))
-        .collect();
-    let checked: std::collections::BTreeSet<String> = preflight
-        .items
-        .iter()
-        .filter(|i| i.code == "board.via_in_pad_open")
-        .map(|i| format!("{:?}", i.objects))
-        .collect();
-    assert!(open.iter().all(|r| r.also.is_empty()), "{open:?}");
-    assert_eq!((open.len(), &listed), (9, &checked));
     assert_eq!(counted.len(), 1, "{counted:?}");
     let issue = counted[0];
     assert_eq!(issue.severity, usb.severity);
@@ -398,6 +386,6 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
         "{:?}",
         info.iter().map(|r| &r.finding.code).collect::<Vec<_>>()
     );
-    assert!(engine.project().production.waivers.is_empty());
+    assert_eq!(engine.project().production.waivers.len(), 2);
     Ok(())
 }

@@ -1,7 +1,7 @@
 M48
 ; Sparksmith 0.1.0 drill file: non-plated
 ; #@! TF.GenerationSoftware,Sparksmith,Sparksmith,0.1.0
-; #@! TF.ProjectId,ESP32-S31 dev board,9d4c4bd2-be22-8861-a9de-89d05d947a87,45108ebb034ed328
+; #@! TF.ProjectId,ESP32-S31 dev board,63270af6-102a-8b40-92e4-1207c0fb0a7c,f412e1de84cd2b96
 ; #@! TF.SameCoordinates
 ; #@! TF.FileFunction,NonPlated,1,4,NPTH
 ; #@! TF.FilePolarity,Positive
@@ -9,16 +9,16 @@ FMAT,2
 METRIC
 ; Hole sizes are finished sizes; the drill file lists finished sizes. The fabricator does not publish how it reads drill files: confirm with it.
 ; #@! TA.AperFunction,MechanicalDrill
-T4C0.650
+T5C0.650
 ; #@! TA.AperFunction,MechanicalDrill
-T5C2.700
+T6C2.700
 %
 G90
 G05
-T4
+T5
 X17.110Y6.280
 X22.890Y6.280
-T5
+T6
 X3.500Y3.500
 X36.500Y3.500
 X3.500Y60.500

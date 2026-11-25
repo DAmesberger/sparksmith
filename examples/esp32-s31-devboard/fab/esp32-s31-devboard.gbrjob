@@ -2,12 +2,12 @@
   "DesignRules": [
     {
       "Layers": "Outer",
-      "MinLineWidth": 0.1016,
-      "PadToPad": 0.127,
-      "PadToTrack": 0.127,
-      "RegionToRegion": 0.18,
-      "TrackToRegion": 0.18,
-      "TrackToTrack": 0.127
+      "MinLineWidth": 0.09,
+      "PadToPad": 0.15,
+      "PadToTrack": 0.1,
+      "RegionToRegion": 0.09,
+      "TrackToRegion": 0.09,
+      "TrackToTrack": 0.09
     }
   ],
   "FilesAttributes": [
@@ -73,18 +73,21 @@
     }
   ],
   "GeneralSpecs": {
-    "BoardThickness": 1.6,
+    "BoardThickness": 1.5862,
     "Finish": "ENIG",
     "LayerNumber": 4,
     "ProjectId": {
-      "GUID": "9d4c4bd2-be22-8861-a9de-89d05d947a87",
+      "GUID": "63270af6-102a-8b40-92e4-1207c0fb0a7c",
       "Name": "ESP32-S31 dev board",
-      "Revision": "45108ebb034ed328"
+      "Revision": "f412e1de84cd2b96"
     },
     "Size": {
       "X": 40.0,
       "Y": 64.0
-    }
+    },
+    "ViaProtection": [
+      "VII"
+    ]
   },
   "Header": {
     "GenerationSoftware": {
@@ -102,7 +105,7 @@
     {
       "Color": "Green",
       "Name": "Top solder mask",
-      "Thickness": 0.012,
+      "Thickness": 0.01524,
       "Type": "SolderMask"
     },
     {
@@ -113,32 +116,32 @@
     {
       "Material": "FR4",
       "Name": "Prepreg 1",
-      "Notes": "2116 glass",
-      "Thickness": 0.2,
+      "Notes": "7628 glass, stackup JLC04161H-7628",
+      "Thickness": 0.2104,
       "Type": "Dielectric"
     },
     {
       "Name": "Inner 1 copper",
-      "Thickness": 0.035,
+      "Thickness": 0.0152,
       "Type": "Copper"
     },
     {
       "Material": "FR4",
       "Name": "Core 2",
-      "Notes": "7628 glass",
-      "Thickness": 1.06,
+      "Notes": "stackup JLC04161H-7628",
+      "Thickness": 1.065,
       "Type": "Dielectric"
     },
     {
       "Name": "Inner 2 copper",
-      "Thickness": 0.035,
+      "Thickness": 0.0152,
       "Type": "Copper"
     },
     {
       "Material": "FR4",
       "Name": "Prepreg 3",
-      "Notes": "2116 glass",
-      "Thickness": 0.2,
+      "Notes": "7628 glass, stackup JLC04161H-7628",
+      "Thickness": 0.2104,
       "Type": "Dielectric"
     },
     {
@@ -149,7 +152,7 @@
     {
       "Color": "Green",
       "Name": "Bottom solder mask",
-      "Thickness": 0.012,
+      "Thickness": 0.01524,
       "Type": "SolderMask"
     },
     {
