@@ -2473,17 +2473,22 @@ impl Engine {
             }
         }
         let scope = issues::IssueScope::All;
-        let rows = |p: &Project| -> Result<Vec<(String, String)>> {
+        let rows = |p: &Project| -> Result<Vec<rules::IssueRow>> {
             issues::report(p, &self.document.drafts, &scope, &self.check_settings)?
                 .rows
                 .into_iter()
                 .map(|r| {
                     let id = serde_json::to_string(&(&r.finding.code, &r.finding.objects))?;
-                    Ok((id, r.title))
+                    Ok((id, r.title, r.finding.measured))
                 })
                 .collect()
         };
-        rules::diff_issues(&mut impact, rows(current)?, rows(&candidate)?);
+        rules::diff_issues(
+            &mut impact,
+            rows(current)?,
+            rows(&candidate)?,
+            model::production::change_words,
+        );
         Ok(QueryResult::ProfileImpact(Box::new(impact)))
     }
 

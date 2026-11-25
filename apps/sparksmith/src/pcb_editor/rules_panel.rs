@@ -676,6 +676,7 @@ pub fn impact_groups(impact: &ProfileImpact) -> Vec<ReviewGroup> {
     }
     for (title, lines) in [
         ("New issues", &impact.new_issues),
+        ("Issues that get worse", &impact.worse_issues),
         ("Resolved issues", &impact.resolved_issues),
     ] {
         if !lines.is_empty() {
@@ -704,6 +705,9 @@ pub fn impact_summary(name: &str, impact: &ProfileImpact) -> String {
     ];
     if !impact.new_issues.is_empty() {
         parts.push(plural(impact.new_issues.len(), "new issue", "new issues"));
+    }
+    if !impact.worse_issues.is_empty() {
+        parts.push(format!("{} worse", impact.worse_issues.len()));
     }
     if !impact.resolved_issues.is_empty() {
         parts.push(format!("{} resolved", impact.resolved_issues.len()));

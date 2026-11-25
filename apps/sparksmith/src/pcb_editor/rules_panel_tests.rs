@@ -605,6 +605,7 @@ fn impact_text_counts_changes_and_issues() -> TestResult {
         dropped_overrides: vec![RuleKey::MaskWebMin],
         new_issues: vec!["Clearance R1 ↔ R2".into()],
         resolved_issues: Vec::new(),
+        worse_issues: vec!["USB_D: 90 Ω check excludes … (positive 1.556 mm → 30.456 mm)".into()],
         kept_choices: Vec::new(),
         reset_choices: Vec::new(),
         chosen_choices: Vec::new(),
@@ -613,12 +614,20 @@ fn impact_text_counts_changes_and_issues() -> TestResult {
     };
     let summary = impact_summary("Fine 4/4", &impact);
     assert!(summary.starts_with("Fine 4/4 · "), "{summary}");
-    assert!(summary.ends_with("rules change · 1 new issue"), "{summary}");
+    assert!(
+        summary.ends_with("rules change · 1 new issue · 1 worse"),
+        "{summary}"
+    );
     let groups = impact_groups(&impact);
     let titles: Vec<_> = groups.iter().map(|g| g.title.as_str()).collect();
     assert_eq!(
         titles,
-        ["Rules that change", "Overrides dropped", "New issues"]
+        [
+            "Rules that change",
+            "Overrides dropped",
+            "New issues",
+            "Issues that get worse"
+        ]
     );
     assert!(
         groups[0]
@@ -652,7 +661,8 @@ fn impact_text_counts_changes_and_issues() -> TestResult {
             "Choices kept",
             "Choices set to the profile's defaults",
             "Overrides dropped",
-            "New issues"
+            "New issues",
+            "Issues that get worse"
         ]
     );
     assert_eq!(groups[1].lines, ["Top and bottom copper: 35 µm → 70 µm"]);

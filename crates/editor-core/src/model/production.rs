@@ -115,6 +115,31 @@ fn words(value: f64, other: f64, unit: Unit) -> String {
     }
 }
 
+/// A measured number that got worse, in words: "positive 1.556 mm →
+/// 30.456 mm", or, when only its limit moved, "0.35 mm, needs at least
+/// 0.4 mm → at least 0.5 mm" (the number's name first when the check
+/// measures several).
+pub fn change_words(before: &Measured, now: &Measured) -> String {
+    let of = if now.of.is_empty() {
+        String::new()
+    } else {
+        format!("{} ", now.of)
+    };
+    if before.value == now.value {
+        return format!(
+            "{of}{}, needs {} → {}",
+            words(now.value, now.limit, now.unit),
+            limit_words(before, now.limit),
+            limit_words(now, before.limit)
+        );
+    }
+    format!(
+        "{of}{} → {}",
+        words(before.value, now.value, now.unit),
+        words(now.value, before.value, now.unit)
+    )
+}
+
 fn limit_words(m: &Measured, other: f64) -> String {
     let sense = match m.sense {
         Sense::AtLeast => "at least",
