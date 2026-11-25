@@ -192,6 +192,22 @@ impl Ax {
         }
     }
 
+    /// Input that came while one frame ran long: all of it at the window's
+    /// next frame, through the app's input hook.
+    pub(crate) fn late(&mut self, events: Vec<egui::Event>) {
+        let mut raw = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        loop {
+            eframe::App::raw_input_hook(&mut self.app, &self.ctx, &mut raw);
+            self.frame(std::mem::take(&mut raw.events));
+            if !self.app.steps.more() {
+                break;
+            }
+        }
+    }
+
     /// Drop `files` on the window in one frame.
     pub(crate) fn drop_files(&mut self, files: Vec<egui::DroppedFileHandle>) {
         self.dropped = files;
