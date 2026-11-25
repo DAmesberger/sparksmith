@@ -115,6 +115,77 @@ pub fn carry(
     moved: &[Id],
     loose: Option<&CopperMove>,
 ) -> Result<Rerouted> {
+    let mut report = carry_copper(before, project, graph, moved, loose)?;
+    reroute::refuse_off_board(before, project)?;
+    let changed = |id: &Id| before.placement_of(*id) != project.placement_of(*id);
+    if moved.iter().any(changed) || loose.is_some() {
+        name_opened(before, project, graph, moved, &mut report);
+    }
+    Ok(report)
+}
+
+/// Name every connection the move opened, one entry each, so the report
+/// counts what the airwires and the unrouted findings list: also those of a
+/// part turned over, whose copper stays where it was. The move made the
+/// fills stale: a net with fills is counted as their refill will join it
+/// ([`CopperGraph::pad_groups`]).
+fn name_opened(
+    before: &Project,
+    project: &Project,
+    graph: &CopperGraph,
+    moved: &[Id],
+    report: &mut Rerouted,
+) {
+    let mut name = |net: Id, opened: usize| {
+        let name = before.net_name(net);
+        let named = report.unrouted.iter().filter(|n| *n == name).count();
+        for _ in named..opened {
+            report.unrouted.push(name.to_owned());
+        }
+    };
+    let poured: BTreeSet<Id> = project.fills.iter().filter_map(|f| f.net).collect();
+    let count = |graph: &CopperGraph| -> BTreeMap<Id, usize> {
+        let mut out = BTreeMap::new();
+        for (a, _) in graph.airwires() {
+            *out.entry(a.net).or_default() += 1;
+        }
+        out
+    };
+    let was = count(graph);
+    for (net, now) in count(&CopperGraph::of(project)) {
+        if !poured.contains(&net) {
+            name(net, now.saturating_sub(was.get(&net).copied().unwrap_or(0)));
+        }
+    }
+    let nets: BTreeSet<Id> = graph
+        .pads()
+        .iter()
+        .filter(|p| moved.contains(&p.instance) && poured.contains(&p.net))
+        .map(|p| p.net)
+        .collect();
+    let nets: Vec<Id> = nets.into_iter().collect();
+    if nets.is_empty() {
+        return;
+    }
+    let groups = |p: &Project| -> Vec<usize> {
+        let mut bare = p.clone();
+        bare.fills.clear();
+        let graph = CopperGraph::of_nets(&bare, &nets);
+        nets.iter().map(|net| graph.pad_groups(p, *net)).collect()
+    };
+    for ((net, was), now) in nets.iter().zip(groups(before)).zip(groups(project)) {
+        name(*net, now.saturating_sub(was));
+    }
+}
+
+/// [`carry`]'s copper: what moved, was re-routed or left.
+fn carry_copper(
+    before: &Project,
+    project: &mut Project,
+    graph: &CopperGraph,
+    moved: &[Id],
+    loose: Option<&CopperMove>,
+) -> Result<Rerouted> {
     let mut motions = BTreeMap::new();
     for &instance in moved {
         if let (Some(old), Some(new)) = (

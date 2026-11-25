@@ -484,7 +484,7 @@ impl PcbEditor {
             .map(|p| PartMove {
                 instance: p.instance,
                 position: p.position,
-                rotation_deg: p.rotation_deg,
+                rotation_deg: self.flipped_rotation(project, p),
                 layer: opposite(p.layer),
             })
             .collect();

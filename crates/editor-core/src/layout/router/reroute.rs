@@ -6,7 +6,8 @@
 //! so the re-route is in the same undo step:
 //!
 //! 1. Re-routed is carried copper too close to other copper or a keepout,
-//!    or off a pad it joined; unlocked copper left in place that the moved
+//!    newly through a cutout or over the board's edge, or off a pad it
+//!    joined; unlocked copper left in place that the moved
 //!    parts now come too close to; and, when the pair now breaks its
 //!    class's limits, a pair half's track carried out of coupling with its
 //!    partner, with the partner's tracks beside it.
@@ -33,15 +34,16 @@
 //! same result.
 use super::world::{Ctx, Piece, State, Target};
 use super::{RouteIndex, RouteMode, RouteStepRequest, pair_plan, plan};
-use crate::diagnostics::Result;
-use crate::geometry::{Point, distance};
+use crate::diagnostics::{Error, Result};
+use crate::geometry::{Point, distance, polygon_contains};
 use crate::ids::{Id, PadId};
 use crate::layout::connectivity::{CopperGraph, Meets};
+use crate::layout::fill::FILL_CHORD_MM;
 use crate::layout::length;
 use crate::layout::pair::{self, PairHead, PairStepRequest};
 use crate::layout::posture::Posture;
 use crate::layout::{RouteEditSet, apply_routes};
-use crate::model::{CopperLayer, Project};
+use crate::model::{CopperLayer, Project, Track};
 use crate::rules::signal::DiffPairId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -210,15 +212,92 @@ fn too_close(ctx: &Ctx<'_>, piece: &Piece) -> bool {
         })
 }
 
+/// Whether `piece`, between two places on the board, runs through a cutout
+/// or over the board's edge (or closer than the rule). A piece that ends
+/// off the board went there with its part: the checks say so.
+fn off_board(ctx: &Ctx<'_>, piece: &Piece) -> bool {
+    let inside = || {
+        let outer = ctx.project.board().outer.flatten(FILL_CHORD_MM);
+        polygon_contains(&outer, piece.core.a) && polygon_contains(&outer, piece.core.b)
+    };
+    ctx.hits(&State::default(), piece, &[piece.net])
+        .iter()
+        .any(|h| match h.target {
+            Target::Cutout(_) => true,
+            Target::Edge => inside(),
+            _ => false,
+        })
+}
+
+/// Refuse copper the move changed that now runs off the board
+/// ([`off_board`]) or into a keepout and did not before: what could not be routed again and
+/// is kept (a stub, a second way round), or copper dragged there itself.
+pub(crate) fn refuse_off_board(before: &Project, project: &Project) -> Result<()> {
+    let of = |t: &Track| Piece::track(t.net, t.layer, t.start, t.end, t.width);
+    let old: BTreeMap<Id, &Track> = before.tracks.iter().map(|t| (t.id, t)).collect();
+    let tracks: Vec<&Track> = project
+        .tracks
+        .iter()
+        .filter(|t| old.get(&t.id).is_none_or(|o| *o != *t))
+        .collect();
+    let vias: Vec<_> = project
+        .vias
+        .iter()
+        .filter(|v| before.via(v.id) != Some(*v))
+        .collect();
+    if tracks.is_empty() && vias.is_empty() {
+        return Ok(());
+    }
+    let (index, then) = (RouteIndex::of(project), RouteIndex::of(before));
+    let (ctx, was) = (Ctx::new(project, &index), Ctx::new(before, &then));
+    let barred = |ctx: &Ctx<'_>, piece: &Piece| {
+        off_board(ctx, piece)
+            || ctx
+                .hits(&State::default(), piece, &[piece.net])
+                .iter()
+                .any(|h| matches!(h.target, Target::Keepout(_)))
+    };
+    let newly = |piece: Piece, old: Option<Piece>| {
+        barred(&ctx, &piece) && !old.is_some_and(|old| barred(&was, &old))
+    };
+    let track = tracks
+        .into_iter()
+        .find(|t| newly(of(t), old.get(&t.id).map(|t| of(t))))
+        .map(|t| ("track", t.net));
+    let found = track.or_else(|| {
+        vias.into_iter()
+            .find(|v| {
+                let old = before.via(v.id).map(|v| Piece::via(v, &was.stack));
+                newly(Piece::via(v, &ctx.stack), old)
+            })
+            .map(|v| ("via", v.net))
+    });
+    match found {
+        Some((what, net)) => Err(Error::Conflict(format!(
+            "A {what} on {} would run into a cutout, a keepout or off the board there",
+            project.net_name(net)
+        ))),
+        None => Ok(()),
+    }
+}
+
+/// What offends on `project`; `was` is the board before, where copper that
+/// already ran off the board is no concern of the move.
 fn offending(
     before: (&Project, &CopperGraph),
+    was: &Ctx<'_>,
     project: &Project,
     index: &RouteIndex,
     tracks: &BTreeSet<Id>,
     vias: &BTreeSet<Id>,
 ) -> Offending {
     let ctx = Ctx::new(project, index);
-    let collides = |piece: &Piece| too_close(&ctx, piece);
+    let collides = |piece: &Piece, old: Option<Piece>| {
+        too_close(&ctx, piece)
+            || (off_board(&ctx, piece) && !old.is_some_and(|old| off_board(was, &old)))
+    };
+    let of = |t: &Track| Piece::track(t.net, t.layer, t.start, t.end, t.width);
+    let old_tracks: BTreeMap<Id, &Track> = before.0.tracks.iter().map(|t| (t.id, t)).collect();
     let had = pads_joined(before.0, before.1);
     let has = pads_joined(project, ctx.graph());
     let detached = |id: Id| {
@@ -229,16 +308,17 @@ fn offending(
         .tracks
         .iter()
         .filter(|t| tracks.contains(&t.id))
-        .filter(|t| {
-            detached(t.id) || collides(&Piece::track(t.net, t.layer, t.start, t.end, t.width))
-        })
+        .filter(|t| detached(t.id) || collides(&of(t), old_tracks.get(&t.id).map(|t| of(t))))
         .map(|t| t.id)
         .collect();
     let bad_vias: BTreeSet<Id> = project
         .vias
         .iter()
         .filter(|v| vias.contains(&v.id))
-        .filter(|v| collides(&Piece::via(v, &ctx.stack)))
+        .filter(|v| {
+            let old = before.0.via(v.id).map(|v| Piece::via(v, &was.stack));
+            collides(&Piece::via(v, &ctx.stack), old)
+        })
         .map(|v| v.id)
         .collect();
     let was_coupled = coupled(before.0);
@@ -558,9 +638,10 @@ pub(crate) fn dragged(
     // too close to (they were clear before) are re-routed too; vias stay.
     let given = tracks;
     let mut tracks = tracks.clone();
+    let then = RouteIndex::of(before);
+    let was = Ctx::new(before, &then);
     {
-        let then = RouteIndex::of(before);
-        let (ctx, was) = (Ctx::new(project, &index), Ctx::new(before, &then));
+        let ctx = Ctx::new(project, &index);
         let old: BTreeMap<Id, &crate::model::Track> =
             before.tracks.iter().map(|t| (t.id, t)).collect();
         for t in project
@@ -584,7 +665,7 @@ pub(crate) fn dragged(
         tracks: mut bad_tracks,
         vias: bad_vias,
         mut hard,
-    } = offending((before, graph), project, &index, &tracks, vias);
+    } = offending((before, graph), &was, project, &index, &tracks, vias);
     if bad_tracks.is_empty() && bad_vias.is_empty() {
         return Ok(report);
     }
@@ -711,7 +792,10 @@ pub(crate) fn dragged(
                 .vias
                 .iter()
                 .filter(|v| all_vias.contains(&v.id))
-                .any(|v| too_close(&ctx, &Piece::via(v, &ctx.stack)))
+                .any(|v| {
+                    let piece = Piece::via(v, &ctx.stack);
+                    too_close(&ctx, &piece) || (bad_vias.contains(&v.id) && off_board(&ctx, &piece))
+                })
         };
         let tiers: &[&BTreeSet<Id>] = if bad_via {
             &[]
