@@ -363,10 +363,13 @@ pub(crate) fn apply(stored: &Sketch, edit: &SketchEdit) -> Outcome<Sketch> {
         SketchEdit::Drag { point, to } => {
             let p = point_index(&sk, &point.0)?;
             movable(&sk, p)?;
-            let to = vec2(*to)?;
-            if let Some(point) = sk.points.get_mut(p) {
-                point.pos = to;
+            if sk.locked_points().get(p).copied().unwrap_or(true) {
+                return Err(problem(
+                    EDIT,
+                    format!("point `{}` is fixed and cannot move", point.0),
+                ));
             }
+            sk = super::drag::point(&sk, p, vec2(*to)?).sketch;
         }
         SketchEdit::Move { ids, delta } => {
             let d = vec2(*delta)?;
@@ -387,17 +390,31 @@ pub(crate) fn apply(stored: &Sketch, edit: &SketchEdit) -> Outcome<Sketch> {
                     }
                 }
             }
+            let mut targets = Vec::with_capacity(points.len());
             for p in points {
                 movable(&sk, p)?;
-                if let Some(point) = sk.points.get_mut(p) {
+                if let Some(point) = sk.points.get(p) {
                     let at = point.pos + d;
                     if !(at.is_finite() && at.x.abs() <= MAX_COORD_MM && at.y.abs() <= MAX_COORD_MM)
                     {
                         return Err(problem(EDIT, "the move leaves the coordinate range"));
                     }
-                    point.pos = at;
+                    targets.push((p, at));
                 }
             }
+            // Where the constraints cannot hold all of it there, the
+            // evaluation's solve shares the move out.
+            sk = match super::drag::held(&sk, &targets, None) {
+                Some(held) => held,
+                None => {
+                    for (p, at) in targets {
+                        if let Some(point) = sk.points.get_mut(p) {
+                            point.pos = at;
+                        }
+                    }
+                    sk
+                }
+            };
         }
         SketchEdit::Delete { ids } => {
             let mut points = Vec::new();

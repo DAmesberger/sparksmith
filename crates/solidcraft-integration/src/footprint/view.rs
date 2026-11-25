@@ -10,24 +10,23 @@
 //! ([`dimensions_using`]), parameter values ([`parameter_values`]) and the
 //! dimension layout share one loaded sketch, [`LiveSketch`], which the
 //! Footprint tab keeps per source change instead of reloading every frame.
-use crate::geom::prelude::*;
 use sparksmith_core::diagnostics::FindingCode;
 use std::collections::BTreeSet;
 
 use crate::geom::Vec2;
 use solidcraft_engine::sketch::{
-    Analysis, Budget, CurveKind, Hold, Sketch, chain_centres, default_text, dim_frame,
-    dim_layout_reaching, dim_reach, move_point_towards, solve_after_edit_with_analysis, solve_with,
+    Analysis, CurveKind, Sketch, chain_centres, default_text, dim_frame, dim_layout_reaching,
+    dim_reach, solve_after_edit_with_analysis,
 };
 use sparksmith_core::diagnostics::{Error, Result};
 use sparksmith_core::geometry::Point;
 use sparksmith_core::library::footprint_source::{
     FootprintSource, PackageValue, ParamName, ParamUnit, ParamValue, SketchConstraintId,
-    SketchCurveId, SketchPointId, SolveStatus,
+    SketchCurveId, SketchEdit, SketchPointId, SolveStatus,
 };
 
 use super::check::{self, MAX_COORD_MM};
-use super::{evaluate, params};
+use super::{drag, edit, evaluate, params};
 
 /// One sketch point at its stored solved position.
 #[derive(Clone, Debug, PartialEq)]
@@ -234,9 +233,8 @@ pub fn solve_report(
     Ok(LiveSketch::load(source, package_values)?.report())
 }
 
-/// The sketch with `point` dragged towards `to`, solved within one frame's
-/// budget (Solidcraft's `Budget::frame`). Never touches the document; the
-/// release commits one `SketchEdit::Drag`.
+/// The sketch with `point` dragged towards `to`, as the release's one
+/// `SketchEdit::Drag` makes it. Never touches the document.
 pub fn drag_preview(
     source: &FootprintSource,
     package_values: &[PackageValue],
@@ -473,19 +471,20 @@ pub struct LiveSketch {
     /// The stored sketch with point expressions and bound dimensions
     /// applied: what a solve starts from.
     sketch: Sketch,
+    values: params::Values,
 }
 
 /// What one drag frame did.
 #[derive(Clone, Debug)]
 pub struct DragFrame {
-    /// The sketch after the frame; drag it again for the next frame.
+    /// The sketch after the frame.
     pub sketch: LiveSketch,
-    /// Where the dragged point is now (what the release commits).
+    /// Where the dragged point is now.
     pub at: Point,
     /// The point followed the pointer (exactly, or as close as the
     /// constraints allow); false when it could not move at all.
     pub moved: bool,
-    /// The frame budget ran out before the solve finished.
+    /// The frame's work ran out before the solve finished.
     pub exhausted: bool,
 }
 
@@ -499,7 +498,11 @@ impl LiveSketch {
         let values = params::evaluate(&source.parameters, package_values)?;
         let mut sketch = stored.clone();
         evaluate::apply_values(&mut sketch, &values)?;
-        Ok(Self { stored, sketch })
+        Ok(Self {
+            stored,
+            sketch,
+            values,
+        })
     }
 
     /// The view at the current positions.
@@ -555,12 +558,9 @@ impl LiveSketch {
         }
     }
 
-    /// One live drag frame: `point` towards `to` within one frame's budget
-    /// (Solidcraft's `Budget::frame`). The point is held at `to` and the
-    /// rest solved; where the constraints do not allow that, it moves as
-    /// close as they allow (`move_point_towards`); otherwise it stays.
-    /// Drag the returned sketch for the next frame, so each frame continues
-    /// from the last one.
+    /// One live drag frame: `point` dragged to `to` as a `SketchEdit::Drag`
+    /// there does it ([`drag::point`]). Every frame drags the sketch the
+    /// drag started from, as the release will.
     pub fn drag(&self, point: &SketchPointId, to: Point) -> Result<DragFrame> {
         let p = self.sketch.point_index(&point.0).ok_or_else(|| {
             Error::NotFound(format!("{DRAG_HELD}: no sketch point `{}`", point.0))
@@ -586,62 +586,37 @@ impl LiveSketch {
                 "{DRAG_HELD}: the target is outside the coordinate range"
             )));
         }
-        let target = Vec2::new(to[0], to[1]);
-        let reference: Vec<Vec2> = self.sketch.points.iter().map(|q| q.pos).collect();
-        let from = reference.get(p).copied().unwrap_or(target);
-        let mut budget = Budget::frame();
-        let in_range = |sk: &Sketch| {
-            sk.points.iter().all(|q| {
-                q.pos.is_finite() && q.pos.x.abs() <= MAX_COORD_MM && q.pos.y.abs() <= MAX_COORD_MM
-            })
-        };
-        let done = |sketch: Sketch, moved: bool, budget: &Budget| {
-            let at = sketch.point(p).map_or(to, |v| [v.x, v.y]);
-            DragFrame {
-                sketch: LiveSketch {
-                    stored: self.stored.clone(),
-                    sketch,
-                },
-                at,
-                moved,
-                exhausted: budget.exhausted() || budget.numeric_exhausted(),
-            }
-        };
-        // Held exactly at the pointer, the rest solved around it.
-        let mut held = self.sketch.clone();
-        if let Some(q) = held.points.get_mut(p) {
-            q.pos = target;
+        let dragged = drag::point(&self.sketch, p, Vec2::new(to[0], to[1]));
+        Ok(DragFrame {
+            at: dragged.sketch.point(p).map_or(to, |v| [v.x, v.y]),
+            sketch: Self {
+                sketch: dragged.sketch,
+                ..self.clone()
+            },
+            moved: dragged.moved,
+            exhausted: dragged.exhausted,
+        })
+    }
+
+    /// The sketch after `edits`, as the engine stores it: the edits, then the
+    /// evaluation's solve.
+    pub fn after(&self, edits: &[SketchEdit]) -> Result<Self> {
+        let mut stored = self.stored.clone();
+        for edit in edits {
+            stored = edit::apply(&stored, edit)?;
         }
-        let hold = Hold {
-            points: vec![p],
-            radii: Vec::new(),
-        };
-        let r = solve_with(
-            &mut held,
-            &hold,
-            Some(&reference),
-            Analysis::StatusOnly,
-            Some(&mut budget),
-        );
-        if r.ok() && in_range(&held) {
-            return Ok(done(held, true, &budget));
-        }
-        // As close as the constraints allow.
-        let mut follow = self.sketch.clone();
-        let max_step = (target - from).len().max(1e-3);
-        if move_point_towards(
-            &mut follow,
-            p,
-            target,
-            max_step,
-            Some(&mut budget),
-            |_, _| true,
-        ) && in_range(&follow)
-        {
-            let moved = follow.point(p).is_some_and(|v| (v - from).len() > 1e-9);
-            return Ok(done(follow, moved, &budget));
-        }
-        Ok(done(self.sketch.clone(), false, &budget))
+        let (sketch, _) = evaluate::solve(&stored, &self.values)?;
+        Ok(Self {
+            stored: sketch.clone(),
+            sketch,
+            values: self.values.clone(),
+        })
+    }
+
+    /// Where `point` is.
+    pub fn point(&self, point: &SketchPointId) -> Option<Point> {
+        let p = self.sketch.point_index(&point.0)?;
+        self.sketch.point(p).map(|v| [v.x, v.y])
     }
 
     /// Every dimension laid out for drawing. `px` is the footprint length
