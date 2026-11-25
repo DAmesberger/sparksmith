@@ -31,7 +31,8 @@
 A component is a symbol, a footprint and a map between them.
 
 - Go to Component. On the start page choose New from generator… for a usual package: search, for example qfn 16, check the values and press Create component.
-- For a part no generator makes, choose Blank component. Add its pins with Terminal, then draw on the Symbol and Footprint tabs.
+- For a part no generator makes, choose Blank component. Type a Designator prefix such as R in Properties. Add its terminals with Terminal on the Pins tab, then draw on the Symbol and Footprint tabs. The order does not matter: Terminal adds a pad to the footprint sketch, unless pads you drew still wait for a terminal; the Mapping tab joins those.
+- Give the body its size on the 3D tab, 0.01 to 1000 mm on each side. Publish needs it.
 - From a datasheet, choose Create from datasheet…. It needs the assistant: see [[guide/ai-setup]].
 - Check the pin numbers against the datasheet on the Mapping tab, and the part on the 3D tab.
 - Fix what Issues lists, then choose Publish. A draft cannot be placed.
