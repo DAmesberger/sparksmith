@@ -113,11 +113,8 @@ impl PcbEditor {
                 Place::Corners(corners(pad.outline.bounds(0.0)).to_vec())
             }
             Subject::Via(id) => {
-                let via = project.via(id)?;
-                let (centre, r) = self
-                    .layout_copper
-                    .via_extent(id)
-                    .unwrap_or((via.position, via.diameter / 2.0));
+                // Only the copper Layout draws: a via the plan has not built yet shows no card.
+                let (centre, r) = self.layout_copper.via_extent(id)?;
                 around(centre, r)
             }
             Subject::Track(id) => {
