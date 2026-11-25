@@ -912,3 +912,60 @@ fn copper_kept_over_a_cutout_refuses_the_move() -> Fallible {
     );
     Ok(())
 }
+
+/// Copper a move keeps though it is then too close to another net's is an
+/// error of the production check, not only a row of Issues: nothing is
+/// exported with it unless it is accepted at its value, and touching copper
+/// not at all.
+#[test]
+fn a_kept_stub_too_close_after_a_move_blocks_production() -> Fallible {
+    use crate::diagnostics::ObjectRef;
+    use crate::fabrication::preflight;
+    for (wall_x, code) in [(11.6, "board.clearance"), (9.0, "board.overlap")] {
+        let (mut engine, _) = parts()?;
+        let (r1, _) = ids()?;
+        // A stub R1.2 drags along: there is nothing to route in its place.
+        do_(
+            &mut engine,
+            LayoutCommand::Route {
+                request: RouteRequest {
+                    net: SHARED,
+                    start: [11.2, 10.0],
+                    end: [11.2, 5.0],
+                    width: 0.3,
+                    layer: Top,
+                },
+            },
+        )?;
+        let stub = engine.project().tracks.last().map(|t| t.id).ok_or("stub")?;
+        // The stub comes to run from 20 to 15 mm, R1 to stand at 20 mm.
+        locked_wall(&mut engine, [wall_x, 17.0], [30.0, 17.0])?;
+        let wall = engine.project().tracks.last().map(|t| t.id).ok_or("wall")?;
+        engine.apply(engine.revision(), mv(r1, [10.0, 20.0]))?;
+        let objects = [ObjectRef::Track { id: stub }, ObjectRef::Track { id: wall }];
+        assert!(engine.project().tracks.iter().any(|t| t.id == stub), "kept");
+        let found = checks(engine.project(), &Default::default());
+        let row = found
+            .iter()
+            .find(|f| f.code == code && objects.iter().all(|o| f.objects.contains(o)))
+            .ok_or_else(|| format!("no {code}: {found:?}"))?;
+        let report = preflight::report(
+            engine.project(),
+            engine.drafts(),
+            None,
+            engine.check_settings(),
+        )?;
+        let key = preflight::key(&row.code, &row.objects);
+        let item = report
+            .items
+            .iter()
+            .find(|i| i.key == key)
+            .ok_or("an item")?;
+        assert!(item.blocks() && !report.ready());
+        // Accepted at its value or not at all.
+        let waivable = crate::issues::can_waive(&item.code);
+        assert_eq!(waivable, code == "board.clearance");
+        assert_eq!(item.measured.is_empty(), !waivable);
+    }
+    Ok(())
+}

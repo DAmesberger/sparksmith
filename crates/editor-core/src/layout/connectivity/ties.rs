@@ -331,8 +331,6 @@ impl CopperGraph {
                     continue;
                 }
                 self.tie_contacts.insert((y, x, t.instance, t.group, layer));
-                self.contact_pairs.insert((x, y));
-                self.contact_pairs.insert((y, x));
                 if t.purpose == crate::library::tie::TiePurpose::KelvinSense {
                     let mut allowed = false;
                     if let Some(ends) = anchors.get(&(t.instance, t.group)) {
@@ -359,7 +357,12 @@ impl CopperGraph {
                             }
                         }
                     }
-                    if !allowed {
+                    if allowed {
+                        self.contact_pairs.insert((x, y));
+                        self.contact_pairs.insert((y, x));
+                    } else {
+                        // It stays a short too, which no waiver accepts: this
+                        // one says where the net should meet.
                         self.tie_findings.push(Finding::new(
                             FindingCode::TieKelvinOffAnchor,
                             format!(
@@ -371,6 +374,8 @@ impl CopperGraph {
                     }
                     continue;
                 }
+                self.contact_pairs.insert((x, y));
+                self.contact_pairs.insert((y, x));
                 let copper = |object: ObjectRef, net: Id| match object {
                     ObjectRef::Fill { id } => project
                         .fill(id)

@@ -898,6 +898,149 @@ mod tests {
         Ok(())
     }
 
+    /// Copper off the board, as an import keeps it: refused until it is
+    /// accepted, then released with the drawings, read back as it is.
+    #[test]
+    fn copper_off_the_board_is_released_only_once_it_is_accepted() -> Result<()> {
+        use sparksmith_core::Operation;
+        use sparksmith_core::fabrication::{FabricationCommand, preflight};
+        use sparksmith_core::model::{CopperLayer, Track};
+        let mut file = sparksmith_core::Engine::showcase()?.to_file();
+        let net = file.project.tracks[0].net;
+        let [width, height] = file.project.board_size;
+        for (start, end) in [
+            ([width - 1.0, height + 2.0], [width + 8.0, height + 5.0]),
+            ([-9.0, -4.0], [-3.0, -4.0]),
+        ] {
+            let id = file.project.next_id;
+            file.project.next_id += 1;
+            file.project.tracks.push(Track {
+                id,
+                net,
+                start,
+                end,
+                width: 0.4,
+                layer: CopperLayer::Top,
+                locked: false,
+            });
+        }
+        let mut engine = sparksmith_core::Engine::from_file(file)?;
+        engine.refill_stale()?;
+        let dir = tempfile::tempdir()?;
+        let output = dir.path().join("fab");
+        let refused = run(engine.project(), &output, false);
+        let text = refused.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(text.starts_with("2 unwaived errors"), "{text}");
+        assert_nothing(dir.path(), "refused")?;
+        let report = preflight::report(
+            engine.project(),
+            engine.drafts(),
+            None,
+            engine.check_settings(),
+        )?;
+        let keys: Vec<String> = report
+            .items
+            .iter()
+            .filter(|i| i.blocks())
+            .map(|i| i.key.clone())
+            .collect();
+        engine.apply(
+            engine.revision(),
+            Operation::Fabrication(FabricationCommand::Waive {
+                keys,
+                reason: "a coupon in the frame".into(),
+                profile: None,
+            }),
+        )?;
+        run(engine.project(), &output, false)?;
+        // Whole, at its place: not cut at the outline.
+        let copper = std::fs::read_to_string(output.join("b-copper-l1-top.gbr"))?;
+        let place = |[x, y]: [f64; 2]| {
+            let nm = |v: f64| (v * 1e6).round() as i64;
+            format!("X{}Y{}", nm(x), nm(y))
+        };
+        assert!(copper.contains(&place([width + 8.0, height + 5.0])));
+        assert!(copper.contains("X-9000000Y-4000000"));
+        Ok(())
+    }
+
+    /// The outline of a board that is none yet is not released, waived or
+    /// not, as a folder or a ZIP.
+    #[test]
+    fn a_board_without_a_valid_outline_is_not_released() -> Result<()> {
+        use sparksmith_core::library::footprint_source::{EvaluatorRef, SketchBlob, SolveSummary};
+        use sparksmith_core::model::board::{
+            BoardShape, BoardSketch, ShapeFault, ShapeFaultKind, SolvedBoard,
+        };
+        let mut project = sparksmith_core::Engine::showcase()?.project().clone();
+        let evaluator = EvaluatorRef {
+            engine: "test".into(),
+            rev: "0".into(),
+        };
+        project.board_shape = BoardShape::Sketch(Box::new(BoardSketch {
+            evaluator: evaluator.clone(),
+            sketch: SketchBlob("{}".into()),
+            parameters: Vec::new(),
+            cutouts: Vec::new(),
+            holes: Vec::new(),
+            edges: Vec::new(),
+            next_feature: 1,
+            solve: SolveSummary {
+                evaluator,
+                status: Default::default(),
+                dof: 0,
+                result_hash: String::new(),
+            },
+            solved: SolvedBoard::rectangle(project.board_size),
+            current: false,
+            outline_fit: 0.01,
+            fault: Some(ShapeFault {
+                kind: ShapeFaultKind::Open,
+                message: "The outline is open".into(),
+                at: Vec::new(),
+            }),
+            idle: Vec::new(),
+        }));
+        for (id, copper) in sparksmith_core::layout::fill::refill(
+            &project,
+            sparksmith_core::layout::fill::RefillTarget::All,
+        )? {
+            if let Some(f) = project.fills.iter_mut().find(|f| f.id == id) {
+                f.computed = Some(copper);
+            }
+        }
+        let dir = tempfile::tempdir()?;
+        for (name, zip) in [("fab", false), ("fab.zip", true)] {
+            let refused = run(&project, &dir.path().join(name), zip);
+            let text = refused.err().map(|e| e.to_string()).unwrap_or_default();
+            assert!(text.starts_with("1 unwaived error"), "{text}");
+            assert_nothing(dir.path(), name)?;
+        }
+        // Nor as a file may say it was accepted.
+        let report = sparksmith_core::fabrication::preflight::report(
+            &project,
+            &Default::default(),
+            None,
+            &Default::default(),
+        )?;
+        for item in report.items.iter().filter(|i| i.blocks()) {
+            project
+                .production
+                .waivers
+                .push(sparksmith_core::model::production::Waiver {
+                    key: item.key.clone(),
+                    reason: "accepted".into(),
+                    accepted: Vec::new(),
+                    footprints: Vec::new(),
+                    given_for: None,
+                });
+        }
+        let refused = run(&project, &dir.path().join("fab"), false);
+        assert!(refused.is_err());
+        assert_nothing(dir.path(), "waived")?;
+        Ok(())
+    }
+
     /// Every kind of fault in every kind of file is refused, as a folder and
     /// as a ZIP, naming the file, and nothing is written; no waiver releases
     /// it.

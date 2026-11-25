@@ -2,7 +2,9 @@
 //! ([`Seen`]): a mutant changes what was seen, never the product.
 use super::Fallible;
 use super::truth::{self, Copper, Shape};
+use crate::diagnostics::Severity;
 use crate::diagnostics::{Finding, FindingCode};
+use crate::fabrication::preflight;
 use crate::fabrication::readback;
 use crate::fabrication::{self, FabricationOptions, Identity, ProductionSnapshot};
 use crate::geometry::Point;
@@ -39,6 +41,12 @@ pub(super) enum Rule {
     Silent,
     /// Copper of two nets that meets is a finding no waiver accepts.
     Short,
+    /// Copper of two nets nearer than the rules allow is told.
+    Close,
+    /// What is told as an error blocks the production check.
+    Blocks,
+    /// A board without a valid outline gives no files.
+    Outline,
     /// A fill is the board's now, or told as stale.
     Stale,
     /// A fill has the islands that join its net, and no others.
@@ -98,6 +106,8 @@ pub(super) struct Seen {
     pub files: Vec<(String, Vec<u8>)>,
     /// The release the files state.
     pub identity: Identity,
+    /// The files were refused as the outline is not valid.
+    pub refused: bool,
 }
 
 /// The board with every fill computed again.
@@ -133,6 +143,7 @@ impl Seen {
             made: refilled(project)?,
             files: Vec::new(),
             identity: Identity::default(),
+            refused: true,
         })
     }
 
@@ -143,7 +154,13 @@ impl Seen {
             &ProductionSnapshot::resolve(&seen.made, None)?,
             &options(),
             &Default::default(),
-        )?;
+        );
+        if project.board_shape.invalid().is_some() {
+            // Refused, whatever else it is: `outline`.
+            seen.refused = set.is_err();
+            return Ok(seen);
+        }
+        let set = set?;
         seen.identity = set.identity;
         seen.files = set.files.into_iter().map(|f| (f.name, f.bytes)).collect();
         Ok(seen)
@@ -170,6 +187,8 @@ pub(super) fn all(seen: &Seen, pixel: f64) -> Fallible<Vec<Broken>> {
     let mut out = Vec::new();
     connectivity(seen, &mut out);
     shorts(seen, &mut out);
+    close(seen, &mut out);
+    blocks(seen, &mut out)?;
     stale(seen, &mut out);
     clearance(&seen.made, None, &mut out)?;
     let fresh: BTreeSet<Id> = seen.current().map(|f| f.id).collect();
@@ -338,6 +357,108 @@ fn shorts(seen: &Seen, out: &mut Vec<Broken>) {
     }
 }
 
+/// Pads, tracks and vias of different nets, each pair measured again: nearer
+/// than the rules allow is a finding that names both. The rules are the test
+/// profile's number and the classes' own clearances, which two pads of one
+/// part and the two halves of a differential pair are free of.
+fn close(seen: &Seen, out: &mut Vec<Broken>) {
+    let project = &seen.project;
+    let pieces = truth::copper(project);
+    let class = |net: Option<Id>| {
+        let assigned = project
+            .rules
+            .assignments
+            .iter()
+            .find(|a| Some(a.net) == net)?;
+        let class = assigned.class;
+        let found = project.rules.net_classes.iter().find(|c| c.id == class)?;
+        found.clearance
+    };
+    let part = |o: ObjectRef| match o {
+        ObjectRef::Pad { instance, .. } => Some(instance),
+        _ => None,
+    };
+    for (k, a) in pieces.iter().enumerate() {
+        for b in &pieces[..k] {
+            let (Some(x), Some(y)) = (a.object, b.object) else {
+                continue;
+            };
+            if a.net.is_none() || b.net.is_none() || a.net == b.net {
+                continue;
+            }
+            if !a.layers.iter().any(|l| b.on(*l)) {
+                continue;
+            }
+            let mut need = COPPER;
+            let halves = project.rules.diff_pairs.iter().any(|p| {
+                let own = [Some(p.positive), Some(p.negative)];
+                own.contains(&a.net) && own.contains(&b.net)
+            });
+            if !halves && (part(x).is_none() || part(x) != part(y)) {
+                for net in [a.net, b.net] {
+                    need = need.max(class(net).unwrap_or(0.0));
+                }
+            }
+            let gap = a.shape.gap(&b.shape, need);
+            // Copper of two tied nets that touches elsewhere is told by the
+            // tie, in place of the short.
+            let touching = gap <= REACH;
+            let told = |f: &Finding| {
+                f.code == FindingCode::BoardCheckLimit
+                    || (matches!(
+                        f.code,
+                        FindingCode::BoardClearance | FindingCode::BoardOverlap
+                    ) || touching && f.code == FindingCode::TieSecondJoin)
+                        && f.objects.contains(&x)
+                        && f.objects.contains(&y)
+            };
+            if gap < need - SLACK && !seen.findings.iter().any(told) {
+                out.push(broken(
+                    Rule::Close,
+                    format!("{x:?} and {y:?} are {gap:.4} mm apart, {need:.4} needed"),
+                ));
+            }
+        }
+    }
+}
+
+/// Every error of the board's checks, and what is left to do on it, is an
+/// item of the production check that blocks; and a board without a valid
+/// outline gives no files.
+fn blocks(seen: &Seen, out: &mut Vec<Broken>) -> Fallible {
+    let report = preflight::report(
+        &seen.project,
+        &Default::default(),
+        None,
+        &Default::default(),
+    )?;
+    let blocking: BTreeSet<&str> = report
+        .items
+        .iter()
+        .filter(|i| i.blocks())
+        .map(|i| i.key.as_str())
+        .collect();
+    for f in &seen.findings {
+        let must = f.code.severity() == Severity::Error
+            || matches!(
+                f.code,
+                FindingCode::BoardUnrouted | FindingCode::BoardUnplaced | FindingCode::FillStale
+            );
+        let key = preflight::key(&f.code, &f.objects);
+        if must && !blocking.contains(key.as_str()) {
+            out.push(broken(
+                Rule::Blocks,
+                format!("{key} ({}) does not block", f.message),
+            ));
+        }
+    }
+    let invalid = seen.project.board_shape.invalid().is_some();
+    if invalid && (report.ready() || !seen.refused) {
+        out.push(broken(Rule::Outline, "files of a board that is none"));
+    }
+    Ok(())
+}
+
 fn stale(seen: &Seen, out: &mut Vec<Broken>) {
     for fill in seen.current() {
         let again = seen.made.fills.iter().find(|f| f.id == fill.id);
@@ -466,7 +587,13 @@ const EDGE: f64 = 0.3;
 /// The clearance a fill keeps to `object` of `net`, read from the document's
 /// own records: the overrides, the classes and the fill, and else the
 /// profile's numbers above. The largest of what they ask is kept.
-fn required(project: &Project, fill: &Fill, object: CopperObject, net: Option<Id>) -> f64 {
+fn required(
+    project: &Project,
+    fill: &Fill,
+    object: CopperObject,
+    net: Option<Id>,
+    own_gap: Option<f64>,
+) -> f64 {
     let key = RuleKey::Clearance {
         a: CopperObject::Fill,
         b: object,
@@ -502,7 +629,7 @@ fn required(project: &Project, fill: &Fill, object: CopperObject, net: Option<Id
     mm = mm.max(own(class(fill.net)).unwrap_or(0.0));
     if copper {
         mm = mm.max(own(class(net)).unwrap_or(0.0));
-        mm = mm.max(fill.settings.clearance.unwrap_or(COPPER));
+        mm = mm.max(own_gap.or(fill.settings.clearance).unwrap_or(COPPER));
     }
     mm
 }
@@ -514,8 +641,24 @@ struct Against {
     net: Option<Id>,
     /// Copper of the fill's own net is its own; a bare hole is nobody's.
     own: bool,
+    /// Further nets it is of: a tie's bridge, which no fill may meet.
+    also: Vec<Option<Id>>,
+    /// The gap fills keep to this pad in place of their own.
+    gap: Option<f64>,
     shape: Shape,
     layers: Vec<CopperLayer>,
+}
+
+/// The clearance a pad's own override asks of fills, or its part's.
+fn pad_gap(project: &Project, instance: Id, pad: PadId) -> Option<f64> {
+    let placement = project.placements.iter().find(|p| p.instance == instance)?;
+    let own = placement
+        .pad_fill_overrides
+        .iter()
+        .find(|e| e.pad == pad)
+        .and_then(|e| e.settings.clearance);
+    own.or(placement.fill_override.clearance)
+        .map(|c| c.to_mm_f64())
 }
 
 fn against(project: &Project) -> Fallible<Vec<Against>> {
@@ -527,16 +670,35 @@ fn against(project: &Project) -> Fallible<Vec<Against>> {
             kind: c.kind,
             net: c.net,
             own: c.net.is_some(),
+            also: Vec::new(),
+            gap: match c.object {
+                Some(ObjectRef::Pad { instance, pad }) => pad_gap(project, instance, pad),
+                _ => None,
+            },
             shape: c.shape,
             layers: c.layers,
         })
         .collect();
+    for bridge in truth::bridges(project) {
+        out.push(Against {
+            what: format!("the bridge of {}", bridge.instance),
+            kind: CopperObject::Track,
+            net: None,
+            own: false,
+            also: bridge.nets.into_iter().map(Some).collect(),
+            gap: None,
+            shape: bridge.shape,
+            layers: vec![bridge.layer],
+        });
+    }
     for hole in truth::holes(project)? {
         out.push(Against {
             what: format!("the hole at {:?}", hole.from),
             kind: hole.kind,
             net: hole.net,
             own: hole.plated && hole.net.is_some(),
+            also: Vec::new(),
+            gap: None,
             shape: hole.shape(),
             layers: stack.clone(),
         });
@@ -578,13 +740,16 @@ fn clearance(project: &Project, only: Option<&BTreeSet<Id>>, out: &mut Vec<Broke
                 if same || !t.layers.contains(&fill.layer) {
                     continue;
                 }
-                let need = required(project, fill, t.kind, t.net);
+                let need = std::iter::once(&t.net)
+                    .chain(&t.also)
+                    .map(|net| required(project, fill, t.kind, *net, t.gap))
+                    .fold(0.0, f64::max);
                 let gap = region.shape.gap(&t.shape, need);
                 if gap < need - SLACK {
                     short(&t.what, gap, need);
                 }
             }
-            let edge = required(project, fill, CopperObject::BoardEdge, None);
+            let edge = required(project, fill, CopperObject::BoardEdge, None, None);
             let first = region.shape.rings.first().and_then(|r| r.first());
             if first.is_some_and(|p| !outer.inside(*p)) {
                 short("the board, which it is outside of", 0.0, edge);
@@ -595,7 +760,7 @@ fn clearance(project: &Project, only: Option<&BTreeSet<Id>>, out: &mut Vec<Broke
             }
             for (cut, plated) in &cutouts {
                 let need = match plated {
-                    true => edge.max(required(project, fill, CopperObject::PthHole, None)),
+                    true => edge.max(required(project, fill, CopperObject::PthHole, None, None)),
                     false => edge,
                 };
                 let gap = region.shape.gap(cut, need);
@@ -637,9 +802,9 @@ fn clearance(project: &Project, only: Option<&BTreeSet<Id>>, out: &mut Vec<Broke
                 // The one that gives way keeps its clearance: the lower
                 // priority, and of two alike the later.
                 let need = if them.priority <= fill.priority {
-                    required(project, them, CopperObject::Fill, fill.net)
+                    required(project, them, CopperObject::Fill, fill.net, None)
                 } else {
-                    required(project, fill, CopperObject::Fill, them.net)
+                    required(project, fill, CopperObject::Fill, them.net, None)
                 };
                 let gap = region.shape.gap(&other.shape, need);
                 if gap < need - SLACK {
@@ -709,8 +874,12 @@ fn image(seen: &Seen, pixel: f64, out: &mut Vec<Broken>) -> Fallible {
     };
     let mut pieces = truth::copper(project);
     pieces.extend(truth::fills(project));
+    let bridges = truth::bridges(project);
     for layer in project.stackup.layers() {
         let mut want = grid.blank();
+        for bridge in bridges.iter().filter(|b| b.layer == layer) {
+            bridge.shape.paint(0.0, &mut want);
+        }
         for piece in pieces.iter().filter(|c| c.on(layer)) {
             piece.shape.paint(0.0, &mut want);
         }
@@ -885,10 +1054,25 @@ fn inventory(seen: &Seen, out: &mut Vec<Broken>) -> Fallible {
         if !named.is_empty() {
             say(format!("{name}: pads on nets they are not on: {named:?}"));
         }
+        let bridged = file
+            .objects
+            .iter()
+            .filter(|o| function(o) == "EtchedComponent")
+            .count();
+        let bridges = truth::bridges(project)
+            .iter()
+            .filter(|b| b.layer == layer)
+            .count();
+        if bridged != bridges {
+            say(format!(
+                "{name}: {bridged} bridges, {bridges} in the design"
+            ));
+        }
         let drawn = file
             .objects
             .iter()
             .filter(|o| o.object_attributes.contains_key(".C"))
+            .filter(|o| function(o) != "EtchedComponent")
             .count();
         let wanted = pads.iter().filter(|p| p.on(layer)).count();
         if drawn != wanted {

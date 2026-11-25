@@ -407,10 +407,15 @@ impl Affine {
     /// footprint by its datum, over when the part is on the bottom, turned
     /// and put where the part is.
     fn of_pad(placement: &Placement, footprint: &FootprintDefinition, pad: &Pad) -> Self {
-        let datum = footprint.datum.offset.to_mm_f64();
-        let own = Self::turn(pad.rotation_mdeg.to_degrees_f64())
+        Self::turn(pad.rotation_mdeg.to_degrees_f64())
             .then(Self::shift(pad.position.to_mm_f64()))
-            .then(Self::shift([-datum[0], -datum[1]]))
+            .then(Self::of_part(placement, footprint))
+    }
+
+    /// From a footprint's own frame to the board.
+    fn of_part(placement: &Placement, footprint: &FootprintDefinition) -> Self {
+        let datum = footprint.datum.offset.to_mm_f64();
+        let own = Self::shift([-datum[0], -datum[1]])
             .then(Self::turn(-footprint.datum.rotation_mdeg.to_degrees_f64()));
         let own = match placement.layer {
             Layer::Top => own,
@@ -522,6 +527,51 @@ impl Copper {
     pub(super) fn on(&self, layer: CopperLayer) -> bool {
         self.layers.contains(&layer)
     }
+}
+
+/// The copper a tie draws between its lands: it is of no net, and of each.
+pub(super) struct BridgeOn {
+    pub instance: Id,
+    pub nets: Vec<Id>,
+    pub layer: CopperLayer,
+    pub shape: Shape,
+}
+
+/// Every placed tie's bridges. The boards' ties are copper alone
+/// (`build::tie`).
+pub(super) fn bridges(project: &Project) -> Vec<BridgeOn> {
+    let pads = pads(project);
+    let mut out = Vec::new();
+    for placement in project.placements.iter() {
+        let Some(instance) = project.instance(placement.instance) else {
+            continue;
+        };
+        let physical = crate::instances::resolve(&project.library, instance)
+            .ok()
+            .and_then(|r| r.physical);
+        let Some(physical) = physical.filter(|_| !instance.ties.is_empty()) else {
+            continue;
+        };
+        let footprint = &physical.footprint.definition;
+        for bridge in &footprint.bridges {
+            let top = (bridge.side == PadSide::Top) == (placement.layer == Layer::Top);
+            let to_board = Affine::of_part(placement, footprint);
+            out.push(BridgeOn {
+                instance: instance.id,
+                nets: pads
+                    .iter()
+                    .filter(|p| p.instance == instance.id && bridge.pads.contains(&p.pad.id))
+                    .filter_map(|p| p.net)
+                    .collect(),
+                layer: match top {
+                    true => CopperLayer::Top,
+                    false => CopperLayer::Bottom,
+                },
+                shape: Shape::new(vec![to_board.all(&outline_ring(&bridge.outline))]),
+            });
+        }
+    }
+    out
 }
 
 /// Every pad, track, via and washer.
@@ -735,7 +785,16 @@ pub(super) fn mask(project: &Project, side: Layer) -> Vec<(Shape, f64)> {
 pub(super) fn paste(project: &Project, side: Layer) -> Fallible<Vec<(Shape, f64)>> {
     let rule = project.rules.effective().paste.reduction;
     let mut out = Vec::new();
-    for pad in pads(project).into_iter().filter(|p| p.side == side) {
+    // A tie of copper alone is not soldered.
+    let soldered = |p: &PadOn| {
+        project
+            .instance(p.instance)
+            .is_none_or(|i| i.ties.is_empty())
+    };
+    for pad in pads(project)
+        .into_iter()
+        .filter(|p| p.side == side && soldered(p))
+    {
         let by = match &pad.pad.paste {
             PasteRule::None => continue,
             PasteRule::Inherit => {

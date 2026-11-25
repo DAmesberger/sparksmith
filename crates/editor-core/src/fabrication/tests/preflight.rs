@@ -334,6 +334,8 @@ fn fidelity_findings_and_shorts_are_the_ones_that_cannot_be_waived() {
         "board.shape_open",
         "board.shape_invalid",
         "instance.check_failed",
+        "tie.second_join",
+        "tie.bridge_contact",
     ] {
         assert!(!issues::can_waive(code), "{code}");
     }

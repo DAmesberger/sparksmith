@@ -2,12 +2,14 @@
 //! when they are made: the choices come from the document's own order.
 use super::Fallible;
 use super::build::{self, net};
+use super::outline;
 use super::plan::{BOARD, Edit, Past, Pour};
 use super::truth::{self, PadOn};
 use crate::geometry::Point;
 use crate::ids::Id;
 use crate::layout::arrange::PartMove;
 use crate::layout::fill::{FillCommand, RefillTarget};
+use crate::layout::pair::{PairLeg, PairRouteRequest};
 use crate::layout::posture::Posture;
 use crate::layout::router::drag::TrackDragRequest;
 use crate::layout::router::{RouteMode, RouteStepRequest};
@@ -189,7 +191,11 @@ pub(super) fn operation(engine: &Engine, edit: &Edit) -> Fallible<Option<Operati
         | Edit::Repour { .. }
         | Edit::DeletePour { .. }
         | Edit::Keepout { .. }
-        | Edit::DeleteKeepout { .. } => fills(project, edit).map(Operation::Fill),
+        | Edit::DeleteKeepout { .. }
+        | Edit::PadFill { .. } => fills(project, edit).map(Operation::Fill),
+        Edit::Stretch { .. } | Edit::Window { .. } | Edit::Open => {
+            outline::operation(project, edit)
+        }
         _ => parts(project, edit)
             .or_else(|| routes(project, edit))
             .or_else(|| copper(project, edit))
@@ -247,6 +253,19 @@ fn fills(project: &Project, edit: &Edit) -> Option<FillCommand> {
                 forbid: KeepoutRules::default(),
             }),
         },
+        Edit::PadFill {
+            pick: k,
+            whole,
+            settings,
+        } => {
+            let pads = truth::pads(project);
+            let pad = pick(&pads, *k)?;
+            FillCommand::SetPadOverride {
+                instance: pad.instance,
+                pad: (!whole).then_some(pad.pad.id),
+                settings: *settings,
+            }
+        }
         Edit::DeleteKeepout { pick: k } => FillCommand::DeleteKeepout {
             id: pick(&project.keepouts, *k)?.id,
         },
@@ -380,6 +399,31 @@ fn routes(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
                     via: via(net, *at, 0.3, true, false),
                     to_layer: wanted,
                     end: *to,
+                },
+            }
+        }
+        Edit::Coupled {
+            pads: [a, b],
+            at,
+            to,
+            layer: k,
+        } => {
+            let pair = project.rules.diff_pairs.first()?;
+            let (p, n) = (
+                pads_of(project, pair.positive),
+                pads_of(project, pair.negative),
+            );
+            LayoutCommand::RoutePair {
+                request: PairRouteRequest {
+                    pair: pair.id,
+                    start: [pick(&p, *a)?.at, pick(&n, *b)?.at],
+                    legs: vec![PairLeg {
+                        layer: layer(project, *k),
+                        points: vec![*at, *to],
+                    }],
+                    end: None,
+                    width: Some(0.2),
+                    gap: Some(0.2),
                 },
             }
         }

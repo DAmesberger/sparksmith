@@ -598,7 +598,10 @@ impl<'a> Ctx<'a> {
             return Ok(Raw::default());
         };
         let edge = self.clearance(fill, CopperObject::BoardEdge, None);
-        let shrink = edge + if arcs(&board.outer) { tol } else { 0.0 };
+        // Arcs are flattened by chords, and a corner that goes into the board
+        // comes out round, by chords.
+        let chords = arcs(&board.outer) || geom::goes_in(&outer);
+        let shrink = edge + if chords { tol } else { 0.0 };
         let mut inside = vec![vec![outer]];
         if shrink > 0.0 {
             inside = geom::offset(&inside, -shrink, tol);
@@ -752,11 +755,8 @@ impl<'a> Ctx<'a> {
                     .iter()
                     .map(|n| self.clearance(fill, CopperObject::Track, self.class(Some(*n))))
                     .fold(self.clearance(fill, CopperObject::Track, None), f64::max);
-                regions.extend(geom::offset(
-                    &[vec![ring]],
-                    gap + if arcs(&b.outline) { tol } else { 0.0 },
-                    tol,
-                ));
+                // Its corners grow round, by chords.
+                regions.extend(geom::offset(&[vec![ring]], gap + tol, tol));
             }
         }
         for t in rel.tracks.iter().filter_map(|i| p.tracks.get(*i)) {
