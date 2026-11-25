@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Sparksmith
+GenericName=PCB design
+Comment=Schematics, PCB layout and 3D
+Exec=sparksmith-desktop %f
+Icon=io.sparksmith.app
+Terminal=false
+Categories=Development;Electronics;Engineering;
+MimeType=application/x-sparksmith;
+StartupWMClass=io.sparksmith.app

@@ -28,6 +28,8 @@ File offers New, Open, Save, Save as and Export to Solidcraft through native dia
 
 Per-user files (settings, keymap, fab and AI profiles, live-MCP tokens) live in the config folder `sparksmith` (`~/Library/Application Support/sparksmith`, `%APPDATA%\sparksmith`, `$XDG_CONFIG_HOME/sparksmith` or `~/.config/sparksmith`), the library index cache in the platform cache folder `sparksmith`, and recovery snapshots in `~/Library/Application Support/Sparksmith/Recovery`, `%LOCALAPPDATA%\Sparksmith\Recovery` or `$XDG_STATE_HOME/sparksmith/recovery`. `SPARKSMITH_CONFIG_DIR`, `SPARKSMITH_CACHE_DIR` and `SPARKSMITH_RECOVERY_DIR` move them. The names come from `sparksmith_core::product`. On the first start after the rename from Pcbcraft, the app and the CLI copy the former `pcbcraft` config folder and `Pcbcraft`/`pcbcraft` recovery folder to the new names when the new folder does not exist yet; the former folders are kept unchanged and the cache is rebuilt ([rename](rename-phase-b.md)).
 
+`cargo xtask package` makes the download for the system it runs on ([packages](packages.md)).
+
 Hosted CI (`.github/workflows/ci.yml`) runs `cargo xtask ci` on Linux for every push and pull request, and on Windows for pushes to `main` and manual runs. There is no macOS job: the native open, save and quit lifecycle on macOS is checked only by hand runs in the macOS VM (the e2e run notes in this folder), not by CI. This is a known gap.
 
 Navigation: scroll zooms; middle-drag pans; right-drag orbits in 3D. Cmd/Ctrl+S saves, +Shift+S saves as, +O opens, +N starts a new project, +Z/+Shift+Z undo and redo.
