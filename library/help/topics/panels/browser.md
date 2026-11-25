@@ -23,6 +23,6 @@
 }
 ---
 
-Use {key:view.browser} to show or hide the Browser. Expand a branch and select the item you want to inspect. The workspace and selection determine the Properties card. An issue badge beside an item points to findings for that subject.
+Use {key:view.browser} to show or hide the Browser. Expand a branch and select the item you want to inspect. The workspace and selection determine the Properties card. An issue badge beside an item points to findings for that subject. A part's row selects the part where you are: its placement in PCB, its symbol in the Schematic.
 
 In Schematic, use Place to find a published component. The catalog can show what is in the project and in enabled sources. Use [[entry/library.search]] to search the same component vocabulary from automation. Manage the sources themselves in [[panel/libraries]].
