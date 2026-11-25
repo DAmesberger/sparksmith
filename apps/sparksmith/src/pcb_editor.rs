@@ -331,10 +331,11 @@ enum Field {
     TrackLayer,
     TextOffset,
     BlockName,
+    ViaPosition,
 }
 
 impl Field {
-    const ALL: [Field; 7] = [
+    const ALL: [Field; 8] = [
         Field::Position,
         Field::Rotation,
         Field::Side,
@@ -342,6 +343,7 @@ impl Field {
         Field::TrackLayer,
         Field::TextOffset,
         Field::BlockName,
+        Field::ViaPosition,
     ];
     fn id(self) -> egui::Id {
         egui::Id::unique(("pcb-field", self))
@@ -442,6 +444,11 @@ pub struct PcbEditor {
     pan: Vec2,
     drag: Option<(Placement, Point)>,
     drag_position: Option<Point>,
+    /// A via dragged with Select: the via, its place before, where the
+    /// pointer took hold, and where it lands (on the grid).
+    via_drag: Option<(Id, Point, Point, Point)>,
+    /// The Via card's Position being edited.
+    via_position: Point,
     /// A track dragged with Select (`track_drag`).
     track_drag: Option<track_drag::TrackDrag>,
     drag_airwires: Option<DragAirwires>,
@@ -658,6 +665,8 @@ impl Default for PcbEditor {
             drag: None,
             drag_position: None,
             track_drag: None,
+            via_drag: None,
+            via_position: [0.0; 2],
             drag_airwires: None,
             show_airwires: true,
             cached_revision: None,
@@ -1091,6 +1100,9 @@ impl PcbEditor {
             {
                 self.track_width = track.width;
             }
+            if let Some(via) = self.via.and_then(|id| engine.project().via(id)) {
+                self.via_position = via.position;
+            }
             if let Some(p) = engine
                 .project()
                 .placements
@@ -1195,6 +1207,7 @@ impl PcbEditor {
     fn cancel_drag(&mut self) {
         self.drag = None;
         self.group_drag = None;
+        self.via_drag = None;
         self.box_from = None;
         self.track_drag = None;
         self.drag_position = None;
@@ -2118,10 +2131,33 @@ impl PcbEditor {
                 // ⇧ or ⌘, or a press on nothing a drag moves, draws a
                 // selection rectangle; a press on a part of the group
                 // drags the group's parts.
-                let movable =
-                    matches!(hit, menu::Hit::Track(..) | menu::Hit::Block(_)) || part.is_some();
+                // A via under the press drags, unless it moves with the
+                // group's parts.
+                let via = match hit {
+                    menu::Hit::Via(id, _)
+                        if !self.group.vias.contains(&id) || self.group.parts.is_empty() =>
+                    {
+                        Some(id)
+                    }
+                    _ => None,
+                };
+                let movable = matches!(hit, menu::Hit::Track(..) | menu::Hit::Block(_))
+                    || part.is_some()
+                    || via.is_some();
                 if add || !movable {
                     self.box_from = Some(start);
+                } else if let Some(id) = via {
+                    self.select_hit(hit);
+                    match project.via(id) {
+                        Some(v) if v.locked => crate::kit::toast::post(
+                            ui.ctx(),
+                            kit::severity::Level::Warning,
+                            "The via is locked; unlock it to move it",
+                            Vec::new(),
+                        ),
+                        Some(v) => self.via_drag = Some((id, v.position, at, v.position)),
+                        None => {}
+                    }
                 } else if let Some(name) = self.grabbed(project, hit, part) {
                     if let Err(why) = self.start_group_drag(project, at) {
                         crate::kit::toast::post(
@@ -2168,6 +2204,18 @@ impl PcbEditor {
                     }
                 }
             }
+        }
+        if let (Some((_, from, grab, to)), Some(at)) = (&mut self.via_drag, cursor) {
+            *to = snap([from[0] + at[0] - grab[0], from[1] + at[1] - grab[1]]);
+        }
+        if response.drag_stopped_by(PointerButton::Primary)
+            && let Some((id, from, _, to)) = self.via_drag.take()
+            && to != from
+        {
+            operation = Some(Operation::Layout(LayoutCommand::MoveVia {
+                id,
+                position: to,
+            }));
         }
         if let (Some(drag), Some(at)) = (&mut self.group_drag, cursor) {
             drag.by = snap([at[0] - drag.grab[0], at[1] - drag.grab[1]]);
@@ -3385,6 +3433,12 @@ impl PcbEditor {
                 .or_else(|| self.layout_copper.via_extent(via.id))
             else {
                 continue;
+            };
+            let center = match self.via_drag {
+                Some((id, from, _, to)) if id == via.id => {
+                    [center[0] + to[0] - from[0], center[1] + to[1] - from[1]]
+                }
+                _ => center,
             };
             let at = view.screen(center);
             let outer = (radius as f32 * scale).max(2.5);

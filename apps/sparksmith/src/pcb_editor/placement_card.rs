@@ -20,7 +20,7 @@ use sparksmith_ui::ui_kit::{self, Button};
 
 /// Bound on typed placement coordinates (mm). The engine bounds a part's
 /// datum to its working area, a smaller square, and says so when refusing.
-const COORDINATE_LIMIT: f64 = 10_000.0;
+pub(super) const COORDINATE_LIMIT: f64 = 10_000.0;
 
 /// Why a locked placement's fields and actions are disabled.
 const LOCKED: &str = "Unlock the placement to move it";
