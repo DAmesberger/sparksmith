@@ -1401,7 +1401,11 @@ fn constrain_press(
                 .iter()
                 .any(|r| matches!(r, SketchRef::Constraint(_)))
             {
-                return Err(invalid("board.constraint: the sketch has this already"));
+                // The same constraint is there: it names itself.
+                return Err(Error::Conflict(format!(
+                    "board.constraint_redundant: {} already sets this; it would hold nothing more",
+                    dims::constrain_look(kind).1
+                )));
             }
             not_set_already(kind, &stage)?;
             Ok(commit(stage))

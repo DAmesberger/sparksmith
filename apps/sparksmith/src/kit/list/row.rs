@@ -958,14 +958,14 @@ pub(super) fn error_galley(ui: &Ui, text: &str, width: f32) -> Arc<Galley> {
     ui.painter().layout_job(job)
 }
 
-/// Paint [`error_galley`] into `rect`, under its row `row_h` high. One just
-/// shown is scrolled to with its row: an open Issues card, a long list or a
+/// Paint [`error_galley`] into `rect`. One just shown is scrolled to with
+/// its row above it, `reveal` high: an open Issues card, a long list or a
 /// small window must not hide why the value went back.
 pub(super) fn paint_error(
     ui: &Ui,
     list: egui::Id,
     rect: Rect,
-    row_h: f32,
+    reveal: Option<f32>,
     galley: Arc<Galley>,
     text: &str,
 ) {
@@ -978,7 +978,9 @@ pub(super) fn paint_error(
     );
     let now = ui.ctx().cumulative_frame_nr();
     let last = ui.data(|d| d.get_temp::<(u64, String)>(id));
-    if last.is_none_or(|(frame, was)| frame + 1 < now || was != text) {
+    if let Some(row_h) = reveal
+        && last.is_none_or(|(frame, was)| frame + 1 < now || was != text)
+    {
         let row = rect.with_min_y(rect.top() - row_h);
         ui.scroll_to_rect(row, None);
     }

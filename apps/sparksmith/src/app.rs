@@ -184,6 +184,8 @@ pub struct App {
     /// Recent projects chosen in the menu bar, opened in the next update.
     #[cfg(target_os = "macos")]
     menu_recent: Vec<std::path::PathBuf>,
+    /// Input that came while a frame ran long, a step per frame.
+    steps: crate::input_steps::Steps,
     /// Which File › Open Recent files are gone.
     recent: crate::recent_projects::Availability,
     /// The project file last kept in Open Recent.
@@ -416,6 +418,7 @@ impl App {
             menu_runs: Vec::new(),
             #[cfg(target_os = "macos")]
             menu_recent: Vec::new(),
+            steps: Default::default(),
             recent: Default::default(),
             recent_seen: None,
             updating: None,
@@ -1452,6 +1455,7 @@ impl App {
                 native_menu: _,
             #[cfg(target_os = "macos")]
                 menu_recent: _,
+            steps: _,
             recent: _,
             recent_seen: _,
         } = self;
@@ -2050,6 +2054,9 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.now = ctx.input(|i| i.time);
+        if self.steps.more() {
+            ctx.request_repaint();
+        }
         follow_system_theme(&ctx, false);
         self.system_fonts(&ctx);
         crate::kit::text::fit_tooltips(&ctx);
@@ -2129,7 +2136,8 @@ impl eframe::App for App {
 
     /// Items chosen in the macOS menu bar, before egui reads this frame's
     /// input: a field's own keys join the input; commands wait for `ui`,
-    /// and a press of the same key is dropped, so it runs once.
+    /// and a press of the same key is dropped, so it runs once. Then this
+    /// frame's step of what the person did.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         #[cfg(target_os = "macos")]
         if let Some(mut menu) = self.native_menu.take() {
@@ -2147,8 +2155,7 @@ impl eframe::App for App {
                 });
             }
         }
-        #[cfg(not(target_os = "macos"))]
-        let _ = (ctx, raw);
+        self.steps.next(raw, ctx.text_edit_focused());
     }
 
     /// The app ends without asking only when the system ends it (Dock ›

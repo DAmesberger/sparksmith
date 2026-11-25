@@ -50,6 +50,9 @@ pub struct ListView<'a> {
     /// Why a row's value is wrong or was refused, under that row
     /// ([`Layout::Bounded`] only); scrolled to with its row when new.
     pub error: Option<(RowKey, &'a str)>,
+    /// Another row's value is being typed: an error new now shows under
+    /// the list and scrolls nothing, so that row stays where it is.
+    pub error_last: bool,
 }
 
 impl<'a> ListView<'a> {
@@ -67,6 +70,7 @@ impl<'a> ListView<'a> {
             click_edits: false,
             highlighted: None,
             error: None,
+            error_last: false,
         }
     }
 }
@@ -114,6 +118,16 @@ struct Drag {
     key: RowKey,
     from: usize,
     grab: f32,
+}
+
+/// Where an error shows and how high it is, kept while it stands.
+#[derive(Clone, Debug)]
+struct ErrorAt {
+    key: RowKey,
+    text: String,
+    height: f32,
+    /// Under the list, not under its row.
+    last: bool,
 }
 
 impl ListView<'_> {
@@ -202,18 +216,35 @@ impl ListView<'_> {
         let total = lines.len();
         let width = ui.available_width();
         // Why a value was refused: room for it under its row.
-        let error = self
-            .error
-            .filter(|_| matches!(self.layout, Layout::Bounded { .. }))
-            .and_then(|(key, text)| {
-                let index = lines.iter().position(|x| x.key == key)?;
+        let slot = self.id.with("error-at");
+        let was = ui.data(|d| d.get_temp::<ErrorAt>(slot));
+        let error = match self.error {
+            _ if !matches!(self.layout, Layout::Bounded { .. }) => None,
+            Some((key, text)) => {
                 let galley = super::row::error_galley(ui, text, width);
-                let height = galley.size().y + super::row::ERROR_GAP;
-                Some((index, text, galley, height))
-            });
-        let failed = error
-            .as_ref()
-            .map(|(index, _, _, height)| (*index, *height));
+                let same = was.filter(|w| w.key == key && w.text == text);
+                let at = ErrorAt {
+                    key,
+                    text: text.to_owned(),
+                    height: galley.size().y + super::row::ERROR_GAP,
+                    last: self.error_last && same.is_none_or(|w| w.last),
+                };
+                Some((at, Some(galley)))
+            }
+            // Its room stays while a value is typed: no row moves then.
+            None => was.filter(|_| self.editing).map(|w| (w, None)),
+        };
+        ui.data_mut(|d| match &error {
+            Some((at, _)) => {
+                d.insert_temp(slot, at.clone());
+            }
+            None => {
+                d.remove::<ErrorAt>(slot);
+            }
+        });
+        let index = |at: &ErrorAt| lines.iter().position(|x| x.key == at.key);
+        let under = error.as_ref().filter(|(at, _)| !at.last);
+        let under = under.and_then(|(at, _)| Some((index(at)?, at.height)));
         let (count, more) = match self.layout {
             Layout::Bounded { rows } if !state.show_all && total > rows => {
                 // The cursor's row stays shown, and one with an error.
@@ -221,11 +252,14 @@ impl ListView<'_> {
                     .cursor
                     .and_then(|c| lines.iter().position(|x| x.key == c))
                     .map_or(0, |i| i + 1);
-                let n = rows.max(at).max(failed.map_or(0, |(i, _)| i + 1));
+                let n = rows.max(at).max(under.map_or(0, |(i, _)| i + 1));
                 (n.min(total), n < total)
             }
             _ => (total, false),
         };
+        let last = error.as_ref().filter(|(at, _)| at.last);
+        let last = last.and_then(|(at, _)| Some((count.checked_sub(1)?, at.height)));
+        let failed = under.or(last);
         let drag = ui.data(|d| d.get_temp::<Drag>(self.id.with("drag")));
         let mut pass = Pass::default();
         let row_h = l.row_h;
@@ -284,10 +318,12 @@ impl ListView<'_> {
                     pass.clicks.push(Input::DoubleClick { key: line.key });
                 } else if r.clicked {
                     let m = ui.input(|i| i.modifiers);
+                    // The row is known: only which part of it. (It may have
+                    // moved since the press, by what another edit brought.)
                     let on_value = r
                         .response
                         .interact_pointer_pos()
-                        .is_some_and(|p| r.value_rect.contains(p));
+                        .is_some_and(|p| r.value_rect.x_range().contains(p.x));
                     if self.click_edits && on_value && !m.shift && !m.command {
                         // The value edits on one click, as a double-click
                         // anywhere on the row does.
@@ -330,10 +366,11 @@ impl ListView<'_> {
                 for index in 0..count {
                     draw(ui, index, rect.top(), &mut out, &mut pass, &mut paint);
                 }
-                if let Some((index, text, galley, height)) = error {
+                if let (Some((index, height)), Some((at, Some(galley)))) = (failed, error) {
                     let top = rect.top() + row_h * (index + 1) as f32;
                     let under = Rect::from_min_size(pos2(rect.left(), top), vec2(width, height));
-                    super::row::paint_error(ui, self.id, under, row_h, galley, text);
+                    let reveal = (!at.last).then_some(row_h);
+                    super::row::paint_error(ui, self.id, under, reveal, galley, &at.text);
                 }
                 if more && super::row::more(ui, count, total) {
                     state.show_all = true;

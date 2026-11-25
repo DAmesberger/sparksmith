@@ -12,6 +12,7 @@ mod fill_worker;
 mod generator_form;
 mod generator_gallery;
 mod generators;
+mod input_steps;
 mod issue_reports;
 mod issues;
 mod keymap;
