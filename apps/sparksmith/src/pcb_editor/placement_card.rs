@@ -156,7 +156,7 @@ impl PcbEditor {
                     LayoutCommand::Move {
                         instance: placement.instance,
                         position: placement.position,
-                        rotation_deg: placement.rotation_deg,
+                        rotation_deg: self.flipped_rotation(project, placement),
                         layer: side,
                     },
                     Some(Field::Side),
@@ -386,6 +386,15 @@ impl PcbEditor {
             .collect()
     }
 
+    /// The rotation a flip of `placement` asks for: a part its dimensions
+    /// hold turns so that they keep it where it is.
+    pub(super) fn flipped_rotation(&self, project: &Project, placement: &Placement) -> f64 {
+        self.shape
+            .evaluator
+            .and_then(|e| dimensions::flipped(project, placement.instance, e))
+            .map_or(placement.rotation_deg, |pose| pose.rotation_deg)
+    }
+
     /// The placement footer: Rotate 90° and Flip (disabled while locked)
     /// and Schematic ›, which shows the symbol in the Schematic.
     pub(super) fn placement_footer(
@@ -432,7 +441,7 @@ impl PcbEditor {
                 action = Some(LayoutCommand::Move {
                     instance: placement.instance,
                     position: placement.position,
-                    rotation_deg: placement.rotation_deg,
+                    rotation_deg: self.flipped_rotation(project, placement),
                     layer: opposite(placement.layer),
                 });
             }

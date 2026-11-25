@@ -830,6 +830,7 @@ pub fn follow(
                 )));
             }
         }
+        stays_on_board(before, project, &board, &c, &drags, &solution)?;
         for (target, pose) in &solution.poses {
             place(project, *target, pose)?;
             if let ConstraintTarget::Placement(id) = target {
@@ -838,6 +839,135 @@ pub fn follow(
         }
     }
     Ok(placed)
+}
+
+/// Refuse a move, turn or flip whose solve would take a part off the board
+/// it was put on: a distance holds the part's feature, not the side of the
+/// edge the part lies on, so a flipped or turned part can satisfy it from
+/// outside.
+fn stays_on_board(
+    before: &Project,
+    project: &Project,
+    board: &BoardSketch,
+    c: &Component,
+    drags: &[PartDrag],
+    solution: &PartsSolution,
+) -> Result<()> {
+    let flipped =
+        c.targets
+            .iter()
+            .copied()
+            .find(|t| match (pose_of(before, *t), pose_of(project, *t)) {
+                (Some(was), Some(is)) => was.1 != is.1,
+                _ => false,
+            });
+    let Some(by) = flipped.or(drags.first().map(|d| d.target)) else {
+        return Ok(());
+    };
+    let outer = project.board().outer.flatten(ON_BOARD_CHORD_MM);
+    for (target, pose) in &solution.poses {
+        let ConstraintTarget::Placement(id) = *target else {
+            continue;
+        };
+        let Some(asked) = project.placement_of(id) else {
+            continue;
+        };
+        let mut solved = asked.clone();
+        solved.position = pose.position;
+        solved.rotation_deg = pose.rotation_deg;
+        if !mostly_on(project, asked, &outer) || mostly_on(project, &solved, &outer) {
+            continue;
+        }
+        let turned = drags.iter().any(|d| {
+            d.target == by
+                && pose_of(before, by)
+                    .is_some_and(|(was, _)| !same_angle(was.rotation_deg, d.to.rotation_deg))
+        });
+        let done = match (flipped.is_some(), turned) {
+            (true, _) => "flipped",
+            (false, true) => "turned",
+            (false, false) => "moved",
+        };
+        let name = target_words(project, by);
+        let at = held_at(project, board, by, &solution.measured)
+            .unwrap_or_else(|| "by its dimensions".to_owned());
+        let what = if *target == by {
+            "would leave the board".to_owned()
+        } else {
+            format!(
+                "would take {} off the board",
+                target_words(project, *target)
+            )
+        };
+        let long = format!("{name} is held {at}; {done} like this it {what}");
+        return Err(Error::Conflict(
+            if long.chars().count() <= crate::diagnostics::MAX_LINE {
+                long
+            } else {
+                format!("{name} is held by its dimensions; {done} it {what}")
+            },
+        ));
+    }
+    Ok(())
+}
+
+/// Chord tolerance of the outline [`mostly_on`] asks, mm.
+const ON_BOARD_CHORD_MM: f64 = 0.01;
+
+/// Whether more than half of a placed part's outline (its package
+/// envelope, else its origin) lies within the board outline `outer`.
+fn mostly_on(project: &Project, placement: &crate::model::Placement, outer: &[Point]) -> bool {
+    use crate::geometry::polygon_contains;
+    let Some([a, b, c, d]) = super::arrange::part_envelope(project, placement) else {
+        return polygon_contains(outer, placement.position);
+    };
+    const CELLS: u32 = 8;
+    let at = |i: u32| (f64::from(i) + 0.5) / f64::from(CELLS);
+    let mix = |p: Point, q: Point, t: f64| [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+    let inside = (0..CELLS)
+        .flat_map(|i| (0..CELLS).map(move |j| (i, j)))
+        .filter(|(i, j)| {
+            let p = mix(mix(a, b, at(*i)), mix(d, c, at(*i)), at(*j));
+            polygon_contains(outer, p)
+        })
+        .count();
+    2 * inside > (CELLS * CELLS) as usize
+}
+
+/// The pose that puts `instance` on the other side where its dimensions
+/// keep it: mirrored in place or turned by 180° with it, whichever leaves
+/// it at its position (a part held by a face on an edge keeps the face on
+/// that edge). `None` for a part no live dimension names, and when neither
+/// does: the flip is then asked for in place, and the engine places or
+/// refuses it.
+pub fn flipped(
+    project: &Project,
+    instance: Id,
+    evaluator: &dyn super::outline::BoardShapeEvaluator,
+) -> Option<PartPose> {
+    let target = ConstraintTarget::Placement(instance);
+    let c = component_of(project, target)?;
+    let board = board_sketch(project, evaluator).ok()?;
+    let here = project.placement_of(instance)?;
+    [0.0, 180.0].into_iter().find_map(|turn| {
+        let to = PartPose {
+            position: here.position,
+            rotation_deg: (here.rotation_deg + turn).rem_euclid(360.0),
+        };
+        let mut moved = project.clone();
+        let p = moved
+            .placements
+            .iter_mut()
+            .find(|p| p.instance == instance)?;
+        p.layer = match p.layer {
+            crate::model::Layer::Top => crate::model::Layer::Bottom,
+            crate::model::Layer::Bottom => crate::model::Layer::Top,
+        };
+        p.rotation_deg = to.rotation_deg;
+        let solved = solve_component(project, &moved, &c, &board, evaluator).ok()?;
+        let pose = solved.solution.poses.iter().find(|(t, _)| *t == target)?.1;
+        same_pose(&pose, &to).then_some(to)
+    })
 }
 
 /// Put a target at a solved pose (a fill or keepout only translates).

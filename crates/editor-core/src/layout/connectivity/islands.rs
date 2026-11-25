@@ -1,7 +1,12 @@
 //! What each island holds, and the copper that meets a pad: the questions
 //! Update PCB asks of the updated board's graph.
-use super::{CopperGraph, ElementKind};
+use super::{CopperGraph, Dsu, ElementKind};
+use crate::geometry::{Point, polygon_contains};
 use crate::ids::Id;
+use crate::layout::fill::FILL_CHORD_MM;
+use crate::model::fill::FillRegion;
+use crate::model::{Project, Track, Via};
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The pads and copper of one island.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -46,6 +51,67 @@ impl CopperGraph {
             }
         }
         out
+    }
+
+    /// How many groups the pads of `net` fall into when each fill of the
+    /// net in `project` joins the copper within its outline, on a graph
+    /// built without fills. What a refill will join, as far as its outline
+    /// says: copper it has to leave out between is not seen.
+    pub fn pad_groups(&self, project: &Project, net: Id) -> usize {
+        let layers = project.stackup.layers();
+        let board = project.board();
+        let pours: Vec<_> = project
+            .fills
+            .iter()
+            .filter(|f| f.net == Some(net))
+            .map(|f| {
+                // One that follows the board takes its outline after the
+                // edit; it is there already.
+                let outline = match f.region {
+                    FillRegion::Board => &board.outer,
+                    FillRegion::Drawn => &f.outline,
+                };
+                (f.layer, outline.flatten(FILL_CHORD_MM))
+            })
+            .collect();
+        let islands: Vec<Island> = self
+            .islands()
+            .into_iter()
+            .filter(|i| i.net == Some(net))
+            .collect();
+        let tracks: BTreeMap<Id, &Track> = self.tracks.iter().map(|t| (t.id, t)).collect();
+        let vias: BTreeMap<Id, &Via> = self.vias.iter().map(|v| (v.id, v)).collect();
+        let mut dsu = Dsu::new(islands.len() + pours.len());
+        for (i, island) in islands.iter().enumerate() {
+            for (k, (layer, ring)) in pours.iter().enumerate() {
+                let within = |p: Point| polygon_contains(ring, p);
+                let met = island
+                    .pads
+                    .iter()
+                    .filter_map(|p| self.pads.get(*p))
+                    .any(|p| p.on(*layer) && within(p.position))
+                    || island
+                        .vias
+                        .iter()
+                        .filter_map(|id| vias.get(id))
+                        .any(|v| v.on(*layer, &layers) && within(v.position))
+                    || island
+                        .tracks
+                        .iter()
+                        .filter_map(|id| tracks.get(id))
+                        .any(|t| t.layer == *layer && (within(t.start) || within(t.end)));
+                if met {
+                    dsu.union(i, islands.len() + k);
+                }
+            }
+        }
+        let roots: BTreeSet<usize> = islands
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| !i.pads.is_empty())
+            .map(|(i, _)| dsu.find(i))
+            .collect();
+        roots.len()
     }
 
     /// The tracks and vias whose copper meets the pad at `index` in

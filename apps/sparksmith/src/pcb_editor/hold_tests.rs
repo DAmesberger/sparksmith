@@ -1123,3 +1123,42 @@ fn aligning_a_held_or_locked_part_is_refused_and_names_it() -> Fallible {
     assert!(why.starts_with("R1 is held"), "{why}");
     Ok(())
 }
+
+/// N1: Flip on J1, whose shell face dimensions hold on the board's bottom
+/// edge, turns it with the flip, so the face stays on the edge; a part its
+/// origin holds flips in place.
+#[test]
+fn a_flip_keeps_an_edge_held_part_in_its_place() -> Fallible {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith"
+    );
+    let engine = Engine::from_file(sparksmith_io::read_project(std::path::Path::new(path))?)?;
+    let mut editor = PcbEditor::default();
+    editor.sync(&engine);
+    for (name, turn) in [("J1", 180.0), ("R2", 0.0)] {
+        let id = engine
+            .project()
+            .instance_by_designator(name)
+            .ok_or("part")?
+            .id;
+        let was = engine.project().placement_of(id).cloned().ok_or("placed")?;
+        let Some(Operation::Layout(LayoutCommand::Move {
+            position,
+            rotation_deg,
+            layer,
+            ..
+        })) = editor.menu_act(&engine, menu::Act::Flip(id))
+        else {
+            return Err(format!("{name}: no flip").into());
+        };
+        assert_eq!(position, was.position, "{name}");
+        assert_eq!(layer, opposite(was.layer), "{name}");
+        assert_eq!(
+            rotation_deg,
+            (was.rotation_deg + turn).rem_euclid(360.0),
+            "{name}"
+        );
+    }
+    Ok(())
+}
