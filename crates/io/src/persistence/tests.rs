@@ -880,3 +880,21 @@ fn a_set_of_new_files_is_published_whole_or_not_at_all() -> Result<()> {
     assert_eq!(names(dir.path())?, files);
     Ok(())
 }
+
+/// A resolved Windows path is named without its `\\?\` prefix; others stay.
+#[test]
+fn a_path_is_named_as_a_person_reads_it() {
+    use std::path::{Path, PathBuf};
+    assert_eq!(
+        super::shown(Path::new(r"\\?\C:\Users\me\board.solidcraft")),
+        PathBuf::from(r"C:\Users\me\board.solidcraft")
+    );
+    assert_eq!(
+        super::shown(Path::new(r"\\?\UNC\server\share\board.sparksmith")),
+        PathBuf::from(r"\\server\share\board.sparksmith")
+    );
+    assert_eq!(
+        super::shown(Path::new("/home/me/board.sparksmith")),
+        PathBuf::from("/home/me/board.sparksmith")
+    );
+}

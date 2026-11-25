@@ -220,7 +220,7 @@ fn check_output(output: &Path, zip: bool) -> Result<()> {
         )));
     }
     if crate::persistence::write_protected(output) {
-        return Err(Error::WriteProtected(output.to_path_buf()));
+        return Err(Error::WriteProtected(crate::persistence::shown(output)));
     }
     Ok(())
 }
