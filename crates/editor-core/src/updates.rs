@@ -2961,6 +2961,22 @@ pub(crate) fn preview(
                     refs(),
                 );
             }
+            // A locked block holds its parts as a part's own lock does.
+            if let Some(block) =
+                crate::instances::blocks::block_of(project, placement.instance).filter(|b| b.locked)
+            {
+                plan.block(
+                    &format!(
+                        "{designator} is in the locked block {}; unlock the block to update",
+                        block.name
+                    ),
+                    format!(
+                        "{designator} is in the locked block {}; unlock the block before updating.",
+                        block.name
+                    ),
+                    refs(),
+                );
+            }
             if replacement.is_none() {
                 plan.removed_placements.push(placement.instance);
                 plan.detail(
