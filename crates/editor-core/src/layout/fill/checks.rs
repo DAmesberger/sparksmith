@@ -114,7 +114,12 @@ pub const KEEPOUT_FILL: &str = crate::diagnostics::FindingCode::KeepoutFill.as_s
 /// ([`FILL_CHORD_MM`]; its grown obstacles' round joins lie that much
 /// inside the true arcs), and 1 µm for the polygon arithmetic. A gap short
 /// by more is copper the computation would not have made.
-pub const AUDIT_SLACK_MM: f64 = FILL_CHORD_MM + 0.001;
+pub const AUDIT_SLACK_MM: f64 = FILL_CHORD_MM + ARITHMETIC_MM;
+
+/// What the polygon arithmetic may lose, mm: all a gap may fall short by
+/// to an outline of straight sides, which the computation keeps the whole
+/// rule from (its rounded corners grown past the chords).
+pub const ARITHMETIC_MM: f64 = 0.001;
 
 /// Fill and keepout findings.
 ///
@@ -222,6 +227,9 @@ struct Obstacle {
     joins: bool,
     /// A pad's own fill clearance, in place of the fill's.
     own: Option<f64>,
+    /// How far a gap to it may fall short ([`AUDIT_SLACK_MM`], or the
+    /// arithmetic's alone where the computation has no chords to allow for).
+    slack: f64,
 }
 
 /// A rule an object's gap is short of: the gap, the rule and the object's
@@ -294,8 +302,8 @@ impl Stored {
     /// (stale copper, which its refill cuts back) reports overlap alone.
     /// Touching is overlap only under a rule: with none, copper may meet
     /// the outline, so only an overlap of area counts.
-    fn meets(&self, ring: &[Point], rule: f64, overlap_only: bool) -> Option<f64> {
-        let limit = rule - AUDIT_SLACK_MM;
+    fn meets(&self, ring: &[Point], rule: f64, slack: f64, overlap_only: bool) -> Option<f64> {
+        let limit = rule - slack;
         if !overlap_only && limit > 0.0 {
             return self.gap(ring, limit);
         }
@@ -360,6 +368,8 @@ struct Audit<'a> {
     grid: super::super::grid::BoundsGrid,
     reach: f64,
     outer: Vec<Point>,
+    /// How far a gap to it may fall short, as of an obstacle.
+    outer_slack: f64,
     /// Each cutout or slot's ring, with its feature.
     cutouts: Vec<(Vec<Point>, ObjectRef)>,
     stored: Vec<Option<Stored>>,
@@ -402,6 +412,7 @@ impl<'a> Audit<'a> {
                 on,
                 joins: hole.plated,
                 own: None,
+                slack: AUDIT_SLACK_MM,
             });
         }
         let overrides: std::collections::BTreeMap<_, f64> = ctx
@@ -427,6 +438,7 @@ impl<'a> Audit<'a> {
                 },
                 joins: true,
                 own,
+                slack: AUDIT_SLACK_MM,
             });
         }
         for (k, v) in project.vias.iter().enumerate() {
@@ -438,6 +450,7 @@ impl<'a> Audit<'a> {
                 on: On::Via(k),
                 joins: true,
                 own: None,
+                slack: AUDIT_SLACK_MM,
             });
         }
         for t in &project.tracks {
@@ -449,6 +462,7 @@ impl<'a> Audit<'a> {
                 on: On::One(t.layer),
                 joins: true,
                 own: None,
+                slack: AUDIT_SLACK_MM,
             });
         }
         // A net tie's bridge keeps clear of every fill, also of the nets it
@@ -462,6 +476,13 @@ impl<'a> Audit<'a> {
                 on: On::One(b.layer),
                 joins: false,
                 own: None,
+                // Its grown corners are chords outside the true arcs, and a
+                // curved bridge is flattened besides.
+                slack: if super::compute::arcs(&b.outline) {
+                    AUDIT_SLACK_MM
+                } else {
+                    ARITHMETIC_MM
+                },
             });
         }
         let limits = crate::layout::limits::BoardRules::of(project);
@@ -496,6 +517,11 @@ impl<'a> Audit<'a> {
             grid,
             reach,
             outer: board.outer.flatten(FILL_CHORD_MM),
+            outer_slack: if super::compute::arcs(&board.outer) {
+                AUDIT_SLACK_MM
+            } else {
+                ARITHMETIC_MM
+            },
             cutouts,
             stored: project.fills.iter().map(Stored::of).collect(),
             limits,
@@ -624,7 +650,7 @@ impl<'a> Audit<'a> {
                 continue;
             }
             let need = self.need(fill, o.kind, &o.nets, o.own);
-            let Some(gap) = stored.meets(&o.ring, need.mm, stale) else {
+            let Some(gap) = stored.meets(&o.ring, need.mm, o.slack, stale) else {
                 continue;
             };
             let them = describe(project, &o.object);
@@ -730,7 +756,7 @@ impl<'a> Audit<'a> {
         let edge =
             self.limits
                 .clearance_need(CopperObject::Fill, fill.net, CopperObject::BoardEdge, None);
-        let edge_limit = edge.mm - AUDIT_SLACK_MM;
+        let edge_limit = edge.mm - self.outer_slack;
         let at = |p: Point| {
             format!(
                 "({}, {}) mm",
@@ -766,13 +792,13 @@ impl<'a> Audit<'a> {
                         gap,
                         edge.mm,
                         Unit::Mm,
-                        AUDIT_SLACK_MM,
+                        self.outer_slack,
                     )]),
                 );
             }
         }
         for (ring, object) in &self.cutouts {
-            if let Some(gap) = stored.meets(ring, edge.mm, stale) {
+            if let Some(gap) = stored.meets(ring, edge.mm, AUDIT_SLACK_MM, stale) {
                 report(
                     Finding::new(
                         FindingCode::FillBoardEdge,
@@ -804,7 +830,7 @@ impl<'a> Audit<'a> {
                 continue;
             }
             let ring = k.outline.flatten(FILL_CHORD_MM);
-            if stored.meets(&ring, 0.0, true).is_some() {
+            if stored.meets(&ring, 0.0, AUDIT_SLACK_MM, true).is_some() {
                 let them = match owner {
                     Some(instance) => ObjectRef::Instance { id: *instance },
                     None => ObjectRef::Keepout { id: k.id },

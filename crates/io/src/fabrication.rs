@@ -878,26 +878,6 @@ mod tests {
         Ok(())
     }
 
-    /// A board of a picked fabricator's stackup is released with its name in
-    /// the order notes, and its drawing reads back.
-    #[test]
-    fn a_picked_stackup_is_released_with_its_name() -> Result<()> {
-        let mut project = sparksmith_core::Engine::showcase()?.project().clone();
-        project.stackup = project
-            .stackup
-            .clone()
-            .picked_from("test-4", "TEST-4-7628 1.6 mm");
-        let dir = tempfile::tempdir()?;
-        let output = dir.path().join("fab");
-        run(&project, &output, false)?;
-        let notes = std::fs::read_to_string(output.join("b-order-notes.txt"))?;
-        assert!(
-            notes.contains("\nStackup: TEST-4-7628 1.6 mm (test-4)\n"),
-            "{notes}"
-        );
-        Ok(())
-    }
-
     /// Copper off the board, as an import keeps it: refused until it is
     /// accepted, then released with the drawings, read back as it is.
     #[test]
@@ -1038,6 +1018,26 @@ mod tests {
         let refused = run(&project, &dir.path().join("fab"), false);
         assert!(refused.is_err());
         assert_nothing(dir.path(), "waived")?;
+        Ok(())
+    }
+
+    /// A board of a picked fabricator's stackup is released with its name in
+    /// the order notes, and its drawing reads back.
+    #[test]
+    fn a_picked_stackup_is_released_with_its_name() -> Result<()> {
+        let mut project = sparksmith_core::Engine::showcase()?.project().clone();
+        project.stackup = project
+            .stackup
+            .clone()
+            .picked_from("test-4", "TEST-4-7628 1.6 mm");
+        let dir = tempfile::tempdir()?;
+        let output = dir.path().join("fab");
+        run(&project, &output, false)?;
+        let notes = std::fs::read_to_string(output.join("b-order-notes.txt"))?;
+        assert!(
+            notes.contains("\nStackup: TEST-4-7628 1.6 mm (test-4)\n"),
+            "{notes}"
+        );
         Ok(())
     }
 

@@ -117,7 +117,7 @@ pub(super) struct Raw {
     pub removed_spokes: Vec<RemovedSpokes>,
 }
 
-fn arcs(outline: &crate::library::Outline) -> bool {
+pub(super) fn arcs(outline: &crate::library::Outline) -> bool {
     outline
         .segments
         .iter()

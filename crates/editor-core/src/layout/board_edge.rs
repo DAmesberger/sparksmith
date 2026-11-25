@@ -231,6 +231,61 @@ impl BoardEdges {
     }
 }
 
+/// The length of edge piece [`BoardEdges::overhang`] stops halving at: it
+/// finds the farthest point to within half of this.
+pub const OVERHANG_STEP_MM: f64 = 0.01;
+
+impl BoardEdges {
+    /// How far `copper` reaches past the board: the greatest distance of a
+    /// point of its outline (as the checks flatten it) from the board,
+    /// outside the outer outline or into a cutout or slot; 0 on the board.
+    /// The outline's corners and, along each side, points found by halving
+    /// it while the farthest point between two could still be farther than
+    /// the farthest yet (a distance changes by at most the way gone), down
+    /// to [`OVERHANG_STEP_MM`].
+    pub fn overhang(&self, copper: &CopperRing) -> f64 {
+        let ring = &copper.ring;
+        let mut best = ring.iter().map(|p| self.off(*p)).fold(0.0, f64::max);
+        let mut todo: Vec<_> = (0..ring.len())
+            .filter_map(|k| edge(ring, k))
+            .map(|(a, b)| (a, self.off(a), b, self.off(b)))
+            .collect();
+        while let Some((a, da, b, db)) = todo.pop() {
+            let len = (b[0] - a[0]).hypot(b[1] - a[1]);
+            if len <= OVERHANG_STEP_MM || (da + db + len) / 2.0 <= best + EPS {
+                continue;
+            }
+            let m = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0];
+            let dm = self.off(m);
+            best = best.max(dm);
+            todo.push((a, da, m, dm));
+            todo.push((m, dm, b, db));
+        }
+        best
+    }
+
+    /// How far `p` is from the board: 0 on it.
+    fn off(&self, p: Point) -> f64 {
+        if let Some([w, h]) = self.rect {
+            let dx = (-p[0]).max(p[0] - w).max(0.0);
+            let dy = (-p[1]).max(p[1] - h).max(0.0);
+            return dx.hypot(dy);
+        }
+        let mut off: f64 = 0.0;
+        for edges in &self.loops {
+            let inside = polygon_contains(&edges.ring, p);
+            let past = match edges.kind {
+                EdgeLoopKind::Outer => !inside,
+                EdgeLoopKind::Cutout(_) => inside,
+            };
+            if past {
+                off = off.max(boundary_distance(&edges.ring, p));
+            }
+        }
+        off
+    }
+}
+
 fn crossing(kind: EdgeLoopKind) -> EdgeVerdict {
     match kind {
         EdgeLoopKind::Outer => EdgeVerdict::Outside,

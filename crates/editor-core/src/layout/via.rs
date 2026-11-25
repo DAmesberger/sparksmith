@@ -943,14 +943,18 @@ pub(super) fn edge_text(
     let edge = limits.clearance(kind, None, CopperObject::BoardEdge, None);
     match edges.verdict(ring, edge) {
         EdgeVerdict::Clear => None,
-        EdgeVerdict::Outside => Some(("extends beyond the board edge".into(), None, None)),
+        EdgeVerdict::Outside => Some((
+            "extends beyond the board edge".into(),
+            None,
+            Some(super::copper::overhang(edges, ring)),
+        )),
         EdgeVerdict::Inside(kind) => Some((
             format!(
                 "lies in {}",
                 super::board_edge::EdgeLoopKind::Cutout(kind).describe()
             ),
             None,
-            None,
+            Some(super::copper::overhang(edges, ring)),
         )),
         EdgeVerdict::TooClose { gap, near } => {
             let need = limits.clearance_need(kind, None, CopperObject::BoardEdge, None);

@@ -186,6 +186,7 @@ A board has 2, 4 or 6 layers (the seed's remainder by three) and any of: pads of
 | `Close` | Pads, tracks and vias of two nets nearer than the rules allow are a finding naming both, measured again |
 | `Blocks` | Every error of the board checks, and everything unrouted, unplaced or stale, blocks the production check |
 | `Outline` | A board without a valid outline gives no files |
+| `Overhang` | Pads, tracks and vias past the board are a finding that says how far, measured again along their outlines |
 | `Stale` | A fill is what the board gives now, or told as stale |
 | `Island` | A fill that removes islands has those that reach a pad, via or track of its net, through the net's other fills if need be, and no others |
 | `Clearance` | Every fill keeps every clearance, the edge, cutouts, keepouts and its own outline, measured between segments |
@@ -211,7 +212,7 @@ The numbers are places in the seed's list of atoms: a change to the generator (`
 
 By hand on GitHub: the workflow *Random boards* (`.github/workflows/random-boards.yml`) takes a range, or 200 seeds that go by its run number. It has no schedule.
 
-**Alive.** `every_seeded_fault_is_told_by_the_rules_that_must_tell_it` makes what was seen of one board wrong in 24 ways (a fill clearance, a drill position, a mirrored mask, a lost via, old copper and an old graph among them) and names the rules that must tell each. `the_generator_makes_everything_and_most_edits_are_taken` keeps the boards from being empty.
+**Alive.** `every_seeded_fault_is_told_by_the_rules_that_must_tell_it` makes what was seen of one board wrong in 25 ways (a fill clearance, a drill position, a mirrored mask, a lost via, old copper and an old graph among them) and names the rules that must tell each. `the_generator_makes_everything_and_most_edits_are_taken` keeps the boards from being empty.
 
 ## KiCad import comparison
 
