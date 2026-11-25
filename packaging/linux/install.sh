@@ -28,9 +28,9 @@ else
         > "$prefix/share/applications/io.sparksmith.app.desktop"
 fi
 # Each is optional: a desktop without it has no such cache.
-command -v update-mime-database >/dev/null 2>&1 && update-mime-database "$prefix/share/mime" || true
+command -v update-mime-database >/dev/null 2>&1 && update-mime-database "$prefix/share/mime" >/dev/null 2>&1 || true
 command -v update-desktop-database >/dev/null 2>&1 \
-    && update-desktop-database "$prefix/share/applications" || true
+    && update-desktop-database "$prefix/share/applications" >/dev/null 2>&1 || true
 if [ "$remove" = 1 ]; then
     echo "Sparksmith is removed from $prefix"
 else
