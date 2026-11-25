@@ -347,3 +347,59 @@ fn the_engine_never_waives_a_profile_limited_finding() -> Fallible<()> {
     assert!(engine.project().production.waivers.is_empty());
     Ok(())
 }
+
+/// JLCPCB states "NPTH to Track" and no value for pads (founder decision,
+/// 25 November 2026): under its shipped profile a pad 0.175 mm from an
+/// unplated hole is not stated, never an error of a borrowed track value.
+/// It says what JLCPCB does not state, asks no other profile, is offered a
+/// waiver, and a waiver with a reason clears it for export.
+#[test]
+fn under_jlcpcb_a_pad_beside_an_unplated_hole_is_not_stated() -> Fallible<()> {
+    use crate::Operation;
+    use crate::fabrication::FabricationCommand;
+    let profile = fixtures::jlcpcb_example()?;
+    let name = profile.name.clone();
+    let project = connector_board(profile)?;
+    let items = |r: &PreflightReport| -> Vec<crate::fabrication::PreflightItem> {
+        r.items
+            .iter()
+            .filter(|i| i.code == "board.pad_hole_clearance")
+            .cloned()
+            .collect()
+    };
+    let found = items(&report(&project)?);
+    assert_eq!(found.len(), 2, "{found:#?}");
+    for item in &found {
+        let said = item.not_stated.as_ref().ok_or("not stated")?;
+        assert_eq!(
+            said.text,
+            format!(
+                "{name} does not state {} between 0 mm and 0.2 mm",
+                key().label()
+            )
+        );
+        assert!(said.source.contains("NPTH to Track"), "{}", said.source);
+        assert!(item.needs.is_none() && item.offers_waiver() && item.blocks());
+    }
+    let mut file = Engine::demo()?.to_file();
+    file.project = project;
+    let mut engine = Engine::from_file(file)?;
+    engine.apply(
+        engine.revision(),
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys: found.iter().map(|i| i.key.clone()).collect(),
+            reason: "The part's drawing places its locating pegs so".into(),
+            profile: None,
+        }),
+    )?;
+    let after = crate::fabrication::preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?;
+    let found = items(&after);
+    assert_eq!(found.len(), 2);
+    assert!(found.iter().all(|i| i.waiver.is_some() && !i.blocks()));
+    Ok(())
+}

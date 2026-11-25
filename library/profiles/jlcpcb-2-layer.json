@@ -269,7 +269,11 @@
       },
       "clearance_pad_npth_hole": {
         "value": 0.2,
-        "source": "Traces, \"NPTH to Track\": \"0.2mm\"."
+        "source": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB states no value for pads: a pad at least this far from an unplated hole is made as a track is; nearer is not stated (founder decision, 25 November 2026).",
+        "unclear": {
+          "to": 0.0,
+          "source": "JLCPCB states \"NPTH to Track\": \"0.2mm\" (Traces) and no row for pads to unplated holes (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-14)."
+        }
       },
       "clearance_pad_pad": {
         "value": 0.15,
