@@ -55,6 +55,7 @@ fn an_assembly_replaced_after_payload_staging_refuses_the_commit() -> TestResult
         &sidecar(2)?,
         &baseline,
         Some(&linked),
+        WriteProtected::Refuse,
         &mut |at| {
             if at == Boundary::Staged {
                 atomic_write(&assembly, b"saved with wall")?;
@@ -75,6 +76,7 @@ fn an_assembly_replaced_after_payload_staging_refuses_the_commit() -> TestResult
         &sidecar(2)?,
         &baseline,
         Some(&latest),
+        WriteProtected::Refuse,
         &mut |at| {
             if at == Boundary::Committed {
                 assert!(matches!(
@@ -364,6 +366,48 @@ fn failed_design_install_does_not_replace_sidecar() -> TestResult {
         .is_err()
     );
     assert_pair(&design, 1)
+}
+
+/// One write-protected file refuses the pair and is named; told to replace,
+/// both are, and it stays write-protected.
+#[test]
+fn a_write_protected_file_refuses_the_pair() -> TestResult {
+    for sidecar_protected in [false, true] {
+        let dir = tempfile::tempdir()?;
+        let design = initial(dir.path())?;
+        let baseline = Publication::open(&design)?.baseline()?;
+        let temporary = dir.path().join("new.solidcraft");
+        std::fs::write(&temporary, b"2")?;
+        let file = if sidecar_protected {
+            sidecar_path(&design)
+        } else {
+            design.clone()
+        };
+        let writable = std::fs::metadata(&file)?.permissions();
+        let mut protected = writable.clone();
+        protected.set_readonly(true);
+        std::fs::set_permissions(&file, protected.clone())?;
+        let before = std::fs::read_dir(dir.path())?.count();
+        let refused = put_in_place(&design, &temporary, &sidecar(2)?, &baseline);
+        assert!(
+            matches!(&refused, Err(Error::WriteProtected(path)) if *path == file),
+            "{refused:?}"
+        );
+        assert_eq!(std::fs::read_dir(dir.path())?.count(), before);
+        assert_pair(&design, 1)?;
+        put_reviewed_in_place(
+            &design,
+            &temporary,
+            &sidecar(2)?,
+            &baseline,
+            None,
+            WriteProtected::Replace,
+        )?;
+        assert_pair(&design, 2)?;
+        assert_eq!(std::fs::metadata(&file)?.permissions(), protected);
+        std::fs::set_permissions(&file, writable)?;
+    }
+    Ok(())
 }
 
 #[test]

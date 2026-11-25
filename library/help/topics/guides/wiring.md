@@ -38,4 +38,4 @@ A wire joins pins into a net. Every pin on a net is connected.
 - Wires that only cross are not connected. To join them, choose Junction and click the crossing.
 - For power and ground, choose Power, pick the name under Common, such as GND or +3V3, and click a pin or wire. Ports of one name are one net.
 - To name a net, choose Net label and click the wire. Labels of one name join on this sheet, Global labels on every sheet.
-- Mark a pin you leave open with No connect. Then Issues does not ask about it.
+- Mark a pin you leave open with No connect: choose it, then click the pin. Click a symbol to mark all its open pins, and click a marked pin to clear it. Then Issues does not ask about them.

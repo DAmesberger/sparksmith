@@ -374,16 +374,16 @@ fn ring_edges(ring: &[Point]) -> impl Iterator<Item = (Point, Point)> + '_ {
         .map(|(a, b)| (*a, *b))
 }
 
-/// The islands of two fresh fills of one net and layer that join: (of `f`,
+/// The islands of two fills of one net and layer that join: (of `mine`,
 /// whose index is given; of `other`).
 fn pour_joints(
-    f: &fill::Fresh<'_>,
+    mine: &[FilledRegion],
     index: &RegionIndex,
-    other: &fill::Fresh<'_>,
+    other: &[FilledRegion],
 ) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     let mut met = BTreeSet::new();
-    for (r, region) in (0u32..).zip(&other.copper.regions) {
+    for (r, region) in (0u32..).zip(other) {
         for island in islands_meeting(index, region) {
             met.insert(island);
             out.push((island, r));
@@ -392,11 +392,11 @@ fn pour_joints(
     // An island that meets no edge of the other's and holds none of it lies
     // in one of them, or clear of them all.
     let mut theirs = None;
-    for (island, region) in (0u32..).zip(&f.copper.regions) {
+    for (island, region) in (0u32..).zip(mine) {
         if met.contains(&island) {
             continue;
         }
-        let theirs = theirs.get_or_insert_with(|| RegionIndex::filled(&other.copper.regions));
+        let theirs = theirs.get_or_insert_with(|| RegionIndex::filled(other));
         out.extend(
             region
                 .outer
@@ -406,6 +406,71 @@ fn pour_joints(
         );
     }
     out
+}
+
+/// One fill's islands, and which of them join a pad, via or track of its
+/// net ([`islands_joined`]).
+pub(crate) struct Pour<'a> {
+    pub islands: &'a [FilledRegion],
+    pub direct: &'a [bool],
+}
+
+/// For `pours`, the fills of one net on one layer: which islands of each
+/// join a pad, via or track, themselves or through islands of the others,
+/// as the graph would join them.
+pub(crate) fn pours_reaching(pours: &[Pour<'_>]) -> Vec<Vec<bool>> {
+    let own = |p: &Pour<'_>| -> Vec<bool> {
+        (0..p.islands.len())
+            .map(|k| p.direct.get(k).copied().unwrap_or(false))
+            .collect()
+    };
+    if pours.len() < 2 {
+        return pours.iter().map(own).collect();
+    }
+    let mut first = Vec::with_capacity(pours.len());
+    let mut count = 0;
+    for p in pours {
+        first.push(count);
+        count += p.islands.len();
+    }
+    let mut dsu = Dsu::new(count);
+    let bounds: Vec<Option<Bounds>> = pours
+        .iter()
+        .map(|p| Bounds::of(p.islands.iter().flat_map(|r| r.outer.iter().copied())))
+        .collect();
+    for (i, (p, at)) in pours.iter().zip(&first).enumerate() {
+        let mut index = None;
+        for (j, (q, other)) in pours.iter().zip(&first).enumerate().skip(i + 1) {
+            let near = match (&bounds[i], &bounds[j]) {
+                (Some(a), Some(b)) => a.inflated(JOIN_REACH_MM).intersects(b),
+                _ => false,
+            };
+            if !near {
+                continue;
+            }
+            let index = index.get_or_insert_with(|| RegionIndex::filled(p.islands));
+            for (a, b) in pour_joints(p.islands, index, q.islands) {
+                dsu.union(at + a as usize, other + b as usize);
+            }
+        }
+    }
+    let mut reaches = vec![false; count];
+    for (p, at) in pours.iter().zip(&first) {
+        for (k, direct) in own(p).into_iter().enumerate() {
+            if direct && let Some(slot) = reaches.get_mut(dsu.find(at + k)) {
+                *slot = true;
+            }
+        }
+    }
+    pours
+        .iter()
+        .zip(&first)
+        .map(|(p, at)| {
+            (0..p.islands.len())
+                .map(|k| reaches.get(dsu.find(at + k)).copied().unwrap_or(false))
+                .collect()
+        })
+        .collect()
 }
 
 /// Where a track (`start`–`end`, half-width `radius`) joined to fill
@@ -858,7 +923,7 @@ impl CopperGraph {
                     continue;
                 }
                 out.extend(
-                    pour_joints(f, &index, other)
+                    pour_joints(&f.copper.regions, &index, &other.copper.regions)
                         .into_iter()
                         .map(|(island, region)| Joint {
                             a: fill_at + island as usize,

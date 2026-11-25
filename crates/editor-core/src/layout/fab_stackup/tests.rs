@@ -137,7 +137,7 @@ fn refusal(stackup: &FabStackup) -> String {
 fn a_board_takes_the_listed_layers() -> Fallible<()> {
     let fab = plain();
     fab.check()?;
-    let taken = fab.stackup(&Stackup::preset(4)?, false)?;
+    let taken = fab.stackup(&Stackup::preset(4)?)?;
     let um: Vec<f64> = taken.copper.iter().map(|c| c.thickness_um).collect();
     assert_eq!(um, [35.0, 15.2, 15.2, 35.0]);
     let rows: Vec<_> = taken
@@ -174,24 +174,188 @@ fn a_board_takes_the_listed_layers() -> Fallible<()> {
     Ok(())
 }
 
-/// Plies of several Dk: 0.1 mm of 3.9 and 0.2 mm of 4.2 average to
-/// (0.39 + 0.84) / 0.3 = 4.1. Unless asked for, the layer has none, and no
-/// glass estimate stands in for it.
+/// Sheets of several Dk: 0.1 mm of 3.9 and 0.2 mm of 4.2 average to
+/// (0.39 + 0.84) / 0.3 = 4.1, by the impedance model's own rule, and the
+/// layer says what it is calculated from.
 #[test]
-fn plies_of_several_dk_give_no_dk_unless_their_average_is_asked_for() -> Fallible<()> {
+fn sheets_of_several_dk_give_their_average_and_are_shown() -> Fallible<()> {
     let fab = mixed();
     fab.check()?;
-    let board = Stackup::preset(4)?;
-    let taken = fab.stackup(&board, false)?;
-    let first = taken.dielectrics[0];
+    let taken = fab.stackup(&Stackup::preset(4)?)?;
+    let first = &taken.dielectrics[0];
     assert!((first.thickness_mm - 0.3).abs() < 1e-9);
     assert_eq!(first.glass, GlassStyle::Unspecified);
-    assert_eq!(taken.permittivity(&first), None);
+    assert_eq!(first.dk, Some(4.1));
+    assert_eq!(taken.permittivity(first), Some(4.1));
+    assert_eq!(
+        first.calculated_from().map(<[_]>::len),
+        Some(2),
+        "{first:?}"
+    );
+    let said = first.calculated_text().ok_or("not calculated")?;
+    assert!(
+        said.starts_with("Calculated by thickness from 0.1 mm ")
+            && said.contains("of Dk 3.9 and 0.2 mm ")
+            && said.ends_with("of Dk 4.2"),
+        "{said}"
+    );
     assert_eq!(fab.dielectrics()[0].dk_text(), "3.9 and 4.2");
-    let averaged = fab.stackup(&board, true)?;
-    assert_eq!(averaged.dielectrics[0].dk, Some(4.1));
-    // The other layers keep their one Dk either way.
-    assert_eq!(averaged.dielectrics[2].dk, Some(4.2));
+    // The model averages the same sheets, as dielectrics, to the same Dk.
+    let whole = crate::model::weighted_dk([(0.1, Some(3.9)), (0.2, Some(4.2))]);
+    assert!(
+        whole.is_some_and(|dk| (dk - 4.1).abs() < 1e-12),
+        "{whole:?}"
+    );
+    assert_eq!(crate::model::weighted_dk([(0.1, None)]), None);
+    // The other layers keep their one Dk, as stated.
+    assert_eq!(taken.dielectrics[2].dk, Some(4.2));
+    assert_eq!(taken.dielectrics[2].calculated_from(), None);
+    let engine = four_layers()?;
+    let report = report(engine.project(), &fab, &PickOptions::default())?;
+    assert!(report.build[0].calculated.is_some());
+    assert!(
+        report
+            .pick
+            .open
+            .iter()
+            .any(|o| o.contains("Dk 4.1. Calculated")),
+        "{:?}",
+        report.pick.open
+    );
+    let row = &list(
+        engine.project(),
+        &[fab],
+        &StackupFilter {
+            all: true,
+            ..StackupFilter::default()
+        },
+    )
+    .stackups[0];
+    assert_eq!(row.calculated_dk, 1);
+    Ok(())
+}
+
+/// A board's stackup as an engine step.
+fn set(engine: &mut Engine, stackup: Stackup) -> crate::diagnostics::Result<crate::Outcome> {
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::SetStackup(stackup)),
+    )
+}
+
+/// Entering a thickness or a Dk drops what it was calculated from; sheets
+/// that do not give the Dk never reach the board.
+#[test]
+fn a_calculated_dk_is_calculated_only_while_its_sheets_give_it() -> Fallible<()> {
+    let mut engine = four_layers()?;
+    let taken = mixed().stackup(&engine.project().stackup)?;
+    set(&mut engine, taken.clone())?;
+    assert!(
+        engine.project().stackup.dielectrics[0]
+            .calculated_from()
+            .is_some()
+    );
+    let edits: [fn(&mut Stackup); 2] = [
+        |s| s.dielectrics[0].dk = Some(4.0),
+        |s| s.dielectrics[0].thickness_mm = 0.31,
+    ];
+    for edit in edits {
+        let mut next = taken.clone();
+        edit(&mut next);
+        assert_eq!(next.dielectrics[0].calculated_text(), None);
+        set(&mut engine, next)?;
+        assert!(engine.project().stackup.dielectrics[0].sheets.is_empty());
+        engine.undo()?;
+        assert_eq!(engine.project().stackup, taken);
+    }
+    Ok(())
+}
+
+/// The board keeps the picked stackup's id and name: through a plane mark, a
+/// mask edit, a request that leaves it out and the file; not through an edit
+/// of a layer, whichever way it comes. Undo brings it back.
+#[test]
+fn a_picked_name_stays_exactly_as_long_as_its_layers() -> Fallible<()> {
+    let mut engine = four_layers()?;
+    let pick = pick(engine.project(), &plain(), &PickOptions::default())?;
+    assert!(
+        pick.changes
+            .iter()
+            .any(|c| c.starts_with("The stackup is named ")),
+        "{:?}",
+        pick.changes
+    );
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::EditStackup(pick.edit)),
+    )?;
+    let named = |e: &Engine| {
+        e.project()
+            .stackup
+            .picked()
+            .map(|p| (p.id.clone(), p.name.clone()))
+    };
+    let name = Some((plain().id, plain().name));
+    assert_eq!(named(&engine), name);
+    let library = [plain()];
+    let listed = list(
+        engine.project(),
+        &library,
+        &StackupFilter {
+            all: true,
+            ..StackupFilter::default()
+        },
+    );
+    assert_eq!(listed.picked.map(|p| p.id), Some(plain().id));
+    assert!(listed.stackups[0].picked && listed.stackups[0].board);
+    let keeps: [fn(&mut Stackup); 3] = [
+        |s| s.copper[1].plane = !s.copper[1].plane,
+        |s| s.mask_um += 1.0,
+        |s| s.picked = None,
+    ];
+    for edit in keeps {
+        let mut next = engine.project().stackup.clone();
+        edit(&mut next);
+        set(&mut engine, next)?;
+        assert_eq!(named(&engine), name);
+    }
+    let saved = serde_json::to_string(&engine.project().stackup)?;
+    let read: Stackup = serde_json::from_str(&saved)?;
+    assert_eq!(read.picked().map(|p| p.id.clone()), Some(plain().id));
+    let drops: [fn(&mut Stackup); 6] = [
+        |s| s.copper[1].thickness_um = 35.0,
+        |s| s.dielectrics[0].thickness_mm += 0.01,
+        |s| s.dielectrics[1].dk = Some(4.5),
+        |s| s.dielectrics[1].dk = None,
+        |s| s.dielectrics[0].glass = GlassStyle::Style1080,
+        |s| s.dielectrics[0].kind = DielectricKind::Core,
+    ];
+    for edit in drops {
+        let before = engine.project().stackup.clone();
+        let mut next = before.clone();
+        edit(&mut next);
+        assert_eq!(next.picked(), None, "{next:?}");
+        // The name is sent along all the same.
+        assert!(next.picked.is_some());
+        set(&mut engine, next)?;
+        assert_eq!(engine.project().stackup.picked, None);
+        engine.undo()?;
+        assert_eq!(engine.project().stackup, before);
+        assert_eq!(named(&engine), name);
+    }
+    // The copper weight of a profile is an edit of the outer foils.
+    let heavy = engine.project().stackup.with_outer_copper(70.0)?;
+    assert_eq!(heavy.picked, None);
+    // Other layers with the name are not the stackup.
+    let mut other = Stackup::preset(4)?;
+    other.picked.clone_from(&engine.project().stackup.picked);
+    assert_eq!(other.picked(), None);
+    // A name is text a file can hold.
+    let mut odd = engine.project().stackup.clone();
+    if let Some(p) = &mut odd.picked {
+        p.name = "a\nCharges".into();
+    }
+    assert!(set(&mut engine, odd).is_err());
     Ok(())
 }
 
@@ -206,7 +370,7 @@ fn a_board_takes_pressed_thicknesses() -> Fallible<()> {
     }
     fab.layers_sum_after_lamination_mm = Some(fab.layers_sum_mm - 0.04);
     fab.check()?;
-    let taken = fab.stackup(&Stackup::preset(4)?, false)?;
+    let taken = fab.stackup(&Stackup::preset(4)?)?;
     assert_eq!(taken.dielectrics[0].thickness_mm, 0.18);
     let engine = four_layers()?;
     let pick = pick(engine.project(), &fab, &PickOptions::default())?;
@@ -384,7 +548,6 @@ fn copper_on_a_lost_layer_refuses_until_it_has_a_place() -> Fallible<()> {
             from: CopperLayer::Inner(5),
             to: CopperLayer::Inner(2),
         }],
-        average_dk: false,
     };
     let with = pick(engine.project(), &plain(), &options)?;
     assert_eq!(with.refused, None);
@@ -405,7 +568,6 @@ fn copper_on_a_lost_layer_refuses_until_it_has_a_place() -> Fallible<()> {
             from: CopperLayer::Inner(1),
             to: CopperLayer::Inner(2),
         }],
-        average_dk: false,
     };
     assert!(pick(engine.project(), &plain(), &kept).is_err());
     Ok(())
@@ -525,7 +687,7 @@ fn a_list_shows_the_profiles_maker_or_every_maker_when_it_names_none() -> Fallib
     };
     assert!(ids(&project, &thin).is_empty());
     // The row of the build the board has says so.
-    project.stackup = plain().stackup(&project.stackup, false)?;
+    project.stackup = plain().stackup(&project.stackup)?;
     let rows = list(&project, &library, &board).stackups;
     assert!(rows.iter().all(|r| r.board), "{rows:?}");
     Ok(())
@@ -541,7 +703,6 @@ fn an_unresolved_id_is_refused() -> Fallible<()> {
         Operation::Layout(LayoutCommand::UseStackup {
             stackup: "test-4".into(),
             moves: Vec::new(),
-            average_dk: false,
         }),
     );
     assert!(

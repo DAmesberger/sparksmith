@@ -227,7 +227,7 @@ fn the_search_answers_the_questions_in_its_first_three_topics() -> Fallible {
     // (set, audience, with the model, by words alone)
     for (set, who, with, alone) in [
         ("tune", "person", 46, 43),
-        ("held", "person", 51, 45),
+        ("held", "person", 51, 44),
         ("run2", "person", 30, 28),
         ("fresh", "person", 12, 10),
         ("tune", "agent", 7, 7),

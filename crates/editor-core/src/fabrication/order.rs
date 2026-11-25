@@ -1,11 +1,13 @@
 //! The order notes: what the order form and its remarks must say that the
-//! other files cannot, and the published charges whose condition the board
+//! other files cannot, the fabricator's stackup the layers were picked from,
+//! and the published charges whose condition the board
 //! meets, each with its source. Written only when there is one.
 //!
 //! The words and the conditions are the fab profile's data. The lines a
 //! reader (`readback`) takes back are the tool lines (two spaces, `T1`, the
-//! finished size, the count) under "Fill and cap" and "Leave open", and the
-//! charges (two spaces and a quoted sentence) under "Charges".
+//! finished size, the count) under "Fill and cap" and "Leave open", the
+//! charges (two spaces and a quoted sentence) under "Charges", and the one
+//! line [`stackup_line`].
 use super::drill::{DrillTable, DrillTool};
 use super::snapshot::Identity;
 use super::{FabFile, FileGroup, HoleFunction, drill};
@@ -28,6 +30,12 @@ pub fn charges(project: &Project) -> Vec<&Charge> {
         }
     }
     out
+}
+
+/// "Stackup: JLC04161H-7628 (jlc04161h-7628)", when the layers are one.
+pub(super) fn stackup_line(project: &Project) -> Option<String> {
+    let picked = project.stackup.picked()?;
+    Some(format!("Stackup: {} ({})", picked.name, picked.id))
 }
 
 fn tool_line(s: &mut String, tool: &DrillTool) {
@@ -55,7 +63,8 @@ pub fn file(project: &Project, identity: &Identity, stem: &str) -> Option<FabFil
     let charges = charges(project);
     let vias = |t: &&DrillTool| t.function == HoleFunction::Via;
     let filled = table.tools.iter().any(|t| !t.fill.is_none());
-    if !filled && charges.is_empty() {
+    let stackup = stackup_line(project);
+    if !filled && charges.is_empty() && stackup.is_none() {
         return None;
     }
     let profile = project.rules.profile.as_ref();
@@ -69,6 +78,9 @@ pub fn file(project: &Project, identity: &Identity, stem: &str) -> Option<FabFil
         project.stackup.copper.len(),
         number(project.stackup.thickness_mm())
     );
+    if let Some(line) = stackup {
+        let _ = writeln!(s, "{line}");
+    }
     if filled {
         fill(&mut s, project, &table);
         let _ = writeln!(s, "\nLeave open");

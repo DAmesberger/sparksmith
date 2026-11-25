@@ -230,6 +230,7 @@ impl PartEditor {
         {
             self.identity.expect_new = false;
         }
+        self.discarding = false;
         self.lineage = None;
         self.source = None;
         self.draft = None;
