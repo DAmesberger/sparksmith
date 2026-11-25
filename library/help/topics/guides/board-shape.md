@@ -75,6 +75,6 @@ A constraint is a rule between points and curves, such as two lines that stay pa
 - Set directions first, then make equal what should stay equal, and dimension it once. A name or an expression as the value is a parameter: see [[guide/parameters]].
 - Point at a curve or a point, or select it, to see its constraints. Constraints ({key:shape.bs-constraints}) shows them all.
 - Click a constraint's mark and press {key:shape.delete} to delete it. If parts are dimensioned to what it held, the card says how many.
-- A constraint or dimension that the sketch sets already is refused, and the message names what sets it. Edit or delete that one if the new one says better what you mean.
+- A constraint or dimension that the sketch sets already is refused, and the message names what sets it, as in “Horizontal already sets this; it would hold nothing more”. Edit or delete that one if the new one says better what you mean.
 
 To place parts from the edges, see [[guide/dimensions]]. Automation sends the same constraints with [[entry/board.edit]], under the same names.
