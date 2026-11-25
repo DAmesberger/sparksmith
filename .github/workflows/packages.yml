@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         # The oldest Ubuntu offered: the glibc it has is the one a person needs.
-        os: ["ubuntu-22.04", "windows-latest", "macos-14"]
+        os: ["ubuntu-22.04", "windows-latest", "macos-15"]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
