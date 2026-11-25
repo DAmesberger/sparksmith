@@ -8,7 +8,7 @@ use sparksmith_automation::{FileChange, HostFile};
 use sparksmith_core::library::standards::Context;
 use sparksmith_core::{Document, Engine, FirstSave, Project, format::EditorFile};
 use sparksmith_io::recovery::{self, RecoveryEntry, RecoveryRecord, RecoveryStore, Snapshot};
-use sparksmith_io::{DiskIdentity, SavedDocument, UnsavedCopy};
+use sparksmith_io::{DiskIdentity, SavedDocument, UnsavedCopy, WriteProtected};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button};
 use std::{
@@ -28,6 +28,12 @@ const SNAPSHOT_IDLE: f64 = 2.0;
 /// every edit restarts the idle wait, so without this bound steady work
 /// would never be kept (review: crash recovery cadence).
 pub(crate) const MAX_SNAPSHOT_INTERVAL: f64 = 30.0;
+
+const SAVE_AS: &str = "Save As…";
+
+/// What Replace does with a write-protected file.
+const REPLACE_PROTECTED: &str =
+    "Replace puts this version in its place. The file stays write-protected.";
 
 /// Seconds a save or import may take before the app bar says that the
 /// system has not answered.
@@ -314,6 +320,7 @@ enum Job {
         Document,
         Option<DiskIdentity>,
         Option<UnsavedCopy>,
+        WriteProtected,
     ),
     SchematicPdf(Ticket, PathBuf, Arc<Project>),
     Recover(Ticket, Document, Option<PathBuf>),
@@ -356,6 +363,18 @@ enum Wrote {
     Kept(Box<sparksmith_io::Conflict>),
     /// Nothing: another program has the file open.
     InUse(Box<sparksmith_io::InUse>),
+    /// Nothing: the file is write-protected; what to say.
+    Protected(String),
+}
+
+/// A refused save to answer.
+#[derive(Clone)]
+struct NotSaved {
+    path: PathBuf,
+    said: String,
+    /// The file is write-protected, which the person may replace; else
+    /// another program has it, and the save can be tried again.
+    protected: bool,
 }
 
 /// This session's recovery snapshot, which the file worker writes while the
@@ -498,7 +517,7 @@ fn worker(ctx: egui::Context, recovery: Arc<Recovery>, events: Sender<Event>) ->
                         });
                     Event::Imported(ticket, path, value)
                 }
-                Job::Write(ticket, path, document, expected, unsaved) => {
+                Job::Write(ticket, path, document, expected, unsaved, protected) => {
                     // A random nonce: two new projects saved under one file
                     // name are still two projects.
                     let nonce = sparksmith_io::interface::random_hex().unwrap_or_default();
@@ -509,10 +528,14 @@ fn worker(ctx: egui::Context, recovery: Arc<Recovery>, events: Sender<Event>) ->
                         expected,
                         &nonce,
                         unsaved.as_ref(),
+                        protected,
                     ) {
                         Ok(saved) => Ok(Wrote::Saved(Box::new(saved))),
                         Err(sparksmith_io::Error::Conflict(conflict)) => Ok(Wrote::Kept(conflict)),
                         Err(sparksmith_io::Error::InUse(in_use)) => Ok(Wrote::InUse(in_use)),
+                        Err(error @ sparksmith_io::Error::WriteProtected(_)) => {
+                            Ok(Wrote::Protected(error.to_string()))
+                        }
                         Err(error) => Err(error.to_string()),
                     };
                     Event::Written(ticket, path, result)
@@ -626,9 +649,8 @@ pub struct FileUi {
     /// The window is closing with the user's answer (or nothing unsaved):
     /// the exit keeps no recovery copy.
     closed: bool,
-    /// A refused save to answer: the file another program has open, and
-    /// what to say.
-    in_use: Option<(PathBuf, String)>,
+    /// A refused save to answer.
+    not_saved: Option<NotSaved>,
     /// Export to SolidCraft: its window and the export running on its own
     /// thread, which saving and recovery do not wait for.
     model_export: crate::model_export::ModelExport,
@@ -690,7 +712,7 @@ impl FileUi {
             import_cancel: Cancel::default(),
             access: (0.0, PathBuf::new()),
             closed: false,
-            in_use: None,
+            not_saved: None,
             model_export: crate::model_export::ModelExport::new(ctx),
         }
     }
@@ -795,7 +817,7 @@ impl FileUi {
         Some(activity_text(work, path, self.now - since))
     }
     pub fn prompting(&self) -> bool {
-        self.controller.prompt.is_some() || self.in_use.is_some() || !self.recoveries.is_empty()
+        self.controller.prompt.is_some() || self.not_saved.is_some() || !self.recoveries.is_empty()
     }
     /// The latest file message, with its severity said explicitly.
     pub fn take_status(&mut self) -> Option<(Level, String)> {
@@ -826,7 +848,7 @@ impl FileUi {
             self.restored_source = None;
             self.restored_origin = None;
         }
-        self.in_use = None;
+        self.not_saved = None;
         self.document = engine.document().clone();
         self.saved_document = (!recovered).then(|| self.document.clone());
         self.model_export.document_opened();
@@ -1061,18 +1083,26 @@ impl FileUi {
         };
         if !save_as && let Some(path) = self.controller.path.clone() {
             let expected = self.controller.disk;
-            self.write(ticket, path, expected);
+            self.write(ticket, path, expected, WriteProtected::Refuse);
         } else {
             self.pick(ticket, Kind::Save);
         }
     }
     /// Write the captured document to `path`.
-    fn write(&mut self, ticket: Ticket, path: PathBuf, expected: Option<DiskIdentity>) {
+    fn write(
+        &mut self,
+        ticket: Ticket,
+        path: PathBuf,
+        expected: Option<DiskIdentity>,
+        protected: WriteProtected,
+    ) {
         let Some(document) = self.captured.clone() else {
             return;
         };
         let unsaved = self.controller.unsaved.clone();
-        self.send(Job::Write(ticket, path, document, expected, unsaved));
+        self.send(Job::Write(
+            ticket, path, document, expected, unsaved, protected,
+        ));
     }
     /// What a save to `path` may replace: the window's own file only while
     /// it holds what was opened or saved here, any other whatever it holds.
@@ -1083,28 +1113,41 @@ impl FileUi {
             .filter(|own| sparksmith_io::same_file(own, path))
             .and(self.controller.disk)
     }
-    /// A refused save's dialog: Try again, Save As or Cancel. A question
-    /// the save was the answer to (quitting, opening) goes on with it.
-    fn in_use_dialog(&mut self, ctx: &egui::Context, path: PathBuf, said: &str) {
+    /// A refused save's dialog: Try again (Replace, for a write-protected
+    /// file), Save As or Cancel. A question the save was the answer to
+    /// (quitting, opening) goes on with it.
+    fn not_saved_dialog(&mut self, ctx: &egui::Context, refused: NotSaved) {
         let mut choice = None;
         ui_kit::Window::new(
-            egui::Id::unique("file-in-use"),
+            egui::Id::unique("file-not-saved"),
             "status_warning",
             "The project was not saved",
         )
         .required()
         .show_body(ctx, |ui| {
             dialog_body(ui, |ui| {
-                crate::kit::note(ui, said);
+                crate::kit::note(ui, &refused.said);
+                if refused.protected {
+                    crate::kit::note(ui, REPLACE_PROTECTED);
+                }
                 crate::kit::actions(ui, |ui| {
-                    if crate::kit::primary(ui, "Try again", true).clicked() {
-                        choice = Some(InUseChoice::Again);
-                    }
-                    if ui_kit::button(ui, "Save As…", Button::Normal).clicked() {
-                        choice = Some(InUseChoice::SaveAs);
+                    if refused.protected {
+                        if crate::kit::primary(ui, SAVE_AS, true).clicked() {
+                            choice = Some(NotSavedChoice::SaveAs);
+                        }
+                        if ui_kit::button(ui, "Replace", Button::Normal).clicked() {
+                            choice = Some(NotSavedChoice::Write(WriteProtected::Replace));
+                        }
+                    } else {
+                        if crate::kit::primary(ui, "Try again", true).clicked() {
+                            choice = Some(NotSavedChoice::Write(WriteProtected::Refuse));
+                        }
+                        if ui_kit::button(ui, SAVE_AS, Button::Normal).clicked() {
+                            choice = Some(NotSavedChoice::SaveAs);
+                        }
                     }
                     if ui_kit::button(ui, "Cancel", Button::Normal).clicked() {
-                        choice = Some(InUseChoice::Cancel);
+                        choice = Some(NotSavedChoice::Cancel);
                     }
                 });
             });
@@ -1112,20 +1155,20 @@ impl FileUi {
         let Some(choice) = choice else {
             return;
         };
-        self.in_use = None;
+        self.not_saved = None;
         match choice {
-            InUseChoice::Again => {
+            NotSavedChoice::Write(protected) => {
                 let next = self.controller.prompt.take();
                 if let Some(ticket) = self.begin(Kind::Save, next) {
-                    let expected = self.expected_at(&path);
-                    self.write(ticket, path, expected);
+                    let expected = self.expected_at(&refused.path);
+                    self.write(ticket, refused.path, expected, protected);
                 }
             }
-            InUseChoice::SaveAs => {
+            NotSavedChoice::SaveAs => {
                 let next = self.controller.prompt.take();
                 self.save(true, next);
             }
-            InUseChoice::Cancel => {}
+            NotSavedChoice::Cancel => {}
         }
     }
     /// The folder and file name the project's save panel proposes: its
@@ -1332,7 +1375,7 @@ impl FileUi {
                     // what this window opened or saved (review finding 16).
                     Kind::Save => {
                         let expected = self.expected_at(&path);
-                        self.write(ticket, path, expected);
+                        self.write(ticket, path, expected, WriteProtected::Refuse);
                     }
                     Kind::Open if ticket.stamp == self.controller.current => {
                         self.send(Job::Read(ticket, path))
@@ -1371,7 +1414,20 @@ impl FileUi {
                     }
                     self.controller.cancel(&ticket, Kind::Save);
                     self.status = Some((Level::Error, said.clone()));
-                    self.in_use = Some((path, said));
+                    self.not_saved = Some(NotSaved {
+                        path,
+                        said,
+                        protected: false,
+                    });
+                }
+                Ok(Wrote::Protected(said)) => {
+                    self.controller.cancel(&ticket, Kind::Save);
+                    self.status = Some((Level::Error, said.clone()));
+                    self.not_saved = Some(NotSaved {
+                        path,
+                        said,
+                        protected: true,
+                    });
                 }
                 Ok(wrote) => {
                     // A conflict kept both versions: this document is in
@@ -1392,7 +1448,7 @@ impl FileUi {
                             Some(sparksmith_io::Error::Conflict(conflict).to_string()),
                         ),
                         // Answered above.
-                        Wrote::InUse(_) => return,
+                        Wrote::InUse(_) | Wrote::Protected(_) => return,
                     };
                     if let Some((current, continuation)) =
                         self.controller.saved(&ticket, path.clone(), identity)
@@ -1606,8 +1662,8 @@ impl FileUi {
                 self.pick(ticket, Kind::Export);
             }
         }
-        if let Some((path, said)) = self.in_use.clone() {
-            self.in_use_dialog(ctx, path, &said);
+        if let Some(refused) = self.not_saved.clone() {
+            self.not_saved_dialog(ctx, refused);
             return;
         }
         if let Some(transition) = &self.controller.prompt {
@@ -1816,8 +1872,8 @@ fn recovery_label(entry: &RecoveryEntry, now_ms: u64) -> String {
 }
 
 #[derive(Clone, Copy)]
-enum InUseChoice {
-    Again,
+enum NotSavedChoice {
+    Write(WriteProtected),
     SaveAs,
     Cancel,
 }

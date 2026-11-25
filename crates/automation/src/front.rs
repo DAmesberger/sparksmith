@@ -263,10 +263,16 @@ impl Surface for Session {
     }
 }
 
+/// Why a person decides about a save over a write-protected file.
+const REPLACES_PROTECTED: &str =
+    "It replaces the file even if it is write-protected, so a person decides.";
+
 impl Session {
     /// The gate for `request` from `who`, against what is on disk: a link
     /// inside an allowed folder cannot lead out of it. `project.save`
-    /// without a path counts as naming the file it would overwrite.
+    /// without a path counts as naming the file it would overwrite, and one
+    /// that replaces a write-protected file is a person's to allow in every
+    /// permission mode.
     pub(crate) fn gate(&self, who: &Principal<'_>, request: &Request) -> Decision {
         let Some(grant) = who.grant() else {
             return Decision::Run;
@@ -276,6 +282,7 @@ impl Session {
             (Request::Save(params), Some(current)) if params.path.is_none() => {
                 saved = Request::Save(crate::session::SaveParams {
                     path: Some(current.display().to_string().into()),
+                    ..params.clone()
                 });
                 &saved
             }
@@ -295,7 +302,21 @@ impl Session {
                 .and_then(|path| gate::real_path(&path))
                 .is_some_and(|path| folders.iter().any(|folder| path.starts_with(folder)))
         };
-        gate::decide_entries(who, &subjects, &paths, &inside)
+        let decision = gate::decide_entries(who, &subjects, &paths, &inside);
+        let replaces = matches!(request, Request::Save(params) if params.replace_write_protected);
+        match decision {
+            Decision::Run if replaces => Decision::Ask(Question {
+                command: request.subject().to_owned(),
+                class: sparksmith_core::Class::Ask,
+                paths,
+                why: REPLACES_PROTECTED.to_owned(),
+            }),
+            Decision::Ask(question) if replaces => Decision::Ask(Question {
+                why: REPLACES_PROTECTED.to_owned(),
+                ..question
+            }),
+            decision => decision,
+        }
     }
 }
 
@@ -385,6 +406,9 @@ pub fn from_diagnostic(diagnostic: Diagnostic) -> Error {
         ),
         (_, "file_in_use") => Some(
             "Have the other program closed and call project.save again, or save to another path. The project is still open and unsaved.",
+        ),
+        (_, "file_write_protected") => Some(
+            "Save to another path, or ask the person to make the file writable. Only when the person says to replace it, call project.save with replace_write_protected. The project is still open and unsaved.",
         ),
         _ => None,
     }

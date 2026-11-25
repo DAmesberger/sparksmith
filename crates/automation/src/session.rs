@@ -164,6 +164,9 @@ pub struct SaveParams {
     /// Destination `.sparksmith` file; defaults to the path last opened or saved.
     #[serde(default)]
     pub path: Option<FilePath>,
+    /// Replace a write-protected file, when the person said so (they are asked).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub replace_write_protected: bool,
 }
 
 /// Import an SVG file's drawing into a symbol or footprint draft.
@@ -1693,6 +1696,11 @@ impl Session {
                     expected,
                     "",
                     self.unsaved.as_ref(),
+                    if params.replace_write_protected {
+                        sparksmith_io::WriteProtected::Replace
+                    } else {
+                        sparksmith_io::WriteProtected::Refuse
+                    },
                 ) {
                     Ok(saved) => saved,
                     Err(sparksmith_io::Error::InUse(in_use)) => {

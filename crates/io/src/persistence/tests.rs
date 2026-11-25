@@ -165,11 +165,13 @@ fn a_writer_holding_the_original_handle_detects_the_other_writers_rename() -> Re
 fn a_locked_file_is_refused_at_once_and_this_version_is_kept() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("board.sparksmith");
-    let saved = save_document(&path, Engine::demo()?.document(), None, "", None)?;
+    let refuse = WriteProtected::Refuse;
+    let saved = save_document(&path, Engine::demo()?.document(), None, "", None, refuse)?;
     let before = std::fs::read(&path)?;
     let holder = File::open(&path)?;
     holder.lock()?;
-    let refused = save_document(&path, &saved.document, Some(saved.identity), "", None);
+    let identity = Some(saved.identity);
+    let refused = save_document(&path, &saved.document, identity, "", None, refuse);
     let Err(Error::InUse(in_use)) = refused else {
         return Err(Error::Invalid(format!("{refused:?}")));
     };
@@ -181,15 +183,62 @@ fn a_locked_file_is_refused_at_once_and_this_version_is_kept() -> Result<()> {
         format::EditorFile::from_document(&saved.document)
     );
     drop(holder);
-    let saved = save_document(
-        &path,
-        &saved.document,
-        Some(saved.identity),
-        "",
-        Some(&copy),
-    )?;
+    let saved = save_document(&path, &saved.document, identity, "", Some(&copy), refuse)?;
     assert_eq!(open_project(&path)?.1, saved.identity);
     assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    Ok(())
+}
+
+/// GUI check 2, N2: a write-protected file is not replaced, through a link
+/// neither, whether it was opened or only named; told to, a save replaces
+/// it and it stays write-protected.
+#[test]
+fn a_write_protected_file_is_replaced_only_when_told() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("board.sparksmith");
+    let file = Engine::demo()?.to_file();
+    let opened = save_project(&path, &file, None)?;
+    let mut protected = std::fs::metadata(&path)?.permissions();
+    protected.set_readonly(true);
+    std::fs::set_permissions(&path, protected.clone())?;
+    let before = std::fs::read(&path)?;
+    let mut named = vec![path.clone()];
+    #[cfg(unix)]
+    {
+        let link = dir.path().join("link.sparksmith");
+        std::os::unix::fs::symlink(&path, &link)?;
+        named.push(link);
+    }
+    let mut edited = file.clone();
+    edited.project.name = "Edited".into();
+    for path in &named {
+        for expected in [None, Some(opened)] {
+            let refused = save_project(path, &edited, expected);
+            assert!(
+                matches!(refused, Err(Error::WriteProtected(_))),
+                "{refused:?}"
+            );
+        }
+    }
+    assert_eq!(std::fs::read(&path)?, before);
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), named.len());
+
+    let saved = save_document(
+        &path,
+        Engine::profiled()?.document(),
+        Some(opened),
+        "",
+        None,
+        WriteProtected::Replace,
+    )?;
+    assert_eq!(open_project(&path)?.1, saved.identity);
+    assert_eq!(std::fs::metadata(&path)?.permissions(), protected);
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), named.len());
+    // So Windows can remove the folder.
+    let mut writable = protected;
+    #[allow(clippy::permissions_set_readonly_false)]
+    writable.set_readonly(false);
+    std::fs::set_permissions(&path, writable)?;
     Ok(())
 }
 

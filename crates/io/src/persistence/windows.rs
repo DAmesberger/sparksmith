@@ -14,7 +14,7 @@ use super::InUse;
 use crate::{Error, Result};
 use std::fs::{File, OpenOptions};
 use std::os::windows::fs::OpenOptionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
 const FILE_FLAG_DELETE_ON_CLOSE: u32 = 0x0400_0000;
@@ -115,6 +115,37 @@ impl Staged {
     }
 }
 
+/// A write-protected file made writable to be replaced, which Windows does
+/// not do otherwise; the file that is there afterwards is write-protected.
+pub(super) struct Writable(PathBuf);
+
+impl Writable {
+    /// `None` when there is no write-protected file at `path`.
+    #[allow(clippy::permissions_set_readonly_false)] // an attribute on Windows
+    pub(super) fn for_replacement(path: &Path) -> Result<Option<Self>> {
+        let Ok(meta) = std::fs::metadata(path) else {
+            return Ok(None);
+        };
+        let mut permissions = meta.permissions();
+        if !meta.is_file() || !permissions.readonly() {
+            return Ok(None);
+        }
+        permissions.set_readonly(false);
+        std::fs::set_permissions(path, permissions)?;
+        Ok(Some(Self(path.to_path_buf())))
+    }
+}
+
+impl Drop for Writable {
+    fn drop(&mut self) {
+        if let Ok(meta) = std::fs::metadata(&self.0) {
+            let mut permissions = meta.permissions();
+            permissions.set_readonly(true);
+            let _ = std::fs::set_permissions(&self.0, permissions);
+        }
+    }
+}
+
 /// What kept the file at `path` from being replaced, which is as it was.
 pub(super) fn refused(path: &Path, error: Error) -> Error {
     match error {
@@ -125,7 +156,9 @@ pub(super) fn refused(path: &Path, error: Error) -> Error {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{open_project, save_document, save_project, write_project};
+    use super::super::{
+        UnsavedCopy, WriteProtected, open_project, save_document, save_project, write_project,
+    };
     use super::*;
     use sparksmith_core::Engine;
 
@@ -167,7 +200,10 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let path = dir.path().join("board.sparksmith");
         let engine = Engine::demo()?;
-        let saved = save_document(&path, engine.document(), None, "", None)?;
+        let save = |document: &sparksmith_core::Document, expected, copy: Option<&UnsavedCopy>| {
+            save_document(&path, document, expected, "", copy, WriteProtected::Refuse)
+        };
+        let saved = save(engine.document(), None, None)?;
         let before = std::fs::read(&path)?;
         let holder = OpenOptions::new()
             .read(true)
@@ -176,7 +212,7 @@ mod tests {
         let document = &saved.document;
         let mut copy = None;
         for _ in 0..2 {
-            let again = save_document(&path, document, Some(saved.identity), "", copy.as_ref());
+            let again = save(document, Some(saved.identity), copy.as_ref());
             let Err(Error::InUse(in_use)) = again else {
                 return Err(Error::Invalid(format!("{again:?}")));
             };
@@ -189,7 +225,7 @@ mod tests {
             );
         }
         drop(holder);
-        save_document(&path, document, Some(saved.identity), "", copy.as_ref())?;
+        save(document, Some(saved.identity), copy.as_ref())?;
         assert_eq!(files(dir.path())?, ["board.sparksmith"]);
         Ok(())
     }
