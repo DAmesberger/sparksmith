@@ -239,6 +239,11 @@ def build(s):
                  [pin(r, n, name, *(("power_output", V, "power") if name == "VBUS" else ("passive", V, "unspecified")),
                       page=1, table="Pin/Signal table") for r, n, name in rows])
     comp, sym, pkg, bind = ids
+    # A connector's designators are J: the pinout import makes every
+    # component U, as a pinout document says nothing of what the part is.
+    d = drafts(s)[comp]
+    d["definition"]["body"]["designator_prefix"] = "J"
+    edit(s, [{"id": comp, "meta": d["meta"], "definition": d["definition"]}], "USB4105-GF-A prefix")
     # The stacked numbers ("A1B12", "B4A9") need 7.5 mm stubs at full
     # height; the pinout's 2.5 mm stubs shrank them to less than half of it.
     fit_pin_numbers(s, comp, sym, [n for _, n, _ in rows])

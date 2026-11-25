@@ -3,7 +3,7 @@
 # Pass --rebase after changing the shipped generators.
 # Run from the repository root:  sh examples/esp32-s31-devboard/regenerate.sh
 #
-# 1. The replay (648 JSON-lines requests through `sparksmith stdio
+# 1. The replay (649 JSON-lines requests through `sparksmith stdio
 #    --operator`, the same command engine the desktop and MCP use) opens the
 #    module example, authors the other parts, draws the schematic, lays out
 #    and routes the board and saves esp32-s31-devboard.sparksmith. Any refused

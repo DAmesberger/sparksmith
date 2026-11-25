@@ -5,7 +5,7 @@ whole body back, since `library.edit` replaces a draft's meta and
 definition: it renames two generated packages (the SOT-23-5 and SOT-23-3 of
 the regulator and the ESD part: build_lib.py, `own(..., package=)`), types
 the chip resistor's and capacitors' components with this board's fields
-(`set_fields`) and gives the B3U-1000P push button its `SW` prefix; its
+(`set_fields`) and gives the B3U-1000P push button its `SW` prefix and the USB4105 its `J`; its
 pinout plans are applied with the base token their preview gave. The
 replay records each body literally, as the generator made it then. After the
 generator or its part file changes, replaying puts the old generation back
