@@ -119,34 +119,79 @@ fn a_refused_publish_closes_nothing() -> Result<()> {
     Ok(())
 }
 
-/// The run's friction: a library of more parts than the draft limit holds.
-/// Five drafts a part for fourteen parts is 70, past the limit of 64.
+/// GUI run 2, R2-B1: a project holds as many drafts as its author opens.
+/// Fourteen parts kept open after publishing are 70 drafts; they can be
+/// checked, saved and published, and hold nothing to publish.
 #[test]
-fn a_library_larger_than_the_draft_limit_publishes_without_discarding() -> Result<()> {
+fn drafts_are_not_counted() -> Result<()> {
     let mut engine = Engine::default();
-    let names: Vec<String> = (0..14).map(|n| format!("EX-PART-{n}")).collect();
-    for name in &names {
+    for n in 0..14 {
+        let fixture = draft(&mut engine, &probe(&format!("EX-PART-{n}"), passive()))?;
+        apply(&mut engine, publish_op(fixture.all(), false))?;
+    }
+    assert_eq!(engine.drafts().items.len(), 70);
+    assert_eq!(all_checks(&engine)?.len(), 70);
+    let unedited = |engine: &Engine| {
+        crate::library::drafts::unedited(engine.drafts(), &engine.project().library)
+    };
+    assert_eq!(unedited(&engine).len(), 70);
+    let mut again = Engine::default();
+    again.replace_document(engine.to_file())?;
+    assert_eq!(again.drafts(), engine.drafts());
+    Ok(())
+}
+
+/// A changed draft keeps the whole set it is published with; every other
+/// set holds nothing to publish, whatever revisions its drafts name.
+#[test]
+fn an_edited_draft_keeps_its_set() -> Result<()> {
+    let mut engine = Engine::default();
+    let mut sets = Vec::new();
+    for name in ["Left alone", "Changed"] {
         let fixture = draft(&mut engine, &probe(name, passive()))?;
         apply(&mut engine, publish_op(fixture.all(), true))?;
-        assert!(engine.drafts().items.is_empty());
+        let library = &engine.project().library;
+        let component = library
+            .latest_components()
+            .into_iter()
+            .find(|c| c.id == fixture.component)
+            .map(|c| crate::ComponentRef::new(c.id, c.revision))
+            .ok_or_else(|| Error::NotFound(name.into()))?;
+        // The closure's drafts name each other's pending revisions.
+        apply(
+            &mut engine,
+            Operation::Library(LibraryCommand::DraftClosure { component }),
+        )?;
+        sets.push(fixture);
     }
-    assert_eq!(engine.project().library.latest_components().len(), 14);
+    let unedited = |engine: &Engine| {
+        crate::library::drafts::unedited(engine.drafts(), &engine.project().library)
+    };
+    assert_eq!(unedited(&engine).len(), engine.drafts().items.len());
 
-    // With the drafts kept open, the same library hits the limit.
-    let mut engine = Engine::default();
-    let mut limited = None;
-    for name in &names {
-        match draft(&mut engine, &probe(name, passive())) {
-            Ok(fixture) => {
-                apply(&mut engine, publish_op(fixture.all(), false))?;
-            }
-            Err(error) => {
-                limited = Some(error);
-                break;
-            }
-        }
-    }
-    assert_eq!(limited.as_ref().map(Error::code), Some("limit_exceeded"));
+    let changed = sets[1].package;
+    let mut edit = engine
+        .drafts()
+        .get(changed)
+        .cloned()
+        .ok_or_else(|| Error::NotFound("the package draft".into()))?;
+    edit.meta.name.push_str(" wider");
+    apply(
+        &mut engine,
+        Operation::Library(LibraryCommand::Edit {
+            edits: vec![DraftEdit {
+                id: edit.id,
+                meta: edit.meta,
+                definition: edit.definition,
+            }],
+        }),
+    )?;
+    let left: Vec<DefinitionId> = unedited(&engine).into_iter().collect();
+    assert_eq!(left, sorted(sets[0].all()));
+
+    // A draft never published is work, not an opened revision.
+    let fresh = draft(&mut engine, &probe("New", passive()))?;
+    assert!(fresh.all().iter().all(|id| !unedited(&engine).contains(id)));
     Ok(())
 }
 

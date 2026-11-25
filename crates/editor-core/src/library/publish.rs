@@ -227,9 +227,6 @@ pub fn candidate(
     drafts: &Drafts,
     ids: &[DefinitionId],
 ) -> Result<(Library, Vec<DefinitionRef>)> {
-    if ids.len() > super::drafts::MAX_DRAFTS {
-        return Err(Error::Invalid("too many drafts to stage together".into()));
-    }
     let mut unique = BTreeSet::new();
     let mut set = Vec::with_capacity(ids.len());
     for id in ids {

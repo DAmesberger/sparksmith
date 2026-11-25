@@ -1,16 +1,16 @@
 //! Unfinished definitions. Drafts live outside the project, so editing one
 //! neither revalidates the project nor changes the board model. Only
 //! persistence bounds and finite geometry are enforced.
+use super::bundle::{RefMap, RefSite, references, rewrite_refs};
 use super::graphics::Grid;
 use super::symbol_style::SymbolConventions;
 use super::{Definition, DefinitionMeta, Library, check_bounds};
 use crate::diagnostics::{Error, Result};
-use crate::ids::{DefinitionId, DefinitionKind, Revision};
+use crate::ids::{DefinitionId, DefinitionKind, DefinitionRef, Revision};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-pub const MAX_DRAFTS: usize = 64;
 /// Draft bodies one `library.edit` replaces together.
 pub const MAX_EDITS: usize = 16;
 
@@ -78,9 +78,6 @@ pub fn create(
     definition: Definition,
 ) -> Result<()> {
     check_bounds(&meta, &definition)?;
-    if drafts.items.len() >= MAX_DRAFTS {
-        return Err(Error::Limit("a project holds at most 64 drafts".into()));
-    }
     if drafts.get(id).is_some() {
         return Err(Error::Conflict(format!(
             "{} already has a draft",
@@ -186,11 +183,102 @@ pub(crate) fn close(drafts: &mut Drafts, ids: &[DefinitionId]) {
     drafts.items.retain(|d| !ids.contains(&d.id));
 }
 
-/// Bounds, unique lineages and kind/base consistency with the snapshot.
-pub fn validate(drafts: &Drafts, library: &Library) -> Result<()> {
-    if drafts.items.len() > MAX_DRAFTS {
-        return Err(Error::Invalid("too many drafts".into()));
+/// A body's references to draft revisions, at the revisions the drafts
+/// were drafted from.
+struct AtBase<'a>(&'a Drafts);
+
+impl RefMap for AtBase<'_> {
+    fn exact(&mut self, target: DefinitionRef) -> Result<DefinitionRef> {
+        let base = self
+            .0
+            .get(target.id)
+            .filter(|d| d.pending() == Some(target.revision))
+            .and_then(|d| d.base);
+        Ok(base.map_or(target, |revision| DefinitionRef { revision, ..target }))
     }
+    fn lineage(&mut self, _: DefinitionKind, id: DefinitionId) -> Result<DefinitionId> {
+        Ok(id)
+    }
+}
+
+/// Whether `draft` is still the revision it was drafted from, its
+/// references to other drafts read at theirs.
+fn at_base(draft: &Draft, drafts: &Drafts, library: &Library) -> bool {
+    let Some(revision) = draft.base else {
+        return false;
+    };
+    let at = DefinitionRef {
+        kind: draft.definition.kind(),
+        id: draft.id,
+        revision,
+    };
+    let Some((meta, published)) = library.definition(at) else {
+        return false;
+    };
+    let mut body = draft.definition.clone();
+    if meta != draft.meta || rewrite_refs(&mut body, &mut AtBase(drafts)).is_err() {
+        return false;
+    }
+    if body == published {
+        return true;
+    }
+    // A draft is made with the import review its revision was published with.
+    let mut reviewed = published;
+    super::pinout::restore_review(library, at, &mut reviewed);
+    body == reviewed
+}
+
+/// The drafts that hold nothing to publish: opened, or kept open after
+/// publishing, and not changed since. A draft that names, or is named by, one
+/// with changes is published with it and is not among them.
+pub fn unedited(drafts: &Drafts, library: &Library) -> BTreeSet<DefinitionId> {
+    let mut edited = BTreeSet::new();
+    let mut named: Vec<(DefinitionId, Vec<DefinitionId>)> = Vec::new();
+    for draft in &drafts.items {
+        if !at_base(draft, drafts, library) {
+            edited.insert(draft.id);
+        }
+        match references(&draft.definition) {
+            Ok(sites) => named.push((
+                draft.id,
+                sites
+                    .into_iter()
+                    .map(|site| match site {
+                        RefSite::Exact { target } => target.id,
+                        RefSite::Lineage { id, .. } => id,
+                    })
+                    .filter(|id| drafts.get(*id).is_some())
+                    .collect(),
+            )),
+            Err(_) => {
+                edited.insert(draft.id);
+            }
+        }
+    }
+    loop {
+        let before = edited.len();
+        for (id, names) in &named {
+            if edited.contains(id) {
+                edited.extend(names.iter().copied());
+            } else if names.iter().any(|n| edited.contains(n)) {
+                edited.insert(*id);
+            }
+        }
+        if edited.len() == before {
+            break;
+        }
+    }
+    drafts
+        .items
+        .iter()
+        .map(|d| d.id)
+        .filter(|id| !edited.contains(id))
+        .collect()
+}
+
+/// Bounds, unique lineages and kind/base consistency with the snapshot. The
+/// number of drafts is bounded by the document's size, as everything in it.
+pub fn validate(drafts: &Drafts, library: &Library) -> Result<()> {
     if !drafts.grid.valid() {
         return Err(Error::Invalid(
             "grid steps must be finite and 0.01–10 mm".into(),

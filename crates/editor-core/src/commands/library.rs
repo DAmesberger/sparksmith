@@ -75,8 +75,7 @@ pub enum LibraryCommand {
     #[serde(rename = "library.discard_draft")]
     DiscardDraft { id: DefinitionId },
     /// Publish 1–32 drafts together, in dependency order. `close` (the
-    /// default) drops the drafts it published, in the same undo step, so a
-    /// library's parts do not fill the project's 64 draft slots; with
+    /// default) drops the drafts it published, in the same undo step; with
     /// `close: false` each stays open as a draft of its new revision.
     #[serde(rename = "library.publish")]
     Publish {
@@ -1225,8 +1224,8 @@ pub(crate) fn apply_library(
             close,
         } => {
             // The Parts join the set as transient drafts of their new
-            // revisions, outside the project's draft limit, and are dropped
-            // again once published: none stays open.
+            // revisions and are dropped again once published: none stays
+            // open.
             let mut ids = published;
             let mut staged = (*document.drafts).clone();
             for draft in republished_parts(&document.project.library, &staged, &ids, &parts)? {

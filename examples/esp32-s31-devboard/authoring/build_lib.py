@@ -104,8 +104,7 @@ def fit_pin_numbers(s, comp, sym, numbers):
 
 
 def publish_and_close(s, ids, note):
-    """Publish; library.publish closes the drafts it published by default,
-    so they do not count against the project's 64-draft limit."""
+    """Publish; library.publish closes the drafts it published by default."""
     s.op("library.publish", {"drafts": ids}, note)
 
 
