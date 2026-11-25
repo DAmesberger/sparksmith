@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 sparksmith-core.workspace = true
+sparksmith-parts-contract.workspace = true
 sparksmith-io.workspace = true
 sparksmith-help-search.workspace = true
 sparksmith-generators.workspace = true

@@ -41,6 +41,7 @@ Navigation: scroll zooms; middle-drag pans; right-drag orbits in 3D. Cmd/Ctrl+S 
 | Crate | Responsibility |
 | --- | --- |
 | `sparksmith-core` | Pure, wasm-compatible document: revisioned library definitions and drafts, component instances and symbol occurrences, schematic, persistent nets, layout, impact plans, completeness findings, typed `Operation`s and `Query`s, the one `Engine` (shared undo, engine-owned drafts), file format, typed errors and check findings. |
+| `sparksmith-parts-contract` | The wire contract with an online parts library: routes, documents, limits, content hashes, sign-in, its version rule, committed example documents and a conformance test a server runs ([parts contract](parts-contract.md)). A leaf: no I/O, no clock, wasm-compatible; the core takes its identities and bounds from it. |
 | `sparksmith-io` | Bounded reads, atomic writes, crash recovery. |
 | `sparksmith-solidcraft` | Builds the native Solidcraft model through a typed facade over Solidcraft's command API. |
 | `sparksmith-kicad` | KiCad board import, slice K1: footprints, pads (every shape, custom pads, mask, paste and drills) and their placement, built into a new project through the one engine, with an import report of what is exact, approximated, reported or refused. It reads the bytes it is given. |
