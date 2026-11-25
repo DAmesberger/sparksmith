@@ -52,7 +52,9 @@ fn at(ax: &Ax, p: Point) -> Fallible<egui::Pos2> {
 
 fn click(ax: &mut Ax, p: Point, modifiers: Modifiers) -> Fallible {
     let at = at(ax, p)?;
+    ax.frame(vec![Event::ModifiersChanged(modifiers)]);
     ax.click_at_with(at, PointerButton::Primary, modifiers);
+    ax.frame(vec![Event::ModifiersChanged(Modifiers::NONE)]);
     Ok(())
 }
 
@@ -286,9 +288,7 @@ fn a_saved_file_keeps_the_block() -> Fallible {
     let made = block(&ax)?;
     ax.command_key(Key::S);
     let path = ax.path();
-    ax.until("the save", |ax| {
-        !ax.app.files.dirty() && path.exists()
-    })?;
+    ax.until("the save", |ax| !ax.app.files.dirty() && path.exists())?;
     let opened = Engine::from_file(sparksmith_io::read_project(&path)?)?;
     assert_eq!(opened.project().blocks[..], [made]);
     Ok(())

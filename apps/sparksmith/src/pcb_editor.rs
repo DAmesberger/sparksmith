@@ -2669,8 +2669,8 @@ impl PcbEditor {
         self.select_hit(hit);
     }
 
-    /// What a click at `at` picks: a visible pad, via, track, part body,
-    /// then fill. A track picks within `tolerance` (a few pixels) of its
+    /// What a click at `at` picks: a visible pad, via, track, block border,
+    /// part body, then fill. A track picks within `tolerance` (a few pixels) of its
     /// copper, so a thin one is easy to hit; the active layer's tracks
     /// come first, then the one whose copper is nearest, topmost on a tie.
     fn hit_at(
@@ -2726,12 +2726,17 @@ impl PcbEditor {
             })
             .or_else(|| track.and_then(|track| pass(Hit::Track(track.id, track.net))))
             .or_else(|| {
-                self.pick_instance(project, at, tolerance, metric)
-                    .and_then(|instance| pass(Hit::Part(instance)))
+                // A block's border runs along its parts' courtyards: on it
+                // the block, on a part's body the part.
+                self.pick_body(project, at)
+                    .is_none()
+                    .then(|| self.pick_block(at, tolerance))
+                    .flatten()
+                    .and_then(|id| pass(Hit::Block(id)))
             })
             .or_else(|| {
-                self.pick_block(at, tolerance)
-                    .and_then(|id| pass(Hit::Block(id)))
+                self.pick_instance(project, at, tolerance, metric)
+                    .and_then(|instance| pass(Hit::Part(instance)))
             })
             .or_else(|| {
                 board_shape_ui::sketch_of(project)?
@@ -2858,18 +2863,21 @@ impl PcbEditor {
                 })
                 .map(|g| g.instance)
             })
-            .or_else(|| {
-                project
-                    .placements
-                    .iter()
-                    .rev()
-                    .find(|p| {
-                        !self.part_hidden(p.instance)
-                            && body_polygon(project, p)
-                                .is_some_and(|polygon| layout::point_in_polygon(at, &polygon))
-                    })
-                    .map(|p| p.instance)
+            .or_else(|| self.pick_body(project, at))
+    }
+
+    /// The part whose package envelope holds `at`.
+    fn pick_body(&self, project: &Project, at: Point) -> Option<Id> {
+        project
+            .placements
+            .iter()
+            .rev()
+            .find(|p| {
+                !self.part_hidden(p.instance)
+                    && body_polygon(project, p)
+                        .is_some_and(|polygon| layout::point_in_polygon(at, &polygon))
             })
+            .map(|p| p.instance)
     }
 
     /// How far the dragged placement's preview has moved `instance`.

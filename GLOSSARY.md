@@ -168,6 +168,10 @@ A courtyard graphic a footprint source computes from its pad and body extents gr
 **Courtyard overlap**:
 The board check that two placements on the same side have courtyards sharing interior area. Touching edges is not overlap; a part without a courtyard is not checked.
 
+**Layout block** (block):
+Parts that belong together on the board and move, turn, flip and lock as one. Its border is derived from its parts, the convex hull of their courtyards, and is soft: other parts and traces may lie in it. A part is in one block at most, and copper belongs to its net, not to the block.
+_Avoid_: Module
+
 **Mask web**:
 The strip of solder mask between two neighbouring pad openings. A web below the design rules' minimum mask web (0.1 mm in the default profile, an estimate) is an advisory lint.
 

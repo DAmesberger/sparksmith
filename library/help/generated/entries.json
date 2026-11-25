@@ -1229,16 +1229,114 @@
     }
   },
   {
-    "id": "entry/layout.delete_objects",
-    "title": "Delete several board objects",
-    "summary": "Delete several tracks, vias and fills as one undo step (a multi-selection's Delete, or a dangling stub's tracks).",
+    "id": "entry/layout.block_add",
+    "title": "Make a block",
+    "summary": "Make a block of `parts`: parts that belong together and move as one.",
     "since": "0.1.0",
     "facts": {
       "kind": "entry",
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "6c8097f70202f63c",
+      "schema_digest": "ded7a9d87b31f7d7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.block_delete",
+    "title": "Delete a block",
+    "summary": "Delete a block.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "244adef7c3868093",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.block_lock",
+    "title": "Lock or unlock a block",
+    "summary": "Lock or unlock a block.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "07f4ac02b6cea050",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.block_members",
+    "title": "Change a block's parts",
+    "summary": "Take parts into a block (`add`) and let parts go (`remove`), as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ff0c6f8c164453e6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.block_move",
+    "title": "Move a block",
+    "summary": "Move a block's placed parts as one, as one undo step: mirrored onto the other side (`flip`, left to right) and turned by `turn_deg` counter-…",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d5173502033f7b9b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.block_rename",
+    "title": "Rename a block",
+    "summary": "Rename a block.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "19c486c52d52efb8",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.blocks",
+    "title": "List the layout blocks",
+    "summary": "The layout blocks: name, lock, parts with their sides, and the border on the board, the convex hull of its parts' courtyards.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/layout.delete_objects",
+    "title": "Delete several board objects",
+    "summary": "Delete several tracks, vias, fills and blocks as one undo step (a multi-selection's Delete, or a dangling stub's tracks).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "2630e6cf48355091",
       "examples": []
     }
   },
@@ -1343,14 +1441,14 @@
   {
     "id": "entry/layout.lock_objects",
     "title": "Lock or unlock several board objects",
-    "summary": "Lock or unlock several parts, tracks, vias and fills as one undo step.",
+    "summary": "Lock or unlock several parts, tracks, vias, fills and blocks as one undo step.",
     "since": "0.1.0",
     "facts": {
       "kind": "entry",
       "module": "layout",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "1ca883f37b52de86",
+      "schema_digest": "e5ab9865b30a9903",
       "examples": []
     }
   },
@@ -2969,7 +3067,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "0f75aa55818ebf7c",
+      "schema_digest": "8c8d4d980e62d953",
       "examples": []
     }
   },
@@ -2983,7 +3081,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "96b00328a2842a6d",
+      "schema_digest": "fa7910e311aa55fe",
       "examples": []
     }
   },
@@ -3165,7 +3263,7 @@
       "module": "project",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "f6c36c678611d089",
+      "schema_digest": "f6aa6688dbdd3ec3",
       "examples": []
     }
   },

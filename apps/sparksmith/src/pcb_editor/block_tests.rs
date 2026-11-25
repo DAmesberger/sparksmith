@@ -54,9 +54,8 @@ fn canvas() -> Fallible<Canvas> {
             .ok_or("no part")
     };
     let parts = [id(&engine, "R1")?, id(&engine, "R2")?];
-    let run = |engine: &mut Engine, command| {
-        engine.apply(engine.revision(), Operation::Layout(command))
-    };
+    let run =
+        |engine: &mut Engine, command| engine.apply(engine.revision(), Operation::Layout(command));
     for (instance, position) in parts.into_iter().zip([[10.0, 10.0], [25.0, 10.0]]) {
         run(
             &mut engine,
@@ -175,7 +174,10 @@ impl Canvas {
         let (from, to) = (self.at(from), self.at(to));
         let mut last = None;
         for events in [
-            vec![Event::PointerMoved(from), Self::press(from, true, modifiers)],
+            vec![
+                Event::PointerMoved(from),
+                Self::press(from, true, modifiers),
+            ],
             vec![Event::PointerMoved(from + (to - from) * 0.25)],
             vec![Event::PointerMoved(to)],
             vec![Self::press(to, false, modifiers)],
@@ -258,7 +260,8 @@ fn texts(output: &egui::FullOutput) -> Vec<String> {
         .collect()
 }
 
-/// A click on the border takes the block, one on a part the part; drawn as
+/// A click on the border takes the block, also where it runs along a part's
+/// courtyard, and one on a part's body the part; drawn as
 /// its border alone the block is taken anywhere in it, and its parts are
 /// not. The selection filter passes the click on.
 #[test]
@@ -267,7 +270,10 @@ fn a_click_takes_the_block_or_the_part_by_what_is_drawn() -> Fallible {
     let border = c.on_border()?;
     c.show(Detail::Copper);
     c.click(border, Modifiers::NONE);
-    assert_eq!(c.editor.inspected(c.engine.project()), Inspected::Block(c.block));
+    assert_eq!(
+        c.editor.inspected(c.engine.project()),
+        Inspected::Block(c.block)
+    );
     c.click([10.0, 10.0], Modifiers::NONE);
     assert_eq!(c.editor.selected_instance(), Some(c.parts[0]));
     assert_eq!(c.editor.selected_block(), None);
@@ -413,7 +419,10 @@ fn dragging_the_border_moves_the_block() -> Fallible {
             flip,
         })) => {
             assert_eq!(*id, c.block);
-            assert!(near(*by, expected.by) && *turn_deg == 0.0 && !flip, "{by:?}");
+            assert!(
+                near(*by, expected.by) && *turn_deg == 0.0 && !flip,
+                "{by:?}"
+            );
         }
         other => return Err(format!("{other:?}").into()),
     }
@@ -453,12 +462,16 @@ fn what_holds_a_block_is_named() -> Fallible {
     assert!(c.drag(border, to, Modifiers::NONE).is_none());
     let said = c.toasts();
     assert!(
-        said.iter().any(|t| t.contains("Can't move the block Divider")
-            && t.contains("unlock it to move it")),
+        said.iter()
+            .any(|t| t.contains("Can't move the block Divider")
+                && t.contains("unlock it to move it")),
         "{said:?}"
     );
     // Nor does one part of it alone.
-    assert!(c.drag([10.0, 10.0], [12.0, 10.0], Modifiers::NONE).is_none());
+    assert!(
+        c.drag([10.0, 10.0], [12.0, 10.0], Modifiers::NONE)
+            .is_none()
+    );
     let said = c.toasts();
     assert!(
         said.iter()
@@ -536,7 +549,11 @@ fn the_rectangle_and_select_all_take_what_is_drawn() -> Fallible {
     c.show(Detail::Copper);
     c.drag(from, to, Modifiers::NONE);
     let taken = c.editor.selected();
-    assert_eq!((taken.parts, taken.blocks), (parts.clone(), BTreeSet::new()));
+    assert_eq!(
+        (taken.parts, taken.blocks),
+        (parts.clone(), BTreeSet::new())
+    );
+    c.editor.set_selection(None, None, None);
     c.show(Detail::Border);
     c.drag(from, to, Modifiers::NONE);
     let taken = c.editor.selected();
@@ -544,6 +561,7 @@ fn the_rectangle_and_select_all_take_what_is_drawn() -> Fallible {
     assert_eq!(taken.blocks, blocks);
     c.editor.select_all(c.engine.project());
     assert_eq!(c.editor.selected().blocks, blocks);
+    c.editor.set_selection(None, None, None);
     c.show(Detail::Copper);
     c.editor.filter.parts = false;
     c.drag(from, to, Modifiers::NONE);
@@ -591,9 +609,7 @@ fn keys_and_menus_act_on_the_block() -> Fallible {
     c.engine.undo()?;
     c.frame(Modifiers::NONE, vec![]);
     let r1 = c.parts[0];
-    let rows = c
-        .editor
-        .menu_rows(&ctx, &c.engine, menu::Target::Part(r1));
+    let rows = c.editor.menu_rows(&ctx, &c.engine, menu::Target::Part(r1));
     let labels: Vec<&str> = rows.iter().flatten().map(|e| e.label.as_str()).collect();
     assert!(labels.contains(&"Select block Divider"), "{labels:?}");
     let out = c.editor.menu_act(&c.engine, menu::Act::Release(block, r1));

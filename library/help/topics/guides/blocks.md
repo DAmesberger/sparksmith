@@ -1,12 +1,12 @@
 ---
 {
   "covers": {
-    "entry/layout.block_add": "0",
-    "entry/layout.block_delete": "0",
-    "entry/layout.block_lock": "0",
-    "entry/layout.block_members": "0",
-    "entry/layout.block_move": "0",
-    "entry/layout.block_rename": "0"
+    "entry/layout.block_add": "ded7a9d87b31f7d7",
+    "entry/layout.block_delete": "244adef7c3868093",
+    "entry/layout.block_lock": "07f4ac02b6cea050",
+    "entry/layout.block_members": "ff0c6f8c164453e6",
+    "entry/layout.block_move": "d5173502033f7b9b",
+    "entry/layout.block_rename": "19c486c52d52efb8"
   },
   "id": "guide/blocks",
   "keywords": [
