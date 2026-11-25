@@ -2095,6 +2095,11 @@ pub struct ProfileImpact {
     pub new_issues: Vec<String>,
     /// Titles of issues the switch would resolve (one per resolved issue).
     pub resolved_issues: Vec<String>,
+    /// Issues the switch keeps but makes measurably worse: the title it
+    /// would have, then each number before and after ("… (positive
+    /// 1.556 mm → 30.456 mm)").
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub worse_issues: Vec<String>,
     /// The board's manufacturing choices the switch keeps, and the new
     /// profile's options it sets to their defaults (empty when only
     /// choices change, `rules.preview_fab_options`).
@@ -2135,27 +2140,50 @@ pub fn preview_candidate(
     }
 }
 
-/// Fill `impact`'s issue lists from the issues before and after a switch,
-/// each given as (identity, title). An issue is matched by identity (its
-/// finding code and objects), not its title, so a text that only names a
-/// new value is neither added nor resolved; repeated identities count.
+/// One issue as a switch review compares it: its identity (finding code
+/// and objects), its title and what its check measured.
+pub type IssueRow = (String, String, Vec<crate::diagnostics::Measured>);
+
+/// Fill `impact`'s issue lists from the issues before and after a switch.
+/// An issue is matched by identity, not its title, so a text that only
+/// names a new value is neither added nor resolved; repeated identities
+/// count. A matched issue whose measured numbers the old ones would not
+/// accept (as a waiver of the old numbers would not) is worse: each such
+/// number is told as `change` words it, before and after.
 pub fn diff_issues(
     impact: &mut ProfileImpact,
-    before: impl IntoIterator<Item = (String, String)>,
-    after: impl IntoIterator<Item = (String, String)>,
+    before: impl IntoIterator<Item = IssueRow>,
+    after: impl IntoIterator<Item = IssueRow>,
+    change: impl Fn(&crate::diagnostics::Measured, &crate::diagnostics::Measured) -> String,
 ) {
     use std::collections::BTreeMap;
-    let mut left: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for (id, title) in before {
-        left.entry(id).or_default().push(title);
+    let mut left: BTreeMap<String, Vec<(String, Vec<crate::diagnostics::Measured>)>> =
+        BTreeMap::new();
+    for (id, title, measured) in before {
+        left.entry(id).or_default().push((title, measured));
     }
-    for (id, title) in after {
-        match left.get_mut(&id).and_then(|titles| titles.pop()) {
-            Some(_) => {}
+    for (id, title, measured) in after {
+        match left.get_mut(&id).and_then(|rows| rows.pop()) {
+            Some((_, was)) => {
+                let worse: Vec<String> = measured
+                    .iter()
+                    .filter_map(|now| {
+                        let old = was.iter().find(|old| old.alike(now))?;
+                        (!old.accepts(now)).then(|| change(old, now))
+                    })
+                    .collect();
+                if !worse.is_empty() {
+                    impact
+                        .worse_issues
+                        .push(format!("{title} ({})", worse.join(", ")));
+                }
+            }
             None => impact.new_issues.push(title),
         }
     }
-    impact.resolved_issues.extend(left.into_values().flatten());
+    impact
+        .resolved_issues
+        .extend(left.into_values().flatten().map(|(title, _)| title));
 }
 
 /// The rule changes of switching `rules` to `candidate` (issue lists are
@@ -2185,6 +2213,7 @@ pub fn rule_changes(rules: &ProjectRules, candidate: &ProjectRules) -> ProfileIm
         dropped_overrides,
         new_issues: Vec::new(),
         resolved_issues: Vec::new(),
+        worse_issues: Vec::new(),
         kept_choices: Vec::new(),
         reset_choices: Vec::new(),
         chosen_choices: Vec::new(),

@@ -631,23 +631,45 @@ fn net_class_values_win_over_an_override_and_hole_pairs_ignore_classes() -> Resu
 fn issue_diff_matches_by_identity_and_counts_repeats() -> Result<()> {
     let mut impact = rule_changes(&proto()?, &proto()?);
     assert!(impact.changes.is_empty());
-    let pair = |id: &str, title: &str| (id.to_string(), title.to_string());
+    use crate::diagnostics::{Measured, Unit};
+    let pair = |id: &str, title: &str, measured: Vec<Measured>| {
+        (id.to_string(), title.to_string(), measured)
+    };
+    // A web of 0.1 mm against 0.12, then 0.05 against 0.12: worse; an
+    // uncoupled length of 1.5 mm, then 30.5 mm: worse; a gap of 0.2 mm,
+    // then 0.25: better, not listed.
+    let web = |v: f64| vec![Measured::at_least(v, 0.12, Unit::Mm, 1e-6)];
+    let gap = |v: f64| vec![Measured::at_least(v, 0.3, Unit::Mm, 1e-6)];
+    let run = |v: f64| vec![Measured::at_most(v, 0.0, Unit::Mm, 1e-6).of("uncoupled")];
+    let change = |a: &Measured, b: &Measured| format!("{} {} → {}", b.of, a.value, b.value);
     diff_issues(
         &mut impact,
         [
-            pair("web R1", "R1 web 0.1 mm"),
-            pair("drill V1", "V1 drill"),
-            pair("dup", "Twice"),
+            pair("web R1", "R1 web 0.1 mm", web(0.1)),
+            pair("drill V1", "V1 drill", Vec::new()),
+            pair("dup", "Twice", Vec::new()),
+            pair("pair", "USB uncoupled", run(1.5)),
+            pair("gap", "Gap", gap(0.2)),
         ],
         [
-            pair("web R1", "R1 web 0.15 mm"),
-            pair("ring V2", "V2 ring"),
-            pair("dup", "Twice"),
-            pair("dup", "Twice"),
+            pair("web R1", "R1 web 0.05 mm", web(0.05)),
+            pair("ring V2", "V2 ring", Vec::new()),
+            pair("dup", "Twice", Vec::new()),
+            pair("dup", "Twice", Vec::new()),
+            pair("pair", "USB uncoupled", run(30.5)),
+            pair("gap", "Gap", gap(0.25)),
         ],
+        change,
     );
     assert_eq!(impact.new_issues, vec!["V2 ring", "Twice"]);
     assert_eq!(impact.resolved_issues, vec!["V1 drill"]);
+    assert_eq!(
+        impact.worse_issues,
+        vec![
+            "R1 web 0.05 mm ( 0.1 → 0.05)",
+            "USB uncoupled (uncoupled 1.5 → 30.5)"
+        ]
+    );
     Ok(())
 }
 

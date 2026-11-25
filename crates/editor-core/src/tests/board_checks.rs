@@ -10,8 +10,8 @@ use crate::library::{Outline, Segment};
 use crate::model::board::{BoardFeatureId, BoardSketch, CutoutKind, SolvedBoard, SolvedCutout};
 use crate::model::{BoardShape, CopperLayer, Project, Track, Via, ViaSpan};
 use crate::rules::{
-    CopperObject, NetClassSpec, ProjectRules, RuleKey, RuleProfile, RuleValue, RulesCommand,
-    fixtures,
+    CopperObject, NetClassSpec, ProfileImpact, ProjectRules, RuleKey, RuleProfile, RuleValue,
+    RulesCommand, fixtures,
 };
 use crate::tests::support::nm;
 use crate::{Engine, Operation, Outcome, Query, QueryResult};
@@ -1196,5 +1196,62 @@ fn a_dangling_track_end_warns_and_a_connected_one_does_not() -> Result<()> {
         .ok_or_else(|| Error::NotFound("preflight item".into()))?;
     assert_eq!(item.severity, crate::issues::Severity::Warning);
     assert!(!item.blocks());
+    Ok(())
+}
+
+/// A switch that keeps an issue but holds it to a farther limit names it
+/// as worse, with the limit before and after; one that leaves it as it
+/// was names nothing.
+#[test]
+fn a_profile_switch_names_an_issue_it_makes_worse() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let net = engine.project().nets.first().map(|n| n.id).unwrap_or(0);
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::Route {
+            request: RouteRequest {
+                net,
+                start: [20.0, 0.5],
+                end: [30.0, 0.5],
+                width: 0.3,
+                layer: CopperLayer::Top,
+            },
+        }),
+    )?;
+    let edge = |name: &str, mm: f64| {
+        profile(name, |r| {
+            for o in CopperObject::ALL {
+                r.copper.clearance.set(o, CopperObject::BoardEdge, mm);
+            }
+        })
+    };
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::set_profile(edge("Edge Four", 0.4)?, false)),
+    )?;
+    assert_eq!(found(engine.project(), "board.edge_clearance").len(), 1);
+    let preview = |engine: &Engine, profile: RuleProfile| -> Result<ProfileImpact> {
+        match engine.query(Query::PreviewProfile {
+            profile: crate::rules::ProfileChoice::Profile(Box::new(profile)),
+            options: Default::default(),
+            keep_overrides: false,
+        })? {
+            QueryResult::ProfileImpact(impact) => Ok(*impact),
+            _ => Err(Error::Invalid("no impact".into())),
+        }
+    };
+    let worse = preview(&engine, edge("Edge Five", 0.5)?)?;
+    assert!(worse.new_issues.is_empty(), "{worse:#?}");
+    let [line] = worse.worse_issues.as_slice() else {
+        return Err(Error::Invalid(format!("{worse:#?}")));
+    };
+    assert!(
+        line.contains("is 0.35 mm from the board edge")
+            && line.ends_with("(0.35 mm, needs at least 0.4 mm → at least 0.5 mm)"),
+        "{line}"
+    );
+    // The same limit under another name: nothing worse.
+    let same = preview(&engine, edge("Edge Four Again", 0.4)?)?;
+    assert!(same.worse_issues.is_empty(), "{same:#?}");
     Ok(())
 }
