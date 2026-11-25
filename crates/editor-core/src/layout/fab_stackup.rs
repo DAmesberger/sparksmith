@@ -8,7 +8,8 @@
 use crate::diagnostics::{Error, Result};
 use crate::model::{
     COPPER_UM_RANGE, CopperFoil, DIELECTRIC_MM_RANGE, DK_RANGE, Dielectric, DielectricKind,
-    GlassStyle, MASK_UM_RANGE, MAX_COPPER_LAYERS, MIN_COPPER_LAYERS, OUNCE_UM, Stackup,
+    DielectricSheet, GlassStyle, MASK_UM_RANGE, MAX_COPPER_LAYERS, MIN_COPPER_LAYERS, OUNCE_UM,
+    Stackup, sheets_dk,
 };
 use crate::rules::ProfileSource;
 use schemars::JsonSchema;
@@ -107,6 +108,17 @@ impl FabLayer {
     /// Its thickness in the pressed board.
     pub fn pressed_mm(&self) -> f64 {
         self.after_lamination_mm.unwrap_or(self.thickness_mm)
+    }
+
+    /// "2116 RC54% 4.9mil", as the source names it.
+    pub fn material_text(&self) -> String {
+        self.material_english
+            .as_deref()
+            .or(self.material.as_deref())
+            .unwrap_or(self.role.label())
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }
 
@@ -234,16 +246,23 @@ impl FabDielectric<'_> {
             .then_some(first)
     }
 
-    /// The plies' Dk averaged by thickness, as the impedance model averages
-    /// the dielectrics between a trace and its plane. A computed value, not
-    /// the fabricator's.
-    pub fn average_dk(&self) -> Option<f64> {
-        let thick: f64 = self.plies.iter().map(|p| p.pressed_mm()).sum();
-        let mut weighted = 0.0;
-        for ply in &self.plies {
-            weighted += ply.pressed_mm() * ply.dk?;
+    /// Its sheets, when they state several Dk: what the layer's Dk is
+    /// calculated from ([`sheets_dk`]). Empty when one states none.
+    pub fn sheets(&self) -> Vec<DielectricSheet> {
+        if self.dk().is_some() {
+            return Vec::new();
         }
-        (thick > 0.0).then(|| (weighted / thick * 1e4).round() / 1e4)
+        self.plies
+            .iter()
+            .map(|p| {
+                Some(DielectricSheet {
+                    material: p.material_text(),
+                    thickness_mm: p.pressed_mm(),
+                    dk: p.dk?,
+                })
+            })
+            .collect::<Option<Vec<_>>>()
+            .unwrap_or_default()
     }
 
     /// The one glass style every ply has.
@@ -259,15 +278,7 @@ impl FabDielectric<'_> {
     pub fn materials(&self) -> String {
         self.plies
             .iter()
-            .map(|p| {
-                p.material_english
-                    .as_deref()
-                    .or(p.material.as_deref())
-                    .unwrap_or(p.role.label())
-                    .split_whitespace()
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
+            .map(|p| p.material_text())
             .collect::<Vec<_>>()
             .join(" + ")
     }
@@ -557,8 +568,10 @@ impl FabStackup {
     /// inner foils, the outer foils at their finished weight, and the mask
     /// where the source states it. What the source does not give (mask and
     /// legend sides, hole wall, Dk estimates) stays `board`'s. A layer whose
-    /// plies state several Dk has none, or with `average_dk` their average.
-    pub fn stackup(&self, board: &Stackup, average_dk: bool) -> Result<Stackup> {
+    /// sheets state several Dk takes their average by thickness, and keeps
+    /// the sheets it is calculated from. The board keeps this stackup's id
+    /// and name while its layers stay these.
+    pub fn stackup(&self, board: &Stackup) -> Result<Stackup> {
         let count = self.copper_layers;
         let copper = self
             .copper()
@@ -574,11 +587,15 @@ impl FabStackup {
         let dielectrics = self
             .dielectrics()
             .iter()
-            .map(|d| Dielectric {
-                kind: d.kind(),
-                thickness_mm: d.thickness_mm(),
-                glass: d.glass(),
-                dk: d.dk().or(if average_dk { d.average_dk() } else { None }),
+            .map(|d| {
+                let sheets = d.sheets();
+                Dielectric {
+                    kind: d.kind(),
+                    thickness_mm: d.thickness_mm(),
+                    glass: d.glass(),
+                    dk: d.dk().or_else(|| sheets_dk(&sheets)),
+                    sheets,
+                }
             })
             .collect();
         let mut stackup = Stackup {
@@ -590,23 +607,14 @@ impl FabStackup {
             let um = |mil: f64| round(mil * MIL_MM * 1000.0);
             stackup = stackup.with_mask(um(mask.above_trace_mil), um(mask.above_substrate_mil))?;
         }
+        let stackup = stackup.settled().picked_from(&self.id, &self.name);
         stackup.check()?;
         Ok(stackup)
     }
 
-    /// Whether `board` has exactly this build (its mask and legend aside),
-    /// with or without averaged Dk.
+    /// Whether `board` has exactly this build (its mask and legend aside).
     pub fn is_build_of(&self, board: &Stackup) -> bool {
-        [false, true].into_iter().any(|average| {
-            self.stackup(board, average).is_ok_and(|s| {
-                s.dielectrics == board.dielectrics
-                    && s.copper.len() == board.copper.len()
-                    && s.copper
-                        .iter()
-                        .zip(&board.copper)
-                        .all(|(a, b)| a.thickness_um == b.thickness_um)
-            })
-        })
+        self.stackup(board).is_ok_and(|s| s.same_layers(board))
     }
 }
 

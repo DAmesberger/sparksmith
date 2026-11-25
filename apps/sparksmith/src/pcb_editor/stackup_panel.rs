@@ -45,9 +45,6 @@ pub(super) struct StackupSetup {
     presets: Result<StackupPresets, String>,
     /// The fabricators' stackups, while they are shown.
     picker: Option<Picker>,
-    /// The fabricator's stackup the draft was taken from, and as it was:
-    /// named while the draft still is it.
-    taken: Option<(String, Stackup)>,
 }
 
 impl StackupSetup {
@@ -64,7 +61,6 @@ impl StackupSetup {
                 .map(|defaults| defaults.presets)
                 .map_err(|e| e.to_string()),
             picker: None,
-            taken: None,
         }
     }
 
@@ -85,10 +81,9 @@ impl StackupSetup {
     fn picked(&mut self, picked: Picked) {
         self.picker = None;
         self.opening = true;
-        if let Picked::Take(stackup, name) = picked {
+        if let Picked::Take(stackup) = picked {
             self.draft = StackupDraft::of(&self.base);
             self.draft.use_stackup(*stackup);
-            self.taken = Some((name, self.draft.stackup.clone()));
             self.dropped.clear();
             self.selected = None;
             self.refusal = None;
@@ -229,10 +224,10 @@ fn body(ui: &mut Ui, setup: &mut StackupSetup, project: &Project, carried: &[Cop
         kit::hint(ui, "No stackup presets", error);
     }
     let from = setup
-        .taken
-        .as_ref()
-        .filter(|(_, stackup)| *stackup == setup.draft.stackup)
-        .map_or("Fabricators' stackups", |(name, _)| name.as_str());
+        .draft
+        .stackup
+        .picked()
+        .map_or("Fabricators' stackups", |p| p.name.as_str());
     if kit::summary_row(ui, from, Some("Choose…")) {
         setup.picker = Some(Picker::new(project));
         setup.opening = true;
@@ -503,6 +498,9 @@ fn row_editor(ui: &mut Ui, draft: &mut StackupDraft, row: DraftRow) -> Option<Ro
                     .unwrap_or(*DK_RANGE.start());
             if kit::number_row(ui, "Dk", &mut dk, "", DK_RANGE) {
                 d.dk = Some(dk);
+            }
+            if let Some(how) = d.calculated_text() {
+                kit::note(ui, &how);
             }
             if d.dk.is_none() {
                 kit::hint(

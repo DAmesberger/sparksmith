@@ -1,12 +1,12 @@
 //! Taking a fabricator's stackup on a board: the one `layout.edit_stackup`
 //! it is, what that changes in words, what refuses it and what the board's
 //! fab profile and net classes say of it. Nothing is applied here.
-use super::{FabDielectric, FabStackup};
+use super::FabStackup;
 use crate::diagnostics::{Error, Result};
 use crate::layout::limits::{mm, mm_against};
 use crate::layout::restack::{self, LayerMove, StackupDraft, StackupEdit};
 use crate::layout::{profile_fit, via_class};
-use crate::model::{CopperLayer, Dielectric, DielectricKind, Project, Stackup};
+use crate::model::{CopperLayer, Dielectric, DielectricKind, PickedStackup, Project, Stackup};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -16,8 +16,6 @@ use std::collections::BTreeMap;
 pub struct PickOptions {
     /// Where the copper of a layer the stackup lacks goes.
     pub moves: Vec<LayerMove>,
-    /// Give a layer of several Dk their average by thickness.
-    pub average_dk: bool,
 }
 
 /// What taking a stackup does.
@@ -50,16 +48,16 @@ pub struct StackupBuildRow {
     pub kind: DielectricKind,
     /// Pressed, all plies.
     pub thickness_mm: f64,
-    /// The plies as the source names them.
+    /// The sheets as the source names them.
     pub materials: String,
-    /// The Dk of each ply.
+    /// The Dk of each sheet.
     pub dk: String,
-    /// The Dk the layer takes; unset when its plies state several.
+    /// The Dk the layer takes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub board_dk: Option<f64>,
-    /// Their average by thickness, computed, when they state several.
+    /// How it is calculated, when the sheets state several.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub average_dk: Option<f64>,
+    pub calculated: Option<String>,
 }
 
 /// One listed stackup.
@@ -78,19 +76,25 @@ pub struct StackupRow {
     /// The finished thickness the source states.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stated_finished_mm: Option<f64>,
-    /// Dielectrics whose plies state several Dk.
-    pub open_dk: usize,
+    /// Dielectrics whose sheets state several Dk: theirs is calculated.
+    pub calculated_dk: usize,
     /// Where the source's own texts give other values.
     pub disagreements: usize,
-    /// The board has this build.
+    /// The board has these layers.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub board: bool,
+    /// The board's layers were picked from it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub picked: bool,
 }
 
 /// `layout.stackups`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct StackupList {
     pub stackups: Vec<StackupRow>,
+    /// The one the board's layers were picked from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picked: Option<PickedStackup>,
     /// Stackups of the library this list leaves out.
     pub left_out: usize,
 }
@@ -160,6 +164,7 @@ pub fn list(project: &Project, library: &[FabStackup], filter: &StackupFilter) -
             .then(a.name.cmp(&b.name))
     });
     StackupList {
+        picked: project.stackup.picked().cloned(),
         left_out: library.len() - shown.len(),
         stackups: shown
             .into_iter()
@@ -172,9 +177,14 @@ pub fn list(project: &Project, library: &[FabStackup], filter: &StackupFilter) -
                 layers_sum_mm: s.layers_sum_mm,
                 pressed_sum_mm: s.pressed_sum_mm(),
                 stated_finished_mm: s.stated_finished.as_ref().map(|t| t.value_mm),
-                open_dk: s.dielectrics().iter().filter(|d| d.dk().is_none()).count(),
+                calculated_dk: s
+                    .dielectrics()
+                    .iter()
+                    .filter(|d| !d.sheets().is_empty())
+                    .count(),
                 disagreements: s.disagreements.len(),
                 board: s.is_build_of(&project.stackup),
+                picked: project.stackup.picked().is_some_and(|p| p.id == s.id),
             })
             .collect(),
     }
@@ -199,7 +209,7 @@ pub fn report(
             materials: listed.materials(),
             dk: listed.dk_text(),
             board_dk: taken.dk,
-            average_dk: listed.dk().is_none().then(|| listed.average_dk()).flatten(),
+            calculated: taken.calculated_text(),
         })
         .collect();
     Ok(StackupReport {
@@ -212,7 +222,7 @@ pub fn report(
 /// What taking `stackup` does to `project`.
 pub fn pick(project: &Project, stackup: &FabStackup, options: &PickOptions) -> Result<StackupPick> {
     let mut draft = StackupDraft::of(&project.stackup);
-    draft.use_stackup(stackup.stackup(&project.stackup, options.average_dk)?);
+    draft.use_stackup(stackup.stackup(&project.stackup)?);
     let lost = draft.removed();
     let mut dropped = BTreeMap::new();
     for m in &options.moves {
@@ -241,7 +251,7 @@ pub fn pick(project: &Project, stackup: &FabStackup, options: &PickOptions) -> R
         changes: changes(project, &draft, &edit),
         refused,
         conflicts,
-        open: open(stackup, options.average_dk, &edit.stackup),
+        open: open(stackup, &edit.stackup),
         lost,
         edit,
     })
@@ -297,7 +307,10 @@ fn dielectric(d: &Dielectric) -> String {
         .map_or_else(String::new, |g| format!(" {g}"));
     let dk =
         d.dk.map_or_else(|| "no Dk entered".into(), |v| format!("Dk {v}"));
-    format!("{kind}{glass}, {} mm, {dk}", mm(d.thickness_mm))
+    let calculated = d
+        .calculated_text()
+        .map_or_else(String::new, |_| " (calculated)".into());
+    format!("{kind}{glass}, {} mm, {dk}{calculated}", mm(d.thickness_mm))
 }
 
 /// Every change of `edit`, in words.
@@ -357,6 +370,13 @@ fn changes(project: &Project, draft: &StackupDraft, edit: &StackupEdit) -> Vec<S
             None => out.push(format!("{}: {}", between(new, i), dielectric(d))),
         }
     }
+    match (old.picked(), new.picked()) {
+        (was, Some(now)) if was.is_none_or(|w| w.id != now.id || w.name != now.name) => {
+            out.push(format!("The stackup is named {}", now.name));
+        }
+        (Some(was), None) => out.push(format!("The stackup is no longer named {}", was.name)),
+        _ => {}
+    }
     let (was, is) = (old.thickness_mm(), new.thickness_mm());
     if (was - is).abs() > 1e-6 {
         out.push(format!(
@@ -378,11 +398,11 @@ fn changes(project: &Project, draft: &StackupDraft, edit: &StackupEdit) -> Vec<S
 }
 
 /// What the source leaves open for a board.
-fn open(stackup: &FabStackup, average: bool, taken: &Stackup) -> Vec<String> {
+fn open(stackup: &FabStackup, taken: &Stackup) -> Vec<String> {
     let mut out = Vec::new();
-    for (i, d) in stackup.dielectrics().iter().enumerate() {
-        if let (None, Some(value)) = (d.dk(), d.average_dk()) {
-            out.push(several(&between(taken, i), d, value, average));
+    for (i, d) in taken.dielectrics.iter().enumerate() {
+        if let (Some(how), Some(dk)) = (d.calculated_text(), d.dk) {
+            out.push(format!("{}: Dk {dk}. {how}", between(taken, i)));
         }
     }
     for (end, layer) in [
@@ -410,16 +430,4 @@ fn open(stackup: &FabStackup, average: bool, taken: &Stackup) -> Vec<String> {
         ));
     }
     out
-}
-
-fn several(between: &str, d: &FabDielectric<'_>, value: f64, average: bool) -> String {
-    let taken = if average {
-        format!("takes their average by thickness, {value}, a computed value")
-    } else {
-        format!("has no Dk until one is entered; their average by thickness is {value}")
-    };
-    format!(
-        "{between}: its plies state Dk {}; the layer {taken}",
-        d.dk_text()
-    )
 }
