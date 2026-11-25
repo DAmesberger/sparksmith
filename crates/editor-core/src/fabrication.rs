@@ -304,11 +304,18 @@ pub fn generate(
 }
 
 /// Refuses a board the files cannot hold, where another board would be
-/// written instead: a plated slot the drill file cannot route (on the
-/// profile it would be milled unplated), and a via that does not pass
-/// through the whole board (every drill in the files does).
+/// written instead: one whose outline is not valid (what is held of it is
+/// an earlier shape, or a frame round an import), a plated slot the drill
+/// file cannot route (on the profile it would be milled unplated), and a via
+/// that does not pass through the whole board (every drill in the files
+/// does).
 pub fn representable(project: &Project) -> Result<()> {
     use crate::model::board::CutoutKind;
+    if let Some(why) = project.board_shape.invalid() {
+        return Err(Error::Conflict(format!(
+            "fabrication.outline_invalid: the board outline is not valid: {why} No file is made until it is"
+        )));
+    }
     for cutout in &project.board().cutouts {
         if cutout.kind == (CutoutKind::Slot { plated: true })
             && drill::stadium(&cutout.outline).is_none()

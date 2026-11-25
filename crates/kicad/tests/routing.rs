@@ -417,6 +417,43 @@ fn a_stub_a_refused_track_left_says_so() -> Fallible<()> {
     Ok(())
 }
 
+/// The production files of `project`, read back, are the design.
+fn read_back(project: &sparksmith_core::model::Project) -> Fallible<()> {
+    use sparksmith_core::fabrication::{self, FabricationOptions, ProductionSnapshot, readback};
+    let snapshot = ProductionSnapshot::resolve(project, None)?;
+    let mut options = FabricationOptions::default();
+    // The PDFs are the io crate's.
+    options.outputs.drawings = false;
+    let set = fabrication::generate(&snapshot, &options, &Default::default())?;
+    let files: Vec<(String, Vec<u8>)> = set
+        .files
+        .iter()
+        .map(|f| (f.name.clone(), f.bytes.clone()))
+        .collect();
+    let found = readback::check(
+        &readback::Set {
+            snapshot: &snapshot,
+            options: &options,
+            identity: &set.identity,
+            drawing: None,
+        },
+        &files,
+        &mut |_| true,
+    )?;
+    assert!(found.is_empty(), "{found:#?}");
+    // A track and the via that lie off the board, at their places.
+    let text = |end: &str| {
+        files
+            .iter()
+            .find(|f| f.0.ends_with(end))
+            .map(|f| String::from_utf8_lossy(&f.1).into_owned())
+            .unwrap_or_default()
+    };
+    assert!(text("-copper-l1-top.gbr").contains("X45000000Y-5000000"));
+    assert!(text("-plated.drl").contains("X45.000Y-5.000"));
+    Ok(())
+}
+
 /// Copper outside the outline comes in where it is: the report counts it and
 /// the board check lists each piece. Red when it is dropped.
 #[test]
@@ -446,6 +483,17 @@ fn copper_outside_the_outline_is_imported_and_told() -> Fallible<()> {
         .collect();
     assert_eq!(report.counts.tracks, plain.report.counts.tracks + 2);
     assert!(!outside.is_empty(), "{outside:?}");
+    // The files, could they be released, hold each piece where it is, whole.
+    let mut filled = project.clone();
+    for (id, copper) in sparksmith_core::layout::fill::refill(
+        &filled,
+        sparksmith_core::layout::fill::RefillTarget::All,
+    )? {
+        if let Some(f) = filled.fills.iter_mut().find(|f| f.id == id) {
+            f.computed = Some(copper);
+        }
+    }
+    read_back(&filled)?;
     // It can be worked on: taken away, and other copper edited.
     let mut engine = imported.engine;
     let stray = engine
