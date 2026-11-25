@@ -371,6 +371,7 @@ impl PartEditor {
                 live: live.clone(),
                 view: loaded.view.clone(),
                 at,
+                to: at,
                 moved: false,
             });
             self.footprint_dims.times = Default::default();
@@ -391,12 +392,12 @@ impl PartEditor {
         false
     }
 
-    /// One live drag frame from the last one, timed.
+    /// One live drag frame, timed.
     fn drag_frame(&mut self, to: Point) {
         let Some(drag) = &mut self.footprint_dims.drag else {
             return;
         };
-        if (drag.at[0] - to[0]).hypot(drag.at[1] - to[1]) < 1e-9 {
+        if (drag.to[0] - to[0]).hypot(drag.to[1] - to[1]) < 1e-9 {
             return;
         }
         let clock = std::time::Instant::now();
@@ -404,8 +405,8 @@ impl PartEditor {
             Ok(frame) => {
                 drag.view = frame.sketch.view();
                 drag.at = frame.at;
-                drag.moved |= frame.moved;
-                drag.live = frame.sketch;
+                drag.to = to;
+                drag.moved = frame.moved;
             }
             Err(e) => self.footprint_tool.refuse(
                 &crate::refusal::shown_error(&e),
@@ -416,7 +417,7 @@ impl PartEditor {
         self.footprint_dims.times.add(ms);
     }
 
-    /// The release: one `SketchEdit::Drag` to where the point got to.
+    /// The release: the one `SketchEdit::Drag` the last frame showed.
     fn finish_drag(&mut self) {
         let Some(drag) = self.footprint_dims.drag.take() else {
             return;
@@ -424,7 +425,7 @@ impl PartEditor {
         if drag.moved {
             self.queue_footprint_edits(vec![FootprintEdit::Sketch(SketchEdit::Drag {
                 point: drag.point,
-                to: drag.at,
+                to: drag.to,
             })]);
         }
     }

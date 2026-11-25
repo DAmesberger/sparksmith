@@ -164,15 +164,17 @@ impl ValueField {
     }
 }
 
-/// A sketch point being dragged: the live (uncommitted) sketch of the last
-/// frame, which the next frame continues from.
+/// A sketch point being dragged: each frame shows what a release there does.
 #[derive(Clone, Debug)]
 pub struct PointDrag {
     pub point: SketchPointId,
+    /// The sketch the drag started from: what the release edits.
     pub live: LiveSketch,
+    /// The sketch as the last frame left it, and the point's place in it.
     pub view: SketchView,
-    /// The dragged point's position after the last frame.
     pub at: Point,
+    /// Where the last frame's pointer was: what the release commits.
+    pub to: Point,
     pub moved: bool,
 }
 

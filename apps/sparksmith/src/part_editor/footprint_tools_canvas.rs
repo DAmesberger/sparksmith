@@ -13,11 +13,12 @@ use crate::kit;
 use crate::symbol_view::{self, View};
 use egui::{Align2, Color32, Rect, Response, Stroke, Ui, vec2};
 use sparksmith_core::geometry::{Shape, distance};
+use sparksmith_core::library::footprint_edit;
 use sparksmith_core::library::footprint_source::{FootprintEdit, PadTemplate, Pin1Position};
 use sparksmith_core::library::{PadKind, PadSide};
 use sparksmith_core::{Engine, Operation, Point};
 use sparksmith_solidcraft::footprint::SketchEvaluator;
-use sparksmith_solidcraft::footprint::view::{SketchView, ViewGeometry};
+use sparksmith_solidcraft::footprint::view::{SketchView, ViewGeometry, sketch_view};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::type_face;
 
@@ -47,41 +48,6 @@ fn shape_of(g: &ViewGeometry) -> Option<Shape> {
             })
         }
         ViewGeometry::FreeForm { .. } => None,
-    }
-}
-
-fn offset(shape: &Shape, d: Point) -> Shape {
-    let m = |p: &Point| [p[0] + d[0], p[1] + d[1]];
-    match shape {
-        Shape::Line { a, b } => Shape::Line { a: m(a), b: m(b) },
-        Shape::Polyline { points, radii } => Shape::Polyline {
-            points: points.iter().map(m).collect(),
-            radii: radii.clone(),
-        },
-        Shape::Rect { a, b, radius } => Shape::Rect {
-            a: m(a),
-            b: m(b),
-            radius: *radius,
-        },
-        Shape::Circle { center, radius } => Shape::Circle {
-            center: m(center),
-            radius: *radius,
-        },
-        Shape::Arc {
-            center,
-            radius,
-            start_deg,
-            sweep_deg,
-        } => Shape::Arc {
-            center: m(center),
-            radius: *radius,
-            start_deg: *start_deg,
-            sweep_deg: *sweep_deg,
-        },
-        Shape::Polygon { points, radii } => Shape::Polygon {
-            points: points.iter().map(m).collect(),
-            radii: radii.clone(),
-        },
     }
 }
 
@@ -384,9 +350,11 @@ impl PartEditor {
                             start,
                             reference,
                             delta: [0.0, 0.0],
+                            shown: None,
                         });
                     }
                 }
+                let mut offset = None;
                 if let Some(drag) = &mut state.drag
                     && response.dragged_by(egui::PointerButton::Primary)
                     && let Some(p) = response.interact_pointer_pos()
@@ -397,10 +365,31 @@ impl PartEditor {
                         drag.reference[1] + raw[1] - drag.start[1],
                     ];
                     let snapped = snap_at(to).at;
-                    drag.delta = [
+                    let delta = [
                         snapped[0] - drag.reference[0],
                         snapped[1] - drag.reference[1],
                     ];
+                    if delta != drag.delta {
+                        drag.delta = delta;
+                        offset = Some(delta);
+                    }
+                }
+                // Shown as the release makes it, by the release's own edit.
+                if let Some(delta) = offset {
+                    let shown = match state.move_edits(delta, &scene) {
+                        Ok(Gesture::Commit(edits)) => footprint_edit::edit(
+                            &set.footprint,
+                            &set.package,
+                            &edits,
+                            &SketchEvaluator,
+                        )
+                        .ok()
+                        .map(|(next, _)| Box::new(next)),
+                        _ => None,
+                    };
+                    if let Some(drag) = &mut state.drag {
+                        drag.shown = shown;
+                    }
                 }
                 if response.drag_stopped()
                     && let Some(drag) = state.drag.take()
@@ -718,38 +707,27 @@ fn paint(
             );
         }
     }
-    // A moving selection, offset by the drag.
-    if let Some(drag) = state.drag {
+    // A moving selection, where a release leaves it.
+    if let Some(next) = state.drag.as_ref().and_then(|d| d.shown.as_deref())
+        && let Some(moved) = next.source.as_deref().and_then(|s| sketch_view(s).ok())
+    {
         let ghost = Stroke::new(1.5, t.preview_sketch);
         for pick in &state.selection {
             match pick {
                 Pick::Pad(id) => {
-                    if let Some(pad) = scene.footprint.pads.iter().find(|q| q.id == *id) {
+                    if let Some(pad) = next.pads.iter().find(|q| q.id == *id) {
                         let land = pad.land(f64::from(CHORD_PX / view.scale));
-                        symbol_view::paint_shape(
-                            painter,
-                            view,
-                            &offset(&land, drag.delta),
-                            None,
-                            Some(ghost),
-                        );
+                        symbol_view::paint_shape(painter, view, &land, None, Some(ghost));
                     }
                 }
                 Pick::Curve(id) => {
-                    if let Some(shape) = sketch.curve(id).and_then(|c| shape_of(&c.geometry)) {
-                        symbol_view::paint_shape(
-                            painter,
-                            view,
-                            &offset(&shape, drag.delta),
-                            None,
-                            Some(ghost),
-                        );
+                    if let Some(shape) = moved.curve(id).and_then(|c| shape_of(&c.geometry)) {
+                        symbol_view::paint_shape(painter, view, &shape, None, Some(ghost));
                     }
                 }
                 Pick::Point(id) => {
-                    if let Some(p) = sketch.point(id) {
-                        let at = [p.at[0] + drag.delta[0], p.at[1] + drag.delta[1]];
-                        painter.circle_stroke(view.screen(at), 4.0, ghost);
+                    if let Some(p) = moved.point(id) {
+                        painter.circle_stroke(view.screen(p.at), 4.0, ghost);
                     }
                 }
             }
