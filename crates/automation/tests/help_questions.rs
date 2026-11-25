@@ -56,6 +56,10 @@ fn right(id: &HelpId, pattern: &str) -> bool {
 }
 
 struct Score {
+    /// Guides among the first five that do not answer, and first ones.
+    astray: usize,
+    astray_first: usize,
+    listed: usize,
     asked: usize,
     first: usize,
     three: usize,
@@ -71,6 +75,9 @@ fn score(
     mut ask: impl FnMut(&Question) -> Vec<HelpId>,
 ) -> Score {
     let mut s = Score {
+        astray: 0,
+        astray_first: 0,
+        listed: 0,
         asked: 0,
         first: 0,
         three: 0,
@@ -86,6 +93,13 @@ fn score(
         let at = hits
             .iter()
             .position(|id| q.right.iter().any(|p| right(id, p)));
+        let astray = |id: &HelpId| {
+            id.kind() == sparksmith_core::help::HelpKind::Guide
+                && !q.right.iter().any(|p| right(id, p))
+        };
+        s.astray += hits.iter().take(5).filter(|id| astray(id)).count();
+        s.astray_first += usize::from(hits.first().is_some_and(astray));
+        s.listed += hits.len();
         s.asked += 1;
         s.first += usize::from(at == Some(0));
         s.three += usize::from(at.is_some_and(|at| at < 3));
@@ -108,7 +122,7 @@ fn audience(q: &Question) -> Audience {
 }
 
 fn search(search: &Search, q: &Question) -> Vec<HelpId> {
-    search.search(&q.ask, audience(q), &[], 50).hits
+    search.search(&q.ask, audience(q), &[], 200).hits
 }
 
 /// The measurement: `cargo test -p sparksmith-automation --test help_questions
@@ -142,9 +156,16 @@ fn measure() -> Fallible {
         "per question: {:?}",
         at.elapsed() / all.questions.len() as u32
     );
+    if let Ok(asks) = std::env::var("SPARKSMITH_HELP_ASK") {
+        for ask in asks.split('|') {
+            let hits = both.search(ask, Audience::People, &[], 5).hits;
+            let top: Vec<&str> = hits.iter().map(HelpId::as_str).collect();
+            println!("ask {ask}: {top:?}");
+        }
+    }
     let shown = std::env::var("SPARKSMITH_HELP_SET").unwrap_or_default();
     type Ask<'a> = Box<dyn FnMut(&Question) -> Vec<HelpId> + 'a>;
-    for set in ["tune", "held"] {
+    for set in ["tune", "held", "run2"] {
         for who in ["person", "agent"] {
             let ways: [(&str, Ask<'_>); 2] = [
                 ("text", Box::new(|q| search(&text, q))),
@@ -153,8 +174,15 @@ fn measure() -> Fallible {
             for (name, ask) in ways {
                 let s = score(&all, set, who, ask);
                 println!(
-                    "{set} {who:6} {name:13} first {:2} three {:2} ten {:2} empty {:2} of {}",
-                    s.first, s.three, s.ten, s.empty, s.asked
+                    "{set} {who:6} {name:13} first {:2} three {:2} ten {:2} empty {:2} of {}; wrong guides first {} in five {}; {} listed each",
+                    s.first,
+                    s.three,
+                    s.ten,
+                    s.empty,
+                    s.asked,
+                    s.astray_first,
+                    s.astray,
+                    s.listed / s.asked.max(1)
                 );
                 if shown == set {
                     s.missed.iter().for_each(|m| println!("    {m}"));
@@ -200,6 +228,7 @@ fn the_search_answers_the_questions_in_its_first_three_topics() -> Fallible {
     for (set, who, with, alone) in [
         ("tune", "person", 46, 43),
         ("held", "person", 51, 45),
+        ("run2", "person", 30, 28),
         ("tune", "agent", 7, 7),
         ("held", "agent", 6, 5),
     ] {
