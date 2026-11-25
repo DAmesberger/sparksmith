@@ -322,7 +322,7 @@ enum Job {
         Option<UnsavedCopy>,
         WriteProtected,
     ),
-    SchematicPdf(Ticket, PathBuf, Arc<Project>),
+    SchematicPdf(Ticket, PathBuf, Arc<Project>, WriteProtected),
     Recover(Ticket, Document, Option<PathBuf>),
     ClearRecovery(Ticket, bool),
     Restore(Ticket, Snapshot),
@@ -346,7 +346,7 @@ enum Event {
         >,
     ),
     Written(Ticket, PathBuf, Outcome<Wrote>),
-    PdfExported(Ticket, PathBuf, Outcome<usize>),
+    PdfExported(Ticket, PathBuf, Arc<Project>, Outcome<Printed>),
     Recovered(Ticket, bool, bool, Outcome<()>),
     Restored(Ticket, Outcome<Box<(RecoveryRecord, Snapshot)>>),
     Discarded(Snapshot, Outcome<()>),
@@ -367,7 +367,14 @@ enum Wrote {
     Protected(String),
 }
 
-/// A refused save to answer.
+/// What a PDF export wrote.
+enum Printed {
+    Pages(usize),
+    /// Nothing: the file is write-protected; what to say.
+    Protected(String),
+}
+
+/// A refused save, or PDF export, to answer.
 #[derive(Clone)]
 struct NotSaved {
     path: PathBuf,
@@ -375,6 +382,8 @@ struct NotSaved {
     /// The file is write-protected, which the person may replace; else
     /// another program has it, and the save can be tried again.
     protected: bool,
+    /// The document of a refused PDF export.
+    pdf: Option<Arc<Project>>,
 }
 
 /// This session's recovery snapshot, which the file worker writes while the
@@ -540,11 +549,20 @@ fn worker(ctx: egui::Context, recovery: Arc<Recovery>, events: Sender<Event>) ->
                     };
                     Event::Written(ticket, path, result)
                 }
-                Job::SchematicPdf(ticket, path, project) => {
-                    let result =
-                        sparksmith_io::schematic_pdf::export_schematic_pdf(&project, &[], &path)
-                            .map_err(|e| e.to_string());
-                    Event::PdfExported(ticket, path, result)
+                Job::SchematicPdf(ticket, path, project, protected) => {
+                    let result = match sparksmith_io::schematic_pdf::export_schematic_pdf(
+                        &project,
+                        &[],
+                        &path,
+                        protected,
+                    ) {
+                        Ok(pages) => Ok(Printed::Pages(pages)),
+                        Err(error @ sparksmith_io::Error::WriteProtected(_)) => {
+                            Ok(Printed::Protected(error.to_string()))
+                        }
+                        Err(error) => Err(error.to_string()),
+                    };
+                    Event::PdfExported(ticket, path, project, result)
                 }
                 Job::Recover(ticket, document, origin) => {
                     let result = recovery.lock().write(&document, origin.as_deref());
@@ -1121,7 +1139,11 @@ impl FileUi {
         ui_kit::Window::new(
             egui::Id::unique("file-not-saved"),
             "status_warning",
-            "The project was not saved",
+            if refused.pdf.is_some() {
+                "The PDF was not written"
+            } else {
+                "The project was not saved"
+            },
         )
         .required()
         .show_body(ctx, |ui| {
@@ -1157,6 +1179,16 @@ impl FileUi {
         };
         self.not_saved = None;
         match choice {
+            NotSavedChoice::Write(protected) if refused.pdf.is_some() => {
+                if let Some(project) = refused.pdf
+                    && let Some(ticket) = self.begin(Kind::SchematicPdf, None)
+                {
+                    self.send(Job::SchematicPdf(ticket, refused.path, project, protected));
+                }
+            }
+            NotSavedChoice::SaveAs if refused.pdf.is_some() => {
+                self.request(Action::ExportSchematicPdf);
+            }
             NotSavedChoice::Write(protected) => {
                 let next = self.controller.prompt.take();
                 if let Some(ticket) = self.begin(Kind::Save, next) {
@@ -1394,7 +1426,8 @@ impl FileUi {
                     Kind::SchematicPdf if ticket.stamp == self.controller.current => {
                         if let Some(document) = self.captured.as_ref() {
                             let project = Arc::clone(&document.project);
-                            self.send(Job::SchematicPdf(ticket, path, project));
+                            let refuse = WriteProtected::Refuse;
+                            self.send(Job::SchematicPdf(ticket, path, project, refuse));
                         }
                     }
                     _ => {
@@ -1418,6 +1451,7 @@ impl FileUi {
                         path,
                         said,
                         protected: false,
+                        pdf: None,
                     });
                 }
                 Ok(Wrote::Protected(said)) => {
@@ -1427,6 +1461,7 @@ impl FileUi {
                         path,
                         said,
                         protected: true,
+                        pdf: None,
                     });
                 }
                 Ok(wrote) => {
@@ -1543,10 +1578,19 @@ impl FileUi {
                     }
                 }
             }
-            Event::PdfExported(ticket, path, result) => {
+            Event::PdfExported(ticket, path, project, result) => {
                 let current = self.controller.accept(&ticket, Kind::SchematicPdf);
                 self.status = Some(match result {
-                    Ok(pages) if current => (
+                    Ok(Printed::Protected(said)) => {
+                        self.not_saved = Some(NotSaved {
+                            path,
+                            said: said.clone(),
+                            protected: true,
+                            pdf: Some(project),
+                        });
+                        (Level::Error, said)
+                    }
+                    Ok(Printed::Pages(pages)) if current => (
                         Level::Ok,
                         format!(
                             "Printed {} to {}",
@@ -1554,7 +1598,7 @@ impl FileUi {
                             path.display()
                         ),
                     ),
-                    Ok(pages) => (
+                    Ok(Printed::Pages(pages)) => (
                         Level::Warning,
                         format!(
                             "Printed {} to {}; the document has changed",

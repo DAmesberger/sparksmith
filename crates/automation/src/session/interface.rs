@@ -390,6 +390,7 @@ impl Session {
             &text,
             &baseline,
             reviewed.as_ref(),
+            sparksmith_io::WriteProtected::told(params.replace_write_protected),
         )?;
         Ok((
             Operation::Interface(InterfaceCommand::RecordPublish { source_id, record }),
