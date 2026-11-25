@@ -711,3 +711,105 @@ fn a_shoved_chain_stays_in_the_pour_its_middle_crosses() -> Fallible {
     assert_eq!(met.len(), 1, "{lines:?}");
     Ok(())
 }
+
+/// `p`'s board with a cutout.
+fn with_cutout(p: &mut Project, outline: Outline) {
+    use crate::library::footprint_source::{EvaluatorRef, SketchBlob, SketchCurveId, SolveSummary};
+    use crate::model::board::{
+        BoardFeatureId, BoardShape, BoardSketch, CutoutKind, CutoutRole, SolvedBoard, SolvedCutout,
+    };
+    let curves = ["a", "b", "c", "d"]
+        .map(|c| SketchCurveId(c.into()))
+        .to_vec();
+    let evaluator = EvaluatorRef {
+        engine: "test".into(),
+        rev: "0".into(),
+    };
+    let mut solved = SolvedBoard::rectangle(p.board_size);
+    solved.cutouts.push(SolvedCutout {
+        id: Some(BoardFeatureId(1)),
+        kind: CutoutKind::Cutout,
+        outline,
+        curves: curves.clone(),
+    });
+    p.board_shape = BoardShape::Sketch(Box::new(BoardSketch {
+        evaluator: evaluator.clone(),
+        sketch: SketchBlob("{}".into()),
+        parameters: Vec::new(),
+        cutouts: vec![CutoutRole {
+            id: BoardFeatureId(1),
+            kind: CutoutKind::Cutout,
+            curves,
+        }],
+        holes: Vec::new(),
+        edges: Vec::new(),
+        next_feature: 3,
+        solve: SolveSummary {
+            evaluator,
+            status: Default::default(),
+            dof: 0,
+            result_hash: String::new(),
+        },
+        solved,
+        current: true,
+        outline_fit: 0.01,
+        fault: None,
+        idle: Vec::new(),
+    }));
+}
+
+/// R2, routed to R1 along y 10, moved up past a cutout (N22).
+fn moved_past(
+    cutout: Outline,
+) -> Fallible<(Project, Project, crate::layout::router::reroute::Rerouted)> {
+    let (engine, r2) = parts()?;
+    let mut before = engine.project().clone();
+    apply(
+        &mut before,
+        LayoutCommand::Route {
+            request: RouteRequest {
+                net: SHARED,
+                start: [11.2, 10.0],
+                end: [23.8, 10.0],
+                width: 0.3,
+                layer: Top,
+            },
+        },
+    )?;
+    with_cutout(&mut before, cutout);
+    let graph = CopperGraph::of(&before);
+    let mut after = before.clone();
+    apply(
+        &mut after,
+        LayoutCommand::Move {
+            instance: r2,
+            position: [25.0, 30.0],
+            rotation_deg: 0.0,
+            layer: Layer::Top,
+        },
+    )?;
+    let report = layout::dimensions::carry(&before, &mut after, &graph, &[r2], None)?;
+    Ok((before, after, report))
+}
+
+/// The stretched track ran straight through the cutout, and nothing said
+/// so: it is routed round it.
+#[test]
+fn a_stretched_track_keeps_out_of_a_cutout() -> Fallible {
+    let (before, after, report) = moved_past(rectangle(15.0, 14.0, 20.0, 24.0))?;
+    assert_eq!(violations(&before), Vec::<String>::new());
+    assert_eq!(violations(&after), Vec::<String>::new());
+    assert_eq!(report.rerouted, vec![after.net_name(SHARED).to_owned()]);
+    assert!(CopperGraph::of(&after).airwires().len() <= CopperGraph::of(&before).airwires().len());
+    Ok(())
+}
+
+/// With no way round it, the connection is named as left unrouted.
+#[test]
+fn a_track_no_way_round_a_cutout_is_named() -> Fallible {
+    let (_, after, report) = moved_past(rectangle(0.3, 16.0, 59.7, 24.0))?;
+    assert_eq!(violations(&after), Vec::<String>::new());
+    assert_eq!(report.unrouted, vec![after.net_name(SHARED).to_owned()]);
+    assert!(report.rerouted.is_empty());
+    Ok(())
+}
