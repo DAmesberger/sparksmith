@@ -93,6 +93,13 @@ fn case() -> Case {
     ] {
         atoms.extend(pad(k, spot, form, net));
     }
+    // A tie of RAIL1 and RAIL3, beside them.
+    atoms.push(part(1, Layer::Top));
+    atoms.push(Atom::Tie { part: 1 });
+    for (k, spot) in super::plan::TIE.into_iter().enumerate() {
+        let net = 3 - 2 * k;
+        atoms.push(Atom::Join { part: 1, spot, net });
+    }
     atoms.extend([
         Atom::Copper(Edit::Via {
             net: 0,
@@ -367,6 +374,73 @@ fn short_unsaid(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
     invariants::all(&short, PIXEL)
 }
 
+/// A stub drawn beside RAIL0's via, nearer than the rule, and no finding.
+fn close_unsaid(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
+    // The via is 19, 13; its land and half the track are in between.
+    let near = after(&seen.project, |p| {
+        let Some(via) = p.vias.first().cloned() else {
+            return;
+        };
+        if let Some(t) = p.tracks.last_mut() {
+            t.start = [via.position[0] - 8.0, 13.0 + 0.1];
+            t.end = [
+                via.position[0] - via.diameter / 2.0 - t.width / 2.0 - 0.1,
+                13.0,
+            ];
+            t.start[1] = t.end[1];
+        }
+    });
+    let mut near = Seen::board(&near)?;
+    if invariants::all(&near, PIXEL)?
+        .iter()
+        .any(|b| b.rule == Rule::Close)
+    {
+        return Err("the product's own finding of a small gap is not taken".into());
+    }
+    near.findings
+        .retain(|f| f.code != crate::diagnostics::FindingCode::BoardClearance);
+    invariants::all(&near, PIXEL)
+}
+
+/// Findings of a short the production check does not have.
+fn error_let_by(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
+    let mut seen = seen.clone();
+    seen.findings = Seen::board(&shorted(&seen))?.findings;
+    invariants::all(&seen, PIXEL)
+}
+
+/// Files made of a board whose outline is open.
+fn open_board(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
+    let mut sketch = super::outline::sketch(seen.project.board().into_owned(), 0.01)?;
+    sketch.current = false;
+    let mut open = Seen::board(&after(&seen.project, |p| {
+        p.board_shape = crate::model::BoardShape::Sketch(Box::new(sketch.clone()));
+    }))?;
+    if invariants::all(&open, PIXEL)?
+        .iter()
+        .any(|b| b.rule == Rule::Outline)
+    {
+        return Err("the product's own refusal is not taken".into());
+    }
+    open.refused = false;
+    invariants::all(&open, PIXEL)
+}
+
+/// The tie's bridge, left out of its layer.
+fn bridge_not_drawn(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
+    let seen = filed(seen, "copper-l1-top.gbr", |l| {
+        let at = l.iter().position(|s| s.contains("EtchedComponent"));
+        let gone = super::super::proof::regions(&l)
+            .into_iter()
+            .find(|r| at.is_some_and(|at| *r.start() > at));
+        match gone {
+            Some(gone) => super::super::proof::without_region(l, gone),
+            None => l,
+        }
+    })?;
+    invariants::all(&seen, PIXEL)
+}
+
 /// A file that lost a track.
 fn lossy_file(engine: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
     let mut file = engine.to_file();
@@ -402,7 +476,27 @@ fn redo_lost(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
     Ok(invariants::history(a, b, a, a).into_iter().collect())
 }
 
-const FAULTS: [(&str, &[Rule], Fault); 20] = [
+const FAULTS: [(&str, &[Rule], Fault); 24] = [
+    (
+        "copper too close that no finding tells",
+        &[Rule::Close],
+        close_unsaid,
+    ),
+    (
+        "an error the production check lets by",
+        &[Rule::Blocks],
+        error_let_by,
+    ),
+    (
+        "files of a board with an open outline",
+        &[Rule::Outline],
+        open_board,
+    ),
+    (
+        "a tie's bridge missing from its file",
+        &[Rule::Inventory, Rule::Image, Rule::ReadBack],
+        bridge_not_drawn,
+    ),
     (
         "the fill clearance too small",
         &[Rule::Clearance],

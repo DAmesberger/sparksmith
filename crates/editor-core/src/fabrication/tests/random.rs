@@ -11,6 +11,7 @@ mod build;
 mod edits;
 mod invariants;
 mod mutants;
+mod outline;
 mod plan;
 mod truth;
 
@@ -127,7 +128,8 @@ fn step(engine: &mut Engine, edit: &Edit, look: Look, tally: &mut Tally) -> Fall
             let Some(operation) = edits::operation(engine, edit)? else {
                 return Ok(out);
             };
-            if engine.apply(engine.revision(), operation).is_err() {
+            let made = engine.apply_hosted(engine.revision(), operation, outline::evaluators());
+            if made.is_err() {
                 out.extend(invariants::refused(&before, &State::of(engine)));
                 return Ok(out);
             }
@@ -446,6 +448,10 @@ fn the_generator_makes_everything_and_most_edits_are_taken() -> Fallible {
         "LockTrack",
         "Pour",
         "Repour",
+        "PadFill",
+        "Stretch",
+        "Window",
+        "Open",
         "Refill",
         "Keepout",
         "Rule",

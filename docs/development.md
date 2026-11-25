@@ -168,7 +168,7 @@ The 3D view always uses the direct mesh (`Flat::Meshed`; stage A4 removed the se
 
 `fabrication::tests::random` (in `sparksmith-core`) draws small legal boards from a seed, edits them at random and checks every rule below after each edit, whatever the board. A seed is the same board on every machine: the generator is its own, and nothing reads a clock or the order of a hash map.
 
-A board has 2, 4 or 6 layers (the seed's remainder by three) and any of: pads of every shape, kind and turn, parts on both sides with turned datums, text and legend, curved outlines, windows, slots and holes, net classes and clearance overrides, tracks, vias (tented, open, filled and capped), planes, drawn and hatched fills, keepouts. Tracks are straight in the document, so an arc is a run of chords. The edits are the engine's own commands (place, move, flip, route, shove, drag, change layer, delete, lock, pour, refill, rules, undo, redo, save and reopen, paste) and some that must be refused. A pasted part is a symbol that is not on the board until it is placed.
+A board has 2, 4 or 6 layers (the seed's remainder by three) and any of: pads of every shape, kind and turn, parts on both sides with turned datums, copper net ties, text and legend, curved outlines, windows, slots and holes, net classes and clearance overrides, a differential pair, tracks, vias (tented, open, filled and capped), planes, drawn and hatched fills, pad fill overrides, keepouts. Tracks are straight in the document, so an arc is a run of chords. The edits are the engine's own commands (place, move, flip, route, shove, drag, change layer, route a pair, delete, lock, pour, pad overrides, refill, rules, the board's shape, undo, redo, save and reopen, paste) and some that must be refused. A pasted part is a symbol that is not on the board until it is placed. The sketch engine is the host's: a stand-in (`outline.rs`) keeps the board as text and makes it larger, cuts a window in it, or opens its outline; what the board makes of the solve is the product's.
 
 | Rule | What must hold |
 |---|---|
@@ -179,6 +179,9 @@ A board has 2, 4 or 6 layers (the seed's remainder by three) and any of: pads of
 | `Connectivity` | The graph joins the pads that copper joins, and no others; an open net has a finding and an airwire; a part not on the board has a finding |
 | `Silent` | No edit but a deletion leaves a net fewer vias without its report or an open-net finding naming the net, and no edit changes the netlist of a net that was there |
 | `Short` | Copper of two nets that overlaps is a finding no waiver accepts |
+| `Close` | Pads, tracks and vias of two nets nearer than the rules allow are a finding naming both, measured again |
+| `Blocks` | Every error of the board checks, and everything unrouted, unplaced or stale, blocks the production check |
+| `Outline` | A board without a valid outline gives no files |
 | `Stale` | A fill is what the board gives now, or told as stale |
 | `Island` | A fill that removes islands has those that reach a pad, via or track of its net, through the net's other fills if need be, and no others |
 | `Clearance` | Every fill keeps every clearance, the edge, cutouts, keepouts and its own outline, measured between segments |
@@ -202,7 +205,9 @@ SPARKSMITH_RANDOM_CASE='17:0-3,9,22' cargo test -p sparksmith-core --lib random:
 
 The numbers are places in the seed's list of atoms: a change to the generator (`plan.rs`) makes other boards of the same seeds, so a case worth keeping becomes a test of its own.
 
-**Alive.** `every_seeded_fault_is_told_by_the_rules_that_must_tell_it` makes what was seen of one board wrong in 20 ways (a fill clearance, a drill position, a mirrored mask, a lost via, old copper and an old graph among them) and names the rules that must tell each. `the_generator_makes_everything_and_most_edits_are_taken` keeps the boards from being empty.
+By hand on GitHub: the workflow *Random boards* (`.github/workflows/random-boards.yml`) takes a range, or 200 seeds that go by its run number. It has no schedule.
+
+**Alive.** `every_seeded_fault_is_told_by_the_rules_that_must_tell_it` makes what was seen of one board wrong in 24 ways (a fill clearance, a drill position, a mirrored mask, a lost via, old copper and an old graph among them) and names the rules that must tell each. `the_generator_makes_everything_and_most_edits_are_taken` keeps the boards from being empty.
 
 ## KiCad import comparison
 

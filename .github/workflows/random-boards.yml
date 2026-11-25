@@ -1,0 +1,41 @@
+name: Random boards
+# Run by hand only. A nightly run needs a schedule, which costs CI minutes
+# every night and is not enabled here:
+#   schedule:
+#     - cron: '41 2 * * *'
+# A scheduled run has no inputs: it takes 200 seeds that move on by the day
+# (the run number), so every night checks other boards.
+on:
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: 'Seeds, first..last (empty: 200 that go by the run number)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  boards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: Boards keep every rule
+        env:
+          SEEDS: ${{ inputs.seeds }}
+          RUN: ${{ github.run_number }}
+        run: |
+          seeds="$SEEDS"
+          if [ -z "$seeds" ]; then
+            first=$((10000 + RUN * 200))
+            seeds="$first..$((first + 200))"
+          fi
+          echo "seeds $seeds"
+          SPARKSMITH_RANDOM_BOARDS="$seeds" cargo test --locked --profile ci \
+            -p sparksmith-core --lib \
+            fabrication::tests::random::the_boards_of_the_long_run_keep_every_rule \
+            -- --exact --nocapture
