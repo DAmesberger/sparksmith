@@ -2295,7 +2295,7 @@ impl PcbEditor {
         }
         self.paint_fill_handles(&painter, view, project);
         self.paint_fill_draw(&painter, view, cursor);
-        hold_mark::paint_marks(&painter, &view, project);
+        hold_mark::paint_marks(&painter, &view, project, |id| !self.part_hidden(id));
         // Part dimensions, the body traces and the Dimension tool, as in
         // 3D (`dimensions`).
         let hovered_part = match (self.tool, cursor) {

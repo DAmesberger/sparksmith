@@ -2455,6 +2455,8 @@ mod assembly_link_tests;
 #[cfg(test)]
 mod batch_tests;
 #[cfg(test)]
+mod block_tests;
+#[cfg(test)]
 mod body_tests;
 #[cfg(test)]
 mod catalog_tests;

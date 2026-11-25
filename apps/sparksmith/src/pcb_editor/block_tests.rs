@@ -260,6 +260,20 @@ fn texts(output: &egui::FullOutput) -> Vec<String> {
         .collect()
 }
 
+/// Whether the frame painted a locked part's mark.
+fn marked(output: &egui::FullOutput) -> bool {
+    fn walk(shape: &Shape) -> bool {
+        let ink = Hold::Locked.ink();
+        match shape {
+            Shape::Vec(shapes) => shapes.iter().any(walk),
+            Shape::Rect(r) => r.stroke.color == ink,
+            Shape::Circle(c) => c.fill == ink,
+            _ => false,
+        }
+    }
+    output.shapes.iter().any(|s| walk(&s.shape))
+}
+
 /// A click on the border takes the block, also where it runs along a part's
 /// courtyard, and one on a part's body the part; drawn as
 /// its border alone the block is taken anywhere in it, and its parts are
@@ -299,9 +313,14 @@ fn a_click_takes_the_block_or_the_part_by_what_is_drawn() -> Fallible {
 #[test]
 fn the_level_of_detail_changes_only_what_is_drawn() -> Fallible {
     let mut c = canvas()?;
+    let track = c.engine.project().tracks.first().ok_or("no track")?.id;
+    // A locked part's mark goes with the part.
+    c.layout(LayoutCommand::SetPlacementLock {
+        instance: c.parts[1],
+        locked: true,
+    })?;
     let before = c.engine.document().clone();
     let revision = c.engine.revision();
-    let track = c.engine.project().tracks.first().ok_or("no track")?.id;
     let mut drawn = Vec::new();
     for detail in [Detail::Copper, Detail::Parts, Detail::Border] {
         c.show(detail);
@@ -316,6 +335,7 @@ fn the_level_of_detail_changes_only_what_is_drawn() -> Fallible {
         assert_eq!(c.editor.part_hidden(c.parts[0]), detail == Detail::Border);
         assert_eq!(c.editor.pads_hidden(c.parts[0]), detail != Detail::Copper);
         assert_eq!(c.editor.track_hidden(track), detail != Detail::Copper);
+        assert_eq!(marked(&output), detail != Detail::Border);
     }
     assert!(drawn[0] > drawn[1] && drawn[1] > drawn[2], "{drawn:?}");
     c.editor.set_selection(Some(c.parts[0]), None, None);
