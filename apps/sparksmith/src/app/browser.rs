@@ -19,6 +19,7 @@ pub struct Lit {
     pub placement: Option<Id>,
     pub net: Option<Id>,
     pub track: Option<Id>,
+    pub block: Option<Id>,
     pub board: bool,
     /// The schematic's active sheet.
     pub sheet: Option<SheetId>,
@@ -38,6 +39,8 @@ pub enum Pick {
     Net(Id),
     Placement(Id),
     Track(Id),
+    /// A layout block: select it and bring it into view.
+    Block(Id),
     Board,
     /// A schematic sheet: show it.
     Sheet(SheetId),
@@ -893,7 +896,8 @@ fn tree(
         }
     }
 
-    let pcb_lit = lit.board || lit.track.is_some() || lit.placement.is_some();
+    let pcb_lit =
+        lit.board || lit.track.is_some() || lit.placement.is_some() || lit.block.is_some();
     if folder(ui, menu, "pcb", 1, "PCB", "", pcb_lit, true) {
         let size = format!(
             "{} × {} mm",
@@ -959,6 +963,44 @@ fn tree(
                 .clicked
                 {
                     pick = Some(Pick::Placement(placement.instance));
+                }
+            }
+        }
+        // Only a design with blocks has the folder.
+        if !project.blocks.is_empty()
+            && folder(
+                ui,
+                menu,
+                "blocks",
+                2,
+                "Blocks",
+                &project.blocks.len().to_string(),
+                lit.block.is_some(),
+                lit.block.is_some(),
+            )
+        {
+            for block in project.blocks.iter() {
+                let parts = match block.members.len() {
+                    1 => "1 part".to_owned(),
+                    n => format!("{n} parts"),
+                };
+                if kit::tree_row(
+                    ui,
+                    egui::Id::unique(("browser-block", block.id)),
+                    &Row {
+                        depth: 3,
+                        icon: "select",
+                        label: &block.name,
+                        secondary: &parts,
+                        selected: lit.block == Some(block.id),
+                        dim: block.locked,
+                        tip: if block.locked { "Locked" } else { "" },
+                        ..Default::default()
+                    },
+                )
+                .clicked
+                {
+                    pick = Some(Pick::Block(block.id));
                 }
             }
         }

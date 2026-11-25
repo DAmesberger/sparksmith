@@ -1407,6 +1407,9 @@ pub struct PasteFlow {
     pub all_problems: bool,
     /// The preview lists every row, not the first few.
     pub all_rows: bool,
+    /// Cancel was asked with a table pasted: whether to discard it waits
+    /// for the person.
+    pub discarding: bool,
 }
 
 impl PasteFlow {

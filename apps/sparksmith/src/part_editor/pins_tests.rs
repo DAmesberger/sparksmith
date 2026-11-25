@@ -729,8 +729,69 @@ fn paste_preview_plans_without_changing_the_document() -> TestResult {
         assert!(shown.iter().any(|t| t == "Flagged rows"), "{shown:?}");
         assert!(!shown.iter().any(|t| t == "To review"), "{shown:?}");
     }
+    // A pasted table goes only when the person says so (run 3, C1).
     h.click("Cancel")?;
+    assert!(h.editor.pins.table.paste.is_some(), "asked first");
+    // A new window is laid out unseen on its first frame.
+    h.frame(vec![]);
+    h.click("Discard")?;
     assert!(h.editor.pins.table.paste.is_none());
+    Ok(())
+}
+
+fn esc(h: &mut Harness) {
+    let key = |pressed| egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    h.frame(vec![key(true)]);
+    h.frame(vec![key(false)]);
+    h.frame(vec![]);
+}
+
+/// Run 3, C1: Esc never throws a pasted table away. With a drop-down list
+/// open it closes the list only; otherwise it asks, and Cancel there keeps
+/// the table as it was. An empty dialog closes at once.
+#[test]
+fn esc_keeps_a_pasted_table_until_the_person_discards_it() -> TestResult {
+    let mut h = Harness::new()?;
+    h.click("Paste table…")?;
+    esc(&mut h);
+    assert!(
+        h.editor.pins.table.paste.is_none(),
+        "nothing pasted: it closes"
+    );
+    h.click("Paste table…")?;
+    let table = "Pin;Name\n1;PA9\n2;PA10\n";
+    h.editor.pins.table.paste.as_mut().ok_or("not open")?.text = table.into();
+    // The Separator list open, then Esc: the list closes, the dialog stays.
+    h.click("Detect")?;
+    let shown = h.texts();
+    assert!(
+        shown.iter().any(|t| t == "Semicolon"),
+        "the list is open: {shown:?}"
+    );
+    esc(&mut h);
+    assert!(!h.texts().iter().any(|t| t == "Discard the pasted table"));
+    assert!(h.editor.pins.table.paste.is_some());
+    // Esc again asks; its Cancel keeps the table.
+    esc(&mut h);
+    h.frame(vec![]);
+    assert!(h.texts().iter().any(|t| t == "Discard the pasted table"));
+    let (shown, _) = h.frame(vec![]);
+    let cancel = shown
+        .iter()
+        .filter(|(t, _)| t == "Cancel")
+        .map(|(_, p)| *p)
+        .next_back()
+        .ok_or("no Cancel")?;
+    h.click_at(cancel)?;
+    let flow = h.editor.pins.table.paste.as_ref().ok_or("closed")?;
+    assert_eq!(flow.text, table);
+    assert!(!h.texts().iter().any(|t| t == "Discard the pasted table"));
     Ok(())
 }
 

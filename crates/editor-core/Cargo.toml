@@ -13,6 +13,8 @@ test-fixtures = []
 
 [dependencies]
 sparksmith-units-derive.workspace = true
+# The identities, hashes and bounds the online parts library shares.
+sparksmith-parts-contract = { workspace = true, features = ["schema"] }
 # Generator modules' wire types, codec and runtime interface (no
 # interpreter): generated parts' provenance and expansion (GP1).
 sparksmith-generator-abi = { workspace = true, features = ["nfc", "complete", "host-schema"] }

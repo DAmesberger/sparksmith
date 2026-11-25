@@ -7,8 +7,10 @@
 //! an instance, a wire's net or the Place preview), fields that commit live
 //! one typed command at a time, a reserved issue slot and a pinned footer.
 //! Findings live in Issues; a refused field edit shows under its field.
+use crate::about::{Subject as About, Target};
 use crate::kit;
 use crate::kit::card::{CardResponse, Inspector, IssueSlot, Region};
+use crate::kit::hover_card::Over;
 use crate::kit::severity::Level;
 use crate::kit::toast::ToastAction;
 use crate::place_palette::{ChooseAction, PaletteAction, PlacePalette};
@@ -243,9 +245,15 @@ pub struct SchematicEditor {
         sparksmith_core::schematic::AnnotateMode,
         sparksmith_core::schematic::Numbering,
     ),
-    /// An annotation sent at this revision and the changes it previews:
-    /// the toast follows once it applied.
-    annotate_watch: Option<(u64, usize, Option<u64>)>,
+    /// An annotation sent at this revision and the toast that says what it
+    /// changed, once it applied.
+    annotate_watch: Option<(u64, String, Option<u64>)>,
+    /// An annotation that renames numbered designators, shown on the sheet
+    /// card before it is sent: the revision it was previewed at and its
+    /// changes.
+    annotate_review: Option<(u64, Vec<sparksmith_core::schematic::annotate::Renumbered>)>,
+    /// Every row of that review instead of the first eight.
+    annotate_all: bool,
     /// The sheet of every wire and junction dot, once per revision.
     wire_sheets: BTreeMap<Id, sparksmith_core::SheetId>,
     dot_sheets: BTreeMap<WireEnd, sparksmith_core::SheetId>,
@@ -260,6 +268,8 @@ pub struct SchematicEditor {
     path_drag: Option<path_edit::PathDrag>,
     /// The wire and segment under the pointer, as of the last frame.
     hovered_segment: Option<(Id, usize)>,
+    /// What the thing under the pointer is (`about`).
+    hover_card: crate::about::Card,
     /// Two or more objects selected together; one object is the single
     /// selection above.
     group: group::Group,
@@ -407,6 +417,8 @@ impl Default for SchematicEditor {
             notice: None,
             annotate: Default::default(),
             annotate_watch: None,
+            annotate_review: None,
+            annotate_all: false,
             wire_sheets: BTreeMap::new(),
             dot_sheets: BTreeMap::new(),
             component: None,
@@ -416,6 +428,7 @@ impl Default for SchematicEditor {
             selected_corner: None,
             path_drag: None,
             hovered_segment: None,
+            hover_card: crate::about::Card::default(),
             group: Default::default(),
             group_drag: None,
             box_from: None,
@@ -766,6 +779,11 @@ impl SchematicEditor {
             }
         }
         None
+    }
+
+    #[cfg(test)]
+    pub(crate) fn palette_ref(&self) -> &PlacePalette {
+        &self.palette
     }
 
     pub fn palette_mut(&mut self) -> &mut PlacePalette {
@@ -1779,7 +1797,7 @@ impl SchematicEditor {
             }
             Subject::Item(item) => self.item_section(ui, engine, item),
             Subject::LabelTool(tool) => {
-                self.label_tool_section(ui, tool);
+                self.label_tool_section(ui, project, tool);
                 None
             }
             Subject::SheetTool => {
@@ -1866,6 +1884,7 @@ impl SchematicEditor {
         if rect.width() < 1.0 || rect.height() < 1.0 {
             return None;
         }
+        self.hover_card.begin(ui.ctx());
         crate::kit::tool_cursor(ui, &response, self.tool != Tool::Select);
         // The sheet is drawn in all of `rect`, under the docked cards; the
         // view centres on, and fits into, the part they leave clear.
@@ -2489,18 +2508,18 @@ impl SchematicEditor {
         }
         // Hovering a path highlights it, in the order a click picks: a pin
         // or symbol goes first.
-        self.hovered_segment = response
-            .hover_pos()
-            .filter(|_| {
-                self.tool == Tool::Select
-                    && self.path_drag.is_none()
-                    && self.drag.is_none()
-                    && self.item_drag.is_none()
-                    && self.group_drag.is_none()
-                    && self.box_from.is_none()
-            })
+        let resting = response.hover_pos().filter(|_| {
+            self.tool == Tool::Select
+                && self.path_drag.is_none()
+                && self.drag.is_none()
+                && self.item_drag.is_none()
+                && self.group_drag.is_none()
+                && self.box_from.is_none()
+        });
+        let body_under = resting.and_then(body_at);
+        self.hovered_segment = resting
             .filter(|p| {
-                body_at(*p).is_none() && pin_hits.iter().all(|(_, q)| q.distance(*p) >= PIN_HIT_PX)
+                body_under.is_none() && pin_hits.iter().all(|(_, q)| q.distance(*p) >= PIN_HIT_PX)
             })
             .and_then(|p| path_edit::hovered(&wire_paths, p));
         if let Some((wire, segment)) = self.hovered_segment
@@ -2508,6 +2527,62 @@ impl SchematicEditor {
         {
             path_edit::paint_hover(&painter, points, segment);
         }
+        // What it is, in a card: the pin, symbol or wire a click picks; the
+        // selected symbol while the canvas has the keyboard.
+        let rests = !self.palette.is_open() && crate::about::Card::rests(ui.ctx());
+        let pointer = resting.filter(|_| rests && response.hovered());
+        let symbol = |id: Id, occurrence: Id, delta: Point| {
+            let b = self.placed_bounds.get(&occurrence)?;
+            let corner = |p: Point| screen([p[0] + delta[0], p[1] + delta[1]]);
+            let over = Over::bounds([corner(b.min), corner(b.max)].into_iter().chain(pointer))?;
+            Some(Target::new(About::Part(id), over))
+        };
+        let under = |p: Pos2| {
+            let pin = pin_lines
+                .iter()
+                .map(|(e, end, line)| (e, end, line, segment_distance(p, *end, *line)))
+                .filter(|(_, end, _, d)| end.distance(p) < PIN_HIT_PX || *d < WIRE_HIT_PX)
+                .min_by(|a, b| a.3.total_cmp(&b.3));
+            if let Some((endpoint, end, line, _)) = pin {
+                // The part this use of the sheet stands for.
+                let instance = self
+                    .path
+                    .as_ref()
+                    .and_then(|path| project.sheet_use(path))
+                    .and_then(|u| u.parts.get(&endpoint.instance))
+                    .copied()
+                    .unwrap_or(endpoint.instance);
+                let over = Rect::from_two_pos(*end, *line).expand(PIN_HIT_PX);
+                let pin = About::Pin(Endpoint {
+                    instance,
+                    ..*endpoint
+                });
+                return Some(Target::new(pin, Over::Rect(over)));
+            }
+            if let Some((id, occurrence)) = body_under {
+                let delta = body_hits.iter().find(|b| b.1 == occurrence)?.3;
+                return symbol(id, occurrence, delta);
+            }
+            let (wire, _) = self.hovered_segment?;
+            let (_, path) = wire_paths.iter().find(|(id, _)| *id == wire)?;
+            let net = self.wire_nets.get(&wire).copied();
+            Some(Target::new(
+                About::Wire { wire, net },
+                Over::Path(path.drawn.clone()),
+            ))
+        };
+        let target = match pointer {
+            Some(p) => under(p),
+            None if rests && self.tool == Tool::Select && response.has_focus() => {
+                self.selected.and_then(|id| {
+                    let (_, occurrence, _, delta) = body_hits.iter().find(|b| b.0 == id)?;
+                    symbol(id, *occurrence, *delta)
+                })
+            }
+            None => None,
+        };
+        self.hover_card
+            .show(ui, project, engine.revision(), target, pointer, clear);
         // What the path being dragged would land on and run over.
         if let Some(drag) = &self.path_drag {
             let path: Vec<Pos2> = drag.now.iter().map(|v| screen(v.at)).collect();

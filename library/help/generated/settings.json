@@ -878,6 +878,10 @@
         "additionalProperties": false,
         "description": "Which kinds the Layout and 3D selection may take (the selection\nfilter), as last set; every kind by default.",
         "properties": {
+          "blocks": {
+            "default": true,
+            "type": "boolean"
+          },
           "fills": {
             "type": "boolean"
           },
@@ -901,11 +905,28 @@
       },
       "unit": null,
       "default": {
+        "blocks": true,
         "fills": true,
         "parts": true,
         "tracks": true,
         "vias": true
       },
+      "source": "UserSettings default"
+    }
+  },
+  {
+    "id": "setting/selection_filter.blocks",
+    "title": "Blocks",
+    "summary": "Blocks",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "setting",
+      "schema": {
+        "default": true,
+        "type": "boolean"
+      },
+      "unit": null,
+      "default": true,
       "source": "UserSettings default"
     }
   },

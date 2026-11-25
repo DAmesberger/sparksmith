@@ -12,6 +12,12 @@ pub(super) const USB_UNCOUPLED_MM: f64 = 7.932_388;
 /// (pad 12).
 const J1_HOLES: [(u32, u32, &str); 2] = [(17, 1, "A1B12"), (18, 12, "B1A12")];
 
+/// USB_DN's path also runs coupled for 1.245 mm beside USB_DP copper off
+/// USB_DP's path: J1's receptacle stubs at x 19.25 and 19.75 mm, 0.3 mm
+/// wide, side by side from y 7.355 to 8.6 mm, 0.2 mm apart edge to edge,
+/// within three pair gaps (3 × 0.127 mm).
+const DN_BESIDE_DP_STUB_MM: f64 = 8.6 - 7.355;
+
 /// The actual project uses net 6 for USB_DP and net 5 for USB_DN. Assert the
 /// entire preflight so a missing coverage warning or any extra issue fails:
 /// under JLCPCB 4-layer J1's two locating holes are not stated (JLCPCB
@@ -79,7 +85,8 @@ pub(super) fn assert_usb_preflight(report: &PreflightReport, uncoupled_mm: f64) 
     assert_eq!(
         item.title,
         format!(
-            "USB: 90 Ω check excludes {uncoupled_mm:.3} mm of USB_DP and {uncoupled_mm:.3} mm of USB_DN"
+            "USB: 90 Ω check excludes {uncoupled_mm:.3} mm of USB_DP and {:.3} mm of USB_DN",
+            uncoupled_mm - DN_BESIDE_DP_STUB_MM
         )
     );
 }

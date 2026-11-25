@@ -84,6 +84,7 @@ fn project_checks(p: &Project, schematic: bool) -> Result<()> {
         .chain(p.vias.iter().map(|v| v.id))
         .chain(p.fills.iter().map(|f| f.id))
         .chain(p.keepouts.iter().map(|k| k.id))
+        .chain(p.blocks.iter().map(|b| b.id))
         .chain(p.part_dimensions.iter().map(|d| d.id))
         .chain(instances::variants::ids(p))
     {
@@ -111,6 +112,7 @@ fn project_checks(p: &Project, schematic: bool) -> Result<()> {
         schematic::validate(p)?;
         nets::validate(p)?;
     }
+    instances::blocks::check(p)?;
     layout::validate(p)?;
     Ok(())
 }

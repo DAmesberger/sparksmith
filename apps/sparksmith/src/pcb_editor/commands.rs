@@ -44,7 +44,7 @@ impl PcbEditor {
         } else {
             match self.tool {
                 Tool::Route => Context::PcbRoute,
-                Tool::Fill => Context::PcbFill,
+                Tool::Fill | Tool::Keepout => Context::PcbFill,
                 Tool::Tune => Context::PcbTune,
                 Tool::Select | Tool::Via | Tool::Dimension => Context::PcbLayout,
             }
@@ -71,6 +71,7 @@ impl PcbEditor {
             PcbView::FromBottom => self.from_bottom,
             PcbView::Airwires => self.show_airwires,
             PcbView::LayerFocus => self.focus != super::LayerFocus::All,
+            PcbView::BlockDetail => self.blocks.choice != Default::default(),
             PcbView::HighlightNet => {
                 if self.highlighted.is_none() && self.net.is_none() {
                     return Err("Select a pad or track to choose its net");
@@ -102,6 +103,7 @@ impl PcbEditor {
             PcbView::FromBottom => self.from_bottom = !shown,
             PcbView::Airwires => self.show_airwires = !shown,
             PcbView::LayerFocus => self.cycle_layer_focus(),
+            PcbView::BlockDetail => self.blocks.choice = self.blocks.choice.next(),
             PcbView::HighlightNet => {
                 self.highlighted = if shown { None } else { self.net };
             }

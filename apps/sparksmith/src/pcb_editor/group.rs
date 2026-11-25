@@ -19,6 +19,7 @@ use super::{BoardView, PcbEditor, Placement, body_polygon, fill_paint, opposite}
 use crate::commands::PcbArrange;
 use crate::kit;
 use egui::{Pos2, Ui};
+use sparksmith_core::instances::blocks::BlockCommand;
 use sparksmith_core::layout::arrange::{CopperMove, PartMove};
 use sparksmith_core::layout::several::Objects;
 use sparksmith_core::layout::{self, LayoutCommand};
@@ -33,6 +34,7 @@ pub struct Group {
     pub tracks: BTreeSet<Id>,
     pub vias: BTreeSet<Id>,
     pub fills: BTreeSet<Id>,
+    pub blocks: BTreeSet<Id>,
 }
 
 /// One selectable board object.
@@ -42,6 +44,7 @@ pub(super) enum Pick {
     Track(Id),
     Via(Id),
     Fill(Id),
+    Block(Id),
 }
 
 impl Pick {
@@ -52,9 +55,10 @@ impl Pick {
             Hit::Track(id, _) => Some(Self::Track(id)),
             Hit::Via(id, _) => Some(Self::Via(id)),
             Hit::Fill(id, _) => Some(Self::Fill(id)),
+            Hit::Block(id) => Some(Self::Block(id)),
             // Sketch features are inspected individually; layout group commands
-            // accept only parts, tracks, vias and fills.
-            Hit::Hole(_) | Hit::Nothing => None,
+            // accept only parts, tracks, vias, fills and blocks.
+            Hit::Hole(_) | Hit::Keepout(_) | Hit::Nothing => None,
         }
     }
 
@@ -74,7 +78,11 @@ impl Pick {
 
 impl Group {
     pub fn len(&self) -> usize {
-        self.parts.len() + self.tracks.len() + self.vias.len() + self.fills.len()
+        self.parts.len()
+            + self.tracks.len()
+            + self.vias.len()
+            + self.fills.len()
+            + self.blocks.len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -87,6 +95,7 @@ impl Group {
             Pick::Track(id) => (&mut self.tracks, id),
             Pick::Via(id) => (&mut self.vias, id),
             Pick::Fill(id) => (&mut self.fills, id),
+            Pick::Block(id) => (&mut self.blocks, id),
         }
     }
 
@@ -101,6 +110,7 @@ impl Group {
             Pick::Track(id) => self.tracks.contains(&id),
             Pick::Via(id) => self.vias.contains(&id),
             Pick::Fill(id) => self.fills.contains(&id),
+            Pick::Block(id) => self.blocks.contains(&id),
         }
     }
 
@@ -117,7 +127,13 @@ impl Group {
         let tracks = self.tracks.iter().map(|&id| Pick::Track(id));
         let vias = self.vias.iter().map(|&id| Pick::Via(id));
         let fills = self.fills.iter().map(|&id| Pick::Fill(id));
-        parts.chain(tracks).chain(vias).chain(fills).collect()
+        let blocks = self.blocks.iter().map(|&id| Pick::Block(id));
+        parts
+            .chain(tracks)
+            .chain(vias)
+            .chain(fills)
+            .chain(blocks)
+            .collect()
     }
 
     /// The objects as the typed commands name them.
@@ -137,6 +153,7 @@ impl Group {
             (self.tracks.len(), "track", "tracks"),
             (self.vias.len(), "via", "vias"),
             (self.fills.len(), "fill", "fills"),
+            (self.blocks.len(), "block", "blocks"),
         ];
         counts
             .into_iter()
@@ -163,6 +180,10 @@ impl Group {
                 .fills
                 .iter()
                 .all(|id| project.fill(*id).is_some_and(|f| f.locked))
+            && self
+                .blocks
+                .iter()
+                .all(|id| project.block(*id).is_some_and(|b| b.locked))
     }
 
     /// Only what is still in `project`.
@@ -174,6 +195,7 @@ impl Group {
         kept.vias
             .retain(|id| project.vias.iter().any(|v| v.id == *id));
         kept.fills.retain(|id| project.fill(*id).is_some());
+        kept.blocks.retain(|id| project.block(*id).is_some());
         kept
     }
 }
@@ -190,14 +212,17 @@ pub(super) fn allows(filter: &SelectFilter, pick: Pick) -> bool {
         Pick::Track(_) => filter.tracks,
         Pick::Via(_) => filter.vias,
         Pick::Fill(_) => filter.fills,
+        Pick::Block(_) => filter.blocks,
     }
 }
 
-/// A drag of the group's parts: the poses they started at, where the
+/// A drag of the group's parts, or of one block's: the poses they started at, where the
 /// pointer took hold and how far the parts have come (on the grid).
 #[derive(Clone, Debug)]
 pub(super) struct GroupDrag {
     pub parts: Vec<Placement>,
+    /// The block it drags, when it drags one block.
+    pub block: Option<Id>,
     pub grab: Point,
     pub by: Point,
 }
@@ -223,6 +248,9 @@ impl PcbEditor {
         if let Some(id) = self.fill {
             group.fills.insert(id);
         }
+        if let Some(id) = self.block {
+            group.blocks.insert(id);
+        }
         group
     }
 
@@ -245,6 +273,7 @@ impl PcbEditor {
                 let net = project.fill(id).and_then(|f| f.net);
                 self.select_fill(id, net);
             }
+            [Pick::Block(id)] => self.select_block(id),
             _ => self.group = group,
         }
     }
@@ -322,19 +351,19 @@ impl PcbEditor {
             parts: project
                 .placements
                 .iter()
-                .filter(|_| f.parts)
+                .filter(|p| f.parts && !self.part_hidden(p.instance))
                 .map(|p| p.instance)
                 .collect(),
             tracks: project
                 .tracks
                 .iter()
-                .filter(|t| f.tracks && seen.copper_layer(t.layer))
+                .filter(|t| f.tracks && seen.copper_layer(t.layer) && !self.track_hidden(t.id))
                 .map(|t| t.id)
                 .collect(),
             vias: project
                 .vias
                 .iter()
-                .filter(|v| f.vias && seen.via(v, &self.stack))
+                .filter(|v| f.vias && seen.via(v, &self.stack) && !self.via_hidden(v.id))
                 .map(|v| v.id)
                 .collect(),
             fills: project
@@ -343,6 +372,7 @@ impl PcbEditor {
                 .filter(|fill| f.fills && self.fill_shown(fill))
                 .map(|fill| fill.id)
                 .collect(),
+            blocks: self.blocks_taken(|_| true),
         };
         self.set_group(group, project);
     }
@@ -358,11 +388,15 @@ impl PcbEditor {
             }
             out
         };
-        let mut group = Group::default();
+        let mut group = Group {
+            blocks: self.blocks_taken(|ring| bx.takes(&screen(ring))),
+            ..Group::default()
+        };
         if f.parts {
             group.parts = project
                 .placements
                 .iter()
+                .filter(|p| !self.part_hidden(p.instance))
                 .filter(|p| body_polygon(project, p).is_some_and(|c| bx.takes(&screen(&c))))
                 .map(|p| p.instance)
                 .collect();
@@ -371,7 +405,7 @@ impl PcbEditor {
             group.tracks = project
                 .tracks
                 .iter()
-                .filter(|t| seen.copper_layer(t.layer))
+                .filter(|t| seen.copper_layer(t.layer) && !self.track_hidden(t.id))
                 .filter(|t| bx.takes(&[view.screen(t.start), view.screen(t.end)]))
                 .map(|t| t.id)
                 .collect();
@@ -380,7 +414,7 @@ impl PcbEditor {
             group.vias = project
                 .vias
                 .iter()
-                .filter(|v| seen.via(v, &self.stack))
+                .filter(|v| seen.via(v, &self.stack) && !self.via_hidden(v.id))
                 .filter(|v| {
                     let Some((c, r)) = self.layout_copper.via_extent(v.id) else {
                         return false;
@@ -422,11 +456,32 @@ impl PcbEditor {
         self.set_group(group, project);
     }
 
+    /// What a press on `hit`, over `part`, takes hold of in the group: its
+    /// name, when it is the group's.
+    pub(super) fn grabbed(&self, project: &Project, hit: Hit, part: Option<Id>) -> Option<String> {
+        if let Some(id) = part.filter(|id| self.group.parts.contains(id)) {
+            return project.instance(id).map(|i| i.designator.clone());
+        }
+        match hit {
+            Hit::Block(id) if self.group.blocks.contains(&id) => {
+                project.block(id).map(|b| b.name.clone())
+            }
+            _ => None,
+        }
+    }
+
     /// Start dragging the group's parts from board point `at`. A part that
     /// cannot move says why first, in the engine's words, and nothing moves.
     pub(super) fn start_group_drag(&mut self, project: &Project, at: Point) -> Result<(), String> {
         let mut parts = Vec::new();
-        for &id in &self.group.parts {
+        for block in self.group.blocks.iter().filter_map(|id| project.block(*id)) {
+            if let Some(error) =
+                layout::blocks::move_refusal(project, block, "move", self.shape.evaluator)
+            {
+                return Err(crate::refusal::shown_error(&error));
+            }
+        }
+        for id in self.group_parts(project) {
             if let Some(error) = layout::move_refusal(project, id, self.shape.evaluator) {
                 return Err(crate::refusal::shown_error(&error));
             }
@@ -436,6 +491,7 @@ impl PcbEditor {
         }
         self.group_drag = Some(GroupDrag {
             parts,
+            block: None,
             grab: at,
             by: [0.0, 0.0],
         });
@@ -448,6 +504,13 @@ impl PcbEditor {
         let drag = self.group_drag.take()?;
         if drag.by == [0.0, 0.0] {
             return None;
+        }
+        if let Some(id) = drag.block {
+            let how = layout::blocks::BlockMove {
+                by: drag.by,
+                ..Default::default()
+            };
+            return Some(Operation::Block(how.command(id)));
         }
         let moves = drag
             .parts
@@ -474,8 +537,11 @@ impl PcbEditor {
     }
 
     /// Flip every part of the group to the other side, in place: one
-    /// `layout.move_parts`.
+    /// `layout.move_parts`. Not with a block in it: a block flips as one.
     fn flip_group(&self, project: &Project) -> Option<Operation> {
+        if !self.group.flips_by_part() {
+            return None;
+        }
         let moves: Vec<PartMove> = self
             .group
             .parts
@@ -494,14 +560,52 @@ impl PcbEditor {
         }))
     }
 
-    /// The group's Delete: its tracks, vias and fills in one undo step.
-    /// Parts stay, as they come from the schematic; the engine names them
-    /// in its outcome, so the app says which were kept.
+    /// The group's Delete, when there is something to delete: its tracks,
+    /// vias and fills, else its blocks. Parts stay, as they come from the
+    /// schematic; the engine names them in its outcome, so the app says
+    /// which were kept.
     pub(super) fn delete_group(&self) -> Option<Operation> {
         let objects = self.group.objects();
         let any =
             !(objects.tracks.is_empty() && objects.vias.is_empty() && objects.fills.is_empty());
-        any.then_some(Operation::Layout(LayoutCommand::DeleteObjects { objects }))
+        if any {
+            return Some(Operation::Layout(LayoutCommand::DeleteObjects { objects }));
+        }
+        self.group_blocks()
+            .map(|ids| Operation::Block(BlockCommand::Delete { ids }))
+    }
+
+    /// [`Self::delete_group`] to be sent: with copper and blocks both, the
+    /// blocks go first in the same undo step.
+    pub(super) fn take_group_delete(&mut self) -> Option<Operation> {
+        let delete = self.delete_group()?;
+        if matches!(delete, Operation::Layout(_)) {
+            self.first = self
+                .group_blocks()
+                .map(|ids| Operation::Block(BlockCommand::Delete { ids }));
+        }
+        Some(delete)
+    }
+
+    /// Lock or unlock the whole group in one undo step.
+    pub(super) fn take_group_lock(&mut self, locked: bool) -> Option<Operation> {
+        let objects = self.group.objects();
+        let blocks = self
+            .group_blocks()
+            .map(|ids| Operation::Block(BlockCommand::BoardLock { ids, locked }));
+        if objects == Objects::default() {
+            return blocks;
+        }
+        self.first = blocks;
+        Some(Operation::Layout(LayoutCommand::LockObjects {
+            objects,
+            locked,
+        }))
+    }
+
+    fn group_blocks(&self) -> Option<Vec<Id>> {
+        let ids: Vec<Id> = self.group.blocks.iter().copied().collect();
+        (!ids.is_empty()).then_some(ids)
     }
 
     /// The selected parts lined up or spaced (`pcb.align-*`,
@@ -534,14 +638,10 @@ impl PcbEditor {
         kit::section(ui, "pcb-selection", "Selection", true, None, |ui| {
             kit::value_row(ui, "Holds", &group.summary());
             let mut locked = group.all_locked(project);
-            kit::check_row(ui, "Locked", &mut locked).then(|| {
-                Operation::Layout(LayoutCommand::LockObjects {
-                    objects: group.objects(),
-                    locked,
-                })
-            })
+            kit::check_row(ui, "Locked", &mut locked).then_some(locked)
         })
         .flatten()
+        .and_then(|locked| self.take_group_lock(locked))
     }
 
     /// The card's footer: Flip for parts, Delete for copper.
@@ -550,20 +650,44 @@ impl PcbEditor {
         let mut output = None;
         let delete = self.delete_group();
         if ui_kit::button(ui, "Delete", Button::Enabled(delete.is_some()))
-            .on_hover_text("Delete the selected tracks, vias and fills")
+            .on_hover_text("Delete the selected tracks, vias, fills and blocks; parts stay")
             .on_disabled_hover_text("Parts are removed on the schematic")
             .clicked()
         {
-            output = delete;
+            output = self.take_group_delete();
         }
         let flip = self.flip_group(project);
         if ui_kit::button(ui, "Flip", Button::Enabled(flip.is_some()))
             .on_hover_text("Move the selected parts to the other side")
-            .on_disabled_hover_text("Select parts to flip")
+            .on_disabled_hover_text(if self.group.flips_by_part() {
+                "Select parts to flip"
+            } else {
+                "A block flips on its own"
+            })
             .clicked()
         {
             crate::refusal::name_action(ui.ctx(), "flip the parts".to_owned());
             output = flip;
+        }
+        // The parts as a block, or taken into the one that is selected too.
+        if let Some((id, add)) = self.add_to_block() {
+            let name = project.block(id).map_or("", |b| b.name.as_str());
+            if ui_kit::button(ui, "Add to block", Button::Normal)
+                .on_hover_text(format!("Take the selected parts into {name}"))
+                .clicked()
+            {
+                output = Some(add);
+            }
+        } else if self.group.blocks.is_empty() {
+            let make = self.make_block();
+            let key = crate::keys::labelled(ui.ctx(), "Make block", "pcb.make-block");
+            if ui_kit::button(ui, "Make block", Button::Enabled(make.is_ok()))
+                .on_hover_text(key)
+                .on_disabled_hover_text(make.as_ref().err().cloned().unwrap_or_default())
+                .clicked()
+            {
+                output = make.ok();
+            }
         }
         output
     }
@@ -581,6 +705,7 @@ impl PcbEditor {
                 kit::check(ui, "Tracks", &mut f.tracks);
                 kit::check(ui, "Vias", &mut f.vias);
                 kit::check(ui, "Fills", &mut f.fills);
+                kit::check(ui, "Blocks", &mut f.blocks);
                 let all = format!(
                     "Clicks, drags, the rectangle and {}+A take these",
                     crate::keys::COMMAND_KEY
@@ -608,6 +733,9 @@ impl PcbEditor {
         }
         if !f.fills {
             kept.fills.clear();
+        }
+        if !f.blocks {
+            kept.blocks.clear();
         }
         if kept != all {
             self.set_group(kept, project);

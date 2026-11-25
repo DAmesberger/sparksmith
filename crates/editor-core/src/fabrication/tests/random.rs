@@ -11,6 +11,7 @@ mod build;
 mod edits;
 mod invariants;
 mod mutants;
+mod outline;
 mod plan;
 mod truth;
 
@@ -127,11 +128,21 @@ fn step(engine: &mut Engine, edit: &Edit, look: Look, tally: &mut Tally) -> Fall
             let Some(operation) = edits::operation(engine, edit)? else {
                 return Ok(out);
             };
-            if engine.apply(engine.revision(), operation).is_err() {
+            let made = engine.apply_hosted(engine.revision(), operation, outline::evaluators());
+            if made.is_err() {
                 out.extend(invariants::refused(&before, &State::of(engine)));
                 return Ok(out);
             }
             rerouted = engine.rerouted().clone();
+            let moved = match edit {
+                Edit::MoveBlock { pick, .. } => edits::block(&before.document().project, *pick),
+                _ => None,
+            };
+            out.extend(invariants::layout_blocks(
+                &before.document().project,
+                engine.project(),
+                moved,
+            ));
             if engine.revision() != before.revision() {
                 let after = engine.document().clone();
                 engine.undo()?;
@@ -446,6 +457,10 @@ fn the_generator_makes_everything_and_most_edits_are_taken() -> Fallible {
         "LockTrack",
         "Pour",
         "Repour",
+        "PadFill",
+        "Stretch",
+        "Window",
+        "Open",
         "Refill",
         "Keepout",
         "Rule",
@@ -453,6 +468,11 @@ fn the_generator_makes_everything_and_most_edits_are_taken() -> Fallible {
         "Redo",
         "Reopen",
         "Paste",
+        "Block",
+        "MoveBlock",
+        "LockBlock",
+        "Members",
+        "Unblock",
     ]
     .into_iter()
     .filter(|k| !tally.applied.contains_key(*k))

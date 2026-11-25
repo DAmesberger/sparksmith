@@ -138,6 +138,7 @@ macro_rules! sections {
             (model_traces; 2),
             (fills; 2),
             (keepouts; 2),
+            (blocks; 2),
             (labels; 2),
             (sheet_symbols; 2),
             (sheets.uses; 3),

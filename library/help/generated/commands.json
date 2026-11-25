@@ -391,29 +391,6 @@
     ]
   },
   {
-    "id": "command/file.import-kicad",
-    "title": "Import KiCad project…",
-    "summary": "Import KiCad project from any workspace.",
-    "since": "0.1.0",
-    "facts": {
-      "kind": "command",
-      "context": "Everywhere",
-      "default_key": null,
-      "reaches": "panel/files"
-    },
-    "keywords": [
-      "kicad",
-      "import",
-      "convert",
-      "board",
-      "pcb",
-      "schematic",
-      "project",
-      "kicad_pro",
-      "kicad_pcb"
-    ]
-  },
-  {
     "id": "command/file.new",
     "title": "New project",
     "summary": "Start a new empty project at expected_revision with its board's fab profile, clearing history.",
@@ -1466,6 +1443,27 @@
     ]
   },
   {
+    "id": "command/pcb.block-detail",
+    "title": "Cycle block detail (by zoom, border, parts, pads and copper)",
+    "summary": "PCB › Layout: Cycle block detail (by zoom, border, parts, pads and copper).",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "Shift+B",
+      "reaches": "panel/layout"
+    },
+    "keywords": [
+      "blocks",
+      "level",
+      "of",
+      "detail",
+      "border",
+      "zoom",
+      "calm"
+    ]
+  },
+  {
     "id": "command/pcb.board-shape",
     "title": "Board shape",
     "summary": "Edit the board outline, cutouts and named edges as a sketch",
@@ -1497,8 +1495,8 @@
   },
   {
     "id": "command/pcb.delete",
-    "title": "Delete the selection's tracks, vias and fills, or a dimension",
-    "summary": "PCB › Layout: Delete the selection's tracks, vias and fills, or a dimension.",
+    "title": "Delete the selection's tracks, vias, fills and blocks, or a dimension",
+    "summary": "PCB › Layout: Delete the selection's tracks, vias, fills and blocks, or a dimension.",
     "since": "0.1.0",
     "facts": {
       "kind": "command",
@@ -1675,6 +1673,28 @@
       "net",
       "highlight",
       "selection"
+    ]
+  },
+  {
+    "id": "command/pcb.keepout",
+    "title": "Keepout",
+    "summary": "Draw an area copper may not enter; switch to Layout to draw",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/keepout.add"
+    },
+    "keywords": [
+      "keep",
+      "out",
+      "keepout",
+      "no",
+      "copper",
+      "restrict",
+      "area",
+      "forbid"
     ]
   },
   {
@@ -3336,6 +3356,27 @@
     ]
   },
   {
+    "id": "command/pcb.make-block",
+    "title": "Make block of the selected parts",
+    "summary": "Make a block of `parts`: parts that belong together.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": "Ctrl+G",
+      "reaches": "entry/block.add"
+    },
+    "keywords": [
+      "block",
+      "group",
+      "module",
+      "parts",
+      "together",
+      "layout",
+      "block"
+    ]
+  },
+  {
     "id": "command/pcb.net-classes",
     "title": "Net classes…",
     "summary": "PCB: Net classes.",
@@ -3444,8 +3485,8 @@
   },
   {
     "id": "command/pcb.rotate",
-    "title": "Rotate the selected part 90°",
-    "summary": "PCB › Layout: Rotate the selected part 90°.",
+    "title": "Rotate the selected part or block 90°",
+    "summary": "PCB › Layout: Rotate the selected part or block 90°.",
     "since": "0.1.0",
     "facts": {
       "kind": "command",
@@ -4945,28 +4986,6 @@
       "view",
       "cube",
       "3d"
-    ]
-  },
-  {
-    "id": "command/view.import-report",
-    "title": "KiCad import report",
-    "summary": "KiCad import report from any workspace.",
-    "since": "0.1.0",
-    "facts": {
-      "kind": "command",
-      "context": "Everywhere",
-      "default_key": null,
-      "reaches": "panel/files"
-    },
-    "keywords": [
-      "kicad",
-      "import",
-      "report",
-      "rules",
-      "refused",
-      "tracks",
-      "looser",
-      "counts"
     ]
   },
   {

@@ -440,6 +440,18 @@
     "developer_only": false
   },
   {
+    "id": "term/layout-block",
+    "title": "Layout block",
+    "aliases": [
+      "block"
+    ],
+    "definition": "Parts that belong together in the design, and move, turn, flip and lock as one on the board. Who is in it is set by hand, never by where a part lies. Its border on the board is derived from its parts, the convex hull of their courtyards, and is soft: other parts and traces may lie in it. A part is in one block at most, and copper belongs to its net, not to the block.",
+    "avoid": [
+      "Module"
+    ],
+    "developer_only": false
+  },
+  {
     "id": "term/mask-web",
     "title": "Mask web",
     "aliases": [],

@@ -210,6 +210,9 @@ pub struct PartEditor {
     request: Option<Request>,
     view: View,
     selected: Option<TerminalId>,
+    /// The terminal a Locate chose on the Mapping tab, scrolled into view
+    /// on its next frame.
+    mapping_reveal: Option<TerminalId>,
     /// Toasts to post on the next frame with a context: command results
     /// and gesture refusals (the editor `notice` string's replacement).
     posts: Vec<kit::toast::Posted>,
@@ -316,6 +319,7 @@ impl Default for PartEditor {
             request: None,
             view: View::Details,
             selected: Some(TerminalId(1)),
+            mapping_reveal: None,
             posts: Vec::new(),
             terminal_card: None,
             issue_slot: None,
@@ -2026,89 +2030,120 @@ impl PartEditor {
         None
     }
 
+    /// The Mapping canvas: a header, and one row per package terminal under
+    /// it that scrolls (only the rows in view are laid out), so a part of
+    /// any size lists every terminal. A Locate scrolls its row into view.
     fn mapping_canvas(&mut self, ui: &mut Ui, rect: Rect) {
         let Some(set) = &self.draft else {
             return;
         };
         let t = Tokens::get();
         let painter = ui.painter().with_clip_rect(rect);
-        let left = rect.left() + t.space_24;
-        let right = rect.right() - t.space_24;
+        let inset = t.space_24;
         painter.text(
-            Pos2::new(left, rect.top() + t.space_16),
+            Pos2::new(rect.left() + inset, rect.top() + t.space_16),
             Align2::LEFT_TOP,
             "Electrical terminal",
             type_face::semibold(t.font_panel),
             t.text,
         );
         painter.text(
-            Pos2::new(right, rect.top() + t.space_16),
+            Pos2::new(rect.right() - inset, rect.top() + t.space_16),
             Align2::RIGHT_TOP,
             "Package terminal / copper pads",
             type_face::semibold(t.font_panel),
             t.text,
         );
-        let top = rect.top() + t.form_header_height + t.space_16;
-        let mut clicked = None;
-        for (index, physical) in set.package.terminals.iter().enumerate() {
-            let y = top + index as f32 * (t.control_height + t.space_12);
-            let electrical = set
-                .binding
-                .terminal_of(physical.id)
-                .and_then(|id| set.component.terminal(id));
-            // Only a mapped row is linked; an unmapped one reads "Unmapped".
-            if let Some(electrical) = electrical {
-                let ink = if Some(electrical.id) == self.selected {
-                    t.body_selected
-                } else {
-                    t.accent
-                };
-                painter.line_segment(
-                    [Pos2::new(left + 120.0, y), Pos2::new(right - 150.0, y)],
-                    Stroke::new(2.0, ink),
-                );
-            }
-            // Pads by their numbers, as the footprint shows them.
-            let numbers: Vec<&str> = set
-                .footprint
-                .pads
-                .iter()
-                .filter(|p| p.terminal == Some(physical.id))
-                .map(|p| p.number.as_str())
-                .collect();
-            let pad_ids = match numbers.as_slice() {
-                [] => "no pad".to_owned(),
-                [one] => format!("pad {one}"),
-                many => format!("pads {}", many.join(", ")),
-            };
-            painter.text(
-                Pos2::new(left, y),
-                Align2::LEFT_CENTER,
-                electrical.map(|e| e.name.as_str()).unwrap_or("Unmapped"),
-                FontId::proportional(t.font_label),
-                t.text,
-            );
-            painter.text(
-                Pos2::new(right, y),
-                Align2::RIGHT_CENTER,
-                format!("{}  ·  {pad_ids}", physical.designation),
-                FontId::proportional(t.font_label),
-                t.text,
-            );
-            if ui
-                .interact(
-                    Rect::from_min_max(
-                        Pos2::new(left, y - t.control_height / 2.0),
-                        Pos2::new(right, y + t.control_height / 2.0),
-                    ),
-                    ui.scope_id().with(("mapping-row", physical.id.0)),
-                    Sense::click(),
-                )
-                .clicked()
-            {
-                clicked = Some(electrical.map(|e| e.id));
-            }
+        let list = Rect::from_min_max(
+            Pos2::new(rect.left(), rect.top() + t.form_header_height + t.space_8),
+            rect.max,
+        );
+        if list.height() < 1.0 {
+            return;
         }
+        let row_height = t.control_height + t.space_12;
+        let terminals = &set.package.terminals;
+        // The row a Locate chose, once, scrolled to the middle.
+        let reveal = self.mapping_reveal.take().and_then(|electrical| {
+            terminals
+                .iter()
+                .position(|p| set.binding.terminal_of(p.id) == Some(electrical))
+        });
+        let mut clicked = None;
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(list));
+        let mut area = egui::ScrollArea::vertical()
+            .id_salt("mapping-rows")
+            .auto_shrink([false, false]);
+        if let Some(index) = reveal {
+            let middle = index as f32 * row_height - (list.height() - row_height) / 2.0;
+            area = area.vertical_scroll_offset(middle.max(0.0));
+        }
+        area.show_rows(&mut child, row_height, terminals.len(), |ui, rows| {
+            for index in rows {
+                let Some(physical) = terminals.get(index) else {
+                    continue;
+                };
+                let width = ui.available_width();
+                let (row, response) =
+                    ui.allocate_exact_size(egui::vec2(width, row_height), Sense::click());
+                response.widget_info(|| {
+                    egui::WidgetInfo::labeled(
+                        egui::Role::Button,
+                        true,
+                        format!("Package terminal {}", physical.designation),
+                    )
+                });
+                let (left, right) = (row.left() + inset, row.right() - inset);
+                let y = row.center().y;
+                let painter = ui.painter();
+                let electrical = set
+                    .binding
+                    .terminal_of(physical.id)
+                    .and_then(|id| set.component.terminal(id));
+                // Only a mapped row is linked; an unmapped one reads "Unmapped".
+                if let Some(electrical) = electrical {
+                    let ink = if Some(electrical.id) == self.selected {
+                        t.body_selected
+                    } else {
+                        t.accent
+                    };
+                    painter.line_segment(
+                        [Pos2::new(left + 120.0, y), Pos2::new(right - 150.0, y)],
+                        Stroke::new(2.0, ink),
+                    );
+                }
+                // Pads by their numbers, as the footprint shows them.
+                let numbers: Vec<&str> = set
+                    .footprint
+                    .pads
+                    .iter()
+                    .filter(|p| p.terminal == Some(physical.id))
+                    .map(|p| p.number.as_str())
+                    .collect();
+                let pad_ids = match numbers.as_slice() {
+                    [] => "no pad".to_owned(),
+                    [one] => format!("pad {one}"),
+                    many => format!("pads {}", many.join(", ")),
+                };
+                painter.text(
+                    Pos2::new(left, y),
+                    Align2::LEFT_CENTER,
+                    electrical.map(|e| e.name.as_str()).unwrap_or("Unmapped"),
+                    FontId::proportional(t.font_label),
+                    t.text,
+                );
+                painter.text(
+                    Pos2::new(right, y),
+                    Align2::RIGHT_CENTER,
+                    format!("{}  ·  {pad_ids}", physical.designation),
+                    FontId::proportional(t.font_label),
+                    t.text,
+                );
+                if response.clicked() {
+                    clicked = Some(electrical.map(|e| e.id));
+                }
+            }
+        });
         if let Some(selected) = clicked {
             self.selected = selected;
         }

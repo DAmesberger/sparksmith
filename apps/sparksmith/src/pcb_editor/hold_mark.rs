@@ -104,10 +104,15 @@ pub(super) fn paint_mark(painter: &egui::Painter, bounds: egui::Rect, hold: Hold
     }
 }
 
-/// Mark every fixed part on the canvas, after the board is drawn: a part
-/// being dragged is free by definition, so every mark stays put.
-pub(super) fn paint_marks(painter: &egui::Painter, view: &BoardView, project: &Project) {
-    for placement in &project.placements {
+/// Mark every fixed part that is `drawn`, after the board: a part being
+/// dragged is free by definition, so every mark stays put.
+pub(super) fn paint_marks(
+    painter: &egui::Painter,
+    view: &BoardView,
+    project: &Project,
+    drawn: impl Fn(sparksmith_core::Id) -> bool,
+) {
+    for placement in project.placements.iter().filter(|p| drawn(p.instance)) {
         let Some(hold) = Hold::of(project, placement) else {
             continue;
         };

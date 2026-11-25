@@ -4,7 +4,8 @@
 //! that is what shrinking takes away, and what a reproduction line names.
 use crate::geometry::Point;
 use crate::model::Layer;
-use crate::rules::CopperObject;
+use crate::model::fill::PadFillOverride;
+use crate::rules::{CopperObject, PadConnection};
 
 /// The board, mm. The parts stand on a grid of cells; what is cut and
 /// drilled of the board itself lies between them.
@@ -182,6 +183,8 @@ pub(super) enum Cut {
     Bow,
     /// An arc into the board at its top.
     Bay,
+    /// A square bite out of its bottom.
+    Notch,
     Window,
     Slot,
     PlatedSlot,
@@ -189,10 +192,11 @@ pub(super) enum Cut {
     BareHole,
 }
 
-pub(super) const CUTS: [Cut; 8] = [
+pub(super) const CUTS: [Cut; 9] = [
     Cut::Corners,
     Cut::Bow,
     Cut::Bay,
+    Cut::Notch,
     Cut::Window,
     Cut::Slot,
     Cut::PlatedSlot,
@@ -356,6 +360,30 @@ pub(super) enum Edit {
         object: CopperObject,
         mm: f64,
     },
+    /// How fills join a pad, or every pad of its part.
+    PadFill {
+        pick: usize,
+        whole: bool,
+        settings: PadFillOverride,
+    },
+    /// Both halves of a pair, from a pad of each to a place and on.
+    Coupled {
+        pads: [usize; 2],
+        at: Point,
+        to: Point,
+        layer: usize,
+    },
+    /// The board wider and higher by this.
+    Stretch {
+        by: Point,
+    },
+    /// A round window in the board.
+    Window {
+        at: Point,
+        radius: f64,
+    },
+    /// The outline opened, or closed again.
+    Open,
     Undo {
         steps: usize,
     },
@@ -365,6 +393,30 @@ pub(super) enum Edit {
     Reopen,
     /// A symbol copied and pasted: a new part, not on the board yet.
     Paste {
+        pick: usize,
+    },
+    /// A block of so many parts that are in none.
+    Block {
+        pick: usize,
+        count: usize,
+    },
+    MoveBlock {
+        pick: usize,
+        by: Point,
+        turn: f64,
+        flip: bool,
+    },
+    LockBlock {
+        pick: usize,
+        locked: bool,
+    },
+    /// Parts taken in and let go.
+    Members {
+        pick: usize,
+        add: usize,
+        remove: usize,
+    },
+    Unblock {
         pick: usize,
     },
     /// What must be refused, whatever the board.
@@ -411,6 +463,14 @@ pub(super) enum Atom {
         spot: usize,
         net: usize,
     },
+    /// A copper tie between two pads of the part.
+    Tie {
+        part: usize,
+    },
+    /// Two nets that are a differential pair.
+    Pair {
+        nets: [usize; 2],
+    },
     /// Copper of the board at its start.
     Copper(Edit),
     /// An edit of the board that is made.
@@ -426,6 +486,8 @@ pub(super) struct Case {
     pub atoms: Vec<(usize, Atom)>,
 }
 
+/// The spots a tie joins: beside each other, on one side.
+pub(super) const TIE: [usize; 2] = [3, 4];
 /// The nets a board may have.
 pub(super) const NETS: usize = 4;
 /// Edits of a case.
@@ -466,7 +528,25 @@ impl Case {
                 fill: rng.chance(5).then(|| rng.steps(0.2, 0.5, 0.01)),
             });
         }
+        if rng.chance(5) {
+            let first = rng.below(NETS);
+            atoms.push(Atom::Pair {
+                nets: [first, (first + 1 + rng.below(NETS - 1)) % NETS],
+            });
+        }
         for part in 0..2 + rng.below(3) {
+            let tied = rng.chance(2);
+            if tied {
+                atoms.push(Atom::Tie { part });
+                let first = rng.below(NETS);
+                for (k, spot) in TIE.into_iter().enumerate() {
+                    atoms.push(Atom::Join {
+                        part,
+                        spot,
+                        net: (first + k) % NETS,
+                    });
+                }
+            }
             atoms.push(Atom::Part {
                 part,
                 turn: rng.turn(),
@@ -474,7 +554,7 @@ impl Case {
                 datum: rng.chance(3),
             });
             for spot in 0..9 {
-                if !rng.chance(6) {
+                if !rng.chance(6) || tied && TIE.contains(&spot) {
                     continue;
                 }
                 let Some(form) = rng.pick(&FORMS) else {
@@ -536,6 +616,15 @@ impl Case {
             };
             let edit = edit(rng, layers, kind);
             atoms.push(Atom::Edit(edit));
+        }
+        // Blocks come last, so the rest of a seed is what it was without.
+        if rng.chance(6) {
+            let (pick, count) = (rng.below(64), 1 + rng.below(3));
+            atoms.push(Atom::Edit(Edit::Block { pick, count }));
+            for _ in 0..3 {
+                let edit = blocks(rng);
+                atoms.push(Atom::Edit(edit));
+            }
         }
         Self {
             seed,
@@ -647,6 +736,25 @@ fn patch(rng: &mut Rng, over: &Pour) -> Pour {
     }
 }
 
+fn pad_fill(rng: &mut Rng) -> PadFillOverride {
+    let mm = |rng: &mut Rng, lo: f64, hi: f64| {
+        let some = rng.chance(5);
+        some.then(|| crate::tests::support::nm(rng.steps(lo, hi, 0.01)))
+    };
+    PadFillOverride {
+        connection: match rng.below(4) {
+            0 => Some(PadConnection::Solid),
+            1 => Some(PadConnection::Thermal),
+            2 => Some(PadConnection::None),
+            _ => None,
+        },
+        spoke_width: mm(rng, 0.25, 0.6),
+        spoke_angle: None,
+        thermal_gap: mm(rng, 0.2, 0.5),
+        clearance: mm(rng, 0.1, 0.8),
+    }
+}
+
 fn keepout(rng: &mut Rng, layers: usize) -> Edit {
     let at = rng.place();
     Edit::Keepout {
@@ -710,8 +818,42 @@ fn copper(rng: &mut Rng, layers: usize) -> Edit {
     }
 }
 
+/// An edit of a board with a block, or one a block has a say in.
+fn blocks(rng: &mut Rng) -> Edit {
+    let pick = rng.below(64);
+    let by = |rng: &mut Rng| [rng.steps(-4.0, 4.0, 0.25), rng.steps(-4.0, 4.0, 0.25)];
+    match rng.below(12) {
+        0..=3 => Edit::MoveBlock {
+            pick,
+            by: by(rng),
+            turn: if rng.chance(5) { 0.0 } else { rng.turn() },
+            flip: rng.chance(3),
+        },
+        4 | 5 => Edit::LockBlock {
+            pick,
+            locked: rng.chance(7),
+        },
+        6 => Edit::Members {
+            pick,
+            add: rng.below(2),
+            remove: rng.below(2),
+        },
+        7 => Edit::Unblock { pick },
+        8 => Edit::Move {
+            pick,
+            by: by(rng),
+            turn: 0.0,
+        },
+        9 => Edit::MoveTwo { pick, by: by(rng) },
+        10 => Edit::Undo {
+            steps: 1 + rng.below(3),
+        },
+        _ => Edit::Reopen,
+    }
+}
+
 /// The kinds [`edit`] counts, the commoner ones several times.
-const KINDS: usize = 42;
+const KINDS: usize = 48;
 
 fn edit(rng: &mut Rng, layers: usize, kind: usize) -> Edit {
     let pick = rng.below(64);
@@ -785,6 +927,25 @@ fn edit(rng: &mut Rng, layers: usize, kind: usize) -> Edit {
             side: rng.side(),
         },
         40 => Edit::DeleteKeepout { pick },
+        41 => Edit::PadFill {
+            pick,
+            whole: rng.chance(3),
+            settings: pad_fill(rng),
+        },
+        42 => Edit::Coupled {
+            pads: [rng.below(8), rng.below(8)],
+            at: rng.place(),
+            to: rng.place(),
+            layer: rng.below(layers),
+        },
+        43 | 44 => Edit::Stretch {
+            by: [rng.steps(-1.5, 4.0, 0.25), rng.steps(-1.5, 4.0, 0.25)],
+        },
+        45 => Edit::Window {
+            at: rng.place(),
+            radius: rng.steps(0.5, 1.5, 0.1),
+        },
+        46 => Edit::Open,
         _ => Edit::Wrong(rng.below(6)),
     }
 }

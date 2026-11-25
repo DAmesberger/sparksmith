@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/editor-core",
     "crates/units-derive",
+    "crates/parts-contract",
     "crates/io",
     "crates/solidcraft-integration",
     "crates/automation",
@@ -52,6 +53,7 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 sparksmith-core = { path = "crates/editor-core" }
 sparksmith-units-derive = { path = "crates/units-derive" }
+sparksmith-parts-contract = { path = "crates/parts-contract" }
 sparksmith-io = { path = "crates/io" }
 sparksmith-solidcraft = { path = "crates/solidcraft-integration" }
 sparksmith-automation = { path = "crates/automation" }

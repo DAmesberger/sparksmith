@@ -6,7 +6,6 @@ mod design_part;
 mod fab;
 mod fab_profile;
 mod firmware;
-mod import_kicad;
 mod interrupt;
 mod part;
 mod pinout;
@@ -98,7 +97,6 @@ fn usage() -> String {
         fab::USAGE,
         review_diff::USAGE,
         part::USAGE,
-        import_kicad::USAGE,
         plugin::USAGE,
         replay::USAGE,
     ]
@@ -438,7 +436,6 @@ fn run() -> Result<()> {
         [command, rest @ ..] if command == "llm-profile" => design_part::profile(rest),
         [command, rest @ ..] if command == "review-diff" => review_diff::run(rest),
         [command, rest @ ..] if command == "part" => part::run(rest),
-        [command, rest @ ..] if command == "import-kicad" => import_kicad::run(rest),
         [command, rest @ ..] if command == "plugin" => plugin::run(rest),
         [command, rest @ ..] if command == "mcp-replay" => replay::run(rest),
         _ => Err(usage().into()),

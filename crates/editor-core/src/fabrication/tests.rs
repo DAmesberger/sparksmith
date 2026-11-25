@@ -16,6 +16,7 @@ mod expected;
 mod identity;
 mod inventory;
 mod layers;
+mod off_board;
 mod preflight;
 mod proof;
 mod random;

@@ -49,6 +49,16 @@ pub(crate) fn ccw(mut ring: Ring) -> Option<Ring> {
     Some(ring)
 }
 
+/// Whether the counter-clockwise `ring` has a corner that goes in.
+pub(crate) fn goes_in(ring: &[Point]) -> bool {
+    let n = ring.len();
+    (0..n).any(|i| {
+        let (a, b, c) = (ring[i], ring[(i + 1) % n], ring[(i + 2) % n]);
+        let cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+        cross < -1e-9
+    })
+}
+
 /// The union of counter-clockwise `rings` (non-zero).
 pub(crate) fn union(rings: &[Ring]) -> Vec<Region> {
     if rings.is_empty() {

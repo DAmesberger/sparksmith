@@ -215,12 +215,9 @@ impl App {
                 AppCommand::ClearRecent if self.sources.recent_projects().is_empty() => {
                     Err("No recent projects".into())
                 }
-                AppCommand::ImportReport if !self.import_report.available() => {
-                    Err("No KiCad import in this project".into())
-                }
+
                 AppCommand::New
                 | AppCommand::Open
-                | AppCommand::ImportKicad
                 | AppCommand::Save
                 | AppCommand::SaveAs
                 | AppCommand::Export
@@ -259,6 +256,12 @@ impl App {
                     return Err("Select parts on the PCB layout".into());
                 }
                 self.pcb.arrange(how).map(|_| ())
+            }
+            Action::MakeBlock => {
+                if self.workspace != Workspace::Pcb {
+                    return Err("Select parts on the PCB layout".into());
+                }
+                self.pcb.make_block().map(|_| ())
             }
             Action::Ribbon(workspace, event) => ribbons
                 .iter()
@@ -303,6 +306,10 @@ impl App {
                 let operation = self.pcb.arrange(how).ok();
                 self.apply(ctx, crate::refusal::Origin::Command, operation);
             }
+            Action::MakeBlock => {
+                let operation = self.pcb.make_block().ok();
+                self.apply(ctx, crate::refusal::Origin::Command, operation);
+            }
             Action::Key => {}
         }
     }
@@ -327,8 +334,7 @@ impl App {
             }
             AppCommand::New => self.files.request(file_ui::Action::New),
             AppCommand::Open => self.files.request(file_ui::Action::Open),
-            AppCommand::ImportKicad => self.files.request(file_ui::Action::ImportKicad),
-            AppCommand::ImportReport => self.import_report.open(),
+
             AppCommand::Save => self.files.request(file_ui::Action::Save),
             AppCommand::SaveAs => self.files.request(file_ui::Action::SaveAs),
             AppCommand::Export => self.files.request(file_ui::Action::Export),

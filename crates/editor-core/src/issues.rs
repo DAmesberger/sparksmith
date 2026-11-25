@@ -243,6 +243,10 @@ pub const NO_WAIVER: &[&str] = &[
     // Copper of two nets that touches is a short, not a gap to accept.
     crate::diagnostics::FindingCode::BoardOverlap.as_str(),
     crate::diagnostics::FindingCode::FillOverlap.as_str(),
+    // The same short, told by the tie between the two nets: a second place
+    // they meet, or copper on the bridge that joins them.
+    crate::diagnostics::FindingCode::TieSecondJoin.as_str(),
+    crate::diagnostics::FindingCode::TieBridgeContact.as_str(),
     // The files would hold something else than the design: copper computed
     // for another board or none, the last outline that was one board, a
     // part without its lands.

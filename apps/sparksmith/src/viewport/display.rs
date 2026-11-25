@@ -243,6 +243,11 @@ impl Viewport {
         self.pv_key != 0
     }
 
+    /// Whether the view has the keyboard focus.
+    pub fn focused(&self) -> bool {
+        self.focused
+    }
+
     /// Where the view was last drawn.
     pub fn rect(&self) -> Option<egui::Rect> {
         self.rect

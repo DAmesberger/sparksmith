@@ -2,12 +2,15 @@
 //! when they are made: the choices come from the document's own order.
 use super::Fallible;
 use super::build::{self, net};
+use super::outline;
 use super::plan::{BOARD, Edit, Past, Pour};
 use super::truth::{self, PadOn};
 use crate::geometry::Point;
 use crate::ids::Id;
+use crate::instances::blocks::{BlockCommand, block_of};
 use crate::layout::arrange::PartMove;
 use crate::layout::fill::{FillCommand, RefillTarget};
+use crate::layout::pair::{PairLeg, PairRouteRequest};
 use crate::layout::posture::Posture;
 use crate::layout::router::drag::TrackDragRequest;
 use crate::layout::router::{RouteMode, RouteStepRequest};
@@ -189,7 +192,16 @@ pub(super) fn operation(engine: &Engine, edit: &Edit) -> Fallible<Option<Operati
         | Edit::Repour { .. }
         | Edit::DeletePour { .. }
         | Edit::Keepout { .. }
-        | Edit::DeleteKeepout { .. } => fills(project, edit).map(Operation::Fill),
+        | Edit::DeleteKeepout { .. }
+        | Edit::PadFill { .. } => fills(project, edit).map(Operation::Fill),
+        Edit::Stretch { .. } | Edit::Window { .. } | Edit::Open => {
+            outline::operation(project, edit)
+        }
+        Edit::Block { .. }
+        | Edit::MoveBlock { .. }
+        | Edit::LockBlock { .. }
+        | Edit::Members { .. }
+        | Edit::Unblock { .. } => blocks(project, edit).map(Operation::Block),
         _ => parts(project, edit)
             .or_else(|| routes(project, edit))
             .or_else(|| copper(project, edit))
@@ -247,6 +259,19 @@ fn fills(project: &Project, edit: &Edit) -> Option<FillCommand> {
                 forbid: KeepoutRules::default(),
             }),
         },
+        Edit::PadFill {
+            pick: k,
+            whole,
+            settings,
+        } => {
+            let pads = truth::pads(project);
+            let pad = pick(&pads, *k)?;
+            FillCommand::SetPadOverride {
+                instance: pad.instance,
+                pad: (!whole).then_some(pad.pad.id),
+                settings: *settings,
+            }
+        }
         Edit::DeleteKeepout { pick: k } => FillCommand::DeleteKeepout {
             id: pick(&project.keepouts, *k)?.id,
         },
@@ -317,6 +342,63 @@ fn parts(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
     })
 }
 
+/// The block an edit that counts to `k` means.
+pub(super) fn block(project: &Project, k: usize) -> Option<Id> {
+    pick(&project.blocks, k).map(|b| b.id)
+}
+
+fn blocks(project: &Project, edit: &Edit) -> Option<BlockCommand> {
+    let block = |k: usize| pick(&project.blocks, k);
+    // Parts in no block, `count` of them from the `k`th on.
+    let free = |k: usize, count: usize| -> Vec<Id> {
+        let free: Vec<Id> = project
+            .instances
+            .iter()
+            .map(|i| i.id)
+            .filter(|id| block_of(project, *id).is_none())
+            .collect();
+        let from = k.checked_rem(free.len()).unwrap_or(0);
+        free.into_iter().skip(from).take(count).collect()
+    };
+    Some(match edit {
+        Edit::Block { pick: k, count } => BlockCommand::Add {
+            parts: free(*k, *count),
+            name: None,
+        },
+        Edit::MoveBlock {
+            pick: k,
+            by,
+            turn,
+            flip,
+        } => BlockCommand::BoardMove {
+            id: block(*k)?.id,
+            by: *by,
+            turn_deg: *turn,
+            flip: *flip,
+        },
+        Edit::LockBlock { pick: k, locked } => BlockCommand::BoardLock {
+            ids: vec![block(*k)?.id],
+            locked: *locked,
+        },
+        Edit::Members {
+            pick: k,
+            add,
+            remove,
+        } => {
+            let block = block(*k)?;
+            BlockCommand::Members {
+                id: block.id,
+                add: free(*k, *add),
+                remove: block.members.iter().copied().take(*remove).collect(),
+            }
+        }
+        Edit::Unblock { pick: k } => BlockCommand::Delete {
+            ids: vec![block(*k)?.id],
+        },
+        _ => return None,
+    })
+}
+
 fn routes(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
     Some(match edit {
         Edit::Link {
@@ -380,6 +462,31 @@ fn routes(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
                     via: via(net, *at, 0.3, true, false),
                     to_layer: wanted,
                     end: *to,
+                },
+            }
+        }
+        Edit::Coupled {
+            pads: [a, b],
+            at,
+            to,
+            layer: k,
+        } => {
+            let pair = project.rules.diff_pairs.first()?;
+            let (p, n) = (
+                pads_of(project, pair.positive),
+                pads_of(project, pair.negative),
+            );
+            LayoutCommand::RoutePair {
+                request: PairRouteRequest {
+                    pair: pair.id,
+                    start: [pick(&p, *a)?.at, pick(&n, *b)?.at],
+                    legs: vec![PairLeg {
+                        layer: layer(project, *k),
+                        points: vec![*at, *to],
+                    }],
+                    end: None,
+                    width: Some(0.2),
+                    gap: Some(0.2),
                 },
             }
         }

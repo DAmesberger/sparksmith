@@ -1,7 +1,8 @@
 //! The Via card of the selected via (net, position, drill, pad, span,
 //! tenting and lock, with Delete via in the footer) and the Via tool card
 //! (docs/sidebar-ia.md, "Properties card by subject" and "Tool card").
-use super::PcbEditor;
+use super::placement_card::COORDINATE_LIMIT;
+use super::{Field, PcbEditor, focus_within};
 use crate::kit::{self, ToolCard};
 use crate::refusal::{self, Origin};
 use egui::Ui;
@@ -23,6 +24,7 @@ impl PcbEditor {
         via: &Via,
     ) -> Option<Operation> {
         let mut action = None;
+        let mut moved = None;
         let mut class_action = None;
         let mut open_classes = false;
         kit::section(ui, "pcb-via", "Via", true, None, |ui| {
@@ -39,11 +41,40 @@ impl PcbEditor {
             class_action = class.operation;
             open_classes = class.edit;
             let mm = |v: f64| format!("{} mm", kit::number_text((v * 1000.0).round() / 1000.0));
-            kit::value_row(
-                ui,
-                "Position",
-                &format!("{}, {}", mm(via.position[0]), mm(via.position[1])),
-            );
+            // Typed, as a part's: sent when the field is left or Enter is
+            // pressed; a refusal stands under it.
+            if self.sent.get(&Field::ViaPosition) != Some(&self.via_position) {
+                self.errors.0.remove(&Field::ViaPosition);
+            }
+            let position = ui
+                .add_enabled_ui(!via.locked, |ui| {
+                    kit::pair_row(
+                        ui,
+                        "Position",
+                        &mut self.via_position,
+                        "mm",
+                        -COORDINATE_LIMIT..=COORDINATE_LIMIT,
+                    );
+                })
+                .response
+                .on_disabled_hover_text(LOCKED);
+            if let Some(message) = self.errors.0.get(&Field::ViaPosition) {
+                kit::field_error(ui, &position, message, true);
+            }
+            let editing = focus_within(ui, position.rect);
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) && editing {
+                self.via_position = via.position;
+            } else if !editing
+                && !via.locked
+                && self.via_position != via.position
+                && self.sent.get(&Field::ViaPosition) != Some(&self.via_position)
+            {
+                self.sent.insert(Field::ViaPosition, self.via_position);
+                moved = Some(LayoutCommand::MoveVia {
+                    id: via.id,
+                    position: self.via_position,
+                });
+            }
             kit::value_row(ui, "Drill", &mm(via.drill));
             kit::value_row(ui, "Pad", &mm(via.diameter));
             kit::value_row(ui, "Ring", &mm(via.annular_ring()));
@@ -86,6 +117,10 @@ impl PcbEditor {
         }
         if class_action.is_some() {
             return class_action;
+        }
+        if let Some(command) = moved {
+            refusal::mark(ui.ctx(), Origin::Field(Field::ViaPosition.id()));
+            return Some(Operation::Layout(command));
         }
         let command = action?;
         refusal::mark(ui.ctx(), Origin::Command);
@@ -164,27 +199,6 @@ pub(super) fn fill_row(ui: &mut Ui, project: &Project, label: &str, fill: &mut V
         kit::note(ui, &format!("{} makes open vias only", profile.name));
     }
     false
-}
-
-/// The via under the pointer: "Via on GND · through, filled and capped ·
-/// 0.15 / 0.25 mm".
-pub(super) fn hover_text(project: &Project, via: &Via) -> String {
-    let span = match via.span {
-        ViaSpan::Through => "through".to_owned(),
-        ViaSpan::Between { from, to } => format!("{} to {}", from.name(), to.name()),
-    };
-    let fill = if via.fill.is_none() {
-        String::new()
-    } else {
-        format!(", {}", via.fill.label().to_lowercase())
-    };
-    let mm = |v: f64| kit::number_text((v * 1000.0).round() / 1000.0);
-    format!(
-        "Via on {} · {span}{fill} · {} / {} mm",
-        project.net_name(via.net),
-        mm(via.drill),
-        mm(via.diameter)
-    )
 }
 
 /// The via footer: Delete via, disabled while the via is locked.

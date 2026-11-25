@@ -20,6 +20,7 @@ pub use query::{
     VocabularyKind, fold, parse, parse_query, term_spans,
 };
 mod shape;
+pub mod words;
 pub use shape::PackageShape;
 
 use crate::diagnostics::FindingCode;
@@ -41,9 +42,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 /// Results one search returns.
-pub const MAX_RESULTS: usize = 500;
+pub const MAX_RESULTS: usize = sparksmith_parts_contract::limits::MAX_SEARCH_ROWS;
 /// Results returned when the caller gives no limit.
-pub const DEFAULT_LIMIT: usize = 50;
+pub const DEFAULT_LIMIT: usize = sparksmith_parts_contract::limits::DEFAULT_SEARCH_ROWS;
 /// Distinct values listed per facet.
 pub const MAX_FACET_VALUES: usize = 12;
 /// Entries one index holds.
@@ -1051,9 +1052,9 @@ impl Folded {
             Some(MatchTier::Prefix)
         } else if self.words.iter().any(|w| w == text) {
             Some(MatchTier::Word)
-        } else if self.name.contains(text) || self.other.contains(text) {
+        } else if words::starts_word(&self.name, text) || words::starts_word(&self.other, text) {
             Some(MatchTier::Substring)
-        } else if self.fields.contains(text) {
+        } else if words::starts_word(&self.fields, text) {
             Some(MatchTier::Field)
         } else {
             None
@@ -1147,12 +1148,39 @@ fn requirement_of(
 }
 
 /// The worst tier over the text terms, or `None` when a term fails.
-fn tier(entry: &CatalogEntry, folded: &Folded, query: &CatalogQuery) -> Option<MatchTier> {
+/// What each text term of `query` also means ([`words::meanings`]), in term
+/// order; empty for other terms. Read once per search.
+fn meanings_of(query: &CatalogQuery) -> Vec<Vec<String>> {
+    query
+        .terms
+        .iter()
+        .map(|term| match term {
+            Term::Text { text } => words::meanings(text),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+fn tier(
+    entry: &CatalogEntry,
+    folded: &Folded,
+    query: &CatalogQuery,
+    meanings: &[Vec<String>],
+) -> Option<MatchTier> {
     let mut worst = None::<MatchTier>;
     let mut text_seen = false;
-    for term in &query.terms {
+    for (k, term) in query.terms.iter().enumerate() {
         let tier = match term {
-            Term::Text { text } => Some(folded.text_tier(text)?),
+            // A word or one it also means, the best of them.
+            Term::Text { text } => Some(
+                meanings
+                    .get(k)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|m| folded.text_tier(m))
+                    .min()
+                    .or_else(|| folded.text_tier(text))?,
+            ),
             Term::Value { text, readings } => Some(
                 folded
                     .text_tier(text)
@@ -1283,13 +1311,7 @@ fn tier(entry: &CatalogEntry, folded: &Folded, query: &CatalogQuery) -> Option<M
     }
 }
 
-/// Entries hidden from results, by reason. They are counted, never dropped
-/// silently.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct Hidden {
-    pub reason: String,
-    pub count: usize,
-}
+pub use sparksmith_parts_contract::documents::Hidden;
 
 /// One ranked result.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -1463,8 +1485,9 @@ impl Index {
     ) -> (Vec<(usize, MatchTier)>, Vec<Hidden>) {
         let mut out = Vec::new();
         let mut drafts = 0usize;
+        let meanings = meanings_of(query);
         for (i, (entry, folded)) in self.entries.iter().zip(&self.folded).enumerate() {
-            let Some(tier) = tier(entry, folded, query) else {
+            let Some(tier) = tier(entry, folded, query, &meanings) else {
                 continue;
             };
             if entry.revision.is_none() && !include_drafts {

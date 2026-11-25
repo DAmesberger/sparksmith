@@ -33,6 +33,7 @@ In Layout, use the airwire to find the two ends of an unfinished connection. Cho
 - Change width with {key:route.width-next}. Use {key:route.flip} to switch the elbow and {key:route.posture} to change the corner style.
 - Move the pointer to the intended via position and use {key:route.via-next} to continue on the next layer. A through via joins the selected net across the copper layers.
 - Choose the via's fill on the Route card, or on a placed via's card. Filled and capped closes the hole, so a via can stand in a pad.
+- To move a via, drag it, or type its Position on its card. The tracks that end on it follow; a move that would come too close to other copper is refused and says why. A locked via stays.
 - A net class can limit the vias and layers of its nets. A layer change it does not allow is refused and names the class.
 - Change routing mode with {key:route.router-mode-next}. Shove can move eligible tracks and vias. Walkaround seeks a path around obstacles. In Ignore mode the pointer follows the requested path and the engine still checks the proposed copper.
 - If the head stops short, look at the blocking copper, keepout or edge. Try another elbow, layer or path. Finish the route, then inspect [[panel/issues]] for remaining connections and rule findings.

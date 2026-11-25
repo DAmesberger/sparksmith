@@ -390,7 +390,9 @@ fn a_write_protected_file_refuses_the_pair() -> TestResult {
         let before = std::fs::read_dir(dir.path())?.count();
         let refused = put_in_place(&design, &temporary, &sidecar(2)?, &baseline);
         assert!(
-            matches!(&refused, Err(Error::WriteProtected(path)) if *path == file),
+            matches!(&refused, Err(Error::WriteProtected(path))
+                if path.canonicalize()? == file.canonicalize()?
+                    && !path.to_string_lossy().starts_with(r"\\?\")),
             "{refused:?}"
         );
         assert_eq!(std::fs::read_dir(dir.path())?.count(), before);

@@ -2,10 +2,13 @@
 //! public commands, its shape as a solved sketch, all of it opened from a
 //! file, so it is a board the document's own validation accepts.
 use super::Fallible;
-use super::plan::{Atom, BOARD, CELLS, Case, Cut, Form, NETS, Opening, PITCH, Print};
+use super::outline;
+use super::plan::{Atom, BOARD, CELLS, Case, Cut, Form, NETS, Opening, PITCH, Print, TIE};
 use crate::geometry::Point;
-use crate::ids::{GraphicId, Id, PackageTerminalId, PadId};
+use crate::ids::{BridgeId, GraphicId, Id, PackageTerminalId, PadId, TerminalId, TieId};
 use crate::layout::LayoutCommand;
+use crate::library::PackageModel;
+use crate::library::tie::{Bridge, TieForm, TieSpec};
 use crate::library::{
     ApertureId, CornerMask, Definition, DrawingLayer, Fill, FootprintGraphic, Hole, HoleShape,
     Item, Justify, MaskRule, Outline, Pad, PadKind, PadShape, PadSide, PadVia, PasteRule,
@@ -14,6 +17,7 @@ use crate::library::{
 use crate::model::board::{BoardFeatureId, CutoutKind, SolvedBoard, SolvedCutout};
 use crate::model::board::{BoardShape, SolvedMountingHole};
 use crate::model::{LabelKind, Project, Stackup};
+use crate::rules::signal::DiffPairSpec;
 use crate::rules::{
     CopperObject, RuleKey, RuleProfile, RuleValue, RulesCommand, fixtures, netclass::NetClassSpec,
 };
@@ -329,6 +333,16 @@ fn part(engine: &mut Engine, case: &Case, part: usize, datum: bool) -> Fallible<
             _ => {}
         }
     }
+    let tied = case
+        .atoms
+        .iter()
+        .any(|(_, a)| matches!(a, Atom::Tie { part: p } if *p == part));
+    if tied {
+        pads.retain(|(k, _)| !TIE.contains(k));
+        for k in TIE {
+            pads.push((k, pad(k, Form::Rect, 0.0, Opening::Board, Opening::Board)?));
+        }
+    }
     if !pads.iter().any(|(_, p)| p.terminal.is_some()) {
         pads.retain(|(k, _)| *k != 4);
         pads.push((4, pad(4, Form::Rect, 0.0, Opening::Board, Opening::Board)?));
@@ -372,6 +386,9 @@ fn part(engine: &mut Engine, case: &Case, part: usize, datum: bool) -> Fallible<
             }
         }
     })?;
+    if tied {
+        tie(engine, &fixture)?;
+    }
     support::publish(engine, fixture.all())?;
     let (instance, _) = support::place(
         engine,
@@ -403,6 +420,39 @@ fn part(engine: &mut Engine, case: &Case, part: usize, datum: bool) -> Fallible<
         )?;
     }
     Ok(instance)
+}
+
+/// The part a copper tie: a bridge between its two tied pads, nothing to
+/// buy or to place.
+fn tie(engine: &mut Engine, fixture: &support::Fixture) -> Fallible {
+    let [a, b] = TIE.map(|k| k as u32 + 1);
+    support::rewrite(engine, fixture.component, |d| {
+        if let Definition::Component(c) = d {
+            c.ties = vec![TieSpec {
+                id: TieId(1),
+                form: TieForm::Copper,
+                ends: vec![TerminalId(a), TerminalId(b)],
+            }];
+            c.assembly = TieForm::Copper.assembly();
+        }
+    })?;
+    support::rewrite(engine, fixture.package, |d| {
+        if let Definition::Package(p) = d {
+            p.model = PackageModel::NoBody;
+        }
+    })?;
+    support::rewrite(engine, fixture.footprint, |d| {
+        if let Definition::Footprint(f) = d {
+            let ([x0, y], [x1, _]) = (spot(TIE[0]), spot(TIE[1]));
+            f.bridges = vec![Bridge {
+                id: BridgeId(59),
+                side: PadSide::Top,
+                pads: vec![PadId(a), PadId(b)],
+                outline: path(&[[x0, y - 0.1], [x1, y - 0.1], [x1, y + 0.1], [x0, y + 0.1]]),
+            }];
+        }
+    })?;
+    Ok(())
 }
 
 fn ring(at: Point, r: f64) -> Outline {
@@ -467,6 +517,11 @@ fn solved(case: &Case) -> Option<SolvedBoard> {
             segments.push(Segment::Arc { to, bulge: quarter });
         }
     };
+    if has(Cut::Notch) {
+        for to in [[12.0, 0.0], [12.0, 1.5], [16.0, 1.5], [16.0, 0.0]] {
+            segments.push(Segment::Line { to });
+        }
+    }
     segments.push(Segment::Line {
         to: [right - r, 0.0],
     });
@@ -499,8 +554,8 @@ fn solved(case: &Case) -> Option<SolvedBoard> {
     let cutout = |id: u32, kind: CutoutKind, outline: Outline| SolvedCutout {
         id: Some(BoardFeatureId(id)),
         kind,
+        curves: outline::curves(id, &outline),
         outline,
-        curves: Vec::new(),
     };
     if has(Cut::Window) {
         board
@@ -571,11 +626,8 @@ pub(super) fn built(case: &Case) -> Fallible<Engine> {
     project.board_size = BOARD;
     if let Some(board) = solved(case) {
         project.board_size = board.bounds().max;
-        let mut shape = super::super::proof::sketch(board);
-        if let BoardShape::Sketch(sketch) = &mut shape {
-            sketch.outline_fit = crate::layout::outline::outline_fit(project);
-        }
-        project.board_shape = shape;
+        let fit = crate::layout::outline::outline_fit(project);
+        project.board_shape = BoardShape::Sketch(Box::new(outline::sketch(board, fit)?));
     }
     let mut engine = Engine::from_file(format::decode(&format::encode(&file)?)?)?;
     for (k, turn, side, instance) in parts {
@@ -599,6 +651,22 @@ pub(super) fn built(case: &Case) -> Fallible<Engine> {
             } => {
                 if let Some(id) = net(engine.project(), *n) {
                     class(&mut engine, id, *clearance, *fill)?;
+                }
+            }
+            Atom::Pair { nets: [a, b] } => {
+                let ids = (net(engine.project(), *a), net(engine.project(), *b));
+                if let (Some(positive), Some(negative)) = ids {
+                    apply(
+                        &mut engine,
+                        Operation::Rules(RulesCommand::AddDiffPair {
+                            pair: DiffPairSpec {
+                                name: "Pair".into(),
+                                positive,
+                                negative,
+                                target: None,
+                            },
+                        }),
+                    )?;
                 }
             }
             _ => {}

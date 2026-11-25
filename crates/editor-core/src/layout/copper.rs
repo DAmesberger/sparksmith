@@ -16,8 +16,8 @@ use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
 use super::physical::{Conductor, Land};
 use super::{CLEARANCE_MM, EPS, WorldPad, check_pair_budget, sync_preview};
-use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{FindingCode, Measured, Unit};
 use crate::geometry::{
     Bounds, Point, Shape, polygons_overlap, polyline_polygon_distance, segments_gap,
 };
@@ -731,6 +731,12 @@ pub(super) fn scan(bounds: &[Option<Bounds>], near: &Bounds, reach: f64, out: &m
     );
 }
 
+/// How far copper or a hole reaches past the board, against none: what a
+/// waiver of it accepts, so it lapses when that grows.
+pub(super) fn overhang(edges: &BoardEdges, ring: &CopperRing) -> Measured {
+    Measured::at_most(edges.overhang(ring), 0.0, Unit::Mm, EPS).of("past the edge")
+}
+
 /// Shared by single-net copper and multi-net footprint bridges.
 pub(super) fn edge_finding(
     edges: &BoardEdges,
@@ -744,20 +750,26 @@ pub(super) fn edge_finding(
     let edge = limits.clearance(kind, net, CopperObject::BoardEdge, None);
     match edges.verdict(ring, edge) {
         EdgeVerdict::Clear => None,
-        EdgeVerdict::Outside => Some(Finding::new(
-            FindingCode::BoardOutsideOutline,
-            format!("{} extends beyond board outline", label()),
-            vec![object],
-        )),
-        EdgeVerdict::Inside(kind) => Some(Finding::new(
-            FindingCode::BoardOutsideOutline,
-            format!(
-                "{} extends into {}",
-                label(),
-                super::board_edge::EdgeLoopKind::Cutout(kind).describe()
-            ),
-            vec![object],
-        )),
+        EdgeVerdict::Outside => Some(
+            Finding::new(
+                FindingCode::BoardOutsideOutline,
+                format!("{} extends beyond board outline", label()),
+                vec![object],
+            )
+            .measuring([overhang(edges, ring)]),
+        ),
+        EdgeVerdict::Inside(kind) => Some(
+            Finding::new(
+                FindingCode::BoardOutsideOutline,
+                format!(
+                    "{} extends into {}",
+                    label(),
+                    super::board_edge::EdgeLoopKind::Cutout(kind).describe()
+                ),
+                vec![object],
+            )
+            .measuring([overhang(edges, ring)]),
+        ),
         EdgeVerdict::TooClose { gap, near } => {
             let need = limits.clearance_need(kind, net, CopperObject::BoardEdge, None);
             Some(

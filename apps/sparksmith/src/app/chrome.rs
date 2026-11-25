@@ -239,11 +239,6 @@ impl App {
                         if let Some(wake) = wake {
                             ctx.request_repaint_after(wake);
                         }
-                        if self.files.import_stoppable()
-                            && ui_kit::button(ui, "Stop", Button::Enabled(true)).clicked()
-                        {
-                            self.files.stop_import();
-                        }
                     }
                     if let Some(work) = self.stoppable() {
                         kit::status_chip(ui, None, work);
@@ -694,11 +689,14 @@ impl App {
             },
             Workspace::Pcb => browser::Lit {
                 component: self.browser_component,
+                instance: self.pcb.selected_instance(),
                 placement: self.pcb.selected_instance(),
                 track: self.pcb.selected_track(),
+                block: self.pcb.selected_block(),
                 net: self.pcb.highlighted_net(),
                 board: self.pcb.selected_instance().is_none()
-                    && self.pcb.selected_track().is_none(),
+                    && self.pcb.selected_track().is_none()
+                    && self.pcb.selected_block().is_none(),
                 ..Default::default()
             },
         }
@@ -714,6 +712,19 @@ impl App {
             Pick::EditComponent(id) => {
                 self.workspace = Workspace::Part;
                 self.part.open(id, &self.engine);
+            }
+            // In PCB a part's row selects it there and brings it into view;
+            // one not on the board yet shows as not placed.
+            Pick::Instance(id) if self.workspace == Workspace::Pcb => {
+                use crate::issues::Locate;
+                let placed = self.engine.project().placement_of(id).is_some();
+                if !placed
+                    || !self
+                        .pcb
+                        .locate(&self.engine, &[sparksmith_core::ObjectRef::Instance { id }])
+                {
+                    self.pcb.set_selection(Some(id), None, None);
+                }
             }
             Pick::Instance(id) | Pick::Locate(id) => {
                 self.workspace = Workspace::Schematic;
@@ -742,6 +753,10 @@ impl App {
                     .find(|t| t.id == id)
                     .map(|t| t.net);
                 self.pcb.set_selection(None, Some(id), net);
+            }
+            Pick::Block(id) => {
+                self.workspace = Workspace::Pcb;
+                self.pcb.show_block(id, self.engine.project());
             }
             Pick::Board => {
                 self.workspace = Workspace::Pcb;

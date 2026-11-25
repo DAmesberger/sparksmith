@@ -20,7 +20,7 @@ use sparksmith_ui::ui_kit::{self, Button};
 
 /// Bound on typed placement coordinates (mm). The engine bounds a part's
 /// datum to its working area, a smaller square, and says so when refusing.
-const COORDINATE_LIMIT: f64 = 10_000.0;
+pub(super) const COORDINATE_LIMIT: f64 = 10_000.0;
 
 /// Why a locked placement's fields and actions are disabled.
 const LOCKED: &str = "Unlock the placement to move it";
@@ -132,6 +132,7 @@ impl PcbEditor {
             if let Some(message) = self.errors.0.get(&Field::Side) {
                 kit::field_error(ui, &side_row, message, false);
             }
+            self.part_block_row(ui, project, placement.instance);
             let mut lock = locked;
             if kit::check_row(ui, "Locked", &mut lock) {
                 action = Some((

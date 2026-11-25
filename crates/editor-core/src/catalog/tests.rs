@@ -880,3 +880,40 @@ fn pages_past_the_result_limit_hold_the_results_ranked_there() -> TestResult {
     assert_eq!(keys.len(), first.total, "every match once");
     Ok(())
 }
+
+/// Run 3, A3: without a unit, a multiplier is read only as the fields that
+/// take it bare (the search vocabulary's value slots): "100n" is a
+/// capacitance, never 100 nΩ or 100 nW, and "10k" still a resistance.
+#[test]
+fn a_bare_multiplier_reads_as_the_kinds_that_take_it() -> TestResult {
+    let _context = crate::library::standards::Context::fixture()?.enter();
+    let index = index(24)?;
+    let one = |text: &str| -> std::result::Result<Term, Box<dyn std::error::Error>> {
+        index
+            .parse(text)?
+            .terms
+            .into_iter()
+            .next()
+            .ok_or_else(|| "no term".into())
+    };
+    let resistance = field_id(&index, "Resistance")?;
+    let capacitance = field_id(&index, "Capacitance")?;
+    let nano = one("100n")?;
+    assert_eq!(reading(&nano, resistance), None, "{nano:?}");
+    assert!(reading(&nano, capacitance).is_some_and(|v| (v - 100e-9).abs() < 1e-18));
+    if let Ok(power) = field_id(&index, "Rated power") {
+        assert_eq!(reading(&nano, power), None, "{nano:?}");
+    }
+    let kilo = one("10k")?;
+    assert_eq!(reading(&kilo, resistance), Some(10e3));
+    assert_eq!(reading(&kilo, capacitance), None);
+    // With its unit a value is read as written.
+    assert!(reading(&one("100nΩ")?, resistance).is_some());
+    let found = search(&index, "100n 0603")?;
+    assert!(
+        names(&found).iter().all(|n| n.starts_with("EX-C")),
+        "{:?}",
+        names(&found)
+    );
+    Ok(())
+}

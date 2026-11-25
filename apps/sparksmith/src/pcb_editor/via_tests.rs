@@ -29,7 +29,7 @@ pub(super) fn frame(
     (output, command)
 }
 
-/// Red without the fill in the hover text, in the Via tool's request, or
+/// Red without the fill in the hover card, in the Via tool's request, or
 /// with a fill offered that the profile does not make.
 #[test]
 fn a_via_s_fill_is_offered_placed_and_named() -> TestResult {
@@ -50,14 +50,23 @@ fn a_via_s_fill_is_offered_placed_and_named() -> TestResult {
         locked: false,
     };
     let name = engine.project().net_name(net).to_owned();
-    assert_eq!(
-        via_card::hover_text(engine.project(), &via(ViaFill::Capped)),
-        format!("Via on {name} · through, filled and capped · 0.15 / 0.25 mm")
-    );
-    assert_eq!(
-        via_card::hover_text(engine.project(), &via(ViaFill::None)),
-        format!("Via on {name} · through · 0.15 / 0.25 mm")
-    );
+    for (fill, said) in [
+        (ViaFill::Capped, Some(ViaFill::Capped.label())),
+        (ViaFill::None, None),
+    ] {
+        let mut project = engine.project().clone();
+        project.vias.push(via(fill));
+        let card = crate::about::about(&project, crate::about::Subject::Via(1)).ok_or("a card")?;
+        assert_eq!(card.title, format!("Via · {name}"));
+        let row = |label: &str| {
+            let found = card.rows.iter().find(|(l, _)| *l == label);
+            found.map(|(_, value)| value.as_str())
+        };
+        assert_eq!(row("Span"), Some("Through"));
+        assert_eq!(row("Drill"), Some("0.15 mm"));
+        assert_eq!(row("Pad"), Some("0.25 mm"));
+        assert_eq!(row("Fill"), said);
+    }
     // The demo's profile makes open vias only; one that fills offers both.
     let offered = |engine: &Engine| via_card::fill_options(engine.project(), ViaFill::None);
     assert_eq!(offered(&engine).len(), 1);

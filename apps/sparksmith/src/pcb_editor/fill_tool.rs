@@ -282,7 +282,7 @@ impl PcbEditor {
             _ => snap(at),
         };
         let outline = self.fill_draw.click(p, closes)?;
-        Some(self.add_fill(outline))
+        Some(self.add_outline(outline))
     }
 
     /// The `fill.add` of a closed outline on the routing layer.
@@ -305,7 +305,8 @@ impl PcbEditor {
     /// drops the outline. Returns the `fill.add` Enter makes and whether
     /// Esc was taken (an outline was in progress).
     pub(super) fn fill_keys(&mut self, ui: &Ui) -> (Option<Operation>, bool) {
-        if self.tool != Tool::Fill || ui.ctx().egui_wants_keyboard_input() {
+        if !matches!(self.tool, Tool::Fill | Tool::Keepout) || ui.ctx().egui_wants_keyboard_input()
+        {
             return (None, false);
         }
         let pressed = |id| crate::keys::pressed(ui.ctx(), id);
@@ -317,7 +318,7 @@ impl PcbEditor {
             self.fill_draw.back();
         }
         let operation = if pressed("fill.close") {
-            self.fill_draw.close().map(|o| self.add_fill(o))
+            self.fill_draw.close().map(|o| self.add_outline(o))
         } else {
             None
         };
@@ -337,7 +338,7 @@ impl PcbEditor {
         view: BoardView,
         cursor: Option<Point>,
     ) {
-        if self.tool != Tool::Fill {
+        if !matches!(self.tool, Tool::Fill | Tool::Keepout) {
             return;
         }
         let t = Tokens::get();

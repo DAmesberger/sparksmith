@@ -13,7 +13,7 @@ mod command_dispatch;
 mod command_palette;
 mod generator_wait;
 pub(crate) mod help_sheet;
-mod import_report;
+
 mod key_reveal;
 mod list_prefs;
 mod live_mcp;
@@ -111,12 +111,10 @@ pub struct App {
     /// Every message of this run, with the full engine text.
     messages: Messages,
     messages_open: bool,
-    /// The last KiCad import's report while its project is open.
-    import_report: import_report::ImportReport,
     /// Messages, Keyboard shortcuts, Settings, Connect AI assistants and
-    /// the KiCad import report open last frame, in that order
+    /// the sources card open last frame, in that order
     /// (`system_windows`).
-    system_windows: [bool; 6],
+    system_windows: [bool; 5],
     /// Live MCP: assistants editing this window's project (off at start).
     live: live_mcp::LiveMcp,
     /// The assistant chat: its column and its one conversation.
@@ -221,7 +219,7 @@ impl App {
         let (mut engine, said) = file_ui::new_project()?;
         let mut files = FileUi::new(cc, &engine);
         // `sparksmith FILE.sparksmith` opens that project through the file
-        // workflow; a KiCad project or board file is imported.
+        // workflow.
         if let Some(path) = std::env::args_os()
             .skip(1)
             .map(PathBuf::from)
@@ -382,8 +380,7 @@ impl App {
             toasts: Toasts::default(),
             messages,
             messages_open: false,
-            import_report: import_report::ImportReport::default(),
-            system_windows: [false; 6],
+            system_windows: [false; 5],
             live: Default::default(),
             assistant: Default::default(),
             system_fonts: false,
@@ -433,9 +430,18 @@ impl App {
         let Some(operation) = operation else {
             return;
         };
-        // A dimension whose value defines a board parameter brings its edit.
-        let first = self.pcb.first.take();
-        let first = first.filter(|_| matches!(operation, Operation::Dimension(_)));
+        // A dimension whose value defines a board parameter brings its edit,
+        // a selection's Delete or Lock its blocks'.
+        let first = self.pcb.first.take().filter(|first| {
+            use sparksmith_core::layout::LayoutCommand as L;
+            match &operation {
+                Operation::Dimension(_) => !matches!(first, Operation::Block(_)),
+                Operation::Layout(L::DeleteObjects { .. } | L::LockObjects { .. }) => {
+                    matches!(first, Operation::Block(_))
+                }
+                _ => false,
+            }
+        });
         if self.opening != self.engine.opening() {
             // Made for a document that is no longer the open one.
             self.document_replaced();
@@ -582,6 +588,10 @@ impl App {
             Ok(outcome) => {
                 if let sparksmith_core::Outcome::Pasted { report } = &outcome {
                     self.schematic.select_pasted(self.engine.project(), report);
+                }
+                // A block just made is selected, its name on its card.
+                if let sparksmith_core::Outcome::BlockAdded { block } = &outcome {
+                    self.pcb.select_block(*block);
                 }
                 if let sparksmith_core::Outcome::PartsKept { parts } = &outcome {
                     self.say(
@@ -912,12 +922,11 @@ impl App {
         }
     }
 
-    /// The Messages window, while open, and the KiCad import report.
+    /// The Messages window, while open.
     fn messages_window(&mut self, ctx: &egui::Context) {
         if self.messages_open && self.messages.window(ctx).closed {
             self.messages_open = false;
         }
-        self.import_report.window(ctx);
     }
 
     /// Component workspace requests the app runs on the engine (drafting a
@@ -1427,7 +1436,6 @@ impl App {
             sheet_work,
             generators,
             sources,
-            import_report,
             live,
             issues,
             browser_component,
@@ -1496,32 +1504,7 @@ impl App {
         *updating = None;
         #[cfg(target_os = "macos")]
         menu_runs.clear();
-        import_report.clear();
         forget_in_memory(ctx);
-    }
-
-    /// A KiCad project imported from `source` (File › Import KiCad
-    /// project…): the new project, unsaved, with its report shown.
-    fn imported(
-        &mut self,
-        document: EditorFile,
-        source: PathBuf,
-        report: sparksmith_automation::kicad_import::Report,
-    ) {
-        if let Err(error) = self.engine.replace_document(document) {
-            self.say(Level::Error, format!("Import failed: {error}"));
-            return;
-        }
-        self.document_replaced();
-        let name = source.file_name().map_or_else(
-            || source.display().to_string(),
-            |n| n.to_string_lossy().into_owned(),
-        );
-        self.import_report.set(&source, report);
-        match self.files.adopt_imported(&self.engine, source) {
-            Ok(()) => self.say(Level::Ok, format!("Imported {name}; save it to keep it")),
-            Err(error) => self.say(Level::Error, error),
-        }
     }
 
     /// Take on what a session lent the window's engine did to its file
@@ -1571,11 +1554,7 @@ impl App {
                     identity,
                     recovered,
                 } => self.replace(*document, path, identity, recovered),
-                Effect::Imported {
-                    document,
-                    source,
-                    report,
-                } => self.imported(*document, source, *report),
+
                 Effect::FirstSave { given, saved } => {
                     self.engine.adopt_first_save(&given);
                     self.files.first_saved(&self.engine, saved);
@@ -1606,7 +1585,7 @@ impl App {
             } else {
                 concat!(
                     sparksmith_core::product_name!(),
-                    " opens .sparksmith projects and imports KiCad projects"
+                    " opens .sparksmith projects"
                 )
             };
             self.say(
@@ -2263,8 +2242,17 @@ pub(crate) fn sheet_rows(
 }
 
 #[cfg(test)]
+#[path = "app/annotate_tests.rs"]
+mod annotate_tests;
+#[cfg(test)]
+#[path = "app/block_tests.rs"]
+mod block_tests;
+#[cfg(test)]
 #[path = "app/board_param_tests.rs"]
 mod board_param_tests;
+#[cfg(test)]
+#[path = "app/browser_pcb_tests.rs"]
+mod browser_pcb_tests;
 #[cfg(test)]
 #[path = "app/browser_tree_tests.rs"]
 mod browser_tree_tests;
@@ -2287,11 +2275,26 @@ mod flow_tests;
 #[path = "app/generator_wait_tests.rs"]
 mod generator_wait_tests;
 #[cfg(test)]
+#[path = "app/keepout_tests.rs"]
+mod keepout_tests;
+#[cfg(test)]
+#[path = "app/mapping_scroll_tests.rs"]
+mod mapping_scroll_tests;
+#[cfg(test)]
 #[path = "app/open_project_tests.rs"]
 mod open_project_tests;
 #[cfg(test)]
 #[path = "app/parts_band_tests.rs"]
 mod parts_band_tests;
+#[cfg(test)]
+#[path = "app/power_port_tests.rs"]
+mod power_port_tests;
+#[cfg(test)]
+#[path = "app/search_tests.rs"]
+mod search_tests;
+#[cfg(test)]
+#[path = "app/via_tests.rs"]
+mod via_tests;
 
 #[cfg(test)]
 #[path = "app/ax_harness.rs"]
@@ -2299,6 +2302,10 @@ pub(crate) mod ax_harness;
 #[cfg(test)]
 #[path = "app/variants_tests.rs"]
 mod variants_tests;
+
+#[cfg(test)]
+#[path = "app/hover_card_tests.rs"]
+mod hover_card_tests;
 
 #[cfg(test)]
 #[path = "app/ax_tests.rs"]

@@ -1,6 +1,6 @@
-//! A KiCad project imported into a new project, for every host: the CLI's
-//! `import-kicad` and the desktop's File › Import KiCad project… run this
-//! one function. It reads the board (a `.kicad_pcb`, the board a
+//! A KiCad project imported into a new project: a building block of a
+//! coming AI-assisted import, not a product entry point (founder decision,
+//! 25 November 2026); `cargo xtask kicad-compare` and tests run it. It reads the board (a `.kicad_pcb`, the board a
 //! `.kicad_pro` names by its stem, or the one board in a folder), its
 //! project file and its schematics, and builds the project through the one
 //! command engine (`sparksmith_kicad::import`) on the fab profile library's
@@ -53,7 +53,7 @@ pub fn board_file(source: &Path) -> Result<PathBuf, String> {
             return if board.is_file() {
                 Ok(board)
             } else {
-                Err("import-kicad: the project has no board beside it (its .kicad_pcb)".into())
+                Err("KiCad import: the project has no board beside it (its .kicad_pcb)".into())
             };
         }
         return Ok(source.to_path_buf());
@@ -71,9 +71,9 @@ pub fn board_file(source: &Path) -> Result<PathBuf, String> {
     }
     match found.as_slice() {
         [one] => Ok(one.clone()),
-        [] => Err("import-kicad: the folder holds no .kicad_pcb board".into()),
+        [] => Err("KiCad import: the folder holds no .kicad_pcb board".into()),
         more => Err(format!(
-            "import-kicad: the folder holds {} boards; name the .kicad_pcb file",
+            "KiCad import: the folder holds {} boards; name the .kicad_pcb file",
             more.len()
         )),
     }
@@ -150,13 +150,13 @@ fn import_with(
     let board = board_file(source)?;
     let size = |path: &Path| std::fs::metadata(path).map(|m| m.len());
     if size(&board).map_err(|e| e.to_string())? > MAX_BOARD {
-        return Err("import-kicad: the board file is too large".into());
+        return Err("KiCad import: the board file is too large".into());
     }
     let bytes = std::fs::read(&board).map_err(|e| e.to_string())?;
     let project = board.with_extension("kicad_pro");
     let project = if project.is_file() {
         if size(&project).map_err(|e| e.to_string())? > MAX_PROJECT {
-            return Err("import-kicad: the project file is too large".into());
+            return Err("KiCad import: the project file is too large".into());
         }
         Some(std::fs::read(&project).map_err(|e| e.to_string())?)
     } else {

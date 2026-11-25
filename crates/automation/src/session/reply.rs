@@ -93,6 +93,7 @@ fn unshared(before: &Project, after: &Project) -> Result<(Value, Value)> {
         model_traces,
         fills,
         keepouts,
+        blocks,
         labels,
         sheet_symbols,
         drawings,

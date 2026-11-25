@@ -248,7 +248,9 @@ impl PairCoupling {
     }
 }
 
-/// Where the halves of `pair` run coupled at the gap their layers give.
+/// Where the halves of `pair` run coupled: parallel, and no farther apart
+/// than the pair gap their layers give (with its tolerance) or
+/// [`TOO_CLOSE_GAPS`] of it.
 pub fn coupling(project: &Project, pair: &DiffPair) -> Coupling {
     pair_coupling(project, pair).coupling
 }
@@ -305,13 +307,16 @@ fn pair_coupling(project: &Project, pair: &DiffPair) -> PairCoupling {
                 out.too_close
                     .push((p.id, n.id, p.layer, edge.max(0.0), gap));
             }
-            let low = (width + gap - tol).max(0.0);
-            let high = width + gap + tol;
-            let bands = if low == 0.0 {
-                [Some((-high, high)), None]
-            } else {
-                [Some((-high, -low)), Some((low, high))]
-            };
+            // Coupled: parallel, from touching edges out to the pair gap
+            // and its tolerance, or to as far as the halves still count as
+            // one pair ([`TOO_CLOSE_GAPS`]), whichever is farther. The
+            // derived gap is one of many width and gap pairs that meet the
+            // target: a pair routed at another is still coupled, and its
+            // impedance is checked at the gap it has, and a stretch closer
+            // than the gap is reported as `pair.gap` besides.
+            let low = width;
+            let high = width + (gap + tol).max(TOO_CLOSE_GAPS * gap);
+            let bands = [Some((-high, -low)), Some((low, high))];
             for (min, max) in bands.into_iter().flatten() {
                 let Some((lo, hi)) = clip_band(span, y, dy, min, max) else {
                     continue;

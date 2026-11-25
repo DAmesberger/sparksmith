@@ -170,6 +170,19 @@ pub(crate) struct Allowed {
     _writable: Vec<windows::Writable>,
 }
 
+/// `path` as a person reads it: on Windows without the `\\?\` prefix that
+/// resolving a path adds (`\\?\UNC\server\share` becomes `\\server\share`).
+pub(crate) fn shown(path: &Path) -> std::path::PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        return std::path::PathBuf::from(format!(r"\\{rest}"));
+    }
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) => std::path::PathBuf::from(rest),
+        None => path.to_path_buf(),
+    }
+}
+
 /// Whether the files at `paths` may be replaced, all of them or none: with
 /// [`WriteProtected::Refuse`] the first write-protected one is named, and
 /// nothing has changed.
@@ -177,7 +190,7 @@ pub(crate) fn allow(paths: &[&Path], protected: WriteProtected) -> Result<Allowe
     if protected == WriteProtected::Refuse
         && let Some(path) = paths.iter().find(|p| write_protected(p))
     {
-        return Err(Error::WriteProtected(path.to_path_buf()));
+        return Err(Error::WriteProtected(shown(path)));
     }
     Ok(Allowed {
         #[cfg(windows)]

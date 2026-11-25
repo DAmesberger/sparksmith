@@ -458,10 +458,7 @@ pub enum AppCommand {
     Open,
     /// Empty File › Open Recent.
     ClearRecent,
-    /// File › Import KiCad project…: a KiCad project as a new project.
-    ImportKicad,
-    /// The last KiCad import's report, while its project is open.
-    ImportReport,
+
     Save,
     SaveAs,
     Export,
@@ -537,6 +534,9 @@ pub enum PcbView {
     HighlightNet,
     /// Cycle the layer focus: all layers, dim others, active only.
     LayerFocus,
+    /// Cycle how much of the blocks is drawn: by the zoom, their border,
+    /// their parts, their pads and copper.
+    BlockDetail,
 }
 
 /// What running a command does.
@@ -555,6 +555,8 @@ pub enum Action {
     /// Align or distribute the selected parts (`layout.align`,
     /// `layout.distribute`).
     PcbArrange(PcbArrange),
+    /// Make a block of the selected parts (`block.add`).
+    MakeBlock,
     /// A key of a gesture: shown, never run from the palette.
     Key,
 }
@@ -671,9 +673,7 @@ impl Command {
                 A::Copy => "entry/schematic.copy",
                 A::Paste => "entry/schematic.paste",
                 A::SelectAll | A::FitView => "panel/properties",
-                A::ClearRecent | A::ImportKicad | A::ImportReport | A::Quit | A::CloseWindow => {
-                    "panel/files"
-                }
+                A::ClearRecent | A::Quit | A::CloseWindow => "panel/files",
             },
             Action::Ribbon(Workspace::Pcb, RibbonEvent::Tool(id)) => match id {
                 "route" => "entry/layout.route_apply",
@@ -684,6 +684,7 @@ impl Command {
                 "place-part" => "entry/layout.place_part_file",
                 "board-shape" => "entry/board.start_sketch",
                 "fill" => "entry/fill.add",
+                "keepout" => "entry/keepout.add",
                 "refill" => "entry/fill.refill",
                 "production" => "entry/project.export_fabrication",
                 "update" => "entry/layout.sync",
@@ -707,6 +708,7 @@ impl Command {
             Action::Pcb(_) | Action::PcbLayer(_) | Action::PcbDialog(_) => "panel/layout",
             Action::PcbArrange(PcbArrange::Align(_)) => "entry/layout.align",
             Action::PcbArrange(PcbArrange::Distribute(_)) => "entry/layout.distribute",
+            Action::MakeBlock => "entry/block.add",
             Action::Key => match self.context {
                 Context::Component | Context::Symbol | Context::Footprint => "panel/component",
                 Context::Schematic | Context::SchematicWire => "panel/schematic",
@@ -1370,9 +1372,6 @@ fn defaults() -> Vec<Command> {
         app("file.open", "Open project…", A::Open)
             .chord(Chord::cmd(K::O))
             .icon("open"),
-        app("file.import-kicad", "Import KiCad project…", A::ImportKicad)
-            .icon("open")
-            .keywords("kicad import convert board pcb schematic project kicad_pro kicad_pcb"),
         app("file.clear-recent", "Clear recent projects", A::ClearRecent)
             .icon("close")
             .keywords("open recent history forget list"),
@@ -1425,9 +1424,6 @@ fn defaults() -> Vec<Command> {
             .chord(Chord::cmd(K::I).with_shift())
             .icon("list")
             .keywords("problems checks erc drc errors warnings"),
-        app("view.import-report", "KiCad import report", A::ImportReport)
-            .icon("list")
-            .keywords("kicad import report rules refused tracks looser counts"),
         app("view.messages", "Messages…", A::Messages)
             .chord(Chord::cmd(K::M).with_shift())
             .icon("list")
@@ -1915,6 +1911,15 @@ fn defaults() -> Vec<Command> {
             .chord(Chord::key(K::P))
             .icon("polygon")
             .keywords("pour zone plane copper area copper pour"),
+        tool(
+            "pcb.keepout",
+            "Keepout",
+            C::PcbLayout,
+            Workspace::Pcb,
+            "keepout",
+        )
+        .icon("suppress")
+        .keywords("keep out keepout no copper restrict area forbid"),
         // Layout and 3D share one Dimension tool and its key.
         tool(
             "pcb.dimension",
@@ -2010,6 +2015,15 @@ fn defaults() -> Vec<Command> {
             "Distribute vertically",
             PcbArrange::Distribute(Axis::Vertical),
         ),
+        Command::new(
+            "pcb.make-block",
+            "Make block of the selected parts",
+            C::PcbLayout,
+            Action::MakeBlock,
+        )
+        .chord(Chord::cmd(K::G))
+        .icon("select")
+        .keywords("block group module parts together layout block"),
         dialog("pcb.rules", "Design rules…", PcbDialog::Rules)
             .icon("params")
             .keywords("drc clearance checks track width annular ring profile"),
@@ -2043,7 +2057,7 @@ fn defaults() -> Vec<Command> {
         ),
         key(
             "pcb.delete",
-            "Delete the selection's tracks, vias and fills, or a dimension",
+            "Delete the selection's tracks, vias, fills and blocks, or a dimension",
             C::PcbLayout,
             Chord::key(K::Delete),
         )
@@ -2051,7 +2065,7 @@ fn defaults() -> Vec<Command> {
         // The schematic's ⌘R (`schematic.rotate`); R is Route here.
         key(
             "pcb.rotate",
-            "Rotate the selected part 90°",
+            "Rotate the selected part or block 90°",
             C::PcbLayout,
             Chord::cmd(K::R),
         ),
@@ -2086,6 +2100,14 @@ fn defaults() -> Vec<Command> {
         )
         .chord(Chord::key(K::L).with_shift())
         .keywords("active layer single only dim others solo focus"),
+        view(
+            "pcb.block-detail",
+            "Cycle block detail (by zoom, border, parts, pads and copper)",
+            C::PcbLayout,
+            PcbView::BlockDetail,
+        )
+        .chord(Chord::key(K::B).with_shift())
+        .keywords("blocks level of detail border zoom calm"),
         // Board shape keys besides its tools.
         key(
             "shape.construction",

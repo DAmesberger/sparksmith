@@ -252,6 +252,8 @@ pub struct Found {
 
 /// The presets a search text finds (none for an empty text).
 pub fn find_presets(engine: &Engine, shelf: &Shelf, query: &str, limit: usize) -> Found {
+    // The search vocabulary is the installed standards'.
+    let _context = engine.enter_context();
     let (hits, more) =
         catalog::find_presets(engine.document(), query, &shelf.descriptions(), limit);
     Found { hits, more }
