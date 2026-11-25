@@ -1,15 +1,16 @@
 //! Flipping and turning parts that dimensions hold, on the ESP32-S31 dev
 //! board: J1's shell face lies on the board's bottom edge, and U3, U2, R2
 //! and others are held at offsets from J1. Flipped or turned in place, J1's
-//! face would meet the edge from outside, with the parts held to it; that
-//! is refused. Turned with the flip it keeps its place. The report names
-//! every connection that is open afterwards.
+//! face meets the edge from outside, with the parts held to it; that is
+//! made, said and listed. Turned with the flip it keeps its place. The
+//! report names every connection that is open afterwards.
 use sparksmith_automation::session::hosted;
+use sparksmith_core::fabrication::FabricationCommand;
 use sparksmith_core::layout::arrange::PartMove;
 use sparksmith_core::layout::dimensions;
 use sparksmith_core::layout::{self, LayoutCommand};
 use sparksmith_core::model::{Layer, Placement};
-use sparksmith_core::{Engine, Operation};
+use sparksmith_core::{Engine, Operation, Query, QueryResult};
 use std::path::Path;
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -40,19 +41,38 @@ fn posed(p: &Placement, turn: f64, layer: Layer) -> Operation {
     })
 }
 
-/// `operation` is refused, naming J1 and saying why, and changes nothing.
-fn refused(engine: &mut Engine, operation: Operation, word: &str) -> Fallible {
+/// The `board.outside_outline` findings of the parts' pads.
+fn beyond(engine: &Engine) -> Vec<String> {
+    layout::checks(engine.project(), engine.check_settings())
+        .into_iter()
+        .filter(|f| f.code == "board.outside_outline" && f.message.contains(" pad "))
+        .map(|f| f.message)
+        .collect()
+}
+
+/// `operation` is made as one undo step, said at once (J1, the board and
+/// the edge its dimension holds it on), and listed for J1's pads.
+fn over_the_edge(engine: &mut Engine, operation: Operation, what: &str) -> Fallible {
     let before = engine.to_file();
-    let error = engine
+    engine
         .apply_hosted(engine.revision(), operation, hosted())
-        .err()
-        .ok_or(format!("{word}: accepted"))?
-        .to_string();
+        .map_err(|e| format!("{what}: {e}"))?;
+    let said = engine.rerouted().over_edge.clone();
+    println!("{what}: {said:?} {:?}", engine.rerouted().line());
+    let [line] = said.as_slice() else {
+        return Err(format!("{what}: {said:?}").into());
+    };
     assert!(
-        error.contains("J1") && error.contains(word) && error.contains("the board"),
-        "{error}"
+        line.starts_with("J1 ") && line.contains("beyond the board: ") && line.contains("edge"),
+        "{what}: {line}"
     );
-    assert!(engine.to_file() == before, "{word}");
+    let found = beyond(engine);
+    assert!(
+        found.iter().any(|m| m.contains("J1 pad")),
+        "{what}: {found:?}"
+    );
+    engine.undo()?;
+    assert!(engine.to_file() == before, "{what}: one undo step");
     Ok(())
 }
 
@@ -69,28 +89,85 @@ fn open(engine: &mut Engine) -> Fallible<Vec<String>> {
 }
 
 #[test]
-fn an_edge_held_part_flipped_or_turned_in_place_is_refused() -> Fallible {
+fn an_edge_held_part_flipped_in_place_is_made_said_and_listed() -> Fallible {
     let mut engine = example()?;
+    assert_eq!(beyond(&engine), Vec::<String>::new());
     let j1 = placed(&engine, "J1")?;
-    refused(&mut engine, posed(&j1, 0.0, Layer::Bottom), "flipped")?;
-    refused(&mut engine, posed(&j1, 180.0, Layer::Top), "turned")?;
-    refused(&mut engine, posed(&j1, 90.0, Layer::Top), "turned")?;
-    // In a group with a part nothing holds to J1.
-    let u1 = placed(&engine, "U1")?;
+    over_the_edge(&mut engine, posed(&j1, 0.0, Layer::Bottom), "flipped")?;
+    // In a group with a part held to the module, by its origin.
+    let sw1 = placed(&engine, "SW1")?;
     let flip = |p: &Placement| PartMove {
         instance: p.instance,
         position: p.position,
         rotation_deg: p.rotation_deg,
         layer: Layer::Bottom,
     };
-    refused(
+    over_the_edge(
         &mut engine,
         Operation::Layout(LayoutCommand::MoveParts {
-            moves: vec![flip(&u1), flip(&j1)],
+            moves: vec![flip(&sw1), flip(&j1)],
             copper: None,
         }),
-        "flipped",
+        "flipped with SW1",
     )
+}
+
+/// A turn in place has the same solve; what it may be refused for is the
+/// copper, not the part.
+#[test]
+fn an_edge_held_part_turned_in_place_is_not_refused_for_the_part() -> Fallible {
+    for turn in [90.0, 180.0] {
+        let mut engine = example()?;
+        let j1 = placed(&engine, "J1")?;
+        let before = engine.to_file();
+        match engine.apply_hosted(engine.revision(), posed(&j1, turn, Layer::Top), hosted()) {
+            Ok(_) => {
+                println!("{turn}: {:?}", engine.rerouted());
+                assert!(!engine.rerouted().over_edge.is_empty(), "{turn}");
+                engine.undo()?;
+            }
+            Err(error) => {
+                println!("{turn}: {error}");
+                let text = error.to_string().to_lowercase();
+                assert!(text.contains("track") || text.contains("via"), "{text}");
+            }
+        }
+        assert!(engine.to_file() == before, "{turn}");
+    }
+    Ok(())
+}
+
+/// The findings of a part beyond the outline may be waived with a reason.
+#[test]
+fn a_part_beyond_the_outline_may_be_waived() -> Fallible {
+    let mut engine = example()?;
+    let j1 = placed(&engine, "J1")?;
+    engine.apply_hosted(engine.revision(), posed(&j1, 0.0, Layer::Bottom), hosted())?;
+    engine.refill_stale()?;
+    let items = |engine: &Engine| -> Fallible<Vec<(String, bool)>> {
+        let QueryResult::Preflight(report) = engine.query(Query::Preflight { profile: None })?
+        else {
+            return Err("not a preflight report".into());
+        };
+        Ok(report
+            .items
+            .iter()
+            .filter(|i| i.code == "board.outside_outline" && i.title.contains("J1 pad"))
+            .map(|i| (i.key.clone(), i.blocks()))
+            .collect())
+    };
+    let found = items(&engine)?;
+    assert!(!found.is_empty() && found.iter().all(|(_, blocks)| *blocks));
+    engine.apply(
+        engine.revision(),
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys: found.into_iter().map(|(key, _)| key).collect(),
+            reason: "hangs over on purpose".into(),
+            profile: None,
+        }),
+    )?;
+    assert!(items(&engine)?.iter().all(|(_, blocks)| !*blocks));
+    Ok(())
 }
 
 #[test]

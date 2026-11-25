@@ -56,6 +56,11 @@ use std::sync::Arc;
 pub struct Rerouted {
     pub rerouted: Vec<String>,
     pub unrouted: Vec<String>,
+    /// Parts the edit put over the board's edge
+    /// ([`crate::layout::dimensions::put_over_edge`]), a line each, for the
+    /// window to say at once. Not part of a reply: the checks list them.
+    #[serde(skip)]
+    pub over_edge: Vec<String>,
 }
 
 impl Rerouted {
@@ -91,6 +96,7 @@ impl Rerouted {
     pub fn extend(&mut self, later: Rerouted) {
         self.rerouted.extend(later.rerouted);
         self.unrouted.extend(later.unrouted);
+        self.over_edge.extend(later.over_edge);
     }
 }
 

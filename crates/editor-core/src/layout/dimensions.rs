@@ -830,7 +830,6 @@ pub fn follow(
                 )));
             }
         }
-        stays_on_board(before, project, &board, &c, &drags, &solution)?;
         for (target, pose) in &solution.poses {
             place(project, *target, pose)?;
             if let ConstraintTarget::Placement(id) = target {
@@ -841,97 +840,105 @@ pub fn follow(
     Ok(placed)
 }
 
-/// Refuse a move, turn or flip whose solve would take a part off the board
-/// it was put on: a distance holds the part's feature, not the side of the
-/// edge the part lies on, so a flipped or turned part can satisfy it from
-/// outside.
-fn stays_on_board(
+/// The parts the solve put over the board's edge, for a person to be told
+/// at once: those with a pad beyond the outline (as
+/// `board.outside_outline` judges it) in `solved` that had none `before`,
+/// and stand elsewhere than the edit `asked`. One line per dimension that
+/// did it: the one without which the part stays where it was asked. A distance
+/// holds the part's feature, not the side of the edge the part lies on, so
+/// a flipped or turned part can satisfy it from outside.
+pub fn put_over_edge(
     before: &Project,
-    project: &Project,
-    board: &BoardSketch,
-    c: &Component,
-    drags: &[PartDrag],
-    solution: &PartsSolution,
-) -> Result<()> {
-    let flipped =
-        c.targets
-            .iter()
-            .copied()
-            .find(|t| match (pose_of(before, *t), pose_of(project, *t)) {
-                (Some(was), Some(is)) => was.1 != is.1,
-                _ => false,
-            });
-    let Some(by) = flipped.or(drags.first().map(|d| d.target)) else {
-        return Ok(());
+    asked: &Project,
+    solved: &Project,
+    evaluator: Option<&dyn super::outline::BoardShapeEvaluator>,
+) -> Vec<String> {
+    let displaced: BTreeSet<Id> = solved
+        .placements
+        .iter()
+        .filter(|p| {
+            asked
+                .placement_of(p.instance)
+                .is_some_and(|a| !same_position(a.position, p.position))
+        })
+        .map(|p| p.instance)
+        .collect();
+    let Some(evaluator) = evaluator.filter(|_| !displaced.is_empty()) else {
+        return Vec::new();
     };
-    let outer = project.board().outer.flatten(ON_BOARD_CHORD_MM);
-    for (target, pose) in &solution.poses {
-        let ConstraintTarget::Placement(id) = *target else {
-            continue;
-        };
-        let Some(asked) = project.placement_of(id) else {
-            continue;
-        };
-        let mut solved = asked.clone();
-        solved.position = pose.position;
-        solved.rotation_deg = pose.rotation_deg;
-        if !mostly_on(project, asked, &outer) || mostly_on(project, &solved, &outer) {
-            continue;
+    let over = |project: &Project| -> BTreeSet<Id> {
+        let edges = super::board_edge::BoardEdges::of(project);
+        super::placed_pads(project)
+            .iter()
+            .filter(|p| displaced.contains(&p.instance))
+            .filter(|p| {
+                let ring = super::CopperRing::of_placed_pad(p);
+                matches!(
+                    edges.verdict(&ring, 0.0),
+                    super::board_edge::EdgeVerdict::Outside
+                )
+            })
+            .map(|p| p.instance)
+            .collect()
+    };
+    let parts: Vec<Id> = over(solved).difference(&over(before)).copied().collect();
+    let Ok(board) = board_sketch(solved, evaluator) else {
+        return Vec::new();
+    };
+    let mut by: Vec<(Option<PartDimension>, Vec<Id>)> = Vec::new();
+    for id in parts {
+        let found = put_by(before, asked, id, &board, evaluator, &by);
+        match by.iter_mut().find(|(d, _)| *d == found) {
+            Some((_, ids)) => ids.push(id),
+            None => by.push((found, vec![id])),
         }
-        let turned = drags.iter().any(|d| {
-            d.target == by
-                && pose_of(before, by)
-                    .is_some_and(|(was, _)| !same_angle(was.rotation_deg, d.to.rotation_deg))
-        });
-        let done = match (flipped.is_some(), turned) {
-            (true, _) => "flipped",
-            (false, true) => "turned",
-            (false, false) => "moved",
-        };
-        let name = target_words(project, by);
-        let at = held_at(project, board, by, &solution.measured)
-            .unwrap_or_else(|| "by its dimensions".to_owned());
-        let what = if *target == by {
-            "would leave the board".to_owned()
-        } else {
-            format!(
-                "would take {} off the board",
-                target_words(project, *target)
-            )
-        };
-        let long = format!("{name} is held {at}; {done} like this it {what}");
-        return Err(Error::Conflict(
-            if long.chars().count() <= crate::diagnostics::MAX_LINE {
-                long
-            } else {
-                format!("{name} is held by its dimensions; {done} it {what}")
-            },
-        ));
     }
-    Ok(())
+    by.into_iter()
+        .map(|(d, ids)| {
+            let first = ids
+                .first()
+                .map(|id| super::outline::part_name(solved, *id))
+                .unwrap_or_default();
+            let who = match ids.len() {
+                0 | 1 => format!("{first} extends"),
+                n => format!("{first} and {} more extend", n - 1),
+            };
+            let why = d.map_or_else(
+                || "held there by dimensions".to_owned(),
+                |d| dimension_words(solved, &board, &d),
+            );
+            format!("{who} beyond the board: {why}")
+        })
+        .collect()
 }
 
-/// Chord tolerance of the outline [`mostly_on`] asks, mm.
-const ON_BOARD_CHORD_MM: f64 = 0.01;
-
-/// Whether more than half of a placed part's outline (its package
-/// envelope, else its origin) lies within the board outline `outer`.
-fn mostly_on(project: &Project, placement: &crate::model::Placement, outer: &[Point]) -> bool {
-    use crate::geometry::polygon_contains;
-    let Some([a, b, c, d]) = super::arrange::part_envelope(project, placement) else {
-        return polygon_contains(outer, placement.position);
-    };
-    const CELLS: u32 = 8;
-    let at = |i: u32| (f64::from(i) + 0.5) / f64::from(CELLS);
-    let mix = |p: Point, q: Point, t: f64| [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
-    let inside = (0..CELLS)
-        .flat_map(|i| (0..CELLS).map(move |j| (i, j)))
-        .filter(|(i, j)| {
-            let p = mix(mix(a, b, at(*i)), mix(d, c, at(*i)), at(*j));
-            polygon_contains(outer, p)
+/// The dimension that put `id` elsewhere than `asked` has it: one without
+/// which it stays there. The ones found already are tried first.
+fn put_by(
+    before: &Project,
+    asked: &Project,
+    id: Id,
+    board: &BoardSketch,
+    evaluator: &dyn super::outline::BoardShapeEvaluator,
+    found: &[(Option<PartDimension>, Vec<Id>)],
+) -> Option<PartDimension> {
+    let target = ConstraintTarget::Placement(id);
+    let at = asked.placement_of(id)?.position;
+    let c = component_of(asked, target)?;
+    let known = found.iter().filter_map(|(d, _)| d.as_ref());
+    known
+        .chain(c.dimensions.iter().filter(|d| !d.reference))
+        .find(|d| {
+            let mut without = c.clone();
+            without.dimensions.retain(|o| o.id != d.id);
+            solve_component(before, asked, &without, board, evaluator).is_ok_and(|s| {
+                s.solution
+                    .poses
+                    .iter()
+                    .any(|(t, pose)| *t == target && same_position(pose.position, at))
+            })
         })
-        .count();
-    2 * inside > (CELLS * CELLS) as usize
+        .cloned()
 }
 
 /// The pose that puts `instance` on the other side where its dimensions
