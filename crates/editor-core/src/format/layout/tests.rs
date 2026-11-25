@@ -6,7 +6,7 @@ use crate::format::FILE_VERSION;
 use crate::format::records::{self, COLLECTIONS, DOCUMENTS};
 use crate::model::production::Waiver;
 use crate::model::{
-    ComponentInstance, Fill, Junction, Keepout, Label, Net, PartDimension, Placement,
+    Block, ComponentInstance, Fill, Junction, Keepout, Label, Net, PartDimension, Placement,
     ProjectProperties, SheetDrawing, SheetSymbol, SymbolOccurrence, Track, Via, Wire,
 };
 use crate::{Engine, Project};
@@ -97,6 +97,7 @@ fn the_showcase_board_round_trips_collection_by_collection() -> Fallible {
     round_trip(&records::TRACKS, &no_header(), &project.tracks[..])?;
     round_trip(&records::VIAS, &no_header(), &project.vias[..])?;
     round_trip(&records::KEEPOUTS, &no_header(), &project.keepouts[..])?;
+    round_trip(&records::BLOCKS, &no_header(), &project.blocks[..])?;
     round_trip(
         &records::DIMENSIONS,
         &no_header(),
@@ -319,6 +320,7 @@ fn the_declared_orders_are_pinned() {
             ("vias", &["net", "id"]),
             ("fills", &["id"]),
             ("keepouts", &["id"]),
+            ("blocks", &["id"]),
             ("dimensions", &["id"]),
             ("waivers", &["key"]),
         ]
@@ -376,6 +378,7 @@ fn declarations_cover_every_stored_field() -> Fallible {
     check::<Via>(&records::VIAS, None, &[])?;
     check::<Fill>(&records::FILLS, None, &[])?;
     check::<Keepout>(&records::KEEPOUTS, None, &[])?;
+    check::<Block>(&records::BLOCKS, None, &[])?;
     check::<PartDimension>(&records::DIMENSIONS, None, &[])?;
     check::<Waiver>(&records::WAIVERS, None, &[])?;
     check::<SymbolOccurrence>(&records::SHEET, Some("occurrence"), &["sheet"])?;

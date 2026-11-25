@@ -132,6 +132,7 @@ impl PcbEditor {
             if let Some(message) = self.errors.0.get(&Field::Side) {
                 kit::field_error(ui, &side_row, message, false);
             }
+            self.part_block_row(ui, project, placement.instance);
             let mut lock = locked;
             if kit::check_row(ui, "Locked", &mut lock) {
                 action = Some((

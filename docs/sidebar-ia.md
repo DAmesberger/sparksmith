@@ -297,6 +297,7 @@ Paths are relative to `apps/sparksmith/src`. Each editor's `subject_slot` and ca
 | `pcb_editor/placement_card.rs` | W3: Placement (live position pair, rotation, side, lock), Connections, the Rotate 90° / Flip / Schematic › footer, and the not-placed state |
 | `pcb_editor/track_card.rs` | W3: Track (net, live layer and width through `layout.track_set`, length, ends, lock) and the Delete track footer |
 | `pcb_editor/route_card.rs` | W3: the Route tool card (mode, width, layer, via size, net, keys); the route in progress is a canvas pill |
+| `pcb_editor/blocks.rs` | the Block card (name, lock, parts), its Rotate 90° / Flip / Delete footer, the border and name on the canvas, the level of detail and the view popover's Blocks row |
 | `pcb_editor/fill_card.rs` | the Fill card (fill, clearance, connections, style), its Refill / Delete fill footer and the view popover's Fills row |
 | `pcb_editor/fill_tool.rs` | the Fill tool card and outline drawing, and the selected fill's outline handles (drag a vertex or midpoint, double-click a vertex to remove it) |
 | `pcb_editor/fill_paint.rs` | fill copper in Layout: solid, hatched or outlines only, under its layer's tracks; fill picking |

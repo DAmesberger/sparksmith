@@ -45,6 +45,10 @@ pub enum Outcome {
     ViaAdded {
         via: Id,
     },
+    /// The block `block.add` made.
+    BlockAdded {
+        block: Id,
+    },
     /// The assembly variant `variant.add` created.
     VariantAdded {
         variant: Id,

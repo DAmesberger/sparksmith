@@ -236,6 +236,16 @@ pub const KEEPOUTS: Collection = Collection {
     numbers: Numbers::FloatsAllowed,
 };
 
+pub const BLOCKS: Collection = Collection {
+    name: "blocks",
+    path: "board/blocks.jsonl",
+    header: &[],
+    type_field: None,
+    sort: &["id"],
+    records: records!(&["id", "name", "locked", "members"]),
+    numbers: Numbers::IntegersOnly,
+};
+
 pub const DIMENSIONS: Collection = Collection {
     name: "dimensions",
     path: "board/dimensions.jsonl",
@@ -260,7 +270,7 @@ pub const WAIVERS: Collection = Collection {
 
 /// Every collection declared so far.
 pub const COLLECTIONS: &[Collection] = &[
-    INSTANCES, NETS, SHEET, PLACEMENTS, TRACKS, VIAS, FILLS, KEEPOUTS, DIMENSIONS, WAIVERS,
+    INSTANCES, NETS, SHEET, PLACEMENTS, TRACKS, VIAS, FILLS, KEEPOUTS, BLOCKS, DIMENSIONS, WAIVERS,
 ];
 
 /// The project manifest; `next` holds the id counters.

@@ -134,6 +134,15 @@ fn step(engine: &mut Engine, edit: &Edit, look: Look, tally: &mut Tally) -> Fall
                 return Ok(out);
             }
             rerouted = engine.rerouted().clone();
+            let moved = match edit {
+                Edit::MoveBlock { pick, .. } => edits::block(&before.document().project, *pick),
+                _ => None,
+            };
+            out.extend(invariants::blocks(
+                &before.document().project,
+                engine.project(),
+                moved,
+            ));
             if engine.revision() != before.revision() {
                 let after = engine.document().clone();
                 engine.undo()?;
@@ -459,6 +468,11 @@ fn the_generator_makes_everything_and_most_edits_are_taken() -> Fallible {
         "Redo",
         "Reopen",
         "Paste",
+        "Block",
+        "MoveBlock",
+        "LockBlock",
+        "Members",
+        "Unblock",
     ]
     .into_iter()
     .filter(|k| !tally.applied.contains_key(*k))

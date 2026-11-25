@@ -395,6 +395,30 @@ pub(super) enum Edit {
     Paste {
         pick: usize,
     },
+    /// A block of so many parts that are in none.
+    Block {
+        pick: usize,
+        count: usize,
+    },
+    MoveBlock {
+        pick: usize,
+        by: Point,
+        turn: f64,
+        flip: bool,
+    },
+    LockBlock {
+        pick: usize,
+        locked: bool,
+    },
+    /// Parts taken in and let go.
+    Members {
+        pick: usize,
+        add: usize,
+        remove: usize,
+    },
+    Unblock {
+        pick: usize,
+    },
     /// What must be refused, whatever the board.
     Wrong(usize),
 }
@@ -593,6 +617,15 @@ impl Case {
             let edit = edit(rng, layers, kind);
             atoms.push(Atom::Edit(edit));
         }
+        // Blocks come last, so the rest of a seed is what it was without.
+        if rng.chance(6) {
+            let (pick, count) = (rng.below(64), 1 + rng.below(3));
+            atoms.push(Atom::Edit(Edit::Block { pick, count }));
+            for _ in 0..3 {
+                let edit = blocks(rng);
+                atoms.push(Atom::Edit(edit));
+            }
+        }
         Self {
             seed,
             layers,
@@ -782,6 +815,40 @@ fn copper(rng: &mut Rng, layers: usize) -> Edit {
             to: rng.place(),
             layer,
         },
+    }
+}
+
+/// An edit of a board with a block, or one a block has a say in.
+fn blocks(rng: &mut Rng) -> Edit {
+    let pick = rng.below(64);
+    let by = |rng: &mut Rng| [rng.steps(-4.0, 4.0, 0.25), rng.steps(-4.0, 4.0, 0.25)];
+    match rng.below(12) {
+        0..=3 => Edit::MoveBlock {
+            pick,
+            by: by(rng),
+            turn: if rng.chance(5) { 0.0 } else { rng.turn() },
+            flip: rng.chance(3),
+        },
+        4 | 5 => Edit::LockBlock {
+            pick,
+            locked: rng.chance(7),
+        },
+        6 => Edit::Members {
+            pick,
+            add: rng.below(2),
+            remove: rng.below(2),
+        },
+        7 => Edit::Unblock { pick },
+        8 => Edit::Move {
+            pick,
+            by: by(rng),
+            turn: 0.0,
+        },
+        9 => Edit::MoveTwo { pick, by: by(rng) },
+        10 => Edit::Undo {
+            steps: 1 + rng.below(3),
+        },
+        _ => Edit::Reopen,
     }
 }
 

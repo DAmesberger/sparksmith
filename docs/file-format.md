@@ -46,6 +46,7 @@ A reader tells the two apart when it opens the path: a folder, or a file startin
     vias.jsonl
     fills.jsonl                  fill definitions only, never computed copper
     keepouts.jsonl
+    blocks.jsonl
     dimensions.jsonl             part dimensions
     model-traces.jsonl           the 3D model faces and edges the dimensions name
     interface.jsonl              published datums and the append-only slot table
@@ -154,6 +155,7 @@ The declarations are data in `sparksmith_core::format::records`, and the encoder
 | `board/vias.jsonl` | `id`, `net`, `span`, `drill`, `diameter`, `position`, `tented`, `fill` (left out when open), `locked` | `net`, then `id` | allowed |
 | `board/fills.jsonl` | `id`, `net`, `layer`, `name`, `region`, `priority`, `settings`, `outline`, `locked` | `id` | allowed |
 | `board/keepouts.jsonl` | `id`, `name`, `layers`, `forbid`, `outline` | `id` | allowed |
+| `board/blocks.jsonl` | `id`, `name`, `locked`, `members` | `id` | refused |
 | `board/dimensions.jsonl` | `id`, `kind`, `refs`, `value`, `reference` | `id` | allowed |
 | `rules/waivers.jsonl` | `key`, `accepted`, `footprints`, `given_for`, `reason` | `key` | allowed (numbers a check measured, of any unit) |
 
@@ -180,7 +182,7 @@ F2 checked every collection of the project (each `Shared<Vec<T>>` in `sparksmith
 
 | Collection | Order means | Saved order |
 |---|---|---|
-| `instances`, `occurrences`, `wires`, `junctions`, `nets`, `tracks`, `vias`, `fills`, `keepouts`, `labels`, `sheet_symbols`, `drawings` | nothing (creation order) | by `id` |
+| `instances`, `occurrences`, `wires`, `junctions`, `nets`, `tracks`, `vias`, `fills`, `keepouts`, `blocks`, `labels`, `sheet_symbols`, `drawings` | nothing (creation order) | by `id` |
 | `part_dimensions` | the Dimensions list's order, which `layout.dimension_order` sets: document data | left as is. **The F1 declaration of `board/dimensions.jsonl` (sorted by `id`) loses this order; F3 must keep it, for example as an ordered list of ids in `board.json`.** |
 | `placements` | nothing | by `instance` |
 | library `components`, `symbols`, `packages`, `footprints`, `bindings`, `quantity_kinds`, `fields`, `parts`, `models`, `package_rows` | nothing (publish order) | by lineage, then revision |

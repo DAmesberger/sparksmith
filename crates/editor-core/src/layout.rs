@@ -24,6 +24,7 @@ const EPS: f64 = 1e-8;
 pub const WORKING_AREA_MM: [f64; 2] = [-1000.0, 2000.0];
 
 pub mod arrange;
+pub mod blocks;
 pub mod board_edge;
 pub mod bodies;
 pub mod connectivity;
@@ -811,6 +812,9 @@ pub fn move_refusal(
     if placement.locked {
         return Some(locked(project, instance, "move"));
     }
+    if let Some(error) = blocks::lock_refusal(project, instance, "move") {
+        return Some(error);
+    }
     dimensions::held(project, instance, evaluator)
 }
 
@@ -870,6 +874,9 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
         } => {
             if project.placement_of(instance).is_some_and(|p| p.locked) {
                 return Err(locked(project, instance, "move"));
+            }
+            if let Some(error) = blocks::lock_refusal(project, instance, "move") {
+                return Err(error);
             }
             let missing = unplaced(project, instance);
             let placement = project

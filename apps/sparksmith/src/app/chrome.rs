@@ -696,9 +696,11 @@ impl App {
                 component: self.browser_component,
                 placement: self.pcb.selected_instance(),
                 track: self.pcb.selected_track(),
+                block: self.pcb.selected_block(),
                 net: self.pcb.highlighted_net(),
                 board: self.pcb.selected_instance().is_none()
-                    && self.pcb.selected_track().is_none(),
+                    && self.pcb.selected_track().is_none()
+                    && self.pcb.selected_block().is_none(),
                 ..Default::default()
             },
         }
@@ -742,6 +744,10 @@ impl App {
                     .find(|t| t.id == id)
                     .map(|t| t.net);
                 self.pcb.set_selection(None, Some(id), net);
+            }
+            Pick::Block(id) => {
+                self.workspace = Workspace::Pcb;
+                self.pcb.show_block(id, self.engine.project());
             }
             Pick::Board => {
                 self.workspace = Workspace::Pcb;

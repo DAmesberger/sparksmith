@@ -333,6 +333,7 @@ impl PcbEditor {
                 .on_disabled_hover_text("Select a pad or track to choose its net");
                 kit::check_row(ui, "Show airwires", &mut self.show_airwires);
                 self.fill_view_row(ui);
+                self.block_detail_row(ui);
             });
         });
     }

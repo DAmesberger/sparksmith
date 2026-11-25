@@ -41,8 +41,9 @@ fn the_catalog_has_its_293_entries() {
     // and rules.set_tie_current; then the two offline help queries; then
     // sheet_symbol.rename, fabrication.profile_suggestions and
     // schematic.check_intent; then layout.via_set; then layout.stackups and
-    // layout.use_stackup.
-    assert_eq!(metadata::entries().len(), 304);
+    // layout.use_stackup; then the six block.* operations and
+    // block.list.
+    assert_eq!(metadata::entries().len(), 311);
 }
 
 /// A title is short, says more than the wire name, and is unique within its

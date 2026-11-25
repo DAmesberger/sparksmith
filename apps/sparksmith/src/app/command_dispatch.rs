@@ -260,6 +260,12 @@ impl App {
                 }
                 self.pcb.arrange(how).map(|_| ())
             }
+            Action::MakeBlock => {
+                if self.workspace != Workspace::Pcb {
+                    return Err("Select parts on the PCB layout".into());
+                }
+                self.pcb.make_block().map(|_| ())
+            }
             Action::Ribbon(workspace, event) => ribbons
                 .iter()
                 .find(|r| r.workspace == workspace)
@@ -301,6 +307,10 @@ impl App {
             }
             Action::PcbArrange(how) => {
                 let operation = self.pcb.arrange(how).ok();
+                self.apply(ctx, crate::refusal::Origin::Command, operation);
+            }
+            Action::MakeBlock => {
+                let operation = self.pcb.make_block().ok();
                 self.apply(ctx, crate::refusal::Origin::Command, operation);
             }
             Action::Key => {}

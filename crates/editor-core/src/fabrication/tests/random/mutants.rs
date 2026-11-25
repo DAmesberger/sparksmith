@@ -498,7 +498,7 @@ fn redo_lost(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
     Ok(invariants::history(a, b, a, a).into_iter().collect())
 }
 
-const FAULTS: [(&str, &[Rule], Fault); 25] = [
+const FAULTS: [(&str, &[Rule], Fault); 27] = [
     (
         "copper off the board told as nearer",
         &[Rule::Overhang],
@@ -600,6 +600,16 @@ const FAULTS: [(&str, &[Rule], Fault); 25] = [
         &[Rule::Image, Rule::ReadBack],
         pour_not_drawn,
     ),
+    (
+        "a locked block's part moved",
+        &[Rule::Block],
+        locked_part_moved,
+    ),
+    (
+        "a block moved and a part of it left",
+        &[Rule::Block],
+        block_torn,
+    ),
 ];
 
 fn swapped_masks(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
@@ -623,6 +633,46 @@ fn pour_not_drawn(_: &Engine, seen: &Seen) -> Fallible<Vec<Broken>> {
         },
     )?;
     invariants::all(&seen, PIXEL)
+}
+
+/// The board with a block of both its parts, and that block's id.
+fn blocked(engine: &Engine, locked: bool) -> Fallible<(Engine, crate::ids::Id)> {
+    let mut engine = engine.fork();
+    let add = edits::operation(&engine, &Edit::Block { pick: 0, count: 2 })?.ok_or("no parts")?;
+    engine.apply(engine.revision(), add)?;
+    let id = edits::block(engine.project(), 0).ok_or("no block")?;
+    if locked {
+        let lock = edits::operation(
+            &engine,
+            &Edit::LockBlock {
+                pick: 0,
+                locked: true,
+            },
+        )?
+        .ok_or("no block")?;
+        engine.apply(engine.revision(), lock)?;
+    }
+    Ok((engine, id))
+}
+
+fn locked_part_moved(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
+    let (engine, _) = blocked(engine, true)?;
+    let torn = after(engine.project(), |p| {
+        if let Some(p) = p.placements.first_mut() {
+            p.position[0] += 1.0;
+        }
+    });
+    Ok(invariants::blocks(engine.project(), &torn, None))
+}
+
+fn block_torn(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
+    let (engine, id) = blocked(engine, false)?;
+    let torn = after(engine.project(), |p| {
+        if let Some(p) = p.placements.first_mut() {
+            p.position[0] += 1.0;
+        }
+    });
+    Ok(invariants::blocks(engine.project(), &torn, Some(id)))
 }
 
 #[test]

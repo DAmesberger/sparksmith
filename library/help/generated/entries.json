@@ -280,6 +280,104 @@
     }
   },
   {
+    "id": "entry/block.add",
+    "title": "Make a block",
+    "summary": "Make a block of `parts`: parts that belong together.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ded7a9d87b31f7d7",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/block.board_lock",
+    "title": "Lock or unlock blocks on the board",
+    "summary": "Lock or unlock blocks on the board, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "fa335cc3e694ebc0",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/block.board_move",
+    "title": "Move a block on the board",
+    "summary": "Move a block's placed parts as one on the board, as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "layout",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "d5173502033f7b9b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/block.delete",
+    "title": "Delete blocks",
+    "summary": "Delete blocks as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "869f9ab107d4c073",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/block.list",
+    "title": "List the blocks",
+    "summary": "The blocks: name, parts, and what each is on the board.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "read",
+      "entry_kind": "query",
+      "schema_digest": "2c692f52f8c0092b",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/block.members",
+    "title": "Change a block's parts",
+    "summary": "Take parts into a block (`add`) and let parts go (`remove`), as one undo step.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "ff0c6f8c164453e6",
+      "examples": []
+    }
+  },
+  {
+    "id": "entry/block.rename",
+    "title": "Rename a block",
+    "summary": "Rename a block.",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "entry",
+      "module": "project",
+      "class": "edit",
+      "entry_kind": "operation",
+      "schema_digest": "19c486c52d52efb8",
+      "examples": []
+    }
+  },
+  {
     "id": "entry/board.edit",
     "title": "Edit the board outline",
     "summary": "Edit the board sketch and re-solve it; constrained targets follow.",
@@ -2969,7 +3067,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "1663ccd611b2c2eb",
+      "schema_digest": "175bc588e014eef3",
       "examples": []
     }
   },
@@ -2983,7 +3081,7 @@
       "module": "project",
       "class": "edit",
       "entry_kind": "operation",
-      "schema_digest": "a46ddd63113dcb3f",
+      "schema_digest": "f8b82c61dc4c2b67",
       "examples": []
     }
   },
@@ -3165,7 +3263,7 @@
       "module": "project",
       "class": "read",
       "entry_kind": "query",
-      "schema_digest": "3bfce97873b7777d",
+      "schema_digest": "ca6d988ddef6b170",
       "examples": []
     }
   },

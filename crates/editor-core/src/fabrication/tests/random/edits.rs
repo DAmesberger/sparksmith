@@ -7,6 +7,7 @@ use super::plan::{BOARD, Edit, Past, Pour};
 use super::truth::{self, PadOn};
 use crate::geometry::Point;
 use crate::ids::Id;
+use crate::instances::blocks::{BlockCommand, block_of};
 use crate::layout::arrange::PartMove;
 use crate::layout::fill::{FillCommand, RefillTarget};
 use crate::layout::pair::{PairLeg, PairRouteRequest};
@@ -196,6 +197,11 @@ pub(super) fn operation(engine: &Engine, edit: &Edit) -> Fallible<Option<Operati
         Edit::Stretch { .. } | Edit::Window { .. } | Edit::Open => {
             outline::operation(project, edit)
         }
+        Edit::Block { .. }
+        | Edit::MoveBlock { .. }
+        | Edit::LockBlock { .. }
+        | Edit::Members { .. }
+        | Edit::Unblock { .. } => blocks(project, edit).map(Operation::Block),
         _ => parts(project, edit)
             .or_else(|| routes(project, edit))
             .or_else(|| copper(project, edit))
@@ -332,6 +338,63 @@ fn parts(project: &Project, edit: &Edit) -> Option<LayoutCommand> {
                 layer: *side,
             }
         }
+        _ => return None,
+    })
+}
+
+/// The block an edit that counts to `k` means.
+pub(super) fn block(project: &Project, k: usize) -> Option<Id> {
+    pick(&project.blocks, k).map(|b| b.id)
+}
+
+fn blocks(project: &Project, edit: &Edit) -> Option<BlockCommand> {
+    let block = |k: usize| pick(&project.blocks, k);
+    // Parts in no block, `count` of them from the `k`th on.
+    let free = |k: usize, count: usize| -> Vec<Id> {
+        let free: Vec<Id> = project
+            .instances
+            .iter()
+            .map(|i| i.id)
+            .filter(|id| block_of(project, *id).is_none())
+            .collect();
+        let from = k.checked_rem(free.len()).unwrap_or(0);
+        free.into_iter().skip(from).take(count).collect()
+    };
+    Some(match edit {
+        Edit::Block { pick: k, count } => BlockCommand::Add {
+            parts: free(*k, *count),
+            name: None,
+        },
+        Edit::MoveBlock {
+            pick: k,
+            by,
+            turn,
+            flip,
+        } => BlockCommand::BoardMove {
+            id: block(*k)?.id,
+            by: *by,
+            turn_deg: *turn,
+            flip: *flip,
+        },
+        Edit::LockBlock { pick: k, locked } => BlockCommand::BoardLock {
+            ids: vec![block(*k)?.id],
+            locked: *locked,
+        },
+        Edit::Members {
+            pick: k,
+            add,
+            remove,
+        } => {
+            let block = block(*k)?;
+            BlockCommand::Members {
+                id: block.id,
+                add: free(*k, *add),
+                remove: block.members.iter().copied().take(*remove).collect(),
+            }
+        }
+        Edit::Unblock { pick: k } => BlockCommand::Delete {
+            ids: vec![block(*k)?.id],
+        },
         _ => return None,
     })
 }

@@ -39,6 +39,9 @@ pub(super) enum Rule {
     Connectivity,
     /// No edit loses copper without saying so.
     Silent,
+    /// A locked block's parts stay, a moved block keeps its shape, and a
+    /// part is in one block.
+    Block,
     /// Copper of two nets that meets is a finding no waiver accepts.
     Short,
     /// Copper of two nets nearer than the rules allow is told.
@@ -1306,6 +1309,75 @@ pub(super) fn lost(
                     vias(before)
                 ),
             ));
+        }
+    }
+    out
+}
+
+/// [`Rule::Block`]: an edit moved a part of a block that is locked, or moved
+/// the block `moved` and not all of its parts alike, or another part with
+/// it; or a part is in two blocks, or in one and not in the design.
+pub(super) fn blocks(before: &Project, after: &Project, moved: Option<Id>) -> Vec<Broken> {
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    for block in after.blocks.iter() {
+        for id in &block.members {
+            if !seen.insert(*id) || !after.instances.iter().any(|i| i.id == *id) {
+                out.push(broken(
+                    Rule::Block,
+                    format!("part {id} is in two blocks, or not in the design"),
+                ));
+            }
+        }
+    }
+    let pose = |p: &Project, id: Id| {
+        p.placements
+            .iter()
+            .find(|q| q.instance == id)
+            .map(|q| (q.position, q.rotation_deg, q.layer))
+    };
+    for block in before.blocks.iter().filter(|b| b.locked) {
+        for id in &block.members {
+            if pose(before, *id).is_some() && pose(before, *id) != pose(after, *id) {
+                out.push(broken(
+                    Rule::Block,
+                    format!("part {id} of the locked {} moved", block.name),
+                ));
+            }
+        }
+    }
+    let Some(block) = moved.and_then(|id| before.blocks.iter().find(|b| b.id == id)) else {
+        return out;
+    };
+    for p in before.placements.iter() {
+        if !block.members.contains(&p.instance)
+            && pose(after, p.instance) != pose(before, p.instance)
+        {
+            out.push(broken(
+                Rule::Block,
+                format!("part {} is in no moved block and moved", p.instance),
+            ));
+        }
+    }
+    let of = |p: &Project| -> Vec<(Point, Layer)> {
+        block
+            .members
+            .iter()
+            .filter_map(|id| pose(p, *id))
+            .map(|(at, _, layer)| (at, layer))
+            .collect()
+    };
+    let (was, now) = (of(before), of(after));
+    let apart = |a: Point, b: Point| (a[0] - b[0]).hypot(a[1] - b[1]);
+    for (i, (a, b)) in was.iter().zip(&now).enumerate() {
+        for (c, d) in was.iter().zip(&now).skip(i + 1) {
+            let same = (apart(a.0, c.0) - apart(b.0, d.0)).abs() < 1e-6;
+            if !same || (a.1 == c.1) != (b.1 == d.1) {
+                out.push(broken(
+                    Rule::Block,
+                    format!("{} moved and is not what it was", block.name),
+                ));
+            }
         }
     }
     out

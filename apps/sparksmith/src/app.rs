@@ -433,9 +433,18 @@ impl App {
         let Some(operation) = operation else {
             return;
         };
-        // A dimension whose value defines a board parameter brings its edit.
-        let first = self.pcb.first.take();
-        let first = first.filter(|_| matches!(operation, Operation::Dimension(_)));
+        // A dimension whose value defines a board parameter brings its edit,
+        // a selection's Delete or Lock its blocks'.
+        let first = self.pcb.first.take().filter(|first| {
+            use sparksmith_core::layout::LayoutCommand as L;
+            match &operation {
+                Operation::Dimension(_) => !matches!(first, Operation::Block(_)),
+                Operation::Layout(L::DeleteObjects { .. } | L::LockObjects { .. }) => {
+                    matches!(first, Operation::Block(_))
+                }
+                _ => false,
+            }
+        });
         if self.opening != self.engine.opening() {
             // Made for a document that is no longer the open one.
             self.document_replaced();
@@ -582,6 +591,10 @@ impl App {
             Ok(outcome) => {
                 if let sparksmith_core::Outcome::Pasted { report } = &outcome {
                     self.schematic.select_pasted(self.engine.project(), report);
+                }
+                // A block just made is selected, its name on its card.
+                if let sparksmith_core::Outcome::BlockAdded { block } = &outcome {
+                    self.pcb.select_block(*block);
                 }
                 if let sparksmith_core::Outcome::PartsKept { parts } = &outcome {
                     self.say(
@@ -2262,6 +2275,9 @@ pub(crate) fn sheet_rows(
         .collect())
 }
 
+#[cfg(test)]
+#[path = "app/block_tests.rs"]
+mod block_tests;
 #[cfg(test)]
 #[path = "app/board_param_tests.rs"]
 mod board_param_tests;

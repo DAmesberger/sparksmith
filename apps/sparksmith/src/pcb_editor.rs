@@ -17,7 +17,7 @@ use egui::{Align2, Color32, FontId, PointerButton, Pos2, Rect, Sense, Shape, Str
 use sparksmith_core::{
     CopperLayer, Engine, Id, Layer, ObjectRef, Operation, Placement, Point, Project, Via,
     geometry::{Bounds, Shape as CoreShape, Transform2},
-    instances,
+    instances::{self, blocks::BlockCommand},
     issues::{IssueArea, IssueScope},
     layout::{
         self, BoardDrawing, CopperGraph, LayoutCommand, PlacedGraphic, PlacedHole, PlacedItem,
@@ -31,6 +31,7 @@ use sparksmith_ui::theme::{self as theme, Tokens};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+mod blocks;
 mod board_card;
 pub(crate) mod board_shape;
 mod board_shape_ui;
@@ -329,16 +330,18 @@ enum Field {
     TrackWidth,
     TrackLayer,
     TextOffset,
+    BlockName,
 }
 
 impl Field {
-    const ALL: [Field; 6] = [
+    const ALL: [Field; 7] = [
         Field::Position,
         Field::Rotation,
         Field::Side,
         Field::TrackWidth,
         Field::TrackLayer,
         Field::TextOffset,
+        Field::BlockName,
     ];
     fn id(self) -> egui::Id {
         egui::Id::unique(("pcb-field", self))
@@ -361,6 +364,7 @@ enum Inspected {
     Track(Id),
     Via(Id),
     Fill(Id),
+    Block(Id),
     /// Two or more objects (`group`).
     Group,
     Review,
@@ -372,9 +376,10 @@ struct DragAirwires {
 }
 
 pub struct PcbEditor {
-    /// The board edit the dimension operation returned this frame needs first
-    /// (the parameter its value defines): `App::apply` applies both in one
-    /// undo step, or neither.
+    /// What the operation returned this frame needs first: the board edit of
+    /// a dimension (the parameter its value defines), or the blocks' part of
+    /// a selection's Delete or Lock. `App::apply` applies both in one undo
+    /// step, or neither.
     pub(crate) first: Option<Operation>,
     /// Two-finger scrolling across frames.
     trackpad: crate::navigation::Trackpad,
@@ -554,6 +559,10 @@ pub struct PcbEditor {
     reports: crate::issue_reports::SharedReports,
     /// The selected copper fill.
     fill: Option<Id>,
+    /// The selected block.
+    block: Option<Id>,
+    /// The blocks as they are drawn, and their card (`blocks`).
+    blocks: blocks::Blocks,
     /// The fills' display copper, kept while their copper is unchanged.
     fill_meshes: fill_paint::FillCache,
     /// Fills whose copper is stale, per revision.
@@ -697,6 +706,8 @@ impl Default for PcbEditor {
             issue_slot: None,
             reports: Default::default(),
             fill: None,
+            block: None,
+            blocks: Default::default(),
             fill_meshes: Default::default(),
             stale_fills: BTreeSet::new(),
             fill_display: Default::default(),
@@ -745,6 +756,7 @@ impl PcbEditor {
             fill_display: old.fill_display,
             focus: old.focus,
             filter: old.filter,
+            blocks: old.blocks.kept(),
             route: route_tool::RouteState {
                 posture: old.route.posture,
                 mode: old.route.mode,
@@ -883,6 +895,7 @@ impl PcbEditor {
         self.hole = None;
         self.via = None;
         self.fill = None;
+        self.block = None;
         self.fill_drag = None;
         self.discard_staged();
     }
@@ -1014,6 +1027,12 @@ impl PcbEditor {
             {
                 self.fill = None;
             }
+            if self
+                .block
+                .is_some_and(|id| engine.project().block(id).is_none())
+            {
+                self.block = None;
+            }
             self.graph = engine.copper_graph();
             self.airwires = self.graph.airwires();
             self.board_ties = Default::default();
@@ -1054,7 +1073,11 @@ impl PcbEditor {
         }
         let key = (
             content,
-            self.instance.or(self.track).or(self.via).or(self.fill),
+            self.instance
+                .or(self.track)
+                .or(self.via)
+                .or(self.fill)
+                .or(self.block),
         );
         if self.property_key != Some(key) {
             // A new revision or subject: the fields show the document again.
@@ -1126,6 +1149,7 @@ impl PcbEditor {
             })
             .collect();
         self.graphics = layout::placed_graphics(project);
+        self.blocks.cache(project);
         self.keepouts = layer_focus::keepout_shapes(project);
         self.track_ends = project
             .tracks
@@ -1409,6 +1433,9 @@ impl PcbEditor {
         if let Some(id) = self.fill.filter(|id| project.fill(*id).is_some()) {
             return Inspected::Fill(id);
         }
+        if let Some(id) = self.block.filter(|id| project.block(*id).is_some()) {
+            return Inspected::Block(id);
+        }
         match self
             .track
             .filter(|id| project.tracks.iter().any(|t| t.id == *id))
@@ -1476,6 +1503,10 @@ impl PcbEditor {
                 });
                 Header::new("polygon", title, "Fill")
             }
+            Inspected::Block(id) => {
+                let name = project.block(id).map_or("", |b| b.name.as_str());
+                Header::new("select", name, "Block")
+            }
             Inspected::Hole(_) => Header::new("circle", "Mounting hole", "Board feature"),
             Inspected::Board => Header::new("plane", "Board", "Board"),
             Inspected::Group => Header::new(
@@ -1529,6 +1560,7 @@ impl PcbEditor {
                     | Inspected::Track(_)
                     | Inspected::Via(_)
                     | Inspected::Fill(_)
+                    | Inspected::Block(_)
                     | Inspected::Group
             ),
             issues: self.issue_slot(engine, inspected),
@@ -1738,6 +1770,7 @@ impl PcbEditor {
                 });
                 None
             }
+            Inspected::Block(id) => self.block_section(ui, project, project.block(id)?),
             Inspected::Group => self.group_section(ui, project),
             Inspected::Board | Inspected::Review => {
                 let renamed = self.board_section(ui, project);
@@ -1790,6 +1823,7 @@ impl PcbEditor {
                 via_card::via_footer(ui, via)
             }
             Inspected::Fill(id) => fill_card::fill_footer(ui, project.fill(id)?),
+            Inspected::Block(id) => self.block_footer(ui, project, project.block(id)?),
             Inspected::Group => self.group_footer(ui, project),
             _ => None,
         }
@@ -1813,7 +1847,10 @@ impl PcbEditor {
         }
         self.tool == Tool::Select
             && match self.inspected(project) {
-                Inspected::Track(_) | Inspected::Via(_) | Inspected::Fill(_) => true,
+                Inspected::Track(_)
+                | Inspected::Via(_)
+                | Inspected::Fill(_)
+                | Inspected::Block(_) => true,
                 Inspected::Group => self.delete_group().is_some(),
                 _ => false,
             }
@@ -1834,7 +1871,14 @@ impl PcbEditor {
             Inspected::Track(id) => Operation::Layout(LayoutCommand::DeleteTrack { id }),
             Inspected::Via(id) => Operation::Layout(LayoutCommand::DeleteVia { id }),
             Inspected::Fill(id) => Operation::Fill(layout::fill::FillCommand::Delete { id }),
-            Inspected::Group => self.delete_group()?,
+            Inspected::Block(id) => Operation::Block(BlockCommand::Delete { ids: vec![id] }),
+            Inspected::Group => {
+                self.delete_group()?;
+                if !crate::keys::pressed(ui.ctx(), "pcb.delete") {
+                    return None;
+                }
+                return self.take_group_delete();
+            }
             _ => return None,
         };
         crate::keys::pressed(ui.ctx(), "pcb.delete").then_some(operation)
@@ -1935,6 +1979,7 @@ impl PcbEditor {
         self.view_centre = Some(world(rect.center()));
         let painter = ui.painter().with_clip_rect(surface);
         let metric = symbol_view::metric(&painter);
+        self.block_details(&painter, view, project, engine.revision());
         let pointer = response
             .interact_pointer_pos()
             .or_else(|| ui.input(|i| i.pointer.hover_pos()));
@@ -2073,16 +2118,26 @@ impl PcbEditor {
                 // ⇧ or ⌘, or a press on nothing a drag moves, draws a
                 // selection rectangle; a press on a part of the group
                 // drags the group's parts.
-                let movable = matches!(hit, menu::Hit::Track(..)) || part.is_some();
+                let movable =
+                    matches!(hit, menu::Hit::Track(..) | menu::Hit::Block(_)) || part.is_some();
                 if add || !movable {
                     self.box_from = Some(start);
-                } else if let Some(id) = part.filter(|id| self.group.parts.contains(id)) {
+                } else if let Some(name) = self.grabbed(project, hit, part) {
                     if let Err(why) = self.start_group_drag(project, at) {
-                        let name = project.instance(id).map_or("", |i| i.designator.as_str());
                         crate::kit::toast::post(
                             ui.ctx(),
                             kit::severity::Level::Warning,
                             format!("Can't move the selection with {name}: {why}"),
+                            Vec::new(),
+                        );
+                    }
+                } else if let menu::Hit::Block(id) = hit {
+                    self.select_block(id);
+                    if let Err(why) = self.start_block_drag(project, id, at) {
+                        crate::kit::toast::post(
+                            ui.ctx(),
+                            kit::severity::Level::Warning,
+                            why,
                             Vec::new(),
                         );
                     }
@@ -2247,7 +2302,7 @@ impl PcbEditor {
         }
         self.paint_fill_handles(&painter, view, project);
         self.paint_fill_draw(&painter, view, cursor);
-        hold_mark::paint_marks(&painter, &view, project);
+        hold_mark::paint_marks(&painter, &view, project, |id| !self.part_hidden(id));
         // Part dimensions, the body traces and the Dimension tool, as in
         // 3D (`dimensions`).
         let hovered_part = match (self.tool, cursor) {
@@ -2353,6 +2408,16 @@ impl PcbEditor {
             && crate::keys::pressed(ui.ctx(), "pcb.rotate")
         {
             operation = self.menu_act(engine, menu::Act::Rotate(id));
+        }
+        // And the selected block, as its card's does.
+        if operation.is_none()
+            && self.tool == Tool::Select
+            && let Inspected::Block(id) = self.inspected(project)
+            && crate::keys::pressed(ui.ctx(), "pcb.rotate")
+        {
+            let turn = blocks::turn();
+            blocks::name_move(ui.ctx(), project, id, &turn);
+            operation = Some(Operation::Block(turn.command(id)));
         }
         if let Some(pill) = self.pills(ui, rect, project) {
             operation = Some(pill);
@@ -2588,6 +2653,7 @@ impl PcbEditor {
         let seen = self.seen();
         project.vias.iter().rev().find(|via| {
             seen.via(via, &self.stack)
+                && !self.via_hidden(via.id)
                 && self
                     .layout_copper
                     .via_extent(via.id)
@@ -2601,7 +2667,7 @@ impl PcbEditor {
         self.board_pads
             .iter()
             .rev()
-            .find(|b| visible(&b.placed) && b.contains(at))
+            .find(|b| visible(&b.placed) && !self.pads_hidden(b.placed.instance) && b.contains(at))
             .map(|b| &b.placed)
     }
 
@@ -2613,8 +2679,8 @@ impl PcbEditor {
         self.select_hit(hit);
     }
 
-    /// What a click at `at` picks: a visible pad, via, track, part body,
-    /// then fill. A track picks within `tolerance` (a few pixels) of its
+    /// What a click at `at` picks: a visible pad, via, track, block border,
+    /// part body, then fill. A track picks within `tolerance` (a few pixels) of its
     /// copper, so a thin one is easy to hit; the active layer's tracks
     /// come first, then the one whose copper is nearest, topmost on a tie.
     fn hit_at(
@@ -2631,7 +2697,9 @@ impl PcbEditor {
             .iter()
             .rev()
             .filter(|track| {
-                layers.copper_layer(track.layer) && layout::track_contains(track, at, tolerance)
+                layers.copper_layer(track.layer)
+                    && !self.track_hidden(track.id)
+                    && layout::track_contains(track, at, tolerance)
             })
             .min_by(|a, b| {
                 let gap = |t: &sparksmith_core::Track| {
@@ -2654,7 +2722,9 @@ impl PcbEditor {
             .bridges
             .iter()
             .rev()
-            .find(|b| layers.copper_layer(b.layer) && b.mesh.contains(at))
+            .find(|b| {
+                layers.copper_layer(b.layer) && !self.pads_hidden(b.instance) && b.mesh.contains(at)
+            })
             .and_then(|b| pass(Hit::Tie(b.instance, b.group)))
             .or_else(|| {
                 self.pick_pad(at, |p| layers.pad(p))
@@ -2665,6 +2735,15 @@ impl PcbEditor {
                     .and_then(|via| pass(Hit::Via(via.id, via.net)))
             })
             .or_else(|| track.and_then(|track| pass(Hit::Track(track.id, track.net))))
+            .or_else(|| {
+                // A block's border runs along its parts' courtyards: on it
+                // the block, on a part's body the part.
+                self.pick_body(project, at)
+                    .is_none()
+                    .then(|| self.pick_block(at, tolerance))
+                    .flatten()
+                    .and_then(|id| pass(Hit::Block(id)))
+            })
             .or_else(|| {
                 self.pick_instance(project, at, tolerance, metric)
                     .and_then(|instance| pass(Hit::Part(instance)))
@@ -2767,6 +2846,7 @@ impl PcbEditor {
             }
             Hit::Part(instance) => self.set_selection(Some(instance), None, None),
             Hit::Fill(id, net) => self.select_fill(id, net),
+            Hit::Block(id) => self.select_block(id),
             Hit::Hole(id) => {
                 self.set_selection(None, None, None);
                 self.hole = Some(id);
@@ -2789,21 +2869,25 @@ impl PcbEditor {
             .map(|p| p.instance)
             .or_else(|| {
                 layout::pick_graphic(&self.graphics, at, tolerance, metric, |g| {
-                    layers.drawing(g.layer)
+                    layers.drawing(g.layer) && !self.part_hidden(g.instance)
                 })
                 .map(|g| g.instance)
             })
-            .or_else(|| {
-                project
-                    .placements
-                    .iter()
-                    .rev()
-                    .find(|p| {
-                        body_polygon(project, p)
-                            .is_some_and(|polygon| layout::point_in_polygon(at, &polygon))
-                    })
-                    .map(|p| p.instance)
+            .or_else(|| self.pick_body(project, at))
+    }
+
+    /// The part whose package envelope holds `at`.
+    fn pick_body(&self, project: &Project, at: Point) -> Option<Id> {
+        project
+            .placements
+            .iter()
+            .rev()
+            .find(|p| {
+                !self.part_hidden(p.instance)
+                    && body_polygon(project, p)
+                        .is_some_and(|polygon| layout::point_in_polygon(at, &polygon))
             })
+            .map(|p| p.instance)
     }
 
     /// How far the dragged placement's preview has moved `instance`.
@@ -2914,6 +2998,9 @@ impl PcbEditor {
         }
         if self.layers.holes {
             for pad in &self.board_pads {
+                if self.pads_hidden(pad.placed.instance) {
+                    continue;
+                }
                 let delta = self.drag_delta(pad.placed.instance);
                 for hole in &pad.holes {
                     // Always outlined, so holes stay visible with every
@@ -2949,6 +3036,9 @@ impl PcbEditor {
             }
         }
         for placement in &project.placements {
+            if self.part_hidden(placement.instance) {
+                continue;
+            }
             let selected = self.is_selected(placement.instance);
             let mut shown = placement.clone();
             let delta = self.drag_delta(placement.instance);
@@ -2996,7 +3086,10 @@ impl PcbEditor {
         if scale > 7.0 {
             let seen = self.seen();
             for pad in &self.board_pads {
-                if pad.placed.pad.number.is_empty() || !seen.pad(&pad.placed) {
+                if pad.placed.pad.number.is_empty()
+                    || !seen.pad(&pad.placed)
+                    || self.pads_hidden(pad.placed.instance)
+                {
                     continue;
                 }
                 // A number shows only inside its pad: fine-pitch pads (a
@@ -3017,6 +3110,7 @@ impl PcbEditor {
                 painter.galley(at - galley.size() / 2.0, galley, t.on_accent);
             }
         }
+        self.paint_blocks(painter, view, project);
     }
 
     /// The copper of one layer as `look` has it: its fills, tracks and
@@ -3045,7 +3139,11 @@ impl PcbEditor {
         let ink = BoardInk::get();
         for pad in &self.board_pads {
             let placed = &pad.placed;
-            if placed.pad.kind.through_hole() || placed.layer != side || !seen.pad(placed) {
+            if placed.pad.kind.through_hole()
+                || placed.layer != side
+                || !seen.pad(placed)
+                || self.pads_hidden(placed.instance)
+            {
                 continue;
             }
             let selected = self.pad_chosen(placed);
@@ -3091,7 +3189,10 @@ impl PcbEditor {
         };
         for pad in &self.board_pads {
             let placed = &pad.placed;
-            if !placed.pad.kind.through_hole() || !seen.pad(placed) {
+            if !placed.pad.kind.through_hole()
+                || !seen.pad(placed)
+                || self.pads_hidden(placed.instance)
+            {
                 continue;
             }
             let selected = self.pad_chosen(placed);
@@ -3158,7 +3259,7 @@ impl PcbEditor {
             .layout_copper
             .bridges
             .iter()
-            .filter(|b| b.layer == layer)
+            .filter(|b| b.layer == layer && !self.pads_hidden(b.instance))
         {
             let group_selected = self.tie_selected(bridge.instance, bridge.group);
             let lit = self.highlighted.filter(|n| bridge.nets.contains(n));
@@ -3192,7 +3293,7 @@ impl PcbEditor {
             let chosen = self.track == Some(track.id)
                 || self.group.tracks.contains(&track.id)
                 || self.net_is_highlighted(track.net);
-            if chosen_only && !chosen {
+            if !chosen && (chosen_only || self.track_hidden(track.id)) {
                 continue;
             }
             let Some(ring) = self.layout_copper.track(track.id) else {
@@ -3256,6 +3357,9 @@ impl PcbEditor {
             let selected = self.via == Some(via.id)
                 || self.group.vias.contains(&via.id)
                 || self.net_is_highlighted(via.net);
+            if !selected && self.via_hidden(via.id) {
+                continue;
+            }
             let joins = |l: CopperLayer| seen.copper_layer(l) && via.on(l, &self.stack);
             let shown = if joins(self.layer) {
                 self.layer
@@ -3325,7 +3429,7 @@ impl PcbEditor {
         for placement in project
             .placements
             .iter()
-            .filter(|p| self.not_fitted.contains(&p.instance))
+            .filter(|p| self.not_fitted.contains(&p.instance) && !self.part_hidden(p.instance))
         {
             let Some(corners) = self.cross_corners(project, placement) else {
                 continue;
@@ -3409,6 +3513,7 @@ impl PcbEditor {
             if drawing_side(graphic.layer) != side
                 || !layers(graphic.layer)
                 || !self.layers.drawing(graphic.layer)
+                || self.part_hidden(graphic.instance)
             {
                 continue;
             }
@@ -3785,8 +3890,8 @@ fn issue_slot_of(
         ),
         // Findings do not name fills yet: the slot stays empty.
         Inspected::Fill(_) => return None,
-        // A group's findings are on its objects' own cards.
-        Inspected::Group => return None,
+        // A group's and a block's findings are on their objects' own cards.
+        Inspected::Group | Inspected::Block(_) => return None,
     };
     let report = whole.scoped(&scope, project);
     let mut counts = sparksmith_core::issues::IssueCounts::default();
