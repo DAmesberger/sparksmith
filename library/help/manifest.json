@@ -335,6 +335,7 @@
     "findings/variant.substitute_unreviewed.md",
     "guides/ai-setup.md",
     "guides/automation.md",
+    "guides/blocks.md",
     "guides/board-shape.md",
     "guides/dimensions.md",
     "guides/export-disabled.md",

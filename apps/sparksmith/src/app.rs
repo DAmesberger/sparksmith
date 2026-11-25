@@ -583,6 +583,10 @@ impl App {
                 if let sparksmith_core::Outcome::Pasted { report } = &outcome {
                     self.schematic.select_pasted(self.engine.project(), report);
                 }
+                // A block just made is selected, its name on its card.
+                if let sparksmith_core::Outcome::BlockAdded { block } = &outcome {
+                    self.pcb.select_block(*block);
+                }
                 if let sparksmith_core::Outcome::PartsKept { parts } = &outcome {
                     self.say(
                         Level::Info,
@@ -2252,6 +2256,9 @@ pub(crate) fn sheet_rows(
         .collect())
 }
 
+#[cfg(test)]
+#[path = "app/block_tests.rs"]
+mod block_tests;
 #[cfg(test)]
 #[path = "app/board_param_tests.rs"]
 mod board_param_tests;

@@ -168,7 +168,7 @@ The 3D view always uses the direct mesh (`Flat::Meshed`; stage A4 removed the se
 
 `fabrication::tests::random` (in `sparksmith-core`) draws small legal boards from a seed, edits them at random and checks every rule below after each edit, whatever the board. A seed is the same board on every machine: the generator is its own, and nothing reads a clock or the order of a hash map.
 
-A board has 2, 4 or 6 layers (the seed's remainder by three) and any of: pads of every shape, kind and turn, parts on both sides with turned datums, text and legend, curved outlines, windows, slots and holes, net classes and clearance overrides, tracks, vias (tented, open, filled and capped), planes, drawn and hatched fills, keepouts. Tracks are straight in the document, so an arc is a run of chords. The edits are the engine's own commands (place, move, flip, route, shove, drag, change layer, delete, lock, pour, refill, rules, undo, redo, save and reopen, paste) and some that must be refused. A pasted part is a symbol that is not on the board until it is placed.
+A board has 2, 4 or 6 layers (the seed's remainder by three) and any of: pads of every shape, kind and turn, parts on both sides with turned datums, text and legend, curved outlines, windows, slots and holes, net classes and clearance overrides, tracks, vias (tented, open, filled and capped), planes, drawn and hatched fills, keepouts. Tracks are straight in the document, so an arc is a run of chords. The edits are the engine's own commands (place, move, flip, route, shove, drag, change layer, delete, lock, pour, refill, rules, undo, redo, save and reopen, paste, and for blocks make, move, lock, change the parts of and delete) and some that must be refused. A pasted part is a symbol that is not on the board until it is placed.
 
 | Rule | What must hold |
 |---|---|
@@ -178,6 +178,7 @@ A board has 2, 4 or 6 layers (the seed's remainder by three) and any of: pads of
 | `Cache` | The engine's copper graph and issues are those made afresh |
 | `Connectivity` | The graph joins the pads that copper joins, and no others; an open net has a finding and an airwire; a part not on the board has a finding |
 | `Silent` | No edit but a deletion leaves a net fewer vias without its report or an open-net finding naming the net, and no edit changes the netlist of a net that was there |
+| `Block` | A locked block's parts stay, a moved block keeps its shape and moves nothing else, and a part is in one block |
 | `Short` | Copper of two nets that overlaps is a finding no waiver accepts |
 | `Stale` | A fill is what the board gives now, or told as stale |
 | `Clearance` | Every fill keeps every clearance, the edge, cutouts, keepouts and its own outline, measured between segments |

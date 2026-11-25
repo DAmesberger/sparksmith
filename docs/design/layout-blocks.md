@@ -1,6 +1,6 @@
 # Layout blocks: parts that belong together, with what the datasheet says about them
 
-**Status:** design of 25 November 2026. The six decisions of section 12 are the founder's of that day; slice B1 is queued. Nothing here is built. Hours are agent hours, estimated. Code references are to integ-9 at 0f38f98d. Pictures: [mock-up](floorplan-mockup.html), pictures 1 to 4 (a mock-up: invented parts and documents). Related: [floorplan](autorouter.md), [repeated sheets](repeated-sheets.md), [part dimensions](../board-sketch-references.md), [copper graph](../copper-graph.md).
+**Status:** design of 25 November 2026. The six decisions of section 12 are the founder's of that day. Slice B1 is built; nothing else here is. Hours are agent hours, estimated. Code references are to integ-9 at 0f38f98d. Pictures: [mock-up](floorplan-mockup.html), pictures 1 to 4 (a mock-up: invented parts and documents). Related: [floorplan](autorouter.md), [repeated sheets](repeated-sheets.md), [part dimensions](../board-sketch-references.md), [copper graph](../copper-graph.md).
 
 **Founder (25 November 2026):** "lets say U1 is a DC/DC converter: maybe it is not super important where U1 exactly is, but all relevant parts that need to stay close to it (inductor, caps, with the recommended layout from the datasheet). so basically this is like a module, and maybe we should have that concept. … these modules might have infos from the datasheet attached to them in a structured way to show if it is the recommended layout." And: "we could point the user to where this might be wrong when he misses something important". He wants "a functional border" and to "show the level of detail we want". On this design he decided section 12 ("yes to all six") and asked for one addition: "I would like to see more info on hover over an area or especially over a part (maybe I dont remember what U1 is, so it would be great to show the part number, or for resistors the value, etc)". What is neither quoted here nor in section 12 is the design proposed with it.
 
@@ -73,10 +73,10 @@ So three things carry numbers: part values, some copper and heat statements, and
 
 | Type | Holds |
 |---|---|
-| `Block` | id, name, members, `locked`, side, optional `recipe` (a published revision), `roles` (role → members, each *matched* or *chosen*), optional `room` |
-| `room` | An outline with a place. Only while no member is on the board; placing the first one removes it. So a block never has two borders |
+| `Block` | id, name, members, `locked` (these are B1); optional `recipe` (a published revision), `roles` (role → members, each *matched* or *chosen*), optional `room` |
+| `room` | An outline with a place and a side. Only while no member is on the board; placing the first one removes it. So a block never has two borders |
 
-The border of a placed block is **derived**: the hull of its members' courtyards. No margin is added; one would be an invented number. A part is in at most one block. Blocks do not nest in the first version.
+The border of a placed block is **derived**: the hull of its members' courtyards. No margin is added; one would be an invented number. A block is on the sides its parts are on, so a placed block stores no side. A part is in at most one block. Blocks do not nest in the first version.
 
 **In the library:** a new definition kind, `layout_recipe`, published in revisions like a package row (decision 2) and shown on the part's page. It names one component lineage and holds:
 

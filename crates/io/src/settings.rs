@@ -279,8 +279,8 @@ impl ListSettings {
 }
 
 /// The board selection filter: whether a click, the rectangle and ⌘A may
-/// take parts (with their pads), tracks, vias and fills. A file naming
-/// any other kind is refused.
+/// take parts (with their pads), tracks, vias, fills and blocks. A file
+/// naming any other kind is refused; one without blocks takes them.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SelectionFilter {
@@ -288,6 +288,12 @@ pub struct SelectionFilter {
     pub tracks: bool,
     pub vias: bool,
     pub fills: bool,
+    #[serde(default = "taken")]
+    pub blocks: bool,
+}
+
+fn taken() -> bool {
+    true
 }
 
 impl Default for SelectionFilter {
@@ -297,6 +303,7 @@ impl Default for SelectionFilter {
             tracks: true,
             vias: true,
             fills: true,
+            blocks: true,
         }
     }
 }

@@ -542,6 +542,10 @@ pub enum Query {
         #[serde(default)]
         net: Option<Id>,
     },
+    /// The layout blocks: name, lock, parts with their sides, and the
+    /// border on the board, the convex hull of its parts' courtyards.
+    #[serde(rename = "layout.blocks")]
+    Blocks {},
     /// What `layout.route_step` would do, without applying it. The edit set
     /// (the step's copper and every shoved track and via), where the head ends
     /// and why it stopped short.
@@ -651,6 +655,7 @@ declare_entries!(Query in project {
     Stackups "layout.stackups" Read "List fabricators' stackups" [in layout, link, since(3, 0), returns(stackups, stackup)],
     LengthReport "layout.length_report" Read "Length report" [in layout, link, returns(length_report)],
     Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1), returns(pads)],
+    Blocks "layout.blocks" Read "List the layout blocks" [in layout, link, since(3, 1), returns(blocks)],
     RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link, returns(route_preview)],
     TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link, returns(route_preview)],
     TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link, returns(tune_preview)],
@@ -707,6 +712,7 @@ pub enum QueryResult {
     Stackup(Box<layout::fab_stackup::StackupReport>),
     LengthReport(Box<layout::length::LengthReport>),
     Pads(Vec<layout::PadRow>),
+    Blocks(Vec<layout::blocks::BlockRow>),
     TunePreview(Box<layout::meander::TunePreview>),
     RoutePreview(Box<layout::router::RoutePlan>),
     Preflight(Box<fabrication::PreflightReport>),
@@ -2040,8 +2046,23 @@ impl Engine {
                 layout::LayoutCommand::Align { instances, .. }
                 | layout::LayoutCommand::Distribute { instances, .. },
             ) => instances.clone(),
+            Operation::Layout(layout::LayoutCommand::MoveBlock { id, .. }) => self
+                .document
+                .project
+                .block(*id)
+                .map(|b| layout::blocks::placed_members(&self.document.project, b))
+                .unwrap_or_default(),
             _ => Vec::new(),
         };
+        // Of a block, so more than the part under the pointer.
+        let moved_block = matches!(
+            operation,
+            Operation::Layout(
+                layout::LayoutCommand::MoveBlock { .. } | layout::LayoutCommand::MoveParts { .. }
+            )
+        ) && moved_parts
+            .iter()
+            .any(|id| layout::blocks::block_of(&self.document.project, *id).is_some());
         let outcome = match operation {
             Operation::Library(commands::LibraryCommand::Generate(request)) => {
                 let runtime = self
@@ -2148,6 +2169,19 @@ impl Engine {
                 layout::validate(project)?;
                 Outcome::None
             }
+            // So does a block's move.
+            Operation::Layout(layout::LayoutCommand::MoveBlock {
+                id,
+                by,
+                turn_deg,
+                flip,
+            }) => {
+                let project = Arc::make_mut(&mut candidate.project);
+                let how = layout::blocks::BlockMove { by, turn_deg, flip };
+                layout::blocks::move_block(project, id, &how, evaluators.board)?;
+                layout::validate(project)?;
+                Outcome::None
+            }
             // Parts named with the copper stay; the outcome names them.
             Operation::Layout(layout::LayoutCommand::DeleteObjects { objects }) => {
                 let project = Arc::make_mut(&mut candidate.project);
@@ -2161,6 +2195,7 @@ impl Engine {
             }
             Operation::Layout(command) => {
                 let part = command.places_part();
+                let block = matches!(command, layout::LayoutCommand::AddBlock { .. });
                 let before = candidate.project.library.components.len();
                 let project = Arc::make_mut(&mut candidate.project);
                 match layout::apply_staged(project, command)? {
@@ -2173,6 +2208,7 @@ impl Engine {
                             created: project.library.components.len() > before,
                         }
                     }
+                    Some(id) if block => Outcome::BlockAdded { block: id },
                     Some(via) => Outcome::ViaAdded { via },
                     None => Outcome::None,
                 }
@@ -2338,6 +2374,7 @@ impl Engine {
                         graph: &graph,
                         evaluator: evaluators.board,
                         moved_parts: &moved_parts,
+                        moved_block,
                         loose: loose.as_ref(),
                         preserve_copper,
                         reviewed,
@@ -2678,6 +2715,9 @@ impl Engine {
                     ),
                 ))
             }
+            Query::Blocks {} => Ok(QueryResult::Blocks(layout::blocks::rows(
+                &self.document.project,
+            ))),
             Query::Pads { designators, net } => Ok(QueryResult::Pads(layout::pad_rows(
                 &self.document.project,
                 &designators,

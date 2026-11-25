@@ -114,6 +114,8 @@ pub const EDIT: &[Entry] = &[
     C("pcb.align-centres-y", "Align Vertical Centres"),
     C("pcb.distribute-x", "Distribute Horizontally"),
     C("pcb.distribute-y", "Distribute Vertically"),
+    Sep,
+    C("pcb.make-block", "Make Block"),
 ];
 
 pub const VIEW: &[Entry] = &[

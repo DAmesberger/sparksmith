@@ -537,6 +537,9 @@ pub enum PcbView {
     HighlightNet,
     /// Cycle the layer focus: all layers, dim others, active only.
     LayerFocus,
+    /// Cycle how much of the blocks is drawn: by the zoom, their border,
+    /// their parts, their pads and copper.
+    BlockDetail,
 }
 
 /// What running a command does.
@@ -555,6 +558,8 @@ pub enum Action {
     /// Align or distribute the selected parts (`layout.align`,
     /// `layout.distribute`).
     PcbArrange(PcbArrange),
+    /// Make a block of the selected parts (`layout.block_add`).
+    MakeBlock,
     /// A key of a gesture: shown, never run from the palette.
     Key,
 }
@@ -707,6 +712,7 @@ impl Command {
             Action::Pcb(_) | Action::PcbLayer(_) | Action::PcbDialog(_) => "panel/layout",
             Action::PcbArrange(PcbArrange::Align(_)) => "entry/layout.align",
             Action::PcbArrange(PcbArrange::Distribute(_)) => "entry/layout.distribute",
+            Action::MakeBlock => "entry/layout.block_add",
             Action::Key => match self.context {
                 Context::Component | Context::Symbol | Context::Footprint => "panel/component",
                 Context::Schematic | Context::SchematicWire => "panel/schematic",
@@ -2010,6 +2016,15 @@ fn defaults() -> Vec<Command> {
             "Distribute vertically",
             PcbArrange::Distribute(Axis::Vertical),
         ),
+        Command::new(
+            "pcb.make-block",
+            "Make block of the selected parts",
+            C::PcbLayout,
+            Action::MakeBlock,
+        )
+        .chord(Chord::cmd(K::G))
+        .icon("select")
+        .keywords("block group module parts together layout block"),
         dialog("pcb.rules", "Design rules…", PcbDialog::Rules)
             .icon("params")
             .keywords("drc clearance checks track width annular ring profile"),
@@ -2043,7 +2058,7 @@ fn defaults() -> Vec<Command> {
         ),
         key(
             "pcb.delete",
-            "Delete the selection's tracks, vias and fills, or a dimension",
+            "Delete the selection's tracks, vias, fills and blocks, or a dimension",
             C::PcbLayout,
             Chord::key(K::Delete),
         )
@@ -2051,7 +2066,7 @@ fn defaults() -> Vec<Command> {
         // The schematic's ⌘R (`schematic.rotate`); R is Route here.
         key(
             "pcb.rotate",
-            "Rotate the selected part 90°",
+            "Rotate the selected part or block 90°",
             C::PcbLayout,
             Chord::cmd(K::R),
         ),
@@ -2086,6 +2101,14 @@ fn defaults() -> Vec<Command> {
         )
         .chord(Chord::key(K::L).with_shift())
         .keywords("active layer single only dim others solo focus"),
+        view(
+            "pcb.block-detail",
+            "Cycle block detail (by zoom, border, parts, pads and copper)",
+            C::PcbLayout,
+            PcbView::BlockDetail,
+        )
+        .chord(Chord::key(K::B).with_shift())
+        .keywords("blocks level of detail border zoom calm"),
         // Board shape keys besides its tools.
         key(
             "shape.construction",

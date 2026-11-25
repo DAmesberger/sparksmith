@@ -187,6 +187,9 @@ fn refusal(
     if placement.locked {
         return Some(super::locked(project, instance, verb));
     }
+    if let Some(error) = super::blocks::lock_refusal(project, instance, verb) {
+        return Some(error);
+    }
     let target = ConstraintTarget::Placement(instance);
     let Some(evaluator) = evaluator else {
         return dimensions::held(project, instance, None);
@@ -325,6 +328,9 @@ pub fn move_parts(
         }
         if project.placement_of(m.instance).is_some_and(|p| p.locked) {
             return Err(super::locked(project, m.instance, "move"));
+        }
+        if let Some(error) = super::blocks::lock_refusal(project, m.instance, "move") {
+            return Err(error);
         }
     }
     for m in moves {

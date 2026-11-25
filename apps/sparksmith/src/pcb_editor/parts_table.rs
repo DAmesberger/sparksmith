@@ -857,7 +857,7 @@ impl PcbEditor {
                 self.select_via(id, via.map(|v| v.net));
                 via.map(|v| v.position)
             }
-            Pick::Track(_) | Pick::Fill(_) => None,
+            Pick::Track(_) | Pick::Fill(_) | Pick::Block(_) => None,
         };
         let keys = self.selected();
         self.table.synced[self.table.tab.index()] = Some(match self.table.tab {

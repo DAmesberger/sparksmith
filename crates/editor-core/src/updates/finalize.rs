@@ -19,6 +19,8 @@ pub(crate) struct Finalize<'a> {
     pub evaluator: Option<&'a dyn BoardShapeEvaluator>,
     /// Parts the operation moved by hand: their attached copper is carried.
     pub moved_parts: &'a [Id],
+    /// They are a block's: those it takes over the board's edge are named.
+    pub moved_block: bool,
     /// Selected loose copper a group drag slides with its parts.
     pub loose: Option<&'a layout::arrange::CopperMove>,
     /// A board edit that must keep every connection its parts carry.
@@ -62,6 +64,8 @@ pub(crate) fn finalize(
         schematic::tidy(project)?;
         // A removed part takes its variant overrides with it.
         instances::variants::follow_instances(project);
+        // And it leaves its block.
+        layout::blocks::follow_instances(project);
         let changes = nets::reconcile(project)?;
         if f.sheet_move && !f.reviewed {
             nets::refuse_moved_merges(base, project)?;
@@ -132,5 +136,10 @@ pub(crate) fn finalize(
     }
     interface::assembly_link::follow_cycles(base, project, f.evaluator)?;
     rerouted.over_edge = over_edge;
+    if f.moved_block {
+        rerouted
+            .over_edge
+            .extend(layout::blocks::put_over_edge(base, project, f.moved_parts));
+    }
     Ok(Finalized { rerouted })
 }

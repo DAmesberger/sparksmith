@@ -957,6 +957,7 @@ fn stage_change(
             graph: &layout::GraphSource::given(graph),
             evaluator,
             moved_parts: &[],
+            moved_block: false,
             loose: None,
             preserve_copper: false,
             reviewed: true,

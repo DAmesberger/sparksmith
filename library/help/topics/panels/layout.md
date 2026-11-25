@@ -14,6 +14,7 @@
   ],
   "kind": "panel",
   "related": [
+    "guide/blocks",
     "guide/board-shape",
     "guide/first-board",
     "guide/routing",
@@ -25,7 +26,7 @@
 }
 ---
 
-After the schematic is ready, choose Update PCB and review what will be placed or changed. Position the footprints inside the board outline. Select a placement to inspect its side, rotation and pad connections.
+After the schematic is ready, choose Update PCB and review what will be placed or changed. Position the footprints inside the board outline. Select a placement to inspect its side, rotation and pad connections. Parts that belong together can be a block that moves as one: [[guide/blocks]].
 
 Choose Route to start from a pad or a track. The active layer controls where the next track or fill is created. Airwires indicate physical connections that remain to be made. Follow [[guide/routing]] for corners, widths and layer changes.
 

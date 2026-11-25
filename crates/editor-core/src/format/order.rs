@@ -27,6 +27,7 @@ pub fn sort(project: &mut Project) {
     // list's, set by `layout.dimension_order`.
     by_key(&mut project.fills, |f| f.id);
     by_key(&mut project.keepouts, |k| k.id);
+    by_key(&mut project.blocks, |b| b.id);
     by_key(&mut project.labels, |l| l.id);
     by_key(&mut project.sheet_symbols, |s| s.id);
     by_key(&mut project.sheets.locals, |i| i.id);

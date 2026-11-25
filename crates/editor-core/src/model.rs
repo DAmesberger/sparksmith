@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 pub mod assembly_link;
+pub mod block;
 pub mod board;
 pub mod dimension;
 pub mod fill;
@@ -23,6 +24,7 @@ pub mod sheet;
 mod stackup;
 pub mod variants;
 mod via;
+pub use block::Block;
 pub use board::{BoardShape, SolvedBoard};
 pub use dimension::PartDimension;
 pub use fill::{Fill, Keepout};
@@ -673,6 +675,10 @@ pub struct Project {
     pub fills: Shared<Vec<Fill>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub keepouts: Shared<Vec<Keepout>>,
+    /// Layout blocks: parts that belong together and move as one
+    /// (`layout::blocks`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocks: Shared<Vec<Block>>,
     /// Schematic sheets in page order.
     #[serde(default, skip_serializing_if = "Sheets::is_default")]
     pub sheets: Sheets,
@@ -812,6 +818,7 @@ impl Project {
             model_traces: Shared::default(),
             fills: Shared::default(),
             keepouts: Shared::default(),
+            blocks: Shared::default(),
             sheets: Sheets::default(),
             properties: ProjectProperties::default(),
             labels: Shared::default(),
@@ -896,6 +903,9 @@ impl Project {
     }
     pub fn placement_of(&self, instance: Id) -> Option<&Placement> {
         by_id(&self.placements, instance, |p| p.instance)
+    }
+    pub fn block(&self, id: Id) -> Option<&Block> {
+        by_id(&self.blocks, id, |b| b.id)
     }
     pub fn via(&self, id: Id) -> Option<&Via> {
         by_id(&self.vias, id, |v| v.id)

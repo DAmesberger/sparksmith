@@ -4,7 +4,7 @@
 //! Every row sends the operation its card button or key sends, or runs a
 //! registry command.
 use super::edge_card::{dimensions_of, nearest_edge, spec_at};
-use super::{PcbEditor, Tool, opposite};
+use super::{PcbEditor, Tool, blocks, opposite};
 use crate::context_menu::{Entry, Rows};
 use sparksmith_core::layout::LayoutCommand;
 use sparksmith_core::layout::dimensions::{self, DimensionCommand};
@@ -22,6 +22,8 @@ pub(super) enum Hit {
     Via(Id, Id),
     Track(Id, Id),
     Part(Id),
+    /// A block's border, or a block drawn as its border alone.
+    Block(Id),
     Fill(Id, Option<Id>),
     Nothing,
 }
@@ -33,6 +35,7 @@ pub(super) enum Target {
     Track(Id),
     Via(Id),
     Fill(Id),
+    Block(Id),
     /// The group selection a right-click landed on.
     Group,
     Board,
@@ -62,6 +65,16 @@ pub(super) enum Act {
     Population(Id),
     /// The same for every part of the group, in one step.
     GroupPopulation,
+    RotateBlock(Id),
+    FlipBlock(Id),
+    LockBlock(Id, bool),
+    DeleteBlock(Id),
+    /// Select the block a part is in.
+    SelectBlock(Id),
+    /// Let a part go from its block.
+    Release(Id, Id),
+    /// Take the group's parts into its block.
+    AddToBlock,
 }
 
 impl PcbEditor {
@@ -100,6 +113,12 @@ impl PcbEditor {
                     self.select_hit(hit);
                 }
                 Target::Fill(id)
+            }
+            Hit::Block(id) => {
+                if self.block != Some(id) {
+                    self.select_hit(hit);
+                }
+                Target::Block(id)
             }
             Hit::Hole(_) => {
                 self.select_hit(hit);
@@ -162,7 +181,8 @@ impl PcbEditor {
                             && nearest_edge(&project.board(), placement.position).is_some(),
                     ),
                 };
-                vec![
+                let block = sparksmith_core::layout::blocks::block_of(project, instance);
+                let mut rows = vec![
                     Some(
                         Entry::act("Rotate 90°", "spin", Act::Rotate(instance), free)
                             .key_of(ctx, "pcb.rotate"),
@@ -187,6 +207,26 @@ impl PcbEditor {
                         Act::Population(instance),
                         !reviewing,
                     ),
+                ];
+                if let Some(block) = block {
+                    rows.extend([
+                        None,
+                        Some(Entry::act(
+                            format!("Select block {}", block.name),
+                            "select",
+                            Act::SelectBlock(block.id),
+                            true,
+                        )),
+                        // The last part leaves with the block.
+                        Some(Entry::act(
+                            "Take out of the block",
+                            "close",
+                            Act::Release(block.id, instance),
+                            block.members.len() > 1 && !reviewing,
+                        )),
+                    ]);
+                }
+                rows.extend([
                     None,
                     Some(Entry::act(
                         "Delete…",
@@ -194,7 +234,8 @@ impl PcbEditor {
                         Act::Remove(instance),
                         !reviewing,
                     )),
-                ]
+                ]);
+                rows
             }
             Target::Track(id) => {
                 let Some(track) = project.tracks.iter().find(|t| t.id == id) else {
@@ -242,6 +283,36 @@ impl PcbEditor {
                     ),
                 ]
             }
+            Target::Block(id) => {
+                let Some(block) = project.block(id) else {
+                    return Vec::new();
+                };
+                let free = !block.locked && !reviewing;
+                vec![
+                    Some(
+                        Entry::act("Rotate 90°", "spin", Act::RotateBlock(id), free)
+                            .key_of(ctx, "pcb.rotate"),
+                    ),
+                    Some(Entry::act(
+                        "Flip side",
+                        "pattern_flip",
+                        Act::FlipBlock(id),
+                        free,
+                    )),
+                    None,
+                    Some(Entry::act(
+                        if block.locked { "Unlock" } else { "Lock" },
+                        "ground",
+                        Act::LockBlock(id, !block.locked),
+                        !reviewing,
+                    )),
+                    None,
+                    Some(
+                        Entry::act("Delete", "delete", Act::DeleteBlock(id), !reviewing)
+                            .key_of(ctx, "pcb.delete"),
+                    ),
+                ]
+            }
             Target::Group => {
                 let parts: Vec<Id> = self.group.parts.iter().copied().collect();
                 let count = parts.len();
@@ -271,6 +342,15 @@ impl PcbEditor {
                         !reviewing,
                     )),
                 ];
+                rows.push(Some(match self.add_to_block() {
+                    Some(_) => Entry::act("Add to block", "plus", Act::AddToBlock, !reviewing),
+                    None => Entry::command(
+                        ctx,
+                        "pcb.make-block",
+                        "Make block",
+                        self.group.blocks.is_empty() && self.make_block().is_ok() && !reviewing,
+                    ),
+                }));
                 // Only a group with parts has a population to toggle.
                 if let Some(entry) =
                     crate::variants::menu_entry(project, &parts, Act::GroupPopulation, !reviewing)
@@ -378,6 +458,20 @@ impl PcbEditor {
                 locked,
             }),
             Act::Population(instance) => crate::variants::toggle(project, vec![instance]),
+            Act::RotateBlock(id) => layout(blocks::turn().command(id)),
+            Act::FlipBlock(id) => layout(blocks::flip().command(id)),
+            Act::LockBlock(id, locked) => layout(LayoutCommand::SetBlockLock { id, locked }),
+            Act::DeleteBlock(id) => layout(LayoutCommand::DeleteBlock { id }),
+            Act::SelectBlock(id) => {
+                self.select_block(id);
+                None
+            }
+            Act::Release(id, instance) => layout(LayoutCommand::SetBlockMembers {
+                id,
+                add: Vec::new(),
+                remove: vec![instance],
+            }),
+            Act::AddToBlock => self.add_to_block().map(|(_, operation)| operation),
             Act::GroupPopulation => {
                 crate::variants::toggle(project, self.group.parts.iter().copied().collect())
             }
@@ -402,7 +496,15 @@ impl PcbEditor {
                 self.menu_command = Some(id);
                 None
             }
-            crate::context_menu::Run::Act(act) => self.menu_act(engine, act),
+            crate::context_menu::Run::Act(act) => {
+                let project = engine.project();
+                match act {
+                    Act::RotateBlock(id) => blocks::name_move(ctx, project, id, &blocks::turn()),
+                    Act::FlipBlock(id) => blocks::name_move(ctx, project, id, &blocks::flip()),
+                    _ => {}
+                }
+                self.menu_act(engine, act)
+            }
         }
     }
 }
