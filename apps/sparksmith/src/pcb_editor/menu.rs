@@ -28,6 +28,8 @@ pub(super) enum Hit {
     Fill(Id, Option<Id>),
     /// A board keepout: its edge, or its inside where nothing else is.
     Keepout(Id),
+    /// A board text on a shown silkscreen.
+    BoardText(Id),
     Nothing,
 }
 
@@ -39,6 +41,7 @@ pub(super) enum Target {
     Via(Id),
     Fill(Id),
     Keepout(Id),
+    BoardText(Id),
     Block(Id),
     /// The group selection a right-click landed on.
     Group,
@@ -70,6 +73,7 @@ pub(super) enum Act {
     /// The same for every part of the group, in one step.
     GroupPopulation,
     DeleteKeepout(Id),
+    DeleteText(Id),
     RotateBlock(Id),
     FlipBlock(Id),
     LockBlock(Id, bool),
@@ -132,6 +136,10 @@ impl PcbEditor {
             Hit::Keepout(id) => {
                 self.select_hit(hit);
                 Target::Keepout(id)
+            }
+            Hit::BoardText(id) => {
+                self.select_hit(hit);
+                Target::BoardText(id)
             }
             Hit::Nothing => Target::Board,
         }
@@ -294,6 +302,10 @@ impl PcbEditor {
             }
             Target::Keepout(id) => vec![Some(
                 Entry::act("Delete", "delete", Act::DeleteKeepout(id), !reviewing)
+                    .key_of(ctx, "pcb.delete"),
+            )],
+            Target::BoardText(id) => vec![Some(
+                Entry::act("Delete", "delete", Act::DeleteText(id), !reviewing)
                     .key_of(ctx, "pcb.delete"),
             )],
             Target::Block(id) => {
@@ -466,6 +478,9 @@ impl PcbEditor {
             })),
             Act::DeleteFill(id) => Some(Operation::Fill(FillCommand::Delete { id })),
             Act::DeleteKeepout(id) => Some(Operation::Fill(FillCommand::DeleteKeepout { id })),
+            Act::DeleteText(id) => Some(Operation::Layout(
+                sparksmith_core::layout::LayoutCommand::DeleteText { id },
+            )),
             Act::DeleteGroup => self.take_group_delete(),
             Act::LockGroup(locked) => self.take_group_lock(locked),
             Act::Population(instance) => crate::variants::toggle(project, vec![instance]),

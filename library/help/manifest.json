@@ -339,6 +339,7 @@
     "guides/automation.md",
     "guides/blocks.md",
     "guides/board-shape.md",
+    "guides/board-text.md",
     "guides/dimensions.md",
     "guides/export-disabled.md",
     "guides/fab-output.md",

@@ -3592,6 +3592,29 @@
     ]
   },
   {
+    "id": "command/pcb.text",
+    "title": "Text",
+    "summary": "Write text on the top or bottom silkscreen; switch to Layout to place",
+    "since": "0.1.0",
+    "facts": {
+      "kind": "command",
+      "context": "PCB › Layout",
+      "default_key": null,
+      "reaches": "entry/layout.text_add"
+    },
+    "keywords": [
+      "board",
+      "text",
+      "silkscreen",
+      "silk",
+      "legend",
+      "label",
+      "write",
+      "name",
+      "revision"
+    ]
+  },
+  {
     "id": "command/pcb.toggle-3d",
     "title": "Switch Layout and 3D",
     "summary": "PCB: Switch Layout and 3D.",

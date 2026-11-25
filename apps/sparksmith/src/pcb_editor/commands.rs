@@ -46,7 +46,7 @@ impl PcbEditor {
                 Tool::Route => Context::PcbRoute,
                 Tool::Fill | Tool::Keepout => Context::PcbFill,
                 Tool::Tune => Context::PcbTune,
-                Tool::Select | Tool::Via | Tool::Dimension => Context::PcbLayout,
+                Tool::Select | Tool::Via | Tool::Text | Tool::Dimension => Context::PcbLayout,
             }
         }
     }

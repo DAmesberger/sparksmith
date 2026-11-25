@@ -68,7 +68,12 @@ impl PcbEditor {
             Hit::Part(id) | Hit::Tie(id, _) => Subject::Part(id),
             Hit::Via(id, _) => Subject::Via(id),
             Hit::Track(id, _) => Subject::Track(id),
-            Hit::Hole(_) | Hit::Fill(..) | Hit::Block(_) | Hit::Keepout(_) | Hit::Nothing => {
+            Hit::Hole(_)
+            | Hit::Fill(..)
+            | Hit::Block(_)
+            | Hit::Keepout(_)
+            | Hit::BoardText(_)
+            | Hit::Nothing => {
                 return None;
             }
         };

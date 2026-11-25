@@ -51,6 +51,7 @@ mod fill_tool;
 mod group;
 mod keepout_tool;
 mod pad_fill_card;
+mod text_tool;
 pub use group::Group;
 mod hold_mark;
 #[cfg(test)]
@@ -137,6 +138,8 @@ enum Tool {
     Fill,
     /// Draw a board keepout's outline (`keepout_tool`).
     Keepout,
+    /// Place text on the board's silkscreen (`text_tool`).
+    Text,
     /// Meander a track segment to its length target (`tune_tool`).
     Tune,
     /// Dimension a part to a face, edge, hole or board edge, in Layout or
@@ -371,6 +374,7 @@ enum Inspected {
     Via(Id),
     Fill(Id),
     Keepout(Id),
+    BoardText(Id),
     Block(Id),
     /// Two or more objects (`group`).
     Group,
@@ -580,6 +584,14 @@ pub struct PcbEditor {
     keepout_name: (Option<Id>, String, String),
     /// The Keepout tool's settings.
     keepout_draw: keepout_tool::KeepoutDraw,
+    /// The selected board text.
+    board_text: Option<Id>,
+    /// The Text tool's settings, and whether a click found no text to
+    /// place.
+    text_draw: text_tool::TextDraw,
+    text_draw_needs_text: bool,
+    /// The selected text's card while its fields are typed in.
+    text_card: Option<text_tool::TextCard>,
     /// The blocks as they are drawn, and their card (`blocks`).
     blocks: blocks::Blocks,
     /// The fills' display copper, kept while their copper is unchanged.
@@ -733,6 +745,10 @@ impl Default for PcbEditor {
             keepout: None,
             keepout_name: Default::default(),
             keepout_draw: Default::default(),
+            board_text: None,
+            text_draw: Default::default(),
+            text_draw_needs_text: false,
+            text_card: None,
             blocks: Default::default(),
             fill_meshes: Default::default(),
             stale_fills: BTreeSet::new(),
@@ -924,6 +940,8 @@ impl PcbEditor {
         self.fill = None;
         self.block = None;
         self.keepout = None;
+        self.board_text = None;
+        self.text_card = None;
         self.fill_drag = None;
         self.discard_staged();
     }
@@ -1069,6 +1087,12 @@ impl PcbEditor {
                 .is_some_and(|id| engine.project().keepout(id).is_none())
             {
                 self.keepout = None;
+            }
+            if self
+                .board_text
+                .is_some_and(|id| engine.project().board_text(id).is_none())
+            {
+                self.board_text = None;
             }
             self.graph = engine.copper_graph();
             self.airwires = self.graph.airwires();
@@ -1370,6 +1394,10 @@ impl PcbEditor {
                             .enabled(!self.view_3d)
                             .selected(self.tool == Tool::Keepout)
                             .tip("Draw an area copper may not enter; switch to Layout to draw"),
+                        Button::new("text", "list", "Text")
+                            .enabled(!self.view_3d)
+                            .selected(self.tool == Tool::Text)
+                            .tip("Write text on the top or bottom silkscreen; switch to Layout to place"),
                         Button::new("refill", "update", "Refill")
                             .enabled(!engine.project().fills.is_empty())
                             .tip("Compute the copper of every fill from the board as it is now"),
@@ -1439,6 +1467,10 @@ impl PcbEditor {
                 self.end_route();
                 self.tool = Tool::Keepout;
             }
+            "text" if !self.view_3d => {
+                self.end_route();
+                self.tool = Tool::Text;
+            }
             "production" => self.open_production(),
             "place-part" => self.open_part_chooser(),
             "place" => {
@@ -1484,6 +1516,12 @@ impl PcbEditor {
         }
         if let Some(id) = self.keepout.filter(|id| project.keepout(*id).is_some()) {
             return Inspected::Keepout(id);
+        }
+        if let Some(id) = self
+            .board_text
+            .filter(|id| project.board_text(*id).is_some())
+        {
+            return Inspected::BoardText(id);
         }
         if let Some(id) = self.block.filter(|id| project.block(*id).is_some()) {
             return Inspected::Block(id);
@@ -1564,6 +1602,12 @@ impl PcbEditor {
                 let title = if name.is_empty() { "Keepout" } else { name };
                 Header::new("suppress", title, "Keepout")
             }
+            Inspected::BoardText(id) => {
+                let title = project.board_text(id).map_or_else(String::new, |t| {
+                    sparksmith_core::model::board_text::first_line(&t.text)
+                });
+                Header::new("list", title, "Board text")
+            }
             Inspected::Hole(_) => Header::new("circle", "Mounting hole", "Board feature"),
             Inspected::Board => Header::new("plane", "Board", "Board"),
             Inspected::Group => Header::new(
@@ -1596,7 +1640,7 @@ impl PcbEditor {
         } else if ((self.shape.active
             || matches!(
                 self.tool,
-                Tool::Route | Tool::Via | Tool::Fill | Tool::Keepout | Tool::Tune
+                Tool::Route | Tool::Via | Tool::Fill | Tool::Keepout | Tool::Text | Tool::Tune
             ))
             && !self.view_3d)
             || self.tool == Tool::Dimension
@@ -1621,6 +1665,7 @@ impl PcbEditor {
                     | Inspected::Via(_)
                     | Inspected::Fill(_)
                     | Inspected::Keepout(_)
+                    | Inspected::BoardText(_)
                     | Inspected::Block(_)
                     | Inspected::Group
             ),
@@ -1661,6 +1706,10 @@ impl PcbEditor {
             }
             Subject::Tool if self.tool == Tool::Keepout => {
                 CardResponse::output(self.keepout_tool_card(ui))
+            }
+            Subject::Tool if self.tool == Tool::Text => {
+                self.text_tool_card(ui, engine.project());
+                CardResponse::output(None)
             }
             Subject::Tool if self.tool == Tool::Fill => {
                 CardResponse::output(self.fill_tool_card(ui, engine.project()))
@@ -1836,6 +1885,7 @@ impl PcbEditor {
             }
             Inspected::Block(id) => self.block_section(ui, project, project.block(id)?),
             Inspected::Keepout(id) => self.keepout_section(ui, project, project.keepout(id)?),
+            Inspected::BoardText(id) => self.board_text_section(ui, project.board_text(id)?),
             Inspected::Group => self.group_section(ui, project),
             Inspected::Board | Inspected::Review => {
                 let renamed = self.board_section(ui, project);
@@ -1890,6 +1940,7 @@ impl PcbEditor {
             Inspected::Fill(id) => fill_card::fill_footer(ui, project.fill(id)?),
             Inspected::Block(id) => self.block_footer(ui, project, project.block(id)?),
             Inspected::Keepout(id) => Self::keepout_footer(ui, project.keepout(id)?),
+            Inspected::BoardText(id) => Self::board_text_footer(ui, project.board_text(id)?),
             Inspected::Group => self.group_footer(ui, project),
             _ => None,
         }
@@ -1917,6 +1968,7 @@ impl PcbEditor {
                 | Inspected::Via(_)
                 | Inspected::Fill(_)
                 | Inspected::Keepout(_)
+                | Inspected::BoardText(_)
                 | Inspected::Block(_) => true,
                 Inspected::Group => self.delete_group().is_some(),
                 _ => false,
@@ -1941,6 +1993,7 @@ impl PcbEditor {
             Inspected::Keepout(id) => {
                 Operation::Fill(layout::fill::FillCommand::DeleteKeepout { id })
             }
+            Inspected::BoardText(id) => Operation::Layout(LayoutCommand::DeleteText { id }),
             Inspected::Block(id) => Operation::Block(BlockCommand::Delete { ids: vec![id] }),
             Inspected::Group => {
                 self.delete_group()?;
@@ -2361,6 +2414,8 @@ impl PcbEditor {
                 operation = self.place_via(project, at, scale);
             } else if matches!(self.tool, Tool::Fill | Tool::Keepout) {
                 operation = self.fill_click(view, at);
+            } else if self.tool == Tool::Text {
+                operation = self.text_click(project, at);
             } else if self.tool == Tool::Tune {
                 operation = self.tune_click(ui.ctx(), project, engine.revision());
             } else if self.tool == Tool::Route {
@@ -2472,6 +2527,7 @@ impl PcbEditor {
                     Tool::Via => "Via",
                     Tool::Fill => "Fill (A arcs, Enter closes)",
                     Tool::Keepout => "Keepout (A arcs, Enter closes)",
+                    Tool::Text => "Text",
                     Tool::Tune => "Tune",
                     Tool::Dimension => "Dimension",
                     Tool::Select if self.dragging_pair_half(project) => {
@@ -2841,6 +2897,10 @@ impl PcbEditor {
             })
             .or_else(|| track.and_then(|track| pass(Hit::Track(track.id, track.net))))
             .or_else(|| {
+                self.pick_board_text(at, tolerance, metric)
+                    .map(Hit::BoardText)
+            })
+            .or_else(|| {
                 // A block's border runs along its parts' courtyards: on it
                 // the block, on a part's body the part.
                 self.pick_body(project, at)
@@ -2961,6 +3021,7 @@ impl PcbEditor {
                 self.hole = Some(id);
             }
             Hit::Keepout(id) => self.select_keepout(id),
+            Hit::BoardText(id) => self.select_board_text(id),
             Hit::Nothing => self.set_selection(None, None, None),
         }
     }
@@ -3636,7 +3697,7 @@ impl PcbEditor {
             }
             let selected = match graphic.owner {
                 layout::GraphicOwner::Part { instance, .. } => self.is_selected(instance),
-                layout::GraphicOwner::BoardText { .. } => false,
+                layout::GraphicOwner::BoardText { id } => self.board_text == Some(id),
             };
             let mut color = if selected {
                 selected_ink
@@ -4009,6 +4070,12 @@ fn issue_slot_of(
             },
             "on this mounting hole".to_owned(),
         ),
+        Inspected::BoardText(id) => (
+            IssueScope::Selection {
+                objects: vec![ObjectRef::BoardText { id }],
+            },
+            "on this text".to_owned(),
+        ),
         // Findings do not name fills yet: the slot stays empty.
         Inspected::Fill(_) => return None,
         // A group's and a block's findings are on their objects' own cards.
@@ -4091,6 +4158,14 @@ fn bounds_of(editor: &PcbEditor, project: &Project, refs: &[ObjectRef]) -> Optio
             ObjectRef::Via { id } => {
                 if let Some(([x, y], r)) = editor.layout_copper.via_extent(id) {
                     points.extend([[x - r, y - r], [x + r, y + r]]);
+                }
+            }
+            ObjectRef::BoardText { id } => {
+                if let Some(text) = project.board_text(id)
+                    && let PlacedItem::Text(placed) = layout::board_text_graphic(text).item
+                {
+                    let b = placed.bounds(TextMetric::default());
+                    points.extend([b.min, b.max]);
                 }
             }
             _ => {}
@@ -4186,6 +4261,15 @@ impl crate::issues::Locate for PcbEditor {
                 self.net = Some(net);
                 self.highlighted = Some(net);
             }
+            self.frame_request = bounds_of(self, project, refs);
+            return true;
+        }
+        // A board text's finding selects and frames the text.
+        if let Some(id) = refs.iter().find_map(|o| match *o {
+            ObjectRef::BoardText { id } if project.board_text(id).is_some() => Some(id),
+            _ => None,
+        }) {
+            self.select_board_text(id);
             self.frame_request = bounds_of(self, project, refs);
             return true;
         }
