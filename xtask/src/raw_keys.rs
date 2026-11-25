@@ -112,6 +112,11 @@ const EXCEPTIONS: &[(&str, usize, &str)] = &[
         "text field: Esc reverts the track field",
     ),
     (
+        "pcb_editor/via_card.rs",
+        1,
+        "text field: Esc reverts the via position being typed",
+    ),
+    (
         "pcb_editor/placement_card.rs",
         1,
         "text field: Esc reverts the placement field",
