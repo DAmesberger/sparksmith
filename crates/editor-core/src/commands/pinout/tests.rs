@@ -834,3 +834,57 @@ fn a_component_gets_its_manufacturer_part_as_a_draft() -> Fallible<()> {
     assert!(engine.project().library.parts.iter().any(|p| p.id == part));
     Ok(())
 }
+
+/// A component whose symbol has no unit yet (Blank component, then Paste
+/// table…) gets the block symbol on import: a unit with a pin for every
+/// terminal, so the Symbol tab has something to draw on.
+#[test]
+fn an_import_into_a_draft_without_a_symbol_unit_draws_the_block_symbol() -> Fallible<()> {
+    let mut engine = Engine::default();
+    let document = exl48()?;
+    let applied = import_new(&mut engine, &document)?;
+    let id = *applied.drafts.first().ok_or("no component")?;
+    let symbol_id = component(&engine, id)?
+        .representations
+        .first()
+        .map(|r| r.id)
+        .ok_or("no symbol")?;
+    let draft = engine
+        .drafts()
+        .get(symbol_id)
+        .ok_or("symbol draft")?
+        .clone();
+    let Definition::Symbol(mut empty) = draft.definition.clone() else {
+        return Err("not a symbol".into());
+    };
+    empty.units.clear();
+    engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::Edit {
+            edits: vec![DraftEdit {
+                id: symbol_id,
+                meta: draft.meta,
+                definition: Definition::Symbol(empty),
+            }],
+        }),
+    )?;
+    let target = PinoutTarget::Draft { id };
+    let plan = preview(&engine, &target, &document)?;
+    apply(
+        &mut engine,
+        &target,
+        &document,
+        plan.base,
+        PinoutAccept::All,
+    )?;
+    let Some(Definition::Symbol(symbol)) = engine.drafts().get(symbol_id).map(|d| &d.definition)
+    else {
+        return Err("no symbol draft".into());
+    };
+    let terminals = component(&engine, id)?.terminals;
+    let unit = symbol.units.first().ok_or("still no unit")?;
+    assert_eq!(unit.pins.len(), terminals.len());
+    assert!(terminals.iter().all(|t| unit.pin(t.id).is_some()));
+    Ok(())
+}
+

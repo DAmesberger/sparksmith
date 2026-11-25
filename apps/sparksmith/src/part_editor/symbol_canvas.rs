@@ -240,7 +240,10 @@ impl PartEditor {
     /// Add what a finished tool gesture produced to the current unit.
     fn place(&mut self, placed: Placed, engine: &Engine) {
         let Some(index) = self.unit_index() else {
-            self.tell(Level::Error, "Add a terminal or load a template first");
+            self.tell(
+                Level::Error,
+                "Add a terminal on the Pins tab first: it starts the symbol",
+            );
             return;
         };
         let width = self.stroke_width;
@@ -434,7 +437,7 @@ impl PartEditor {
         let Some(unit) = self.current_unit() else {
             ui.put(
                 rect,
-                egui::Label::new("Add a terminal or load a template to start drawing"),
+                egui::Label::new("Add a terminal on the Pins tab to start the symbol"),
             );
             return None;
         };

@@ -1041,6 +1041,20 @@ pub fn stage(
                 let Definition::Symbol(symbol) = &symbol_draft.definition else {
                     continue;
                 };
+                // A symbol not drawn yet has no unit to draw on: it gets
+                // the block symbol a new import makes, a pin per terminal.
+                if symbol.units.is_empty() && !component.terminals.is_empty() {
+                    symbols.push(StagedDraft {
+                        id: representation.id,
+                        create: false,
+                        meta: symbol_draft.meta.clone(),
+                        definition: Definition::Symbol(block_symbol(
+                            symbol.component,
+                            &component.terminals,
+                        )?),
+                    });
+                    continue;
+                }
                 let mut symbol = symbol.clone();
                 let name = |terminal: TerminalId| {
                     component
