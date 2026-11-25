@@ -101,7 +101,7 @@
       },
       "clearance_pad_npth_hole": {
         "value": 0.2,
-        "source": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row."
+        "source": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\": both state copper, pads included, and agree. JLCPCB states \"NPTH to Track\" 0.2 mm and nothing for pads (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24). OSH Park gives no NPTH row."
       },
       "clearance_pad_pad": {
         "value": 0.15,

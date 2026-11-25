@@ -352,7 +352,8 @@ fn the_engine_never_waives_a_profile_limited_finding() -> Fallible<()> {
 /// 25 November 2026): under its shipped profile a pad 0.175 mm from an
 /// unplated hole is not stated, never an error of a borrowed track value.
 /// It says what JLCPCB does not state, asks no other profile, is offered a
-/// waiver, and a waiver with a reason clears it for export.
+/// waiver, refuses one without a reason, and a waiver with a reason clears
+/// it for export.
 #[test]
 fn under_jlcpcb_a_pad_beside_an_unplated_hole_is_not_stated() -> Fallible<()> {
     use crate::Operation;
@@ -384,6 +385,19 @@ fn under_jlcpcb_a_pad_beside_an_unplated_hole_is_not_stated() -> Fallible<()> {
     let mut file = Engine::demo()?.to_file();
     file.project = project;
     let mut engine = Engine::from_file(file)?;
+    // What the fabricator does not state is accepted with a reason only,
+    // whatever Settings say, as `board.drill_not_stated` is.
+    let keys: Vec<String> = found.iter().map(|i| i.key.clone()).collect();
+    let refused = engine.apply(
+        engine.revision(),
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys,
+            reason: " ".into(),
+            profile: None,
+        }),
+    );
+    let said = refused.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(said.contains("needs a reason"), "{said}");
     engine.apply(
         engine.revision(),
         Operation::Fabrication(FabricationCommand::Waive {

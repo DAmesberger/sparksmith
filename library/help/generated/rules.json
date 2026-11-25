@@ -6607,7 +6607,7 @@
   {
     "id": "rule/standard/clearance_pad_npth_hole",
     "title": "Standard · pad to unplated hole clearance",
-    "summary": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+    "summary": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\": both state copper, pads included, and agree. JLCPCB states \"NPTH to Track\" 0.2 mm and nothing for pads (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24). OSH Park gives no NPTH row.",
     "since": "0.1.0",
     "facts": {
       "kind": "rule",
@@ -6619,7 +6619,7 @@
         "date": "2026-11-24",
         "notes": "Rigid FR-4, 1.6 mm, 1 oz outer copper, 1, 2, 4 or 6 copper layers: one set of limits for a board not yet ordered anywhere. Each rule takes the strictest of the standard values that JLCPCB (recommended values, no surcharge), PCBWay (normal values, no surcharge), OSH Park and Eurocircuits (pattern class 6) publish, over the layer counts covered, and names the row that decides and what the others say. A rule none of them publishes is not checked. Rules marked as the author's choice are defaults, not limits. It has no options: the mask web is the one for the widest-web colours, and heavier outer copper is not covered (JLCPCB and Eurocircuits ask wider tracks and spacing at 2 oz; nothing checks the copper weight of the board). Other fabricators can ask more: AISLER's 2 layer HASL service asks 0.2 mm tracks, a 0.2 mm via ring, a 0.3 mm plated-hole ring and 0.25 mm from unplated holes to copper (https://community.aisler.net/t/2-layer-simple-design-rules/3735, read 2026-11-24); NextPCB asks 0.40 mm between pads with holes (https://www.nextpcb.com/pcb-capabilities, read 2026-11-24), which no rule here expresses. Choose your fabricator's own profile before ordering: its limits can be looser or stricter than these."
       },
-      "row": "JLCPCB (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24), Traces, \"NPTH to Track\": \"0.2mm\"; PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\". OSH Park gives no NPTH row.",
+      "row": "PCBWay (https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html, read 2026-11-24), outer-layer table, \"Normal Width between NP holes and copper\", 1OZ: \"0.2mm\"; Eurocircuits class 6 IPI 0.200 mm \"of any unconnected hole(PTH/NPTH)\": both state copper, pads included, and agree. JLCPCB states \"NPTH to Track\" 0.2 mm and nothing for pads (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-24). OSH Park gives no NPTH row.",
       "author_choice": false
     }
   },

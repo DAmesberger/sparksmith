@@ -555,6 +555,15 @@ fn waivable(row: &IssueRow) -> bool {
         && findings(row).all(|f| preflight::can_waive(&f.code))
 }
 
+/// Whether a row is of what the fab profile does not state: a finding with
+/// a requirement that asks no other profile, or one of a kind that always
+/// does. Its waiver needs a reason.
+fn unstated(row: &IssueRow) -> bool {
+    findings(row).any(|f| {
+        preflight::needs_reason(&f.code) || f.requirement.is_some() && row.needs.is_empty()
+    })
+}
+
 /// The "Switch to …" of a row that needs more of the fab profile: to the
 /// first installed profile that allows the whole board.
 fn switch(
@@ -1191,13 +1200,22 @@ impl Surface {
             needs: &needs,
             switches: &switch_labels,
         };
+        // What the fabricator does not state is accepted only with a reason.
+        let unstated = self.waiving.as_ref().is_some_and(|w| {
+            names
+                .keys
+                .iter()
+                .position(|k| *k == w.key)
+                .and_then(|i| names.report.rows.get(i))
+                .is_some_and(unstated)
+        });
         let reason = match (self.waiving.as_mut(), waiving_at) {
             (Some(w), Some((group, row))) => Some(Reason {
                 group,
                 row,
                 text: &mut w.text,
                 error: w.error.as_deref(),
-                required: engine.waiver_reason_required(),
+                required: engine.waiver_reason_required() || unstated,
                 start: w.start,
             }),
             _ => None,

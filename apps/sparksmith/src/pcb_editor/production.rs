@@ -1296,6 +1296,13 @@ fn findings(
     required: bool,
 ) -> Option<Operation> {
     let under = dialog.profile().ok().flatten();
+    // What the fabricator does not state is accepted only with a reason.
+    let required = required
+        || report.items.iter().any(|i| {
+            dialog.waiving.ticked.contains(&i.key)
+                && (i.not_stated.is_some()
+                    || sparksmith_core::fabrication::preflight::needs_reason(&i.code))
+        });
     let w = &mut dialog.waiving;
     // Keep only ticks of findings that can still be waived.
     let can: BTreeSet<&str> = report
