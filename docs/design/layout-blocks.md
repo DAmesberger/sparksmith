@@ -1,8 +1,8 @@
 # Layout blocks: parts that belong together, with what the datasheet says about them
 
-**Status:** design for founder review, 25 November 2026. Nothing here is built. Hours are agent hours, estimated. Code references are to integ-9 at 0f38f98d. Pictures: [mock-up](floorplan-mockup.html), pictures 1 to 4 (a mock-up: invented parts and documents). Related: [floorplan](autorouter.md), [repeated sheets](repeated-sheets.md), [part dimensions](../board-sketch-references.md), [copper graph](../copper-graph.md).
+**Status:** design of 25 November 2026. The six decisions of section 12 are the founder's of that day; slice B1 is queued. Nothing here is built. Hours are agent hours, estimated. Code references are to integ-9 at 0f38f98d. Pictures: [mock-up](floorplan-mockup.html), pictures 1 to 4 (a mock-up: invented parts and documents). Related: [floorplan](autorouter.md), [repeated sheets](repeated-sheets.md), [part dimensions](../board-sketch-references.md), [copper graph](../copper-graph.md).
 
-**Founder (25 November 2026):** "lets say U1 is a DC/DC converter: maybe it is not super important where U1 exactly is, but all relevant parts that need to stay close to it (inductor, caps, with the recommended layout from the datasheet). so basically this is like a module, and maybe we should have that concept. … these modules might have infos from the datasheet attached to them in a structured way to show if it is the recommended layout." And: "we could point the user to where this might be wrong when he misses something important". He wants "a functional border" and to "show the level of detail we want". He approved writing this design and extending the mock-up. **Everything else below is a proposal**, including the name.
+**Founder (25 November 2026):** "lets say U1 is a DC/DC converter: maybe it is not super important where U1 exactly is, but all relevant parts that need to stay close to it (inductor, caps, with the recommended layout from the datasheet). so basically this is like a module, and maybe we should have that concept. … these modules might have infos from the datasheet attached to them in a structured way to show if it is the recommended layout." And: "we could point the user to where this might be wrong when he misses something important". He wants "a functional border" and to "show the level of detail we want". On this design he decided section 12 ("yes to all six") and asked for one addition: "I would like to see more info on hover over an area or especially over a part (maybe I dont remember what U1 is, so it would be great to show the part number, or for resistors the value, etc)". What is neither quoted here nor in section 12 is the design proposed with it.
 
 ## 1. What the person sees
 
@@ -12,6 +12,21 @@
 4. **Parts not on the board yet** show as a border that reserves room, dragged like any other.
 5. **If U1's library part has a recipe**, the block's card lists its roles (which part is the input capacitor), what the document says, each with document and page, and hints: a missing part, the input loop compared with the example. **Arrange as in the datasheet** moves the parts in one undo step.
 6. A block made by hand has no recipe. It moves, locks and shows like the others, and nothing is compared.
+
+7. **Hover or focus anything and a small card says what it is.** It appears at once, stands beside the thing and never over it, has the same size at every zoom, and Esc closes it. The keyboard reaches it: focus shows the same card.
+
+| On | The card shows | From |
+|---|---|---|
+| Part | Designator and, as title, the part number or the value with package ("C21 · 10 µF, 25 V · 0805"); what it is in words; block and role; height; side; "rough position" while it is not on the board | The instance's Part, else `instances::value_text` (the one value source of schematic, BOM and placement file, `instances.rs:545`); the component's name; the package's name and height; the block; the floorplan |
+| Area | Name, purpose sentence, use, layer, size, the parts inside, the lanes through it with their nets | The floorplan |
+| Lane | Nets, planned and needed width, reference layer | The floorplan, the net classes |
+| Block | Its parts with roles, the recipe and whether it is approved, the number of hints | The block and its recipe |
+| Edge, corner | What it divides or joins; whether it is locked | The floorplan |
+| Via, track, pad | What the via line says today, as rows; a track's net, width and layer; a pad's number, net and function | The board |
+
+A value nothing states is left out, not shown as a guess. The card never holds a button: acting is in Properties.
+
+**It is one card** for the floorplan, Layout, PCB 3D and Schematic: one function from an object to its rows, one drawing in `kit`. **Today** there is no such thing: in Layout, hovering a part lights its row in the parts table and draws its dimensions, with no text (`pcb_editor.rs:2253`, `parts_table.rs:959`); a via has a text line as a pointer tooltip (`pcb_editor.rs:2260`, `via_card.rs:171`) and a drawn dimension says what it measures between (`dimensions/draw.rs:298`); PCB 3D lights the row (`parts_table.rs:922`); in Schematic a pin gets a ring and a wire segment is lit, without text (`schematic_editor.rs:2420`, `2492`). **What changes:** the via line and the dimension's text become cards and their tooltips go; the lights, the ring and the drawn dimensions stay. The floorplan's rationale on hover ([autorouter](autorouter.md) 3.5) is in this card too. While something is dragged, a menu is open or a tool waits for a click on an object, the card stays away.
 
 Nothing about a block ever blocks placing, routing, publishing or export.
 
@@ -63,13 +78,13 @@ So three things carry numbers: part values, some copper and heat statements, and
 
 The border of a placed block is **derived**: the hull of its members' courtyards. No margin is added; one would be an invented number. A part is in at most one block. Blocks do not nest in the first version.
 
-**In the library:** a new definition kind, `layout_recipe`, published in revisions like a package row (decision 2). It names one component lineage and holds:
+**In the library:** a new definition kind, `layout_recipe`, published in revisions like a package row (decision 2) and shown on the part's page. It names one component lineage and holds:
 
-- `citation`: the existing `RowCitation` (document, revision, page; `crates/editor-core/src/library/package_row.rs:58`), with "checked" meaning revision and page are there. Each statement has its own page and an optional short quote (proposed: at most 200 characters).
+- `citation`: the existing `RowCitation` (document, revision, page; `crates/editor-core/src/library/package_row.rs:58`), with "checked" meaning revision and page are there. Each statement has its own page and an optional short quote (at most 200 characters).
 - `roles`: a name, how it is recognised (section 4), and whether the part is `required`, `recommended` or `optional`, with the value as printed.
-- `statements`: one of *near*, *loop*, *on the way*, *keep away*, *text*, each over roles and terminals. `most_critical` marks one the document itself ranks so.
+- `statements`: one of *near*, *loop*, *on the way*, *keep away*, *text*, each over roles and terminals. `most_critical` marks one the document itself ranks so; an optional `rank` is the author's and is shown as theirs.
 - `arrangements`: per package set, the side, position and rotation of each role relative to the anchor. **Drawn by us** with our own footprints after the figure's topology (which part on which side of which pins). No manufacturer drawing is stored or traced.
-- `approved`: by whom and when, for this revision; absent means not approved.
+- `approved`: by whom and when, for this revision, once for the library folder; absent means not approved.
 
 A part update changes nothing by itself. A newer recipe revision is offered like any update, with the hints before and after.
 
@@ -105,7 +120,7 @@ Length and not enclosed area, because the area of a loop whose pads lie in a lin
 | A required part is missing | "No capacitor between U1.BOOT and U1.SW (SNVSAN3F, page 23)" | **Issues, warning**, `block.part_missing`; waivable with a reason, like any warning. Not in the production check's blocking list |
 | A recommended part is missing | "TPS7A20 recommends a capacitor at IN (SBVS338H, page 27)" | Card, advice |
 | Ambiguous | "4 capacitors fit U2.VDD; choose which are its own" | Card, to do |
-| Placement | "Input loop: 3.1 times the example's, page 35" | Card, advice |
+| Placement | "Input loop: 3.1 times the example's, our drawing after page 35" | Card, advice |
 | Routing (last slice) | "USB_DP reaches U3 before D1" | Card, advice |
 | Not approved | "Recipe not approved: check it against the document" | Card; its hints stay out of Issues (decision 5) |
 
@@ -131,6 +146,7 @@ Later, and always reviewed. From a datasheet the assistant proposes roles and st
 
 | Slice | What | Useful alone for | Hours |
 |---|---|---|---|
+| **H** | The hover card: parts, vias, tracks and pads in Layout, PCB 3D and Schematic; the floorplan's and the blocks' rows come with their slices | Knowing what U1 is without selecting it | 8–12 |
 | **B1** | Blocks by hand: model, operations, border, drag, lock, level of detail, card, undo, 2D | Moving a converter as one thing; a calm view of a full board | 18–26 |
 | **B2** | Recipe kind with statements and citations, editor, approval; publishing | Written layout notes with page numbers beside the part | 16–24 |
 | **B3** | Matching, the question for ambiguous roles, "missing part" in Issues, one-click block from a recipe | Finding a forgotten bootstrap capacitor | 14–20 |
@@ -141,17 +157,17 @@ Later, and always reviewed. From a datasheet the assistant proposes roles and st
 | **B8** | Routing advice: on the way, keep away | Review of a routed board | 10–16 |
 | **B9** | Recipe drafts by the assistant | Filling the library | 10–16 |
 
-B1 alone answers the first half of the founder's words; B1 to B3 the second. Together 108 to 162 hours; B1 to B3 48 to 70.
+B1 alone answers the first half of the founder's words; B1 to B3 the second. H needs nothing else and can go first. Together 116 to 174 hours; B1 to B3 48 to 70.
 
 ## 11. What it will not do
 
 Judge a layout as good; give a distance; simulate; check heat, inductance or EMI; stop anything; route; copy a manufacturer's figure; read other tools' sources or libraries; guess roles from names; own copper; nest blocks.
 
-## 12. Open decisions
+## 12. Decided (founder, 25 November 2026)
 
-1. **The name.** *What it is:* the word in the window, the file and the commands. *Today:* "module" is used for generators and plug-ins; the glossary has "Title block"; pin layouts of symbols are called block in the code; findings "block" things, as a verb. *Options:* "block" (short, what engineers say; the verb can read oddly in Issues); "layout block" everywhere (clear, long on a small card); "cluster" (free in the glossary, says less about function). *Recommendation:* "block" on the canvas and the card, "layout block" in Issues, help and the glossary.
-2. **Where a recipe lives.** *What it is:* inside the component, or a definition of its own. *Today:* all facts of a part are in its component revision; a changed component is a new revision, offered to every project that uses it. *Options:* (a) in the component: one place, but correcting a page number makes a new part revision and an update for every board; (b) its own kind that names the component: corrected and approved alone, several per component are possible (one per document), one more kind in the library. *Recommendation:* (b), shown on the part's page. It departs from "on the library part" in storage only.
-3. **The yardstick.** *What it is:* what the loop is divided by. *Today:* nothing. The figures are not dimensioned, so "the example's length" is the length on **our drawing** of it, with our footprints. *Options:* (a) only with the packages it was drawn with, else millimetres without a ratio: honest, and often no ratio, since capacitor sizes vary; (b) recompute the arrangement with the person's packages: nearly always a ratio, but the yardstick then moves with the board and is Sparksmith's more than the datasheet's; (c) no ratio, millimetres only. *Recommendation:* (a) first, and the card says "our drawing after page 35".
-4. **Order of importance.** *What it is:* the order of the statements on the card. *Today:* nothing. Of the five documents one calls one feature the most critical; none ranks the rest. *Options:* (a) document order, with "most critical" only where the document says it; (b) the recipe's author ranks, marked as the author's; (c) no order. *Recommendation:* (b) with the mark, because a novice asks "what first?" and the answer must not look like the manufacturer's.
-5. **What a recipe may do before a person approved it, and who that is.** *What it is:* whether a wrong recipe can raise warnings. *Today:* import rows stay unreviewed until a person confirms; an agent can clear the flag only after that. *Options:* (a) unapproved recipes show hints on the card only, marked; a person approves a revision once for the library folder, and every project sees it; (b) each project approves again: safer against a careless library, tedious; (c) unapproved ones show nothing: the first look at a draft is then impossible. *Recommendation:* (a).
-6. **The first recipes.** *What it is:* whether Sparksmith ships any. *Today:* the shipped library has generic families and few specific parts. *Options:* (a) ship none: the feature is empty until a person or the assistant writes one; (b) we write a handful by hand, for parts of the example board, facts and page numbers only, our own drawings: shows the feature and tests the model, and each must be checked against its document by a person; (c) ship generic recipes ("any buck converter"): no document stands behind them, which breaks the no-invented-limits rule. *Recommendation:* (b), three to five, after B2; a short legal look at quoting single sentences first, which was not done here.
+1. **Name.** "Block" on the canvas and on the card; "layout block" in Issues, the help and the glossary.
+2. **A recipe is a definition of its own** that names the component, published and approved in its own revisions, and shown on the part's page. A corrected page number makes no new part revision, and a component can have several recipes, one per document.
+3. **The yardstick is our drawing of the example,** with the packages it was drawn with. With other packages there is no ratio, only millimetres and the reason. The card says "our drawing after page 35".
+4. **Order of importance.** The recipe's author may rank the statements and the card marks the order as the author's. "Most critical" appears only where the document itself says so.
+5. **Approval.** A person approves a recipe revision once for the library folder, and every project sees it. Until then its hints show on the card only, marked, and never reach Issues.
+6. **First recipes.** Three to five written by hand for parts of the example board, after slice B2: facts and page numbers, our own drawings, each checked against its document by a person. A short legal look at quoting single sentences comes first. No generic recipe without a document is shipped.
