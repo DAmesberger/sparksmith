@@ -541,56 +541,25 @@ fn an_outline_fault_moves_no_row_while_a_value_is_typed() -> Fallible {
     Ok(())
 }
 
-/// GUI run 2, R2-E1: Rotate 90° on a part its dimensions hold turns it, or
-/// says why and goes on saying it.
+/// A double-click whose presses arrive together is one: on a row's name it
+/// opens the value.
 #[test]
-fn rotate_on_a_held_part_turns_it_or_says_why() -> Fallible {
-    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
-    let engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
-    let j1 = engine.project().instance_by_designator("J1");
-    let j1 = j1.map(|i| i.id).ok_or("no J1")?;
-    let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
-    ax.window = egui::vec2(1380.0, 1200.0);
-    ax.app.pcb.set_selection(Some(j1), None, None);
+fn a_double_click_in_one_batch_stays_a_double_click() -> Fallible {
+    let mut ax = sketched()?;
+    let row = ax.find_prefix(Role::ListBoxOption, "height")?.rect;
+    let name = egui::pos2(row.left() + 24.0, row.center().y);
+    ax.late(clicked(name));
     ax.settle();
-    let turn = |ax: &Ax| {
-        let p = ax.app.engine.project().placement_of(j1);
-        p.map(|p| (p.position, p.rotation_deg, p.layer))
-            .ok_or("not placed")
-    };
-    let (position, rotation_deg, layer) = turn(&ax)?;
-    let mut fork = ax.app.engine.fork();
-    let refused = fork.apply_hosted(
-        fork.revision(),
-        Operation::Layout(sparksmith_core::layout::LayoutCommand::Move {
-            instance: j1,
-            position,
-            rotation_deg: rotation_deg + 90.0,
-            layer,
-        }),
-        sparksmith_core::Evaluators {
-            footprint: None,
-            board: crate::pcb_editor::board_shape::host_evaluator(),
-        },
-    );
-    ax.button("Rotate 90°")?;
-    // Past the time a toast shows.
-    for _ in 0..80 {
-        ax.frame(vec![]);
-    }
-    match refused {
-        Ok(_) => assert_ne!(turn(&ax)?.1, rotation_deg, "it turned"),
-        Err(error) => {
-            assert_eq!(turn(&ax)?.1, rotation_deg);
-            let why = crate::refusal::shown_error(&error);
-            assert!(
-                ax.texts.iter().any(|t| t.contains(&why)),
-                "{why}: {:?}",
-                ax.texts
-            );
-        }
-    }
+    assert!(!ax.ctx.text_edit_focused(), "one click selects");
+    let (stored, high) = (expr(&ax, "height")?, near(&ax, 1));
+    let mut all = clicked(name);
+    all.extend(clicked(name));
+    all.extend(typed(&high));
+    ax.late(all);
+    assert!(ax.ctx.text_edit_focused(), "{}", ax.dump());
+    assert!(ax.texts.contains(&high), "{:?}", ax.texts);
+    ax.key(Key::Escape);
+    ax.settle();
+    assert_eq!(expr(&ax, "height")?, stored);
     Ok(())
 }

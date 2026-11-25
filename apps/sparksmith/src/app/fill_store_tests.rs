@@ -186,3 +186,48 @@ fn a_part_drag_outlives_a_fill_store() -> Fallible {
     );
     Ok(())
 }
+
+/// A value typed in a part dimension's row outlives an edit of that very
+/// dimension (an agent's, an undo).
+#[test]
+fn a_typed_part_dimension_outlives_an_edit_of_it() -> Fallible {
+    use sparksmith_core::layout::dimensions::DimensionCommand;
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    const EDGE: &str = "Front face \u{2192} bottom edge";
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
+    let engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    let j1 = engine.project().instance_by_designator("J1");
+    let j1 = j1.map(|i| i.id).ok_or("no J1")?;
+    let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
+    ax.window = egui::vec2(1380.0, 1400.0);
+    ax.app.pcb.set_selection(Some(j1), None, None);
+    ax.settle();
+    let row = ax.find(Role::ListBoxOption, EDGE)?;
+    ax.click_at(egui::pos2(row.rect.left() + 30.0, row.rect.center().y));
+    ax.key(Key::Enter);
+    ax.settle();
+    ax.find(Role::TextInput, EDGE)?;
+    ax.type_text("1 mm");
+    let target = sparksmith_core::model::board::ConstraintTarget::Placement(j1);
+    let dims = sparksmith_core::layout::dimensions::dimensions_of(ax.app.engine.project(), target);
+    let mut dimension = dims
+        .into_iter()
+        .find(|d| d.value == Some(DimValue::Fixed(0.0)))
+        .ok_or("no face dimension")?
+        .clone();
+    dimension.value = Some(DimValue::Fixed(0.25));
+    ax.app.engine.apply_hosted(
+        ax.app.engine.revision(),
+        Operation::Dimension(DimensionCommand::Edit { dimension }),
+        sparksmith_core::Evaluators {
+            footprint: None,
+            board: crate::pcb_editor::board_shape::host_evaluator(),
+        },
+    )?;
+    ax.settle();
+    ax.find(Role::TextInput, EDGE)?;
+    assert!(ax.texts.iter().any(|t| t == "1 mm"), "{:?}", ax.texts);
+    assert!(ax.ctx.text_edit_focused());
+    Ok(())
+}

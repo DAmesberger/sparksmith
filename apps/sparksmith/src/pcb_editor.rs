@@ -486,9 +486,6 @@ pub struct PcbEditor {
     /// The staged values last sent, so a refused commit is not resent
     /// every frame while the field still shows it.
     sent: std::collections::BTreeMap<Field, [f64; 2]>,
-    /// The footer action sent last, by the field its refusal stays under,
-    /// as it follows "Can't".
-    tried: Option<(Field, String)>,
     /// The Designator section's Offset being edited.
     text_offset: Point,
     /// Esc this frame, for the Placement card's sections below its own.
@@ -673,7 +670,6 @@ impl Default for PcbEditor {
             track_width: 0.0,
             editing: None,
             sent: Default::default(),
-            tried: None,
             text_offset: [0.0, 0.0],
             card_escape: false,
             errors: FieldErrors::default(),
@@ -943,7 +939,6 @@ impl PcbEditor {
         self.property_key = None;
         self.editing = None;
         self.sent.clear();
-        self.tried = None;
         self.errors.0.clear();
     }
 
@@ -1064,7 +1059,6 @@ impl PcbEditor {
         if self.property_key != Some(key) {
             // A new revision or subject: the fields show the document again.
             self.sent.clear();
-            self.tried = None;
             self.errors.0.clear();
             if let Some(track) = engine
                 .project()
@@ -1604,12 +1598,6 @@ impl PcbEditor {
     fn claim_refusals(&mut self, ctx: &egui::Context) {
         for field in Field::ALL {
             if let Some(text) = refusal::claim(ctx, Origin::Field(field.id())) {
-                // A button's refusal is a toast as well: its field may be
-                // scrolled out of sight.
-                if let Some((_, action)) = self.tried.take_if(|(f, _)| *f == field) {
-                    let toast = format!("Can't {action}: {text}");
-                    crate::kit::toast::post(ctx, crate::kit::severity::Level::Error, toast, vec![]);
-                }
                 self.errors.0.insert(field, text);
             }
         }
@@ -5492,8 +5480,6 @@ mod tests {
                 .flatten()
         };
         assert_eq!(action().as_deref(), Some("rotate R1"));
-        // And stays under the field it is about.
-        assert_eq!(marked(&ctx), Some(Origin::Field(Field::Rotation.id())));
         let Some(Operation::Layout(LayoutCommand::Move { layer, .. })) =
             click(&mut editor, &engine, &ctx, "Flip")?
         else {

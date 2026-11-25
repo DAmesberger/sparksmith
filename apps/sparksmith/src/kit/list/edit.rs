@@ -68,6 +68,11 @@ pub fn field(
         Stroke::new(2.0, ink.gamma_multiply(0.22)),
         egui::StrokeKind::Outside,
     );
+    // Typed in and ended in the first frame it had the keyboard: what was
+    // typed is committed, not selected to be typed over.
+    if *start && response.changed() && response.lost_focus() {
+        *start = false;
+    }
     if *start {
         if response.has_focus() {
             *start = false;

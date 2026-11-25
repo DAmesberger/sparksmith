@@ -54,6 +54,8 @@ pub(super) struct EdgeEdit {
     editing: Option<(Id, String, bool)>,
     /// The dimension a refusal or invalid text belongs to, and why.
     error: Option<(Id, String)>,
+    /// The text that did not read, as it was committed.
+    failed: Option<String>,
     sent: Option<Id>,
     /// The selected part's hold: (revision, instance) → why a move is
     /// refused, and what its dimensions leave free.
@@ -465,11 +467,15 @@ impl PcbEditor {
         }
         if fresh || shown.is_none_or(|k| k.1 != dims) {
             // What is typed stays until it is committed or dropped, whatever
-            // came in meanwhile; an editor only opened shows the new value.
+            // came in meanwhile. A text committed and not read goes when its
+            // own value changes, and an editor only opened closes then.
+            let failed = self.edge.failed.take();
             let of = |d: &[PartDimension], id: Id| d.iter().find(|d| d.id == id).cloned();
             let keep = self.edge.editing.as_ref().is_some_and(|(id, text, _)| {
                 let (old, new) = (shown.and_then(|k| of(&k.1, *id)), of(&dims, *id));
-                new.is_some() && (old == new || old.is_some_and(|d| *text != value_text(&d)))
+                let typed = failed.as_ref() != Some(text);
+                new.is_some()
+                    && (old == new || typed && old.is_some_and(|d| *text != value_text(&d)))
             });
             self.edge.key = Some((placement.instance, dims.clone()));
             // They changed (an edit applied, an undo): no earlier
@@ -477,7 +483,9 @@ impl PcbEditor {
             // were, so its error is kept.
             self.edge.error = None;
             self.edge.sent = None;
-            if !keep {
+            if keep {
+                self.edge.failed = failed;
+            } else {
                 self.edge.editing = None;
             }
         }
@@ -718,6 +726,7 @@ impl PcbEditor {
                                         }
                                         Err(why) => {
                                             self.edge.error = Some((d.id, why));
+                                            self.edge.failed = Some(text);
                                             // Keep the text, back in the field.
                                             if let Some(e) = &mut self.edge.editing {
                                                 e.2 = true;

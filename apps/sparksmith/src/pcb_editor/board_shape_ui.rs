@@ -161,6 +161,8 @@ pub(super) struct ParamRows {
     pub(super) new_expr: String,
     /// A refused row (`None`: the add row) and why.
     error: Option<(Option<ParamName>, String)>,
+    /// The text that did not read, as it was committed.
+    failed: Option<String>,
     /// A parameter whose committed value the engine refused: the row went
     /// back to the stored value, and the whole reason shows under it until
     /// the row is edited or the document changes (the board's key then).
@@ -1543,8 +1545,20 @@ impl PcbEditor {
                 .map(|p| (p.name.clone(), p.expr.0.clone()))
                 .collect();
             // What is typed stays until it is committed or dropped,
-            // whatever came in meanwhile (another row's result, an undo).
-            rows.editing = rows.editing.take().filter(|(n, _)| stored.contains_key(n));
+            // whatever came in meanwhile (another row's result, an undo). A
+            // text committed and not read goes when its own value changes.
+            let failed = rows.failed.take().filter(|_| rows.error.is_some());
+            let gone = |n: &ParamName| {
+                let changed = rows.stored.get(n) != stored.get(n);
+                !stored.contains_key(n)
+                    || changed && failed.is_some() && rows.exprs.get(n) == failed.as_ref()
+            };
+            if rows.editing.as_ref().is_some_and(|(n, _)| gone(n)) {
+                rows.editing = None;
+                rows.error = None;
+            } else {
+                rows.failed = failed;
+            }
             let typed = rows.editing.as_ref().map(|(n, _)| n.clone());
             let typed = typed.and_then(|n| {
                 let text = rows.exprs.remove(&n)?;
@@ -1802,6 +1816,7 @@ impl PcbEditor {
                                         }
                                         Err(why) => {
                                             rows.error = Some((Some(param.name.clone()), why));
+                                            rows.failed = Some(text.clone());
                                             rows.editing = Some((name.clone(), true));
                                         }
                                     }
