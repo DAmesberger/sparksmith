@@ -27,7 +27,7 @@
 }
 ---
 
-A new board starts with the Standard profile, or with the default you chose in [[panel/settings]], so you can route and fill at once. Standard holds the strictest standard limits of several fabricators, for boards of up to six layers with 1 oz outer copper. Your fabricator can ask for more or allow more, so choose its own profile before you order.
+A new board starts with the Standard profile, or with the default you chose in [[panel/settings]], so you can route and fill at once. Standard holds the strictest standard limits of several fabricators, for boards of 1, 2, 4 or 6 copper layers with 1 oz outer copper. To change the number of layers, see [[guide/stackups]]. Your fabricator can ask for more or allow more, so choose its own profile before you order.
 
 A [[term/fab-profile]] records the manufacturer's process, layer count, rule values and their sources. Choose a profile for the board's layer count and check the manufacturing options, including copper weight, before relying on its numbers.
 
