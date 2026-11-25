@@ -813,3 +813,102 @@ fn a_track_no_way_round_a_cutout_is_named() -> Fallible {
     assert!(report.rerouted.is_empty());
     Ok(())
 }
+
+/// Copper nothing can be routed in place of (a carried stub), or dragged
+/// there itself, refuses the move in words instead of lying over a cutout.
+#[test]
+fn copper_kept_over_a_cutout_refuses_the_move() -> Fallible {
+    let (engine, r2) = parts()?;
+    let pad = pad_of(&engine, r2, true)?;
+    let [x, y] = pad.position;
+    let mut before = engine.project().clone();
+    apply(
+        &mut before,
+        LayoutCommand::Route {
+            request: RouteRequest {
+                net: pad.net,
+                start: [x, y],
+                end: [x + 3.0, y],
+                width: 0.3,
+                layer: Top,
+            },
+        },
+    )?;
+    let stub = before.tracks.last().map(|t| t.id).ok_or("stub")?;
+    with_cutout(&mut before, rectangle(x + 1.5, 22.0, x + 4.5, 28.0));
+    let graph = CopperGraph::of(&before);
+    let move_r2 = |p: &mut Project, at| {
+        apply(
+            p,
+            LayoutCommand::Move {
+                instance: r2,
+                position: at,
+                rotation_deg: 0.0,
+                layer: Layer::Top,
+            },
+        )
+    };
+    let says = |error: crate::Error| {
+        let text = error.to_string();
+        assert!(
+            text.contains(before.net_name(pad.net)) && text.contains("a cutout"),
+            "{text}"
+        );
+    };
+    let mut after = before.clone();
+    move_r2(&mut after, [25.0, 25.0])?;
+    says(
+        layout::dimensions::carry(&before, &mut after, &graph, &[r2], None)
+            .err()
+            .ok_or("accepted")?,
+    );
+    // The same over a keepout.
+    let mut kept = before.clone();
+    kept.board_shape = engine.project().board_shape.clone();
+    layout::fill::apply(
+        &mut kept,
+        layout::fill::FillCommand::AddKeepout {
+            keepout: Box::new(KeepoutSpec {
+                name: String::new(),
+                outline: rectangle(x + 1.5, 22.0, x + 4.5, 28.0),
+                layers: KeepoutLayers::All,
+                forbid: KeepoutRules {
+                    fills: false,
+                    tracks: true,
+                    vias: true,
+                    pads: false,
+                },
+            }),
+        },
+    )?;
+    let mut after = kept.clone();
+    move_r2(&mut after, [25.0, 25.0])?;
+    says(
+        layout::dimensions::carry(&kept, &mut after, &graph, &[r2], None)
+            .err()
+            .ok_or("accepted")?,
+    );
+    // Clear of it the stub goes along.
+    let mut after = before.clone();
+    move_r2(&mut after, [25.0, 15.0])?;
+    layout::dimensions::carry(&before, &mut after, &graph, &[r2], None)?;
+
+    // The track dragged there as loose copper, no part with it.
+    let mut lone = before.clone();
+    for t in lone.tracks.iter_mut().filter(|t| t.id == stub) {
+        (t.start, t.end) = ([x + 1.0, 35.0], [x + 4.0, 35.0]);
+    }
+    let graph = CopperGraph::of(&lone);
+    let mut after = lone.clone();
+    let loose = layout::arrange::CopperMove {
+        tracks: vec![stub],
+        vias: Vec::new(),
+        by: [0.0, -10.0],
+    };
+    says(
+        layout::dimensions::carry(&lone, &mut after, &graph, &[], Some(&loose))
+            .err()
+            .ok_or("accepted")?,
+    );
+    Ok(())
+}

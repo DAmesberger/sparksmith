@@ -34,7 +34,7 @@
 //! same result.
 use super::world::{Ctx, Piece, State, Target};
 use super::{RouteIndex, RouteMode, RouteStepRequest, pair_plan, plan};
-use crate::diagnostics::Result;
+use crate::diagnostics::{Error, Result};
 use crate::geometry::{Point, distance, polygon_contains};
 use crate::ids::{Id, PadId};
 use crate::layout::connectivity::{CopperGraph, Meets};
@@ -227,6 +227,58 @@ fn off_board(ctx: &Ctx<'_>, piece: &Piece) -> bool {
             Target::Edge => inside(),
             _ => false,
         })
+}
+
+/// Refuse copper the move changed that now runs off the board
+/// ([`off_board`]) or into a keepout and did not before: what could not be routed again and
+/// is kept (a stub, a second way round), or copper dragged there itself.
+pub(crate) fn refuse_off_board(before: &Project, project: &Project) -> Result<()> {
+    let of = |t: &Track| Piece::track(t.net, t.layer, t.start, t.end, t.width);
+    let old: BTreeMap<Id, &Track> = before.tracks.iter().map(|t| (t.id, t)).collect();
+    let tracks: Vec<&Track> = project
+        .tracks
+        .iter()
+        .filter(|t| old.get(&t.id).is_none_or(|o| *o != *t))
+        .collect();
+    let vias: Vec<_> = project
+        .vias
+        .iter()
+        .filter(|v| before.via(v.id) != Some(*v))
+        .collect();
+    if tracks.is_empty() && vias.is_empty() {
+        return Ok(());
+    }
+    let (index, then) = (RouteIndex::of(project), RouteIndex::of(before));
+    let (ctx, was) = (Ctx::new(project, &index), Ctx::new(before, &then));
+    let barred = |ctx: &Ctx<'_>, piece: &Piece| {
+        off_board(ctx, piece)
+            || ctx
+                .hits(&State::default(), piece, &[piece.net])
+                .iter()
+                .any(|h| matches!(h.target, Target::Keepout(_)))
+    };
+    let newly = |piece: Piece, old: Option<Piece>| {
+        barred(&ctx, &piece) && !old.is_some_and(|old| barred(&was, &old))
+    };
+    let track = tracks
+        .into_iter()
+        .find(|t| newly(of(t), old.get(&t.id).map(|t| of(t))))
+        .map(|t| ("track", t.net));
+    let found = track.or_else(|| {
+        vias.into_iter()
+            .find(|v| {
+                let old = before.via(v.id).map(|v| Piece::via(v, &was.stack));
+                newly(Piece::via(v, &ctx.stack), old)
+            })
+            .map(|v| ("via", v.net))
+    });
+    match found {
+        Some((what, net)) => Err(Error::Conflict(format!(
+            "A {what} on {} would run into a cutout, a keepout or off the board there",
+            project.net_name(net)
+        ))),
+        None => Ok(()),
+    }
 }
 
 /// What offends on `project`; `was` is the board before, where copper that

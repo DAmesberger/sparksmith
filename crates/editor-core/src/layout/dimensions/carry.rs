@@ -116,6 +116,7 @@ pub fn carry(
     loose: Option<&CopperMove>,
 ) -> Result<Rerouted> {
     let mut report = carry_copper(before, project, graph, moved, loose)?;
+    reroute::refuse_off_board(before, project)?;
     let changed = |id: &Id| before.placement_of(*id) != project.placement_of(*id);
     if moved.iter().any(changed) || loose.is_some() {
         name_opened(before, project, graph, moved, &mut report);
