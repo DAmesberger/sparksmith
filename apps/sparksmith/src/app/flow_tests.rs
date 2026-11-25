@@ -993,10 +993,14 @@ fn a_part_put_over_the_boards_edge_is_said_at_once() -> Fallible {
     let [(text, actions)] = shown.as_slice() else {
         return Err(format!("{shown:?}").into());
     };
+    // 16 connections: the board left has the same pads unrouted as before
+    // pairs counted coupled out to three pair gaps (A23); the re-route now
+    // also takes J1's USB receptacle stubs, which ran coupled 0.2 mm apart
+    // and no longer do, as one of its connections.
     assert!(
         text.starts_with(
             "J1 extends beyond the board: J1 · front face to the bottom edge (0 mm). Re-routed "
-        ) && text.contains("15 left unrouted (")
+        ) && text.contains("16 left unrouted (")
             && text.contains("VBUS"),
         "{text}"
     );
