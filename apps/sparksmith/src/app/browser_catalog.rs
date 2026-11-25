@@ -591,7 +591,11 @@ fn details(ui: &mut egui::Ui, engine: &Engine, found: &Found, feed: &Feed) -> Op
             action = Some(Action::Place(item.clone()));
         }
         let favourite = feed.context.favourites.contains(&item.key());
-        let label = if favourite { "★" } else { "☆" };
+        let label = if favourite {
+            "Unfavourite"
+        } else {
+            "Favourite"
+        };
         if ui_kit::button(ui, label, Button::Normal)
             .on_hover_text(if favourite {
                 "Remove from Favourites"

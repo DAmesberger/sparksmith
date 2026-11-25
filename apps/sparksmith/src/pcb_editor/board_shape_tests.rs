@@ -2146,3 +2146,25 @@ fn a_new_parameter_keeps_its_text_until_the_board_has_it() -> Fallible {
     assert!(!params.adding && params.new_name.is_empty());
     Ok(())
 }
+
+/// GUI check 2, N20: a parameter stored as a bare number shows its unit.
+#[test]
+fn a_bare_numbers_parameter_shows_its_unit() -> Fallible {
+    let mut d = Drawn::new()?;
+    let units = |d: &mut Drawn| {
+        let (output, _) = slot(&mut d.editor, &d.engine, &d.ctx, vec![]);
+        let shown = painted(&output);
+        shown.iter().filter(|(t, _)| t == "mm").count()
+    };
+    let before = units(&mut d);
+    d.apply(Some(operation(vec![BoardEdit::SetParameter {
+        param: FootprintParam {
+            name: ParamName("hole_in".into()),
+            expr: Expr("3.2".into()),
+            unit: ParamUnit::Mm,
+            comment: String::new(),
+        },
+    }])))?;
+    assert_eq!(units(&mut d), before + 1);
+    Ok(())
+}

@@ -146,6 +146,10 @@ impl SettingsWindow {
             self.toggle();
         }
     }
+    /// Drop an open key-conflict question, leaving both keys as they are.
+    pub fn drop_question(&mut self) -> bool {
+        self.open && self.pending.take().is_some()
+    }
     pub fn is_recording(&self) -> bool {
         self.open && self.recording.is_some()
     }
@@ -617,13 +621,14 @@ impl super::App {
         }
     }
 
-    pub(super) fn open_system_windows(&self) -> [bool; 5] {
+    pub(super) fn open_system_windows(&self) -> [bool; 6] {
         [
             self.messages_open,
             self.help.open,
             self.settings_window.is_open(),
             self.live.is_open(),
             self.import_report.is_open(),
+            self.sources.card_open(),
         ]
     }
 
@@ -634,8 +639,10 @@ impl super::App {
         let escape = now.contains(&true)
             && !self.palette.is_open()
             && !self.settings_window.is_recording()
-            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
-        let [messages, shortcuts, settings, live, report] =
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+            // A key conflict asked in Settings is answered first: no.
+            && !self.settings_window.drop_question();
+        let [messages, shortcuts, settings, live, report, sources] =
             super::system_windows::one_window(self.system_windows, now, escape);
         self.messages_open = messages;
         if !shortcuts {
@@ -650,7 +657,10 @@ impl super::App {
         if !report {
             self.import_report.close();
         }
-        self.system_windows = [messages, shortcuts, settings, live, report];
+        if !sources {
+            self.sources.close_card();
+        }
+        self.system_windows = [messages, shortcuts, settings, live, report, sources];
     }
 
     /// Settings › Libraries from the user settings and the running registry.

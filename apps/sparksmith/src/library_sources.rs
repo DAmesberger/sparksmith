@@ -940,6 +940,14 @@ impl LibrarySources {
         self.card = true;
     }
 
+    pub fn card_open(&self) -> bool {
+        self.card
+    }
+
+    pub fn close_card(&mut self) {
+        self.card = false;
+    }
+
     pub fn take_notices(&mut self) -> Vec<Notice> {
         std::mem::take(&mut self.notices)
     }

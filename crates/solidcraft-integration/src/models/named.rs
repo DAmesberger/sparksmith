@@ -145,7 +145,7 @@ pub fn package(package: &PackageDefinition) -> Result<Arc<NamedDesign>> {
 pub fn envelope(package: &PackageDefinition) -> Result<Arc<NamedDesign>> {
     if !package.envelope_valid() {
         return Err(Error::Invalid(
-            "package envelope dimensions must be finite and positive".into(),
+            "the body size must be 0.01 to 1000 mm on each side (3D tab)".into(),
         ));
     }
     let what = json!({ "envelope": package.envelope() });

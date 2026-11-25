@@ -116,7 +116,7 @@ pub struct App {
     /// Messages, Keyboard shortcuts, Settings, Connect AI assistants and
     /// the KiCad import report open last frame, in that order
     /// (`system_windows`).
-    system_windows: [bool; 5],
+    system_windows: [bool; 6],
     /// Live MCP: assistants editing this window's project (off at start).
     live: live_mcp::LiveMcp,
     /// The assistant chat: its column and its one conversation.
@@ -383,7 +383,7 @@ impl App {
             messages,
             messages_open: false,
             import_report: import_report::ImportReport::default(),
-            system_windows: [false; 5],
+            system_windows: [false; 6],
             live: Default::default(),
             assistant: Default::default(),
             system_fonts: false,

@@ -61,10 +61,16 @@ fn count(what: &str, n: usize, max: usize) -> Result<(), Failure> {
     Ok(())
 }
 
+/// A length as a person reads it.
+fn mm(nm: i64) -> f64 {
+    nm as f64 / 1e6
+}
+
 fn coordinate(v: i64) -> Result<(), Failure> {
     if v.checked_abs().is_none_or(|a| a > limits::COORDINATE_NM) {
         return Err(invalid(format!(
-            "The generator returned a coordinate of {v} nm, beyond the 1 m bound."
+            "The generator returned a coordinate of {} mm, beyond the 1 m bound.",
+            mm(v)
         )));
     }
     Ok(())
@@ -78,7 +84,8 @@ fn point(p: &Point) -> Result<(), Failure> {
 fn positive(what: &str, v: i64) -> Result<(), Failure> {
     if v <= 0 || v > limits::COORDINATE_NM {
         return Err(invalid(format!(
-            "The generator returned a {what} of {v} nm; it must be positive and at most 1 m."
+            "The generator returned a {what} of {} mm; it must be positive and at most 1 m.",
+            mm(v)
         )));
     }
     Ok(())
@@ -87,8 +94,8 @@ fn positive(what: &str, v: i64) -> Result<(), Failure> {
 fn graphic(g: &Graphic) -> Result<(), Failure> {
     if g.stroke_nm < 0 || g.stroke_nm > limits::COORDINATE_NM {
         return Err(invalid(format!(
-            "The generator returned a stroke of {} nm.",
-            g.stroke_nm
+            "The generator returned a stroke of {} mm.",
+            mm(g.stroke_nm)
         )));
     }
     match &g.shape {
@@ -181,8 +188,8 @@ fn symbol(symbol: &Symbol, terminals: &BTreeSet<&str>) -> Result<(), Failure> {
             point(&pin.at)?;
             if pin.length_nm < 0 || pin.length_nm > limits::COORDINATE_NM {
                 return Err(invalid(format!(
-                    "The generator returned a pin length of {} nm.",
-                    pin.length_nm
+                    "The generator returned a pin length of {} mm.",
+                    mm(pin.length_nm)
                 )));
             }
             drawn.insert(pin.terminal.as_str());

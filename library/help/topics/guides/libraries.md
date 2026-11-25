@@ -32,7 +32,7 @@
 
 A [[term/component-definition]] describes electrical terminals. A symbol draws them, a footprint places the pads, and a binding maps the two sets explicitly. Choose the implementation that matches the package you will fit.
 
-- In Schematic, choose Place. Type a package and a type, then a value, for example “resistor 0603 10k”. A value alone finds nothing. Parts marked “not yet created” are made by a generator: press Enter to make and place one. Read the symbol, package and footprint beside the list. A component that is still a draft needs to be published before placement.
+- In Schematic, choose Place. Type a package and a type, then a value, for example “resistor 0603 10k”. A value alone finds only placed parts that have it. Parts marked “not yet created” are made by a generator: press Enter to make and place one. Read the symbol, package and footprint beside the list. A component that is still a draft needs to be published before placement.
 - For an existing generic component, use the physical choice and field values in the search result. A single component can serve many values. To change a placed resistor's value, edit its instance property.
 - For a part that is not there, make your own: see [[guide/own-part]]. For a specific IC, use its manufacturer datasheet with [[workflow/datasheet-to-component]]. Verify the pin numbers, footprint and explicit mapping before publishing.
 - To use a folder of parts, choose [[command/library.sources]] and add it. [[panel/libraries]] says what it must hold. When you place a published revision, the project keeps the definitions and assets needed to reopen it offline.
