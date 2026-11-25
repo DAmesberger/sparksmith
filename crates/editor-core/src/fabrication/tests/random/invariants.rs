@@ -1317,7 +1317,7 @@ pub(super) fn lost(
 /// [`Rule::Block`]: an edit moved a part of a block that is locked, or moved
 /// the block `moved` and not all of its parts alike, or another part with
 /// it; or a part is in two blocks, or in one and not in the design.
-pub(super) fn blocks(before: &Project, after: &Project, moved: Option<Id>) -> Vec<Broken> {
+pub(super) fn layout_blocks(before: &Project, after: &Project, moved: Option<Id>) -> Vec<Broken> {
     let mut out = Vec::new();
     let mut seen = BTreeSet::new();
     for block in after.blocks.iter() {

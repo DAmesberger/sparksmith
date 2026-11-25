@@ -138,7 +138,7 @@ fn step(engine: &mut Engine, edit: &Edit, look: Look, tally: &mut Tally) -> Fall
                 Edit::MoveBlock { pick, .. } => edits::block(&before.document().project, *pick),
                 _ => None,
             };
-            out.extend(invariants::blocks(
+            out.extend(invariants::layout_blocks(
                 &before.document().project,
                 engine.project(),
                 moved,

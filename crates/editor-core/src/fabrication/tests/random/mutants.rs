@@ -662,7 +662,7 @@ fn locked_part_moved(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
             p.position[0] += 1.0;
         }
     });
-    Ok(invariants::blocks(engine.project(), &torn, None))
+    Ok(invariants::layout_blocks(engine.project(), &torn, None))
 }
 
 fn block_torn(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
@@ -672,7 +672,7 @@ fn block_torn(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
             p.position[0] += 1.0;
         }
     });
-    Ok(invariants::blocks(engine.project(), &torn, Some(id)))
+    Ok(invariants::layout_blocks(engine.project(), &torn, Some(id)))
 }
 
 #[test]
