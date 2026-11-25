@@ -674,7 +674,7 @@ fn waived_rows(engine: &Engine, report: Option<&IssueReport>) -> WaivedRows {
 /// What the Waived group says of a waiver: that its finding is open again,
 /// what it accepted and its reason.
 fn waived_reason(w: &sparksmith_core::model::production::Waiver, open: bool) -> String {
-    let accepted = sparksmith_core::model::production::accepted_words(&w.accepted);
+    let accepted = sparksmith_core::model::production::waiver_words(w);
     [
         open.then(|| "No longer holds".to_owned()),
         accepted.map(|a| format!("Accepted: {a}")),

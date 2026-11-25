@@ -36,7 +36,7 @@ use sparksmith_core::fabrication::{
 };
 use sparksmith_core::issues::Severity;
 use sparksmith_core::model::Document;
-use sparksmith_core::model::production::accepted_words;
+use sparksmith_core::model::production::waiver_words;
 use sparksmith_core::rules::RuleProfile;
 use sparksmith_core::{Engine, Operation, ReportKey};
 use sparksmith_io::fabrication::{ExportReport, ExportRequest, Progress};
@@ -1506,7 +1506,7 @@ fn row_tip(item: &PreflightItem) -> String {
         } else {
             format!("Waived: {}", waiver.reason)
         });
-        tip.extend(accepted_words(&waiver.accepted).map(|a| format!("Accepted: {a}")));
+        tip.extend(waiver_words(waiver).map(|a| format!("Accepted: {a}")));
     }
     if let Some(lapsed) = &item.lapsed {
         tip.push(lapsed.text.clone());

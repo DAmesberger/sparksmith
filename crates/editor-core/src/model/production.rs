@@ -141,6 +141,28 @@ pub fn accepted_words(accepted: &[Measured]) -> Option<String> {
     (!each.is_empty()).then(|| each.join("; "))
 }
 
+/// What `waiver` accepted, in words: [`accepted_words`], but of a finding
+/// its profile does not state ([`Waiver::given_for`]) the values alone,
+/// since the profile states no limit the board needs.
+pub fn waiver_words(waiver: &Waiver) -> Option<String> {
+    if waiver.given_for.is_none() {
+        return accepted_words(&waiver.accepted);
+    }
+    let each: Vec<String> = waiver
+        .accepted
+        .iter()
+        .map(|m| {
+            let of = if m.of.is_empty() {
+                String::new()
+            } else {
+                format!("{}: ", m.of)
+            };
+            format!("{of}{}", words(m.value, m.limit, m.unit))
+        })
+        .collect();
+    (!each.is_empty()).then(|| each.join("; "))
+}
+
 /// Why accepting `then` does not accept `now`.
 fn lapsed_words(then: &Measured, now: &Measured) -> String {
     let (was, is) = (

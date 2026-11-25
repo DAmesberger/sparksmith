@@ -527,7 +527,11 @@ impl<'a> PadHoleCx<'a> {
             issues.push(
                 Finding::new(
                     FindingCode::BoardPadHoleClearance,
-                    format!("{}: hole {how}; {}", hole.name, need.text()),
+                    format!(
+                        "{}: hole {how}; {}",
+                        hole.name,
+                        need.text_at(limits.project(), gap)
+                    ),
                     vec![hole.object, shape.object],
                 )
                 .requiring(need.at_most(gap))
@@ -563,7 +567,7 @@ impl<'a> PadHoleCx<'a> {
                         hole.name,
                         hole.what,
                         other.what,
-                        need.text()
+                        need.text_at(limits.project(), gap)
                     ),
                     vec![hole.object, other.object],
                 )
@@ -573,7 +577,7 @@ impl<'a> PadHoleCx<'a> {
                         "{} and {}: holes {how}; {}",
                         hole.name,
                         other.name,
-                        need.text()
+                        need.text_at(limits.project(), gap)
                     ),
                     vec![hole.object, other.object],
                 )

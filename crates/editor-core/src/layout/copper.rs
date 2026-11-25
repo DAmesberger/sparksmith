@@ -780,7 +780,7 @@ pub(super) fn edge_finding(
                         crate::library::names::capitalised(&label()),
                         mm_against(gap, need.mm),
                         near.describe(),
-                        need.text()
+                        need.text_at(limits.project(), gap)
                     ),
                     vec![object],
                 )

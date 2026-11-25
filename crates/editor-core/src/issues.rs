@@ -642,11 +642,17 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
             Acceptance::Lapsed(_, text) => Some(text),
             _ => None,
         });
-    // What the fabricator's own pages disagree on, quoted.
+    // What the fabricator's own pages disagree on, quoted; the sentence
+    // once, as the finding's own words may already say it.
     let unstated = std::iter::once(&finding)
         .chain(&also)
         .find_map(|f| not_stated(names.project(), f))
-        .map(|n| format!("{}: {}", n.text, n.source));
+        .map(
+            |n| match cause.as_deref().is_some_and(|c| c.contains(&n.text)) {
+                true => n.source,
+                false => format!("{}: {}", n.text, n.source),
+            },
+        );
     let cause: Vec<String> = [lapsed, cause, unstated].into_iter().flatten().collect();
     let cause = (!cause.is_empty()).then(|| cause.join("; "));
     let profile = names.project().rules.profile.as_ref();

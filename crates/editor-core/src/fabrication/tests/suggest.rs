@@ -417,3 +417,67 @@ fn under_jlcpcb_a_pad_beside_an_unplated_hole_is_not_stated() -> Fallible<()> {
     assert!(found.iter().all(|i| i.waiver.is_some() && !i.blocks()));
     Ok(())
 }
+
+/// No borrowed limits (founder decision, 25 November 2026): JLCPCB states
+/// "NPTH to Track" and nothing for vias or fills either, so a via that near
+/// an unplated hole is not stated too, and a finding says so in the one
+/// wording the production check uses, never the track's 0.2 mm as a need.
+#[test]
+fn under_jlcpcb_a_via_beside_an_unplated_hole_is_not_stated() -> Fallible<()> {
+    use crate::model::{Via, ViaSpan};
+    let profile = fixtures::jlcpcb_example()?;
+    for key in [CopperObject::Via, CopperObject::Fill, CopperObject::Pad] {
+        let key = RuleKey::Clearance {
+            a: key,
+            b: CopperObject::NpthHole,
+        }
+        .normalized();
+        assert_eq!(profile.unclear(key).map(|u| u.to), Some(0.0), "{key:?}");
+    }
+    let mut project = connector_board(profile)?;
+    let hole = placed_pads(&project)
+        .into_iter()
+        .find(|p| p.pad.kind == PadKind::NonPlatedHole)
+        .ok_or("the locating hole")?;
+    let at = hole.center();
+    let net = project.nets.first().ok_or("a net")?.id;
+    let id = project.allocate()?;
+    // 0.15 mm from the hole's edge to the via's copper, below it.
+    project.vias.push(Via {
+        id,
+        net,
+        position: [at[0], at[1] - HOLE / 2.0 - 0.15 - 0.3],
+        drill: 0.3,
+        diameter: 0.6,
+        span: ViaSpan::Through,
+        tented: true,
+        fill: Default::default(),
+        locked: false,
+    });
+    let report = report(&project)?;
+    let via = report
+        .items
+        .iter()
+        .find(|i| i.objects.contains(&ObjectRef::Via { id }))
+        .ok_or_else(|| format!("{:#?}", report.items))?;
+    let said = via.not_stated.as_ref().ok_or("not stated")?;
+    assert!(
+        said.text.contains("does not state via to unplated hole"),
+        "{}",
+        said.text
+    );
+    assert!(via.needs.is_none() && via.offers_waiver());
+    // The finding's own words are the same sentence, not a need.
+    let findings = crate::layout::checks(&project, &Default::default());
+    for f in findings
+        .iter()
+        .filter(|f| f.code == "board.pad_hole_clearance")
+    {
+        assert!(
+            f.message.contains("does not state") && !f.message.contains("needs 0.2"),
+            "{}",
+            f.message
+        );
+    }
+    Ok(())
+}

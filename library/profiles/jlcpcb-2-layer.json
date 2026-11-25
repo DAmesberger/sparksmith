@@ -227,7 +227,11 @@
       },
       "clearance_fill_npth_hole": {
         "value": 0.2,
-        "source": "Traces, \"NPTH to Track\": \"0.2mm\"."
+        "source": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB states no value for fills: fill copper at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
+        "unclear": {
+          "to": 0.0,
+          "source": "JLCPCB states \"NPTH to Track\": \"0.2mm\" (Traces) and no row for fills to unplated holes (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-14)."
+        }
       },
       "clearance_fill_pth_hole": {
         "value": 0.35,
@@ -434,7 +438,11 @@
       },
       "clearance_via_npth_hole": {
         "value": 0.2,
-        "source": "Traces, \"NPTH to Track\": \"0.2mm\"."
+        "source": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB states no value for vias: a via at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
+        "unclear": {
+          "to": 0.0,
+          "source": "JLCPCB states \"NPTH to Track\": \"0.2mm\" (Traces) and no row for vias to unplated holes (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-14)."
+        }
       },
       "clearance_via_pth_hole": {
         "value": 0.35,

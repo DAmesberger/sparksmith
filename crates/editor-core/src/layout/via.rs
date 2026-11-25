@@ -726,7 +726,7 @@ impl<'a> ViaCx<'a> {
                         "A via on {name}: drill is {} mm from {}; {}",
                         mm_against(gap, need.mm),
                         near.describe(),
-                        need.text()
+                        need.text_at(limits.project(), gap)
                     ),
                     vec![me],
                 )
@@ -754,7 +754,7 @@ impl<'a> ViaCx<'a> {
                             "A via on {name}: drill is {} mm from {}; {}",
                             mm_against(gap, need.mm),
                             shape.words(project),
-                            need.text()
+                            need.text_at(limits.project(), gap)
                         ),
                         vec![me, shape.object],
                     )
@@ -779,7 +779,7 @@ impl<'a> ViaCx<'a> {
                             "Vias on {name} and {}: drills are {} mm apart; {}",
                             project.net_name(other.net),
                             mm_against(gap, need.mm),
-                            need.text()
+                            need.text_at(limits.project(), gap)
                         ),
                         vec![me, ObjectRef::Via { id: other.id }],
                     )
@@ -857,7 +857,7 @@ impl<'a> ViaCx<'a> {
                 issues.push(
                     Finding::new(
                         FindingCode::BoardHoleClearance,
-                        format!("{name} {how}; {}", need.text()),
+                        format!("{name} {how}; {}", need.text_at(limits.project(), gap)),
                         vec![me, shape.object],
                     )
                     .requiring(need.at_most(gap))
@@ -881,7 +881,7 @@ impl<'a> ViaCx<'a> {
                             "{name} and a via on {}: drills are {} mm apart; {}",
                             project.net_name(via.net),
                             mm_against(gap, need.mm),
-                            need.text()
+                            need.text_at(limits.project(), gap)
                         ),
                         vec![me, ObjectRef::Via { id: via.id }],
                     )
@@ -912,7 +912,11 @@ impl<'a> ViaCx<'a> {
                 issues.push(
                     Finding::new(
                         FindingCode::BoardHoleSpacing,
-                        format!("{name} and {}: holes {how}; {}", other.name, need.text()),
+                        format!(
+                            "{name} and {}: holes {how}; {}",
+                            other.name,
+                            need.text_at(limits.project(), gap)
+                        ),
                         vec![me, other.object()],
                     )
                     .requiring(need.at_most(gap))
@@ -963,7 +967,7 @@ pub(super) fn edge_text(
                     "is {} mm from {}; {}",
                     mm_against(gap, need.mm),
                     near.describe(),
-                    need.text()
+                    need.text_at(limits.project(), gap)
                 ),
                 need.at_most(gap),
                 Some(need.measured(gap)),

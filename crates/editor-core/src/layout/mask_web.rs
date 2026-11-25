@@ -129,7 +129,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                         name(b),
                         if side == Layer::Top { "top" } else { "bottom" },
                         mm_against(web.max(0.0), min),
-                        need.text()
+                        need.text_at(limits.project(), web)
                     ),
                     vec![
                         ObjectRef::Pad {

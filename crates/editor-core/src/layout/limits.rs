@@ -60,6 +60,17 @@ impl Need {
         format!("needs {} mm ({})", mm(self.mm), self.cite())
     }
 
+    /// [`Self::text`] of a board measuring `measured` against this minimum,
+    /// or, where its fab profile does not state the rule there, that
+    /// sentence ([`crate::rules::requirement::not_stated`], the one wording
+    /// a finding, its row and the production check share): a limit the
+    /// profile does not state is not one the board needs.
+    pub fn text_at(&self, rules: &ProjectRules, measured: f64) -> String {
+        self.at_most(measured)
+            .and_then(|r| crate::rules::requirement::not_stated(&r, rules.profile.as_ref()))
+            .map_or_else(|| self.text(), |n| n.text)
+    }
+
     /// `needs 0.15 mm (Fine 4/4)`: a refusal's shorter form, where the
     /// rule is what the refusal says.
     pub fn short(&self) -> String {

@@ -222,7 +222,7 @@
   {
     "id": "rule/jlcpcb-2-layer/clearance_fill_npth_hole",
     "title": "JLCPCB 2-layer · fill to unplated hole clearance",
-    "summary": "Traces, \"NPTH to Track\": \"0.2mm\".",
+    "summary": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB states no value for fills: fill copper at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
     "since": "0.1.0",
     "facts": {
       "kind": "rule",
@@ -235,7 +235,7 @@
         "date": "2026-11-14",
         "notes": "Rigid FR-4, 2 layers (JLCPCB's 1-layer boards drill 0.3 mm and up and have their own rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
       },
-      "row": "Traces, \"NPTH to Track\": \"0.2mm\".",
+      "row": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB states no value for fills: fill copper at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
       "author_choice": false
     }
   },
@@ -742,7 +742,7 @@
   {
     "id": "rule/jlcpcb-2-layer/clearance_via_npth_hole",
     "title": "JLCPCB 2-layer · via to unplated hole clearance",
-    "summary": "Traces, \"NPTH to Track\": \"0.2mm\".",
+    "summary": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB states no value for vias: a via at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
     "since": "0.1.0",
     "facts": {
       "kind": "rule",
@@ -755,7 +755,7 @@
         "date": "2026-11-14",
         "notes": "Rigid FR-4, 2 layers (JLCPCB's 1-layer boards drill 0.3 mm and up and have their own rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
       },
-      "row": "Traces, \"NPTH to Track\": \"0.2mm\".",
+      "row": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB states no value for vias: a via at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
       "author_choice": false
     }
   },
@@ -1822,7 +1822,7 @@
   {
     "id": "rule/jlcpcb-4-layer/clearance_fill_npth_hole",
     "title": "JLCPCB 4-layer · fill to unplated hole clearance",
-    "summary": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row.",
+    "summary": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row, and states no value for fills: fill copper at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
     "since": "0.1.0",
     "facts": {
       "kind": "rule",
@@ -1835,7 +1835,7 @@
         "date": "2026-11-14",
         "notes": "Rigid FR-4, 4 or more layers (the Multilayer rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
       },
-      "row": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row.",
+      "row": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row, and states no value for fills: fill copper at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
       "author_choice": false
     }
   },
@@ -2342,7 +2342,7 @@
   {
     "id": "rule/jlcpcb-4-layer/clearance_via_npth_hole",
     "title": "JLCPCB 4-layer · via to unplated hole clearance",
-    "summary": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row.",
+    "summary": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row, and states no value for vias: a via at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
     "since": "0.1.0",
     "facts": {
       "kind": "rule",
@@ -2355,7 +2355,7 @@
         "date": "2026-11-14",
         "notes": "Rigid FR-4, 4 or more layers (the Multilayer rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
       },
-      "row": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row.",
+      "row": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row, and states no value for vias: a via at least this far from an unplated hole is made as a track is; nearer is not stated (no borrowed limits, founder decision, 25 November 2026).",
       "author_choice": false
     }
   },

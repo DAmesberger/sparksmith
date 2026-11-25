@@ -581,7 +581,7 @@ fn bridge_holes(
                     "{part} bridge is {} mm from the hole of {}; {}",
                     crate::layout::limits::mm_against(gap, need.mm),
                     hole.name,
-                    need.text()
+                    need.text_at(rules.project(), gap)
                 ),
                 vec![
                     ObjectRef::Instance {

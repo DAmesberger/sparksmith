@@ -498,7 +498,7 @@ fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Str
                     },
                     |f| f.message.clone(),
                 );
-            let accepted = crate::model::production::accepted_words(&w.accepted)
+            let accepted = crate::model::production::waiver_words(w)
                 .map_or_else(String::new, |a| format!(" Accepted: {a}."));
             let reason = if w.reason.is_empty() {
                 String::new()
