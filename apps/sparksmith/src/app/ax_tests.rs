@@ -776,6 +776,64 @@ fn the_production_waive_form_shows_beside_a_long_issues_list() -> Fallible {
     Ok(())
 }
 
+/// Founder 2026-11-25: Discard draft… in the Component workspace asks, then
+/// drops the open component's changed drafts; undo brings them back.
+#[test]
+fn discard_draft_asks_and_undo_restores() -> Fallible {
+    let mut ax = Ax::new(Workspace::Part)?;
+    let component = ax
+        .app
+        .engine
+        .project()
+        .library
+        .latest_components()
+        .first()
+        .map(|c| c.id)
+        .ok_or("the demo has a component")?;
+    ax.app.part.open(component, &ax.app.engine);
+    ax.settle();
+    assert!(
+        !ax.has(Role::Button, "Discard draft…"),
+        "nothing to discard:\n{}",
+        ax.dump()
+    );
+    let mut draft = ax
+        .app
+        .engine
+        .drafts()
+        .get(component)
+        .cloned()
+        .ok_or("a draft")?;
+    draft.meta.name.push_str(" changed");
+    ax.app.engine.apply(
+        ax.app.engine.revision(),
+        Operation::Library(LibraryCommand::Edit {
+            edits: vec![sparksmith_core::library::DraftEdit {
+                id: draft.id,
+                meta: draft.meta,
+                definition: draft.definition,
+            }],
+        }),
+    )?;
+    ax.settle();
+    let drafted = ax.app.engine.drafts().clone();
+    ax.button("Discard draft…")?;
+    ax.settle();
+    ax.button("Cancel")?;
+    ax.settle();
+    assert_eq!(ax.app.engine.drafts(), &drafted, "asked first");
+    ax.button("Discard draft…")?;
+    ax.settle();
+    ax.button("Discard")?;
+    ax.settle();
+    assert!(ax.app.engine.drafts().get(component).is_none());
+    assert!(ax.app.part.lineage().is_none(), "the start page");
+    ax.app.engine.undo()?;
+    ax.settle();
+    assert_eq!(ax.app.engine.drafts(), &drafted, "one undo step");
+    Ok(())
+}
+
 /// GUI check 2, R2-D1: a Position typed key by key after Production was
 /// opened and cancelled, with its check running or done, keeps the keyboard
 /// for every key, and all of it is committed.

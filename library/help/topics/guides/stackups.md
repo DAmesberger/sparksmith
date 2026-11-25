@@ -44,7 +44,8 @@ To take a fabricator's published stackup:
 - Select one to see its stack to scale, its thicknesses and Dk, where each value was read, and where the fabricator's own sources disagree. Both values are shown then.
 - Read what it changes and what the fab profile says of it. Copper layers keep their place. Copper on a layer the stackup lacks needs a place before the change can be applied. A net class that names a layer keeps its list, and [[finding/board.class_layer]] tells you.
 - Use this stackup puts it in the dialog. OK applies it as one step, and Undo takes it back.
+- The board keeps the stackup's name, and the export writes it in the order notes, the job file and the fabrication drawing. Changing a layer by hand drops the name, because the board is no longer that stackup. Undo brings it back.
 
-Some stackups put plies of several Dk between two foils. The layer then has no Dk until you enter one, or choose the average of its plies by thickness, which is a computed value and not the fabricator's. Some fabricators list a prepreg before and after pressing; the board takes the pressed one.
+Some stackups put sheets of several Dk between two foils. The layer then takes their average by thickness. It is a calculated value and not the fabricator's: the dialog says so and shows the sheets, and you can enter another. Some fabricators list a prepreg before and after pressing; the board takes the pressed one.
 
 You can still edit every layer by hand. Ask the fabricator for its current table before you order.

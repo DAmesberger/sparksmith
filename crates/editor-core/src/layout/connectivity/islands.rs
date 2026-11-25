@@ -1,7 +1,7 @@
 //! What each island holds, and the copper that meets a pad: the questions
 //! Update PCB asks of the updated board's graph.
 use super::{CopperGraph, Dsu, ElementKind};
-use crate::geometry::{Point, polygon_contains};
+use crate::geometry::{Point, polygon_contains, polygons_overlap};
 use crate::ids::Id;
 use crate::layout::fill::FILL_CHORD_MM;
 use crate::model::fill::FillRegion;
@@ -102,6 +102,14 @@ impl CopperGraph {
                         .any(|t| t.layer == *layer && (within(t.start) || within(t.end)));
                 if met {
                     dsu.union(i, islands.len() + k);
+                }
+            }
+        }
+        // Pours of one layer are one where their outlines come together.
+        for (j, (layer, ring)) in pours.iter().enumerate() {
+            for (k, (other, theirs)) in pours.iter().enumerate().skip(j + 1) {
+                if layer == other && polygons_overlap(ring, theirs) {
+                    dsu.union(islands.len() + j, islands.len() + k);
                 }
             }
         }

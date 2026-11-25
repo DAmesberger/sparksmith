@@ -1,4 +1,6 @@
 //! Sparksmith desktop editor (formerly Pcbcraft).
+// Started by a click, it opens no console window beside its own.
+#![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
 mod about;
 mod app;
 mod assistant;
@@ -77,11 +79,21 @@ pub(crate) fn test_stack() -> Result<sparksmith_solidcraft::stack::Stack, String
 }
 
 fn main() -> eframe::Result {
+    if std::env::args().nth(1).is_some_and(|a| a == "--version") {
+        println!(
+            "{} {}",
+            sparksmith_core::product::NAME,
+            sparksmith_core::product::version()
+        );
+        return Ok(());
+    }
     let compact = std::env::args().any(|argument| argument == "--compact");
     // Files opened from Finder arrive as AppKit events, not arguments.
     #[cfg(target_os = "macos")]
     open_documents::install();
     let viewport = egui::ViewportBuilder::default()
+        // The menu entry's name (packaging/linux), so its icon is the window's.
+        .with_app_id(sparksmith_core::product::BUNDLE_ID)
         .with_inner_size(if compact {
             [900.0, 680.0]
         } else {

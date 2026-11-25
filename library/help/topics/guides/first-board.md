@@ -38,9 +38,9 @@
 }
 ---
 
-Start a project with [[command/file.new]]. Its board starts with the Standard fab profile, or the default from your settings, so you can route at once.
+The app opens with an empty, unnamed project in the PCB workspace. [[command/file.new]] starts another one. Its board starts with the Standard fab profile, or the default from your settings, so you can route at once.
 
-- In Schematic, choose Place and type a package and a type, such as resistor 0603. A new project has no parts of its own: a generator makes the one you choose. Press Enter, then click the sheet. Place two parts. [[guide/libraries]] says more.
+- Click the workspace button at the left of the ribbon and choose Schematic. Choose Place and type a package and a type, such as resistor 0603. A new project has no parts of its own: a generator makes the one you choose. Press Enter, then click the sheet. Place two parts. [[guide/libraries]] says more.
 - Choose Wire, click a pin of one part, then a pin of the other. Select the wire to see its net and members in Properties. [[guide/wiring]] says more.
 - Go to PCB and choose Update PCB. Read the review and press Apply update. Set the board outline in Board shape and constrain it ([[guide/board-shape]]), then drag the parts inside it. A thin line, the airwire, shows the connection. See [[guide/update-pcb]].
 - Choose Route, click the first pad, then the matching pad. Look at the board in the 3D tab, and read Issues. [[guide/routing]] and [[guide/issues]] help.

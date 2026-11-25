@@ -209,7 +209,7 @@ fn predefined(system: System) -> PredefinedMenuItem {
             Some(concat!("About ", sparksmith_core::product_name!())),
             Some(AboutMetadata {
                 name: Some(sparksmith_core::product::NAME.into()),
-                version: Some(env!("CARGO_PKG_VERSION").into()),
+                version: Some(sparksmith_core::product::version()),
                 credits: Some(format!(
                     "Built on Solidcraft's engine (github.com/tangency-labs/solidcraft).\n{}",
                     sparksmith_core::product::WEBSITE

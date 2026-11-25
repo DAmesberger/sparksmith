@@ -23,19 +23,18 @@ pub(super) struct Picker {
     every_maker: bool,
     all_rows: bool,
     selected: Option<String>,
-    average_dk: bool,
     /// The selected one's report, and what it was made for.
     shown: Option<(Key, Result<StackupReport, String>)>,
 }
 
-/// The revision, stackup and Dk choice a report is for.
-type Key = (u64, String, bool);
+/// The revision and stackup a report is for.
+type Key = (u64, String);
 
 /// What the picker asks of the dialog.
 pub(super) enum Picked {
     Back,
-    /// Stage this build, named for what it is.
-    Take(Box<Stackup>, String),
+    /// Stage this build.
+    Take(Box<Stackup>),
 }
 
 fn um(mm: f64) -> i64 {
@@ -52,7 +51,6 @@ impl Picker {
             every_maker: false,
             all_rows: false,
             selected: None,
-            average_dk: false,
             shown: None,
         };
         // The option nearest the board's thickness; the row shows it.
@@ -92,16 +90,13 @@ impl Picker {
         out
     }
 
-    /// The selected stackup's report, kept until the board, the choice or
-    /// the Dk choice changes.
+    /// The selected stackup's report, kept until the board or the choice
+    /// changes.
     fn report(&mut self, engine: &Engine) -> Option<&Result<StackupReport, String>> {
         let id = self.selected.clone()?;
-        let key = (engine.revision(), id, self.average_dk);
+        let key = (engine.revision(), id);
         if self.shown.as_ref().is_none_or(|(k, _)| *k != key) {
-            let options = PickOptions {
-                moves: Vec::new(),
-                average_dk: self.average_dk,
-            };
+            let options = PickOptions::default();
             let made = self.library.as_ref().map_err(Clone::clone).and_then(|l| {
                 let stackup =
                     sparksmith_io::fab_stackups::find(l, &key.1).map_err(|e| e.to_string())?;
@@ -139,7 +134,11 @@ impl Picker {
         let names: Vec<(String, String)> = rows
             .iter()
             .map(|row| {
-                let board = if row.board { " · this board" } else { "" };
+                let board = match (row.picked, row.board) {
+                    (true, _) => " · this board's",
+                    (false, true) => " · this board's layers",
+                    (false, false) => "",
+                };
                 let secondary = format!(
                     "{} · {} mm{board}",
                     publisher(row),
@@ -175,7 +174,6 @@ impl Picker {
         }
         if clicked.is_some() {
             self.selected = clicked;
-            self.average_dk = false;
         }
         let shown = self.report(engine).cloned();
         kit::actions(ui, |ui| {
@@ -185,17 +183,14 @@ impl Picker {
             if take.clicked()
                 && let Some(Ok(report)) = &shown
             {
-                out = Some(Picked::Take(
-                    Box::new(report.pick.edit.stackup.clone()),
-                    report.stackup.name.clone(),
-                ));
+                out = Some(Picked::Take(Box::new(report.pick.edit.stackup.clone())));
             }
             if ui_kit::button(ui, "Back", Button::Enabled(true)).clicked() {
                 out = Some(Picked::Back);
             }
         });
         match &shown {
-            Some(Ok(report)) => details(ui, report, &mut self.average_dk),
+            Some(Ok(report)) => details(ui, report),
             Some(Err(error)) => {
                 kit::warning_row(ui, error);
             }
@@ -253,7 +248,7 @@ impl Picker {
 }
 
 /// One stackup: its stack, what taking it does and what it is read from.
-fn details(ui: &mut Ui, report: &StackupReport, average_dk: &mut bool) {
+fn details(ui: &mut Ui, report: &StackupReport) {
     let fab = &report.stackup;
     let pick = &report.pick;
     let bands = stack_section::bands(&pick.edit.stackup);
@@ -280,9 +275,6 @@ fn details(ui: &mut Ui, report: &StackupReport, average_dk: &mut bool) {
             "Stated finished",
             &format!("{} · {}", mm(stated.value_mm), stated.text),
         );
-    }
-    if report.build.iter().any(|row| row.average_dk.is_some()) {
-        kit::check_row(ui, "Average several Dk by thickness", average_dk);
     }
     kit::section(
         ui,
@@ -321,6 +313,9 @@ fn details(ui: &mut Ui, report: &StackupReport, average_dk: &mut bool) {
                         row.materials
                     ),
                 );
+                if let (Some(how), Some(dk)) = (&row.calculated, row.board_dk) {
+                    kit::note(ui, &format!("Dk {}. {how}", kit::number_text(dk)));
+                }
             }
             if let Some(mask) = &fab.mask {
                 kit::value_row(

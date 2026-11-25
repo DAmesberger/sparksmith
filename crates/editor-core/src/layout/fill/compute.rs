@@ -25,9 +25,11 @@
 //!    nothing and is removed; the fill records how many each pad or via
 //!    lost, which Issues reports as information (`fill.spokes_removed`).
 //! 4. Hatched fills keep a border and a grid of lines.
-//! 5. Islands that no pad, via or track of the fill's net touches (by the
-//!    copper graph's one joining rule) are removed, and by setting small
-//!    ones. Another fill of the net is not asked: its copper may go too.
+//! 5. Islands that join no pad, via or track of the fill's net are removed,
+//!    and by setting small ones. They join one, by the copper graph's one
+//!    joining rule, themselves or through islands of the net's other fills
+//!    on the layer: which of several fills' islands stay is settled for
+//!    them together ([`super::groups`]).
 //!
 //! Obstacles cover their true curves, so the fill boundary is never closer
 //! than the rule: circles (vias, drills) and track ends are drawn with
@@ -36,8 +38,8 @@
 //! [`FILL_CHORD_MM`] more.
 //!
 //! Fills rank by priority (higher first), then by id (lower first). A fill
-//! reads the copper of higher-ranking fills, so one pass computes them in
-//! rank order; fresh stored copper is reused.
+//! reads the copper of higher-ranking fills of other nets; fresh stored
+//! copper is reused.
 use super::FILL_CHORD_MM;
 use super::geom::{self, Region, RegionIndex, Ring};
 use crate::diagnostics::{Error, ObjectRef, Result};
@@ -52,9 +54,14 @@ use crate::rules::{
     ClearanceSide, CopperObject, DesignRules, NetClassId, PadConnection, ThermalRelief,
 };
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 
 use super::super::{PlacedPad, placed_pads};
+
+/// How far apart two outlines' bounds may be for their islands to join,
+/// more than any joint spans.
+const JOIN_NEAR_MM: f64 = 0.01;
 
 /// Most hatch lines per direction of one fill.
 const MAX_HATCH_LINES: usize = 8192;
@@ -77,11 +84,21 @@ pub(crate) struct Ctx<'a> {
     /// The farthest any pad's fill override reaches (clearance, or relief
     /// gap and spoke), mm.
     override_reach: f64,
-    keys: BTreeMap<Id, String>,
-    copper: BTreeMap<Id, FilledCopper>,
+    /// Each fill's outline's bounds.
+    outlines: BTreeMap<Id, [Point; 2]>,
+    relevant: BTreeMap<Id, Rc<Relevant>>,
+    /// Each fill's hash of its own inputs ([`Ctx::local`]).
+    locals: BTreeMap<Id, String>,
+    /// The fills each fill's copper reads ([`super::groups`]).
+    pub(super) reads: BTreeMap<Id, Rc<BTreeSet<Id>>>,
+    pub(super) keys: BTreeMap<Id, String>,
+    pub(super) copper: BTreeMap<Id, FilledCopper>,
+    /// Fills computed again though their stored copper is fresh.
+    pub(super) again: BTreeSet<Id>,
 }
 
-/// The board objects that can change one fill's copper.
+/// The board objects that can change one fill's copper, and the copper that
+/// can join it.
 #[derive(Default)]
 struct Relevant {
     bridges: Vec<usize>,
@@ -89,9 +106,15 @@ struct Relevant {
     vias: Vec<usize>,
     tracks: Vec<usize>,
     keepouts: Vec<usize>,
-    /// Higher-ranking fills on the layer whose copper is cleared (other
-    /// nets), by id.
-    higher: Vec<Id>,
+}
+
+/// A fill's copper before any island is removed for joining nothing.
+#[derive(Default)]
+pub(super) struct Raw {
+    pub islands: Vec<FilledRegion>,
+    /// The islands below the area the fill keeps.
+    pub small: Vec<bool>,
+    pub removed_spokes: Vec<RemovedSpokes>,
 }
 
 fn arcs(outline: &crate::library::Outline) -> bool {
@@ -207,6 +230,11 @@ impl<'a> Ctx<'a> {
             .iter()
             .map(|p| p.fill_override.reach_mm())
             .fold(0.0, f64::max);
+        let outlines = project
+            .fills
+            .iter()
+            .filter_map(|f| Some((f.id, bounds_of(&f.outline.flatten(FILL_CHORD_MM))?)))
+            .collect();
         Self {
             project,
             rules: project.rules.effective(),
@@ -217,8 +245,13 @@ impl<'a> Ctx<'a> {
             keepouts: effective_keepouts(project),
             classes,
             override_reach,
+            outlines,
+            relevant: BTreeMap::new(),
+            locals: BTreeMap::new(),
+            reads: BTreeMap::new(),
             keys: BTreeMap::new(),
             copper: BTreeMap::new(),
+            again: BTreeSet::new(),
         }
     }
 
@@ -310,16 +343,60 @@ impl<'a> Ctx<'a> {
         most.max(t.gap + t.spoke_width).max(self.override_reach) + 2.0 * FILL_CHORD_MM + 0.01
     }
 
-    fn fill(&self, id: Id) -> Result<&'a Fill> {
+    pub(super) fn fill(&self, id: Id) -> Result<&'a Fill> {
         self.project
             .fill(id)
             .ok_or_else(|| Error::NotFound(format!("fill.missing: no fill {id}")))
     }
 
-    fn relevant(&self, fill: &Fill) -> Relevant {
+    /// The higher-ranking fills on `fill`'s layer whose copper it clears
+    /// (other nets).
+    pub(super) fn higher(&self, fill: &Fill) -> Vec<Id> {
+        let reach = self.reach(fill);
+        let mut out = Vec::new();
+        let Some(own) = self.outlines.get(&fill.id) else {
+            return out;
+        };
+        for other in &self.project.fills {
+            let same_net = fill.net.is_some() && other.net == fill.net;
+            if other.id != fill.id
+                && other.layer == fill.layer
+                && !same_net
+                && outranks(other, fill)
+                && let Some(theirs) = self.outlines.get(&other.id)
+                && geom::overlaps(*own, *theirs, reach)
+            {
+                out.push(other.id);
+            }
+        }
+        out
+    }
+
+    /// Whether the islands of two fills could join: one net, one layer, and
+    /// outlines that come together.
+    pub(super) fn could_join(&self, a: &Fill, b: &Fill) -> bool {
+        a.net.is_some()
+            && a.net == b.net
+            && a.layer == b.layer
+            && match (self.outlines.get(&a.id), self.outlines.get(&b.id)) {
+                (Some(x), Some(y)) => geom::overlaps(*x, *y, JOIN_NEAR_MM),
+                _ => false,
+            }
+    }
+
+    fn relevant(&mut self, fill: &Fill) -> Rc<Relevant> {
+        if let Some(known) = self.relevant.get(&fill.id) {
+            return known.clone();
+        }
+        let made = Rc::new(self.find_relevant(fill));
+        self.relevant.insert(fill.id, made.clone());
+        made
+    }
+
+    fn find_relevant(&self, fill: &Fill) -> Relevant {
         let p = self.project;
         let layer = fill.layer;
-        let Some(own) = bounds_of(&fill.outline.flatten(FILL_CHORD_MM)) else {
+        let Some(own) = self.outlines.get(&fill.id).copied() else {
             return Relevant::default();
         };
         let reach = self.reach(fill);
@@ -362,34 +439,36 @@ impl<'a> Ctx<'a> {
                 out.keepouts.push(i);
             }
         }
-        for other in &p.fills {
-            let same_net = fill.net.is_some() && other.net == fill.net;
-            if other.id != fill.id
-                && other.layer == layer
-                && !same_net
-                && outranks(other, fill)
-                && near(bounds_of(&other.outline.flatten(FILL_CHORD_MM)))
-            {
-                out.higher.push(other.id);
-            }
-        }
         out
     }
 
     /// The cache key of fill `id`: a hash of the fill and of everything
-    /// near it that its copper depends on. Objects out of its reach, on
-    /// other layers or in fills it does not clear leave the key alone, so
-    /// an edit elsewhere does not make it stale.
+    /// near it that its copper depends on, and of the same of every fill
+    /// its copper reads, directly or through others ([`super::groups`]).
+    /// Only the document is hashed, never computed copper: storing one
+    /// fill's copper makes no other stale. Objects out of reach, on other
+    /// layers or in fills not read leave the key alone, so an edit elsewhere
+    /// does not make it stale.
     pub(crate) fn key(&mut self, id: Id) -> Result<String> {
         if let Some(k) = self.keys.get(&id) {
             return Ok(k.clone());
         }
+        let mut inputs = vec![(id, self.local(id)?)];
+        for other in self.reads(id)?.iter().filter(|o| **o != id) {
+            inputs.push((*other, self.local(*other)?));
+        }
+        let key = super::fnv_hex(&serde_json::to_vec(&inputs)?);
+        self.keys.insert(id, key.clone());
+        Ok(key)
+    }
+
+    /// The hash of fill `id`'s own inputs, the fills it reads aside.
+    fn local(&mut self, id: Id) -> Result<String> {
+        if let Some(k) = self.locals.get(&id) {
+            return Ok(k.clone());
+        }
         let fill = self.fill(id)?;
         let rel = self.relevant(fill);
-        let mut higher = Vec::new();
-        for h in &rel.higher {
-            higher.push((*h, self.key(*h)?));
-        }
         let p = self.project;
         let net_name = |n: Option<Id>| n.map(|n| p.net_name(n));
         // Check-only rules (etch hazards) leave the copper and so the key.
@@ -413,7 +492,6 @@ impl<'a> Ctx<'a> {
             keepouts: Vec<&'b crate::model::Keepout>,
             #[serde(skip_serializing_if = "Vec::is_empty")]
             bridges: Vec<(&'b crate::layout::PlacedBridge, Vec<Option<NetClassId>>)>,
-            higher: Vec<(Id, String)>,
         }
         let board = p.board();
         let inputs = Inputs {
@@ -452,11 +530,10 @@ impl<'a> Ctx<'a> {
                 .iter()
                 .filter_map(|i| self.keepouts.get(*i).map(|(k, _)| k))
                 .collect(),
-            higher,
         };
-        let key = super::fnv_hex(&serde_json::to_vec(&inputs)?);
-        self.keys.insert(id, key.clone());
-        Ok(key)
+        let local = super::fnv_hex(&serde_json::to_vec(&inputs)?);
+        self.locals.insert(id, local.clone());
+        Ok(local)
     }
 
     /// Use `copper` for fill `id` in this pass (a host cache hit).
@@ -464,27 +541,48 @@ impl<'a> Ctx<'a> {
         self.copper.insert(id, copper);
     }
 
-    /// The copper of fill `id`: stored copper when its key is current,
-    /// otherwise computed (higher-ranking fills first).
-    pub(crate) fn copper(&mut self, id: Id, reuse: bool) -> Result<FilledCopper> {
-        if let Some(c) = self.copper.get(&id) {
-            return Ok(c.clone());
+    /// Which of `islands`, islands of `fill`, join a pad, via or track of
+    /// its net on its layer themselves.
+    pub(super) fn direct(&mut self, fill: &Fill, islands: &[FilledRegion]) -> Vec<bool> {
+        let rel = self.relevant(fill);
+        let mut joined = vec![false; islands.len()];
+        let Some(net) = fill.net else {
+            return joined;
+        };
+        let p = self.project;
+        let index = RegionIndex::filled(islands);
+        let mut mark = |ring: &CopperRing| {
+            for r in islands_joined(&index, ring) {
+                if let Some(flag) = joined.get_mut(r as usize) {
+                    *flag = true;
+                }
+            }
+        };
+        for pad in rel.pads.iter().filter_map(|i| self.pads.get(*i)) {
+            if pad.net == Some(net) && pad.on_copper(fill.layer) {
+                mark(&CopperRing::of_placed_pad(pad));
+            }
         }
-        let key = self.key(id)?;
-        let fill = self.fill(id)?;
-        if reuse
-            && let Some(stored) = &fill.computed
-            && stored.key == key
-        {
-            self.copper.insert(id, stored.clone());
-            return Ok(stored.clone());
+        for v in rel.vias.iter().filter_map(|i| p.vias.get(*i)) {
+            if v.net == net {
+                mark(&via_copper(v));
+            }
         }
-        let c = self.compute(fill, key)?;
-        self.copper.insert(id, c.clone());
-        Ok(c)
+        for t in rel.tracks.iter().filter_map(|i| p.tracks.get(*i)) {
+            if t.net == net {
+                mark(&track_copper(t));
+            }
+        }
+        joined
     }
 
-    fn compute(&mut self, fill: &'a Fill, key: String) -> Result<FilledCopper> {
+    /// The copper of `fill` (steps 1 to 4), `cut` the copper of each
+    /// higher-ranking fill it clears.
+    pub(super) fn raw(
+        &mut self,
+        fill: &Fill,
+        cut: &BTreeMap<Id, Vec<FilledRegion>>,
+    ) -> Result<Raw> {
         let tol = FILL_CHORD_MM;
         let p = self.project;
         let rel = self.relevant(fill);
@@ -493,11 +591,11 @@ impl<'a> Ctx<'a> {
 
         // 1. Allowed area.
         let Some(outline) = geom::ccw(fill.outline.flatten(tol)) else {
-            return Ok(empty(key));
+            return Ok(Raw::default());
         };
         let board = p.board();
         let Some(outer) = geom::ccw(board.outer.flatten(tol)) else {
-            return Ok(empty(key));
+            return Ok(Raw::default());
         };
         let edge = self.clearance(fill, CopperObject::BoardEdge, None);
         let shrink = edge + if arcs(&board.outer) { tol } else { 0.0 };
@@ -507,7 +605,7 @@ impl<'a> Ctx<'a> {
         }
         let area = geom::intersect(&[vec![outline]], &inside);
         if area.is_empty() {
-            return Ok(empty(key));
+            return Ok(Raw::default());
         }
 
         // 2. Obstacles.
@@ -668,12 +766,15 @@ impl<'a> Ctx<'a> {
             let gap = self.clearance(fill, CopperObject::Track, self.class(Some(t.net)));
             rings.push(geom::stadium(t.start, t.end, t.width / 2.0 + gap, tol));
         }
-        for h in rel.higher.clone() {
-            let other = self.copper(h, true)?;
+        for h in self.higher(fill) {
+            let other = cut.get(&h).ok_or_else(|| {
+                Error::Invalid(format!(
+                    "fill.order: fill {h} is cleared before it is known"
+                ))
+            })?;
             let net = self.fill(h)?.net;
             let gap = self.clearance(fill, CopperObject::Fill, self.class(net)) + tol;
             let theirs: Vec<Region> = other
-                .regions
                 .iter()
                 .map(|r| {
                     let mut region = vec![r.outer.clone()];
@@ -708,85 +809,30 @@ impl<'a> Ctx<'a> {
             copper = hatch(&copper, &h, tol)?;
         }
 
-        // 5. Islands. One is joined when copper of the fill's net on its
-        // layer touches it, by the copper graph's one joining rule
-        // (`connectivity::islands_joined`), which also joins the fresh
-        // fill's islands on the board.
-        let (unconnected, area_min) = match fill.settings.islands {
-            IslandRemoval::Never => (false, 0.0),
-            IslandRemoval::Unconnected => (true, self.rules.fill.island_area_min),
-            IslandRemoval::BelowArea(a) => (true, a.max(self.rules.fill.island_area_min)),
+        // 5. What is small; what joins nothing is settled with the other
+        // fills of the net (`super::groups`).
+        let area_min = match fill.settings.islands {
+            IslandRemoval::Never => 0.0,
+            IslandRemoval::Unconnected => self.rules.fill.island_area_min,
+            IslandRemoval::BelowArea(a) => a.max(self.rules.fill.island_area_min),
         };
-        let mut connected = vec![false; copper.len()];
-        // A fill without a net has nothing to connect to.
-        let unconnected = match fill_net {
-            Some(net) if unconnected => {
-                let index = RegionIndex::new(&copper);
-                let mut mark = |ring: &CopperRing| {
-                    for r in islands_joined(&index, ring) {
-                        if let Some(flag) = connected.get_mut(r as usize) {
-                            *flag = true;
-                        }
-                    }
-                };
-                for pad in rel.pads.iter().filter_map(|i| self.pads.get(*i)) {
-                    if pad.net == Some(net) && pad.on_copper(fill.layer) {
-                        mark(&CopperRing::of_placed_pad(pad));
-                    }
-                }
-                for v in rel.vias.iter().filter_map(|i| p.vias.get(*i)) {
-                    if v.net == net {
-                        mark(&via_copper(v));
-                    }
-                }
-                for t in rel.tracks.iter().filter_map(|i| p.tracks.get(*i)) {
-                    if t.net == net {
-                        mark(&track_copper(t));
-                    }
-                }
-                true
-            }
-            _ => false,
-        };
-        let mut kept = Vec::new();
-        let mut removed = 0u32;
-        for (i, region) in copper.into_iter().enumerate() {
-            let drop = (unconnected && !connected.get(i).copied().unwrap_or(false))
-                || (area_min > 0.0 && geom::region_area(&region) < area_min);
-            if drop {
-                removed = removed.saturating_add(1);
+        let (mut islands, mut small) = (Vec::new(), Vec::new());
+        for mut region in copper {
+            if region.is_empty() {
                 continue;
             }
-            kept.push(region);
+            small.push(area_min > 0.0 && geom::region_area(&region) < area_min);
+            let outer = region.remove(0);
+            islands.push(FilledRegion {
+                outer,
+                holes: region,
+            });
         }
-        let regions = kept
-            .into_iter()
-            .filter_map(|mut region| {
-                if region.is_empty() {
-                    return None;
-                }
-                let outer = region.remove(0);
-                Some(FilledRegion {
-                    outer,
-                    holes: region,
-                })
-            })
-            .collect();
-        Ok(FilledCopper {
-            key,
-            regions,
-            removed_islands: removed,
+        Ok(Raw {
+            islands,
+            small,
             removed_spokes,
         })
-    }
-}
-
-fn empty(key: String) -> FilledCopper {
-    FilledCopper {
-        key,
-        regions: Vec::new(),
-        removed_islands: 0,
-        removed_spokes: Vec::new(),
     }
 }
 

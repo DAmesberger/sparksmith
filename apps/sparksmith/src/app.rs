@@ -938,6 +938,16 @@ impl App {
                     Some("Started a blank component: Terminal adds its first terminal".to_owned())
                 })
             }
+            request @ part_editor::Request::Discard(_) => {
+                match part_editor::run(&mut self.engine, request) {
+                    Ok(Some(text)) => {
+                        self.part.show_start();
+                        self.say_with(Level::Ok, text, vec![ToastAction::Undo]);
+                        return;
+                    }
+                    other => other,
+                }
+            }
             request => part_editor::run(&mut self.engine, request),
         };
         match result {

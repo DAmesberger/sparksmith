@@ -3,7 +3,9 @@
 //! the persistent lock while recovering or reading either member of the pair.
 use super::{check_design_path, sidecar_path};
 use crate::assembly_link::MAX_LINKED_DESIGN_BYTES;
-use crate::persistence::{atomic_create, atomic_write, atomic_write_with, sync_directory};
+use crate::persistence::{
+    WriteProtected, allow, atomic_create, atomic_write, atomic_write_with, sync_directory,
+};
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use sparksmith_core::ids::ContentHash;
@@ -274,19 +276,37 @@ pub fn put_in_place(
     text: &str,
     expected: &Baseline,
 ) -> Result<()> {
-    put_reviewed_in_place(design, temporary, text, expected, None)
+    put_reviewed_in_place(
+        design,
+        temporary,
+        text,
+        expected,
+        None,
+        WriteProtected::Refuse,
+    )
 }
 
 /// Install the pair only while the assembly approved by the preview still
 /// has its reviewed contents. Both locks are held through journal installation.
+/// Of a write-protected pair, also when only one file is, `protected` decides
+/// before the commit.
 pub fn put_reviewed_in_place(
     design: &Path,
     temporary: &Path,
     text: &str,
     expected: &Baseline,
     assembly: Option<&(PathBuf, ContentHash)>,
+    protected: WriteProtected,
 ) -> Result<()> {
-    put_reviewed_with(design, temporary, text, expected, assembly, &mut |_| Ok(()))
+    put_reviewed_with(
+        design,
+        temporary,
+        text,
+        expected,
+        assembly,
+        protected,
+        &mut |_| Ok(()),
+    )
 }
 
 #[cfg(test)]
@@ -297,7 +317,8 @@ fn put_with(
     expected: &Baseline,
     boundary: &mut impl FnMut(Boundary) -> Result<()>,
 ) -> Result<()> {
-    put_reviewed_with(design, temporary, text, expected, None, boundary)
+    let refuse = WriteProtected::Refuse;
+    put_reviewed_with(design, temporary, text, expected, None, refuse, boundary)
 }
 
 fn put_reviewed_with(
@@ -306,6 +327,7 @@ fn put_reviewed_with(
     text: &str,
     expected: &Baseline,
     assembly: Option<&(PathBuf, ContentHash)>,
+    protected: WriteProtected,
     boundary: &mut impl FnMut(Boundary) -> Result<()>,
 ) -> Result<()> {
     check_design_path(design)?;
@@ -341,6 +363,8 @@ fn put_reviewed_with(
             return Err(Error::Invalid("interface.changed: the candidate would replace a newer or different published revision".into()));
         }
     }
+    let sidecar = sidecar_path(&publication.design);
+    let _allowed = allow(&[&publication.design, &sidecar], protected)?;
     let journal = Journal {
         version: 1,
         design_name: publication

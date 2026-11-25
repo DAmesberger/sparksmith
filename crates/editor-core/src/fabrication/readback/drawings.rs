@@ -98,6 +98,7 @@ fn design(
         }
     }
     fills(r, data, fabrication)?;
+    picked(r, data, fabrication);
     let [min, max] = outline_box(project);
     let (a, b) = (data.bounds.min, data.bounds.max);
     if distance(a, min) > 1e-3 || distance(b, max) > 1e-3 {
@@ -248,6 +249,20 @@ fn fills(r: &mut Reading<'_, '_>, data: &DrawingData, name: &str) -> Fallible<()
         r.say(name, None, &words(note), &words(design.as_ref()));
     }
     Ok(())
+}
+
+/// The note that names the fabricator's stackup the layers were picked from.
+fn picked(r: &mut Reading<'_, '_>, data: &DrawingData, name: &str) {
+    let design = r
+        .project
+        .stackup
+        .picked()
+        .map(|p| format!("Stackup: {} ({}).", p.name, p.id));
+    let note = data.notes.iter().find(|n| n.starts_with("Stackup: "));
+    if note != design.as_ref() {
+        let words = |n: Option<&String>| n.cloned().unwrap_or_else(|| "no stackup named".into());
+        r.say(name, None, &words(note), &words(design.as_ref()));
+    }
 }
 
 /// Every cell of the drill and stackup tables, the title blocks and the

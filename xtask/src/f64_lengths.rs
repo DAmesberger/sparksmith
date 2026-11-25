@@ -402,6 +402,10 @@ const NOT_LENGTHS: &[(&str, &str)] = &[
         COMPUTED,
     ),
     ("model/stackup.rs Dielectric.dk", "a relative permittivity"),
+    (
+        "model/stackup.rs DielectricSheet.dk",
+        "a relative permittivity",
+    ),
 ];
 
 /// Serialized f64 length and rotation fields left for the units

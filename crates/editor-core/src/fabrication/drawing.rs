@@ -411,6 +411,9 @@ fn notes(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Stri
             )
         ),
     ];
+    if let Some(line) = super::order::stackup_line(project) {
+        out.push(format!("{line}."));
+    }
     let table = super::drill::table(&super::drill::holes(project));
     let capped: Vec<String> = table
         .capped()

@@ -139,6 +139,13 @@ fn seeded_faults_are_told_with_the_file_and_the_place() -> Fallible<()> {
     Ok(())
 }
 
+fn swap(f: &mut Files, file: &str, from: &str, to: &str) {
+    for (name, text) in f.iter_mut().filter(|x| x.0.ends_with(file)) {
+        assert!(text.contains(from), "{name} has no {from:?}");
+        *text = text.replacen(from, to, 1);
+    }
+}
+
 /// The proof board with one of its vias filled and capped, under a profile
 /// that fills it by size, with a charge that falls on it and one that does
 /// not.
@@ -174,6 +181,87 @@ fn written(project: &Project) -> Fallible<Files> {
     Ok(files.into_inner())
 }
 
+/// The fabricator's stackup the layers were picked from is named in the
+/// order notes, the job file and the fabrication drawing, the read-back
+/// compares it, and a board whose layers are not its is not named.
+#[test]
+fn a_picked_stackup_is_named_where_the_fabricator_reads() -> Fallible<()> {
+    let mut project = proof::board()?;
+    project.stackup = project.stackup.clone().picked_from("test-4", "TEST-4-7628");
+    let found = told(&project, |_| {})?;
+    assert!(found.is_empty(), "{found:#?}");
+    let files = written(&project)?;
+    let notes = proof::file(&files, "order-notes.txt")?;
+    assert!(
+        notes.contains("\nStackup: TEST-4-7628 (test-4)\n"),
+        "{notes}"
+    );
+    let job = |files: &Files| -> Fallible<String> {
+        let job = files.iter().find(|f| f.0 == "proof.gbrjob");
+        Ok(job.ok_or("no job file")?.1.clone())
+    };
+    assert!(job(&files)?.contains("stackup TEST-4-7628"));
+    let snapshot = ProductionSnapshot::resolve(&project, None)?;
+    let set = fabrication::generate(
+        &snapshot,
+        &FabricationOptions::default(),
+        &Default::default(),
+    )?;
+    let drawing = fabrication::drawing::data(&snapshot, &set.identity, &Default::default())?;
+    assert!(
+        drawing
+            .notes
+            .iter()
+            .any(|n| n == "Stackup: TEST-4-7628 (test-4)."),
+        "{:?}",
+        drawing.notes
+    );
+    for (what, file, from, to) in [
+        (
+            "another name",
+            "order-notes.txt",
+            "TEST-4-7628",
+            "TEST-4-2116",
+        ),
+        (
+            "no name",
+            "order-notes.txt",
+            "Stackup: TEST-4-7628 (test-4)\n",
+            "",
+        ),
+        (
+            "another name in the job file",
+            "proof.gbrjob",
+            "stackup TEST-4-7628",
+            "stackup TEST-4-2116",
+        ),
+    ] {
+        let found = told(&project, |f| swap(f, file, from, to))?;
+        assert!(
+            found.iter().any(|m| m.file.ends_with(file)),
+            "{what}: {found:#?}"
+        );
+    }
+    let found = told(&project, |f| {
+        f.retain(|x| !x.0.ends_with("order-notes.txt"))
+    })?;
+    assert!(!found.is_empty());
+    // Edited layers are not the picked ones, whoever wrote the name.
+    project.stackup.dielectrics[0].thickness_mm += 0.05;
+    let files = written(&project)?;
+    assert!(!files.iter().any(|f| f.0.ends_with("order-notes.txt")));
+    assert!(!job(&files)?.contains("TEST-4"));
+    // A name that should not be there is told.
+    let found = told(&project, |f| {
+        f.push((
+            "proof-order-notes.txt".into(),
+            "ORDER NOTES\nStackup: X (x)\n".into(),
+        ));
+    })?;
+    assert!(!found.is_empty());
+    Ok(())
+}
+
 #[test]
 fn a_filled_via_is_in_every_file_that_tells_the_fabricator() -> Fallible<()> {
     let project = filled()?;
@@ -204,12 +292,6 @@ fn a_filled_via_is_in_every_file_that_tells_the_fabricator() -> Fallible<()> {
 /// Each is red when the check it names is left out of the read-back.
 #[test]
 fn seeded_faults_of_filled_vias_are_told() -> Fallible<()> {
-    fn swap(f: &mut Files, file: &str, from: &str, to: &str) {
-        for (name, text) in f.iter_mut().filter(|x| x.0.ends_with(file)) {
-            assert!(text.contains(from), "{name} has no {from:?}");
-            *text = text.replacen(from, to, 1);
-        }
-    }
     type Seed = fn(&mut Files);
     let faults: [(&str, &str, Seed); 11] = [
         ("VII lost from the filled tool", "plated.drl", |f| {

@@ -6,7 +6,7 @@
 //! canvas ([`crate::pdf`]). A sheet symbol links to its child sheet's page
 //! when that page is printed.
 use crate::pdf::{Align, Colour, Document, Font, Page, Stroke};
-use crate::persistence::atomic_write;
+use crate::persistence::{WriteProtected, atomic_write_over};
 use crate::{Error, Result};
 use sparksmith_core::geometry::{Point, Shape};
 use sparksmith_core::library::{Fill, HAlign, PlacedText};
@@ -234,11 +234,17 @@ pub fn schematic_pdf(project: &Project, sheets: &[SheetId]) -> Result<Vec<u8>> {
     doc.finish()
 }
 
-/// Write [`schematic_pdf`] to `path` atomically; returns the page count.
-pub fn export_schematic_pdf(project: &Project, sheets: &[SheetId], path: &Path) -> Result<usize> {
+/// Write [`schematic_pdf`] to `path` atomically, over a write-protected file
+/// as `protected` says; returns the page count.
+pub fn export_schematic_pdf(
+    project: &Project,
+    sheets: &[SheetId],
+    path: &Path,
+    protected: WriteProtected,
+) -> Result<usize> {
     let pages = selection(project, sheets)?.len();
     let bytes = schematic_pdf(project, sheets)?;
-    atomic_write(path, &bytes)?;
+    atomic_write_over(path, &bytes, protected)?;
     Ok(pages)
 }
 

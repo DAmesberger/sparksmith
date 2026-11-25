@@ -138,6 +138,9 @@ pub(super) struct Review {
     acked: Vec<bool>,
     /// The last request's refusal, in shown words.
     refusal: Option<String>,
+    /// The last publish was refused because a file is write-protected, and
+    /// whether the next one replaces it.
+    replace_protected: Option<bool>,
     /// The body starts at the top on its first frame.
     opening: bool,
 }
@@ -786,10 +789,16 @@ impl PcbEditor {
                 Ok(p) => {
                     review.acked = vec![false; publish_blockers(&p).len()];
                     review.refusal = None;
+                    review.replace_protected = None;
                     *preview = Some(p);
                 }
                 Err(why) => review.refusal = Some(why),
             },
+            (ReviewKind::Publish { publishing, .. }, Done::Protected(why)) => {
+                *publishing = false;
+                review.refusal = Some(why);
+                review.replace_protected = Some(false);
+            }
             (ReviewKind::Publish { publishing, .. }, Done::Published(result)) => {
                 *publishing = false;
                 match result {
@@ -1003,6 +1012,7 @@ impl PcbEditor {
             running: None,
             acked: Vec::new(),
             refusal: None,
+            replace_protected: None,
             opening: true,
         });
         self.preview_publish(ctx, engine);
@@ -1073,6 +1083,7 @@ impl PcbEditor {
             running,
             acked: Vec::new(),
             refusal: None,
+            replace_protected: None,
             opening: true,
         });
     }
@@ -1534,6 +1545,9 @@ impl PcbEditor {
                         );
                         choose = kit::summary_row(ui, &summary, Some("Choose…"));
                     });
+                    if let Some(replace) = &mut review.replace_protected {
+                        kit::check_row(ui, "Replace write-protected files", replace);
+                    }
                 };
                 match (preview.as_ref(), waiting) {
                     (Some(p), false) => {
@@ -1582,6 +1596,9 @@ impl PcbEditor {
                                             .map(|e| e.to_string_lossy().into_owned().into()),
                                         token: p.token.clone(),
                                         write_anyway: false,
+                                        replace_write_protected: review
+                                            .replace_protected
+                                            .unwrap_or_default(),
                                     }));
                                 }
                                 None => choose = true,

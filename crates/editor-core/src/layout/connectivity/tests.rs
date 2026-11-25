@@ -510,6 +510,16 @@ fn filled(project: &mut Project, outline: Outline, settings: FillSettings) -> Re
     Ok(id)
 }
 
+/// Every fill filled again: one added makes those it may join stale.
+fn refill(project: &mut Project) -> Result<()> {
+    for (id, copper) in layout::fill::refill(project, layout::fill::RefillTarget::All)? {
+        if let Some(fill) = project.fills.iter_mut().find(|f| f.id == id) {
+            fill.computed = Some(copper);
+        }
+    }
+    Ok(())
+}
+
 /// The fill's (kept islands, removed islands).
 fn islands(project: &Project, id: Id) -> Option<(usize, u32)> {
     let c = project.fill(id)?.computed.as_ref()?;
@@ -642,6 +652,7 @@ fn pours_of_one_net_join_where_their_copper_meets() -> Result<()> {
             rect(start, 8.0, 24.6, 12.0),
             FillSettings::default(),
         )?;
+        refill(&mut project)?;
         Ok(project)
     };
     // Overlapping, and touching along an edge.
@@ -668,11 +679,7 @@ fn pours_of_one_net_join_where_their_copper_meets() -> Result<()> {
     if let Some(fill) = below.fills.last_mut() {
         fill.layer = Layer::Bottom.into();
     }
-    for (id, copper) in layout::fill::refill(&below, layout::fill::RefillTarget::All)? {
-        if let Some(fill) = below.fills.iter_mut().find(|f| f.id == id) {
-            fill.computed = Some(copper);
-        }
-    }
+    refill(&mut below)?;
     assert_eq!(codes(&connectivity(&below), "board.unrouted").len(), 2);
     // Stale copper still joins nothing.
     let mut stale = pours(17.0)?;
@@ -691,6 +698,7 @@ fn pours_of_one_net_join_where_their_copper_meets() -> Result<()> {
         for outline in outlines {
             filled(&mut project, outline, keep)?;
         }
+        refill(&mut project)?;
         assert_eq!(connectivity(&project), Vec::new());
     }
     // Two pours far from any pad, overlapping: both float.
@@ -700,6 +708,7 @@ fn pours_of_one_net_join_where_their_copper_meets() -> Result<()> {
         filled(&mut floating, rect(14.0, 14.0, 17.0, 16.0), keep)?,
         filled(&mut floating, rect(16.0, 14.0, 19.0, 16.0), keep)?,
     ];
+    refill(&mut floating)?;
     let found = codes(&connectivity(&floating), "fill.island_unconnected");
     let told: Vec<_> = found.iter().flat_map(|f| f.objects.clone()).collect();
     assert_eq!(told, ids.map(|id| ObjectRef::Fill { id }));

@@ -106,8 +106,8 @@ pub(super) fn check(r: &mut Reading<'_, '_>) -> Fallible<()> {
 }
 
 /// The order notes: which tools to fill and to leave open, by the drill
-/// file's own numbers, and the charges the profile states whose every
-/// condition one via meets.
+/// file's own numbers, the charges the profile states whose every condition
+/// one via meets, and the fabricator's stackup the layers were picked from.
 fn order(r: &mut Reading<'_, '_>, holes: &[DesignHole]) {
     let project = r.project;
     let layers = project.stackup.copper.len();
@@ -133,7 +133,11 @@ fn order(r: &mut Reading<'_, '_>, holes: &[DesignHole]) {
     }
     let filled = holes.iter().any(|h| h.capped);
     let name = r.name("order-notes.txt");
-    if !filled && charges.is_empty() {
+    let picked = project
+        .stackup
+        .picked()
+        .map(|p| format!("Stackup: {} ({})", p.name, p.id));
+    if !filled && charges.is_empty() && picked.is_none() {
         // One that is there is told as a file the design has not.
         return;
     }
@@ -143,6 +147,15 @@ fn order(r: &mut Reading<'_, '_>, holes: &[DesignHole]) {
     let release = format!("Release {}", r.identity.revision);
     if !text.lines().any(|l| l == release) {
         r.say(&name, None, "another release", &release);
+    }
+    let named: Vec<&str> = text
+        .lines()
+        .filter(|l| l.starts_with("Stackup: "))
+        .collect();
+    if named != picked.as_deref().into_iter().collect::<Vec<_>>() {
+        let words = |l: Option<&str>| l.unwrap_or("no stackup named").to_owned();
+        let stated = words((!named.is_empty()).then(|| named.join(", ")).as_deref());
+        r.say(&name, None, &stated, &words(picked.as_deref()));
     }
     // The tools of the vias, as the plated drill file numbers them.
     let drill = r

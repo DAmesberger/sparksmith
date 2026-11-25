@@ -98,6 +98,21 @@ fn a_stackup_is_listed_read_taken_and_undone() -> TestResult {
         .collect();
     assert_eq!(board.len(), 1, "{rows}");
     assert_eq!(board[0]["id"], "jlc04161h-7628");
+    // The board keeps its name until a layer is edited.
+    assert_eq!(board[0]["picked"], true, "{rows}");
+    assert_eq!(rows["result"]["result"]["picked"]["id"], "jlc04161h-7628");
+    let mut thicker = serde_json::to_value(&session.engine().project().stackup)?;
+    thicker["dielectrics"][0]["thickness_mm"] = json!(0.22);
+    let edited = apply(&mut session, "Layout", "layout.set_stackup", thicker);
+    assert_eq!(edited["ok"], true, "{edited}");
+    let rows = query(&mut session, json!({"board_mm": 1.6}));
+    assert_eq!(rows["result"]["result"].get("picked"), None, "{rows}");
+    let revision = session.engine().revision();
+    let undone = session.dispatch(json!({"command": "project.undo", "params": {
+        "expected_revision": revision}}));
+    assert_eq!(undone["ok"], true, "{undone}");
+    let rows = query(&mut session, json!({"board_mm": 1.6}));
+    assert_eq!(rows["result"]["result"]["picked"]["id"], "jlc04161h-7628");
 
     let revision = session.engine().revision();
     let undone = session.dispatch(json!({"command": "project.undo", "params": {
