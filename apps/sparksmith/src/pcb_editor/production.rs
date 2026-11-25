@@ -457,12 +457,16 @@ impl ProductionDialog {
                     .save_file(),
             ),
         };
+        let saves = matches!(self.format, Format::Zip);
         let (sender, receiver) = std::sync::mpsc::channel();
         let repaint = ctx.clone();
         let spawned = std::thread::Builder::new()
             .name("sparksmith-production-picker".into())
             .spawn(sparksmith_core::library::standards::carried(move || {
-                let picked = pollster::block_on(future).map(|f| f.path().to_path_buf());
+                let mut picked = pollster::block_on(future).map(|f| f.path().to_path_buf());
+                if saves {
+                    picked = picked.map(crate::file_ui::chosen);
+                }
                 let _ = sender.send(picked);
                 repaint.request_repaint();
             }));

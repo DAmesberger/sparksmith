@@ -673,6 +673,56 @@ fn a_save_another_program_blocks_is_tried_again() -> Fallible {
     Ok(())
 }
 
+/// GUI run 2, R2-G3: a file another program has locked is not waited for:
+/// the save ends at once with the dialog, and Try again saves it once the
+/// lock is gone.
+#[cfg(unix)]
+#[test]
+fn a_locked_file_is_said_at_once() -> Fallible {
+    let mut h = Harness::new()?;
+    let path = h.dir.path().join("locked.sparksmith");
+    sparksmith_io::write_project(&path, &h.engine.to_file())?;
+    let (_, identity) = sparksmith_io::open_project(&path)?;
+    h.files
+        .adopt(&h.engine, Some(path.clone()), Some(identity), false)?;
+    h.edit("Locked")?;
+    let holder = std::fs::File::open(&path)?;
+    holder.lock()?;
+    h.files.request(Action::Save);
+    h.until("the refusal", |h| h.files.in_use.is_some())?;
+    assert!(!h.files.saving() && h.files.dirty());
+    assert_eq!(h.files.activity(), None);
+    drop(holder);
+    h.shown();
+    h.click("Try again")?;
+    h.until("the write", |h| !h.files.busy())?;
+    assert_eq!(sparksmith_io::read_project(&path)?.project.name, "Locked");
+    assert!(!h.dir.path().join("locked (unsaved 1).sparksmith").exists());
+    Ok(())
+}
+
+/// GUI run 1, F20, and run 2, R2-G1: a name typed with its extension over a
+/// save panel's proposal has it once; a file that exists is never taken
+/// for the one the panel asked about.
+#[test]
+fn a_chosen_file_has_its_extension_once() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let chosen = |name: &str| chosen(dir.path().join(name));
+    let at = |name: &str| dir.path().join(name);
+    assert_eq!(chosen("a.sparksmith.sparksmith"), at("a.sparksmith"));
+    assert_eq!(chosen("a.solidcraft.SOLIDCRAFT"), at("a.solidcraft"));
+    for kept in ["a.sparksmith", "a.b.sparksmith", "a", ".sparksmith"] {
+        assert_eq!(chosen(kept), at(kept));
+    }
+    std::fs::write(at("b.sparksmith"), b"")?;
+    let twice = "b.sparksmith.sparksmith";
+    assert_eq!(chosen(twice), at(twice), "not replaced unasked");
+    std::fs::write(at("c.sparksmith.sparksmith"), b"")?;
+    let twice = "c.sparksmith.sparksmith";
+    assert_eq!(chosen(twice), at(twice), "the file the panel asked about");
+    Ok(())
+}
+
 /// E2E run 6, finding 4: a save into a folder whose sync the system
 /// refuses (macOS Documents; here a folder that may be written but not
 /// opened) is a save: the project is no longer unsaved, the status says
@@ -722,21 +772,17 @@ fn a_save_says_it_runs_until_it_is_written() -> Fallible {
     h.files.request(Action::Save);
     assert!(h.files.saving());
     // E2E run 10, finding 4: a save the system holds past a few seconds
-    // says what it may wait for. The worker's answer is not read yet, so
-    // the save is still running at these times.
+    // says so and names the file, and guesses at a permission prompt only
+    // where there are any. The worker's answer is not read yet, so the save
+    // is still running at these times.
     let (text, wake) = h.files.activity().ok_or("no activity while saving")?;
     assert_eq!(text, "Saving\u{2026}");
     assert!(wake.is_some_and(|w| w <= Duration::from_secs(3)));
-    let folder = h.dir.path().file_name().ok_or("no folder name")?;
     h.files.observe(&h.engine, 3.5);
     let (text, wake) = h.files.activity().ok_or("no activity while saving")?;
-    assert_eq!(
-        text,
-        format!(
-            "Saving\u{2026} waiting for access to {}: check for a system permission prompt",
-            folder.to_string_lossy()
-        )
-    );
+    let said = "Saving\u{2026} the system has not finished with board.sparksmith yet";
+    assert!(text.starts_with(said), "{text}");
+    assert_eq!(text.contains("permission"), cfg!(target_os = "macos"));
     assert_eq!(wake, None);
     h.until("the write", |h| !h.files.saving())?;
     assert_eq!(h.files.activity(), None);

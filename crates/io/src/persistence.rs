@@ -1,7 +1,8 @@
 //! Project files on disk. A project is a ZIP container (see [`container`]).
 //! Writes are atomic: a failed save leaves any existing file untouched and
-//! no temporary file behind. A save Windows refuses because another program
-//! has the file open keeps its version in a copy beside it (`unsaved`).
+//! no temporary file behind. A save refused because another program has the
+//! file locked (on Windows: open) is not waited for and keeps its version in
+//! a copy beside it (`unsaved`).
 use crate::{Error, Result};
 use sparksmith_core::format::{self, EditorFile, MAX_FILE_BYTES};
 use sparksmith_core::{Document, FirstSave};
@@ -169,7 +170,7 @@ pub struct SavedDocument {
 /// nothing, and neither does one that found the file changed: the version
 /// kept beside it holds `document` as it was, to be named and identified
 /// by its own file at the next save. Refused because another program has
-/// the file open ([`Error::InUse`]), `document` is kept in its one copy,
+/// the file open or locked ([`Error::InUse`]), `document` is kept in its one copy,
 /// over the `copy` an earlier refused save made; saved, that is removed.
 pub fn save_document(
     path: &Path,
@@ -248,10 +249,14 @@ pub(crate) fn identity_of(file: &mut File) -> Result<DiskIdentity> {
     )))
 }
 
+/// What a save that finds the file's lock taken says.
+pub(crate) const HELD: &str = "another window or program is saving it or has it locked";
+
 /// Publish the finished `temporary` at `path` as one step among writers
 /// that save through here: the file at `path` is locked, checked against
 /// `expected` and replaced while the lock is held, so two saves of one
-/// file cannot both pass the check. On a mismatch the temporary file is
+/// file cannot both pass the check. A lock somebody else has is not waited
+/// for ([`Error::InUse`]). On a mismatch the temporary file is
 /// published beside `path` instead ([`Conflict`]).
 #[cfg(not(windows))]
 pub(crate) fn replace_checked(
@@ -282,7 +287,11 @@ pub(crate) fn replace_checked(
             }
             Err(error) => return Err(error.into()),
         };
-        current.lock()?;
+        match current.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => return Err(InUse::refused(path, HELD)),
+            Err(std::fs::TryLockError::Error(error)) => return Err(error.into()),
+        }
         if !still_at(&current, path)? {
             // Another writer renamed a new file over the one we locked.
             continue;
