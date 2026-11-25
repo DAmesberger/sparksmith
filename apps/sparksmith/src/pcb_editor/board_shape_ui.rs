@@ -153,9 +153,12 @@ pub(super) struct ParamRows {
     /// The stored expressions the rows show.
     stored: std::collections::BTreeMap<ParamName, String>,
     exprs: std::collections::BTreeMap<ParamName, String>,
-    adding: bool,
-    new_name: String,
-    new_expr: String,
+    pub(super) adding: bool,
+    /// The added parameter sent; its row stays, with its text, until the
+    /// board has it.
+    add_sent: Option<ParamName>,
+    pub(super) new_name: String,
+    pub(super) new_expr: String,
     /// A refused row (`None`: the add row) and why.
     error: Option<(Option<ParamName>, String)>,
     /// A parameter whose committed value the engine refused: the row went
@@ -1258,23 +1261,26 @@ impl PcbEditor {
             .and_then(|l| l.report.as_ref())
             .map_or_else(|| "Not solved".to_owned(), dims::status_text);
         kit::value_row(ui, "Sketch", &status);
-        // Advisory while the shape is being drawn; an error elsewhere.
-        if let Some(fault) = &board.fault {
-            let state = match fault.kind {
-                ShapeFaultKind::Open => "Open",
-                ShapeFaultKind::Invalid => "Not one board",
-            };
-            kit::value_row(ui, "Outline", state);
-            kit::note(
-                ui,
-                &format!("{} The board keeps its last shape.", fault.message),
-            );
-        }
+        // Always one row, with the reason under the lists: an outline that
+        // opens while a value below is typed moves no row. Advisory while
+        // the shape is being drawn; an error elsewhere.
+        let state = match board.fault.as_ref().map(|f| f.kind) {
+            None => "Closed",
+            Some(ShapeFaultKind::Open) => "Open",
+            Some(ShapeFaultKind::Invalid) => "Not one board",
+        };
+        kit::value_row(ui, "Outline", state);
         if let Some(op) = self.parameters_section(ui, board, true) {
             operation = Some(op);
         }
         if let Some(op) = self.edges_section(ui, project, board) {
             operation = Some(op);
+        }
+        if let Some(fault) = &board.fault {
+            kit::note(
+                ui,
+                &format!("{} The board keeps its last shape.", fault.message),
+            );
         }
         operation
     }
@@ -1536,11 +1542,23 @@ impl PcbEditor {
                 .iter()
                 .map(|p| (p.name.clone(), p.expr.0.clone()))
                 .collect();
-            // Text still typed over a value that stays is kept.
+            // What is typed stays until it is committed or dropped,
+            // whatever came in meanwhile (another row's result, an undo).
+            rows.editing = rows.editing.take().filter(|(n, _)| stored.contains_key(n));
             let typed = rows.editing.as_ref().map(|(n, _)| n.clone());
-            let typed =
-                typed.filter(|n| rows.error.is_none() && rows.stored.get(n) == stored.get(n));
-            let typed = typed.and_then(|n| Some((n.clone(), rows.exprs.remove(&n)?)));
+            let typed = typed.and_then(|n| {
+                let text = rows.exprs.remove(&n)?;
+                (rows.stored.get(&n) != Some(&text)).then_some((n, text))
+            });
+            if rows
+                .add_sent
+                .take_if(|n| stored.contains_key(&*n))
+                .is_some()
+            {
+                rows.adding = false;
+                rows.new_name.clear();
+                rows.new_expr.clear();
+            }
             rows.exprs = stored.clone();
             rows.exprs.extend(typed);
             rows.stored = stored;
@@ -1639,6 +1657,10 @@ impl PcbEditor {
                     editing: editing.is_some(),
                     click_edits: true,
                     error: why.as_ref().map(|(key, text)| (*key, text.as_str())),
+                    error_last: editing.as_ref().is_some_and(|n| {
+                        let key = list::RowKey::of(("board-param", &n.0));
+                        why.as_ref().is_some_and(|(k, _)| *k != key)
+                    }),
                     ..list::ListView::new(
                         list_id,
                         "Board parameters",
@@ -1689,78 +1711,99 @@ impl PcbEditor {
                     }]));
                     sent = Some(Some(param.name.clone()));
                 }
-                for effect in &out.effects {
-                    match effect {
-                        list::Effect::Activate(k) => {
-                            if let Some(p) = at(k) {
-                                rows.exprs.insert(p.name.clone(), p.expr.0.clone());
-                                rows.editing = Some((p.name.clone(), true));
-                                rows.error = None;
+                // The value being edited, in its row: first, so one left for
+                // another row commits before that row's editor opens.
+                let mut drawn = None;
+                let none: &[list::Effect] = &[];
+                for effects in [none, out.effects.as_slice()] {
+                    for effect in effects {
+                        match effect {
+                            list::Effect::Activate(k) => {
+                                if let Some(p) = at(k) {
+                                    // A row left with a text that does not read is
+                                    // back at its stored value, and says why.
+                                    if let Some((Some(left), why)) = rows.error.take()
+                                        && left != p.name
+                                    {
+                                        if let Some(stored) = rows.stored.get(&left) {
+                                            rows.exprs.insert(left.clone(), stored.clone());
+                                        }
+                                        rows.refused = Some((left, why, document));
+                                    }
+                                    rows.exprs.insert(p.name.clone(), p.expr.0.clone());
+                                    rows.editing = Some((p.name.clone(), true));
+                                }
                             }
-                        }
-                        list::Effect::CancelEdit => {
-                            rows.editing = None;
-                            rows.error = None;
-                        }
-                        _ => {}
-                    }
-                }
-                // The value being edited, in its row.
-                if let Some((name, start)) = rows.editing.clone()
-                    && let Some(param) = board.parameters.iter().find(|p| p.name == name)
-                    && let Some((_, rect)) = out
-                        .value_rects
-                        .iter()
-                        .find(|(k, _)| *k == list::RowKey::of(("board-param", &name.0)))
-                    && let Some(text) = rows.exprs.get_mut(&name)
-                {
-                    let failed = rows
-                        .error
-                        .as_ref()
-                        .is_some_and(|(n, _)| n.as_ref() == Some(&name));
-                    let mut start = start;
-                    let edit = list::edit::field(
-                        ui,
-                        list_id.with(&name.0),
-                        *rect,
-                        text,
-                        failed,
-                        &mut start,
-                        &name.0,
-                    );
-                    if let Some(e) = &mut rows.editing {
-                        e.1 = start;
-                    }
-                    if edit != list::edit::Edit::Open {
-                        // The rows take the keyboard back.
-                        view.request_focus(ui.ctx());
-                    }
-                    match edit {
-                        list::edit::Edit::Open => {}
-                        list::edit::Edit::Cancel => {
-                            rows.editing = None;
-                            rows.error = None;
-                        }
-                        list::edit::Edit::Commit | list::edit::Edit::CommitNext => {
-                            if text.trim() == param.expr.0 {
+                            list::Effect::CancelEdit => {
                                 rows.editing = None;
                                 rows.error = None;
-                            } else {
-                                match shape::parameter_edit(board, &param.name, text, param.unit) {
-                                    Ok(edit) => {
-                                        operation = Some(shape::operation(vec![edit]));
-                                        sent = Some(Some(param.name.clone()));
-                                        list::motion::start_flash(
-                                            ui.ctx(),
-                                            list_id,
-                                            list::RowKey::of(("board-param", &name.0)),
-                                        );
-                                        rows.error = None;
-                                        rows.editing = None;
-                                    }
-                                    Err(why) => {
-                                        rows.error = Some((Some(param.name.clone()), why));
-                                        rows.editing = Some((name.clone(), true));
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let Some((name, start)) = rows.editing.clone()
+                        && drawn.as_ref() != Some(&name)
+                        && let Some(param) = board.parameters.iter().find(|p| p.name == name)
+                        && let Some((_, rect)) = out
+                            .value_rects
+                            .iter()
+                            .find(|(k, _)| *k == list::RowKey::of(("board-param", &name.0)))
+                        && let Some(text) = rows.exprs.get_mut(&name)
+                    {
+                        drawn = Some(name.clone());
+                        let failed = rows
+                            .error
+                            .as_ref()
+                            .is_some_and(|(n, _)| n.as_ref() == Some(&name));
+                        let mut start = start;
+                        let edit = list::edit::field(
+                            ui,
+                            list_id.with(&name.0),
+                            *rect,
+                            text,
+                            failed,
+                            &mut start,
+                            &name.0,
+                        );
+                        if let Some(e) = &mut rows.editing {
+                            e.1 = start;
+                        }
+                        if edit != list::edit::Edit::Open {
+                            // The rows take the keyboard back.
+                            view.request_focus(ui.ctx());
+                        }
+                        match edit {
+                            list::edit::Edit::Open => {}
+                            list::edit::Edit::Cancel => {
+                                rows.editing = None;
+                                rows.error = None;
+                            }
+                            list::edit::Edit::Commit | list::edit::Edit::CommitNext => {
+                                if text.trim() == param.expr.0 {
+                                    rows.editing = None;
+                                    rows.error = None;
+                                } else {
+                                    match shape::parameter_edit(
+                                        board,
+                                        &param.name,
+                                        text,
+                                        param.unit,
+                                    ) {
+                                        Ok(edit) => {
+                                            operation = Some(shape::operation(vec![edit]));
+                                            sent = Some(Some(param.name.clone()));
+                                            list::motion::start_flash(
+                                                ui.ctx(),
+                                                list_id,
+                                                list::RowKey::of(("board-param", &name.0)),
+                                            );
+                                            rows.error = None;
+                                            rows.editing = None;
+                                        }
+                                        Err(why) => {
+                                            rows.error = Some((Some(param.name.clone()), why));
+                                            rows.editing = Some((name.clone(), true));
+                                        }
                                     }
                                 }
                             }
@@ -1803,6 +1846,7 @@ impl PcbEditor {
                                         operation = Some(shape::operation(vec![edit]));
                                         sent = Some(None);
                                         rows.error = None;
+                                        rows.add_sent = Some(name);
                                     }
                                     Err(why) => rows.error = Some((None, why)),
                                 }
@@ -1814,6 +1858,7 @@ impl PcbEditor {
                     });
                     if cancel {
                         rows.adding = false;
+                        rows.add_sent = None;
                         rows.new_name.clear();
                         rows.new_expr.clear();
                         rows.error = None;
@@ -1825,11 +1870,6 @@ impl PcbEditor {
         );
         if let Some(row) = sent {
             refusal::mark(ui.ctx(), Origin::Field(field_id(row.as_ref())));
-            if row.is_none() {
-                rows.adding = false;
-                rows.new_name.clear();
-                rows.new_expr.clear();
-            }
             rows.sent = Some(row);
         }
         operation
@@ -1930,16 +1970,22 @@ impl PcbEditor {
                 // row reloads it, and the reason shows in full.
                 Some(name) => {
                     rows.refused = Some((name.clone(), text, self.shape.document));
-                    if rows
-                        .error
-                        .as_ref()
-                        .is_some_and(|(n, _)| n.as_ref() == Some(&name))
+                    // It is about the value sent, not about one typed since.
+                    let typing = rows.editing.as_ref().is_some_and(|(n, _)| *n == name);
+                    if !typing
+                        && rows
+                            .error
+                            .as_ref()
+                            .is_some_and(|(n, _)| n.as_ref() == Some(&name))
                     {
                         rows.error = None;
                     }
                     rows.key = None;
                 }
-                None => rows.error = Some((None, text)),
+                None => {
+                    rows.add_sent = None;
+                    rows.error = Some((None, text));
+                }
             }
             rows.sent = None;
         }

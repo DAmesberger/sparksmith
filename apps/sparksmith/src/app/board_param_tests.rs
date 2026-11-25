@@ -376,3 +376,221 @@ fn the_constrain_group_fits_an_ordinary_window() -> Fallible {
     assert!(shown("Constrain") && shown("Constraints"), "{:?}", ax.seen);
     Ok(())
 }
+
+fn expr(ax: &Ax, name: &str) -> Fallible<String> {
+    let board = board(ax)?;
+    let p = board.parameters.iter().find(|p| p.name.0 == name);
+    Ok(p.ok_or("no such parameter")?.expr.0.clone())
+}
+
+/// On the value of the `name` row.
+fn value_of(ax: &Ax, name: &str) -> Fallible<egui::Pos2> {
+    let row = ax.find_prefix(Role::ListBoxOption, name)?.rect;
+    Ok(egui::pos2(row.right() - 30.0, row.center().y))
+}
+
+/// A click at `at`, as the window sends it.
+fn clicked(at: egui::Pos2) -> Vec<egui::Event> {
+    let button = |pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    vec![egui::Event::PointerMoved(at), button(true), button(false)]
+}
+
+/// `text` typed key by key, as the window sends it.
+fn typed(text: &str) -> Vec<egui::Event> {
+    text.chars()
+        .flat_map(|c| {
+            let key = Key::from_name(&c.to_string()).map(pressed);
+            key.into_iter()
+                .chain([egui::Event::Text(c.to_string())])
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn pressed(key: Key) -> egui::Event {
+    egui::Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    }
+}
+
+/// A whole number near the `name` parameter's, that the board takes.
+fn near(ax: &Ax, axis: usize) -> String {
+    format!("{:.0}", ax.app.engine.project().board_size[axis] + 2.0)
+}
+
+/// GUI run 2, R2-D1: a click on a value and what is typed after it, all in
+/// the frame after a long one, reach the value's editor whole.
+#[test]
+fn a_value_typed_straight_after_its_click_keeps_every_digit() -> Fallible {
+    let mut ax = sketched()?;
+    // Where the value is: one click there opens its editor.
+    let at = value_of(&ax, "height")?;
+    ax.click_at(at);
+    assert!(ax.ctx.text_edit_focused(), "{}", ax.dump());
+    ax.key(Key::Escape);
+    ax.settle();
+    let (wide, high) = (near(&ax, 0), near(&ax, 1));
+    let mut all = clicked(value_of(&ax, "width")?);
+    all.extend(typed(&wide));
+    all.push(pressed(Key::Enter));
+    all.extend(clicked(value_of(&ax, "height")?));
+    all.extend(typed(&high));
+    all.push(pressed(Key::Enter));
+    ax.late(all);
+    ax.settle();
+    assert_eq!(expr(&ax, "width")?, format!("{wide} mm"));
+    assert_eq!(expr(&ax, "height")?, format!("{high} mm"));
+    Ok(())
+}
+
+/// Opening another row's value commits the one being typed.
+#[test]
+fn opening_another_value_commits_the_one_typed() -> Fallible {
+    let mut ax = sketched()?;
+    let wide = near(&ax, 0);
+    retype(&mut ax, "width", &wide)?;
+    let at = value_of(&ax, "height")?;
+    // A click within one frame.
+    ax.frame(clicked(at));
+    ax.settle();
+    assert_eq!(expr(&ax, "width")?, format!("{wide} mm"));
+    assert!(ax.ctx.text_edit_focused(), "height's editor is open");
+    let high = near(&ax, 1);
+    ax.frame(typed(&high));
+    ax.key(Key::Enter);
+    ax.settle();
+    assert_eq!(expr(&ax, "height")?, format!("{high} mm"));
+    Ok(())
+}
+
+fn set(name: &str, expr: &str) -> sparksmith_core::layout::outline::BoardEdit {
+    use sparksmith_core::library::footprint_source::{Expr, FootprintParam, ParamName, ParamUnit};
+    sparksmith_core::layout::outline::BoardEdit::SetParameter {
+        param: FootprintParam {
+            name: ParamName(name.into()),
+            expr: Expr(expr.into()),
+            unit: ParamUnit::Mm,
+            comment: String::new(),
+        },
+    }
+}
+
+/// What is typed stays when the parameter itself, or any other, changes
+/// meanwhile (an agent's edit, an undo), and with a reason shown.
+#[test]
+fn a_typed_value_outlives_every_other_edit() -> Fallible {
+    let mut ax = sketched()?;
+    let here = |ax: &Ax, text: &str| {
+        assert!(ax.ctx.text_edit_focused(), "{text}: the keyboard is lost");
+        assert!(ax.texts.iter().any(|t| t == text), "{text}: {:?}", ax.texts);
+    };
+    let wide = near(&ax, 0);
+    retype(&mut ax, "width", &wide)?;
+    let other = format!("{:.0} mm", ax.app.engine.project().board_size[0] + 4.0);
+    edit(&mut ax, vec![set("width", &other)])?;
+    here(&ax, &wide);
+    // A text that does not read, with its reason under the row.
+    ax.key_with(Key::A, Modifiers::COMMAND);
+    ax.type_text("1 x = 2");
+    ax.key(Key::Enter);
+    ax.settle();
+    here(&ax, "1 x = 2");
+    edit(&mut ax, vec![set("spare", "3 mm")])?;
+    here(&ax, "1 x = 2");
+    assert_eq!(expr(&ax, "width")?, other);
+    ax.key(Key::Escape);
+    ax.settle();
+    assert_eq!(expr(&ax, "width")?, other);
+    Ok(())
+}
+
+/// GUI run 2, R2-D2: an outline that stops being one board while a value is
+/// typed moves no row.
+#[test]
+fn an_outline_fault_moves_no_row_while_a_value_is_typed() -> Fallible {
+    use sparksmith_core::library::footprint_source::SketchRef;
+    let mut ax = sketched()?;
+    ax.window = egui::vec2(1380.0, 1200.0);
+    let _ = ax.app.pcb.on_tool("board-shape", &ax.app.engine);
+    ax.settle();
+    let high = near(&ax, 1);
+    retype(&mut ax, "height", &high)?;
+    ax.settle();
+    let row = ax.find_prefix(Role::ListBoxOption, "height")?.rect;
+    let before = board(&ax)?;
+    let left = before.edges.iter().find(|e| e.name.0 == "left");
+    let left = SketchRef::Curve(left.ok_or("no left edge")?.curve.clone());
+    let cut = crate::pcb_editor::board_shape::delete_edits(&before, &[left]);
+    edit(&mut ax, cut)?;
+    ax.settle();
+    assert!(board(&ax)?.fault.is_some(), "the outline is open");
+    let says = "The board keeps its last shape.";
+    assert!(ax.texts.iter().any(|t| t.contains(says)), "{:?}", ax.texts);
+    assert_eq!(ax.find_prefix(Role::ListBoxOption, "height")?.rect, row);
+    assert!(ax.ctx.text_edit_focused());
+    assert!(ax.texts.contains(&high), "{:?}", ax.texts);
+    Ok(())
+}
+
+/// GUI run 2, R2-E1: Rotate 90° on a part its dimensions hold turns it, or
+/// says why and goes on saying it.
+#[test]
+fn rotate_on_a_held_part_turns_it_or_says_why() -> Fallible {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
+    let engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    let j1 = engine.project().instance_by_designator("J1");
+    let j1 = j1.map(|i| i.id).ok_or("no J1")?;
+    let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
+    ax.window = egui::vec2(1380.0, 1200.0);
+    ax.app.pcb.set_selection(Some(j1), None, None);
+    ax.settle();
+    let turn = |ax: &Ax| {
+        let p = ax.app.engine.project().placement_of(j1);
+        p.map(|p| (p.position, p.rotation_deg, p.layer))
+            .ok_or("not placed")
+    };
+    let (position, rotation_deg, layer) = turn(&ax)?;
+    let mut fork = ax.app.engine.fork();
+    let refused = fork.apply_hosted(
+        fork.revision(),
+        Operation::Layout(sparksmith_core::layout::LayoutCommand::Move {
+            instance: j1,
+            position,
+            rotation_deg: rotation_deg + 90.0,
+            layer,
+        }),
+        sparksmith_core::Evaluators {
+            footprint: None,
+            board: crate::pcb_editor::board_shape::host_evaluator(),
+        },
+    );
+    ax.button("Rotate 90°")?;
+    // Past the time a toast shows.
+    for _ in 0..80 {
+        ax.frame(vec![]);
+    }
+    match refused {
+        Ok(_) => assert_ne!(turn(&ax)?.1, rotation_deg, "it turned"),
+        Err(error) => {
+            assert_eq!(turn(&ax)?.1, rotation_deg);
+            let why = crate::refusal::shown_error(&error);
+            assert!(
+                ax.texts.iter().any(|t| t.contains(&why)),
+                "{why}: {:?}",
+                ax.texts
+            );
+        }
+    }
+    Ok(())
+}

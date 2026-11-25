@@ -2089,3 +2089,55 @@ fn constraint_picks_take_free_form_curves() -> Fallible {
     ));
     Ok(())
 }
+
+/// GUI run 2, R2-A1: the very constraint that is there already is refused
+/// by its name.
+#[test]
+fn a_constraint_there_already_is_refused_by_name() -> Fallible {
+    let mut d = Drawn::new()?;
+    let (a, b) = (d.at(0.3, 0.3), d.at(0.6, 0.33));
+    let line = guide(&mut d, a, b)?;
+    let at = middle(&d, &line)?;
+    let tool = ShapeTool::Constrain(GeomConstraint::Horizontal);
+    d.editor.shape.arm(tool);
+    d.hover(at);
+    let op = d.click(at);
+    d.apply(op)?;
+    let board = d.board()?;
+    let view = scene_view(&board)?;
+    let scene = Scene {
+        board: &board,
+        view: &view,
+        evaluator: host_evaluator().ok_or("no evaluator")?,
+        tolerance: 0.5,
+    };
+    let at = middle(&d, &line)?;
+    let options = ShapeOptions::default();
+    let Err(why) = press(tool, &options, &mut Gesture::default(), at, &scene) else {
+        return Err("taken".into());
+    };
+    let why = refusal::shown_error(&why);
+    assert!(why.starts_with("Horizontal already sets this"), "{why}");
+    Ok(())
+}
+
+/// A new parameter's name and expression stay in the add row until the
+/// board has it (a refusal then shows under them).
+#[test]
+fn a_new_parameter_keeps_its_text_until_the_board_has_it() -> Fallible {
+    let mut d = Drawn::new()?;
+    let params = &mut d.editor.shape.params;
+    params.adding = true;
+    params.new_name = "gap".into();
+    params.new_expr = "2 mm".into();
+    slot(&mut d.editor, &d.engine, &d.ctx, vec![]);
+    let op = click_text(&mut d.editor, &d.engine, &d.ctx, "Add")?;
+    let params = &d.editor.shape.params;
+    assert!(params.adding, "sent, not answered");
+    assert_eq!((&*params.new_name, &*params.new_expr), ("gap", "2 mm"));
+    d.apply(op)?;
+    slot(&mut d.editor, &d.engine, &d.ctx, vec![]);
+    let params = &d.editor.shape.params;
+    assert!(!params.adding && params.new_name.is_empty());
+    Ok(())
+}

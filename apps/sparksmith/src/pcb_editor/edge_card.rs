@@ -464,13 +464,13 @@ impl PcbEditor {
             self.edge.editing = None;
         }
         if fresh || shown.is_none_or(|k| k.1 != dims) {
-            // The value being typed stays while the one it replaces does.
-            let same = |id: Id| {
-                let of = |d: &[PartDimension]| d.iter().find(|d| d.id == id).cloned();
-                shown.is_some_and(|k| of(&k.1) == of(&dims))
-            };
-            let typed = self.edge.editing.as_ref();
-            let keep = self.edge.error.is_none() && typed.is_some_and(|e| same(e.0));
+            // What is typed stays until it is committed or dropped, whatever
+            // came in meanwhile; an editor only opened shows the new value.
+            let of = |d: &[PartDimension], id: Id| d.iter().find(|d| d.id == id).cloned();
+            let keep = self.edge.editing.as_ref().is_some_and(|(id, text, _)| {
+                let (old, new) = (shown.and_then(|k| of(&k.1, *id)), of(&dims, *id));
+                new.is_some() && (old == new || old.is_some_and(|d| *text != value_text(&d)))
+            });
             self.edge.key = Some((placement.instance, dims.clone()));
             // They changed (an edit applied, an undo): no earlier
             // text's error stands. A refused edit leaves them as they
@@ -577,6 +577,8 @@ impl PcbEditor {
                     editing: editing.is_some(),
                     click_edits: true,
                     error: why.as_ref().map(|(key, text)| (*key, text.as_str())),
+                    error_last: editing
+                        .is_some_and(|e| why.as_ref().is_some_and(|(k, _)| *k != row_key(e))),
                     ..ListView::new(
                         id,
                         "Dimensions",
@@ -608,44 +610,6 @@ impl PcbEditor {
                     list::row::paint(ui, cx.id, rect, &row, &cols)
                 });
                 let at = |k: &RowKey| keys.iter().position(|x| x == k);
-                for effect in &out.effects {
-                    match effect {
-                        Effect::Selected => {
-                            select = Some(
-                                out.state
-                                    .selection
-                                    .iter()
-                                    .next()
-                                    .and_then(&at)
-                                    .and_then(|i| dims.get(i))
-                                    .map(|d| d.id),
-                            );
-                        }
-                        Effect::Activate(k) => {
-                            if let Some(d) = at(k).and_then(|i| dims.get(i))
-                                && !(d.reference || d.value.is_none())
-                            {
-                                select = Some(Some(d.id));
-                                self.edge.editing = Some((d.id, value_text(d), true));
-                            }
-                        }
-                        Effect::CancelEdit => {
-                            self.edge.editing = None;
-                            self.edge.error = None;
-                        }
-                        Effect::Delete(gone) => {
-                            if let Some(d) = gone.first().and_then(at).and_then(|i| dims.get(i)) {
-                                operation = Some(delete(ui.ctx(), d.id));
-                            }
-                        }
-                        Effect::Reorder(k, by) => {
-                            if let Some(from) = at(k) {
-                                operation = reorder(&dims, from, *by);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
                 for (k, _) in &out.actions {
                     if let Some(d) = at(k).and_then(|i| dims.get(i)) {
                         operation = Some(delete(ui.ctx(), d.id));
@@ -656,71 +620,123 @@ impl PcbEditor {
                     .and_then(|k| at(&k))
                     .and_then(|i| dims.get(i))
                     .map(|d| (d.id, ui.ctx().cumulative_frame_nr()));
-                // The value being edited, in its row.
-                if let Some((dim, text, start)) = &mut self.edge.editing
-                    && let Some((_, rect)) =
-                        out.value_rects.iter().find(|(k, _)| *k == row_key(*dim))
-                {
-                    let invalid = self.edge.error.as_ref().is_some_and(|(e, _)| e == dim);
-                    let label = dims
-                        .iter()
-                        .position(|d| d.id == *dim)
-                        .and_then(|i| joined.get(i))
-                        .cloned()
-                        .unwrap_or_default();
-                    let edit =
-                        list::edit::field(ui, id.with(*dim), *rect, text, invalid, start, &label);
-                    if edit != list::edit::Edit::Open {
-                        // The rows take the keyboard back.
-                        view.request_focus(ui.ctx());
-                    }
-                    let d = dims.iter().find(|d| d.id == *dim);
-                    match (edit, d) {
-                        (list::edit::Edit::Cancel, _) | (_, None) => {
-                            self.edge.editing = None;
-                            self.edge.error = None;
-                        }
-                        (list::edit::Edit::Open, _) => {}
-                        (commit, Some(d)) => {
-                            let text = text.clone();
-                            if text.trim() == value_text(d) {
+                // The value being edited, in its row: first, so one left for
+                // another row commits before that row's editor opens.
+                let mut drawn = None;
+                let none: &[Effect] = &[];
+                for effects in [none, out.effects.as_slice()] {
+                    for effect in effects {
+                        match effect {
+                            Effect::Selected => {
+                                select = Some(
+                                    out.state
+                                        .selection
+                                        .iter()
+                                        .next()
+                                        .and_then(&at)
+                                        .and_then(|i| dims.get(i))
+                                        .map(|d| d.id),
+                                );
+                            }
+                            Effect::Activate(k) => {
+                                if let Some(d) = at(k).and_then(|i| dims.get(i))
+                                    && !(d.reference || d.value.is_none())
+                                {
+                                    select = Some(Some(d.id));
+                                    self.edge.editing = Some((d.id, value_text(d), true));
+                                }
+                            }
+                            Effect::CancelEdit => {
                                 self.edge.editing = None;
                                 self.edge.error = None;
-                            } else {
-                                match typed_value(project, d, &text) {
-                                    Ok((value, define)) => {
-                                        let mut next = d.clone();
-                                        next.value = Some(value);
-                                        operation =
-                                            Some(Operation::Dimension(DimensionCommand::Edit {
-                                                dimension: next,
-                                            }));
-                                        list::motion::start_flash(ui.ctx(), id, row_key(d.id));
-                                        self.edge.error = None;
-                                        self.edge.editing = None;
-                                        sent = Some(d.id);
-                                        self.first = define;
-                                    }
-                                    Err(why) => {
-                                        self.edge.error = Some((d.id, why));
-                                        // Keep the text, back in the field.
-                                        if let Some(e) = &mut self.edge.editing {
-                                            e.2 = true;
+                            }
+                            Effect::Delete(gone) => {
+                                if let Some(d) = gone.first().and_then(at).and_then(|i| dims.get(i))
+                                {
+                                    operation = Some(delete(ui.ctx(), d.id));
+                                }
+                            }
+                            Effect::Reorder(k, by) => {
+                                if let Some(from) = at(k) {
+                                    operation = reorder(&dims, from, *by);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let Some((dim, text, start)) = &mut self.edge.editing
+                        && drawn != Some(*dim)
+                        && let Some((_, rect)) =
+                            out.value_rects.iter().find(|(k, _)| *k == row_key(*dim))
+                    {
+                        drawn = Some(*dim);
+                        let invalid = self.edge.error.as_ref().is_some_and(|(e, _)| e == dim);
+                        let label = dims
+                            .iter()
+                            .position(|d| d.id == *dim)
+                            .and_then(|i| joined.get(i))
+                            .cloned()
+                            .unwrap_or_default();
+                        let edit = list::edit::field(
+                            ui,
+                            id.with(*dim),
+                            *rect,
+                            text,
+                            invalid,
+                            start,
+                            &label,
+                        );
+                        if edit != list::edit::Edit::Open {
+                            // The rows take the keyboard back.
+                            view.request_focus(ui.ctx());
+                        }
+                        let d = dims.iter().find(|d| d.id == *dim);
+                        match (edit, d) {
+                            (list::edit::Edit::Cancel, _) | (_, None) => {
+                                self.edge.editing = None;
+                                self.edge.error = None;
+                            }
+                            (list::edit::Edit::Open, _) => {}
+                            (commit, Some(d)) => {
+                                let text = text.clone();
+                                if text.trim() == value_text(d) {
+                                    self.edge.editing = None;
+                                    self.edge.error = None;
+                                } else {
+                                    match typed_value(project, d, &text) {
+                                        Ok((value, define)) => {
+                                            let mut next = d.clone();
+                                            next.value = Some(value);
+                                            operation = Some(Operation::Dimension(
+                                                DimensionCommand::Edit { dimension: next },
+                                            ));
+                                            list::motion::start_flash(ui.ctx(), id, row_key(d.id));
+                                            self.edge.error = None;
+                                            self.edge.editing = None;
+                                            sent = Some(d.id);
+                                            self.first = define;
+                                        }
+                                        Err(why) => {
+                                            self.edge.error = Some((d.id, why));
+                                            // Keep the text, back in the field.
+                                            if let Some(e) = &mut self.edge.editing {
+                                                e.2 = true;
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            // Tab: the next editable row.
-                            if commit == list::edit::Edit::CommitNext
-                                && let Some(next) = dims
-                                    .iter()
-                                    .skip_while(|x| x.id != d.id)
-                                    .skip(1)
-                                    .find(|x| !(x.reference || x.value.is_none()))
-                                && self.edge.error.is_none()
-                            {
-                                select = Some(Some(next.id));
-                                self.edge.editing = Some((next.id, value_text(next), true));
+                                // Tab: the next editable row.
+                                if commit == list::edit::Edit::CommitNext
+                                    && let Some(next) = dims
+                                        .iter()
+                                        .skip_while(|x| x.id != d.id)
+                                        .skip(1)
+                                        .find(|x| !(x.reference || x.value.is_none()))
+                                    && self.edge.error.is_none()
+                                {
+                                    select = Some(Some(next.id));
+                                    self.edge.editing = Some((next.id, value_text(next), true));
+                                }
                             }
                         }
                     }

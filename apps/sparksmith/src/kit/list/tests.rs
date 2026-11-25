@@ -364,3 +364,85 @@ fn an_error_shows_under_its_row_and_in_sight() -> Result<(), Box<dyn std::error:
     }
     Ok(())
 }
+
+/// A click aimed at a value opens its editor even when what an earlier edit
+/// brought moved the row between the press and the release.
+#[test]
+fn a_row_moved_under_a_press_still_opens_its_value() {
+    let l = lines();
+    let bounded = Layout::Bounded { rows: 8 };
+    let mut h = Harness::new(300.0, 400.0);
+    let mut out = ListOutput::default();
+    h.frame(vec![], |ui| out = show_with(ui, &l, bounded, true));
+    let c2 = RowKey::of("C2");
+    let value = out.value_rects.iter().find(|(k, _)| *k == c2);
+    let value = value.map(|(_, r)| r.center()).unwrap_or_default();
+    let button = |pressed| Event::PointerButton {
+        pos: value,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    h.frame(vec![Event::PointerMoved(value)], |ui| {
+        out = show_with(ui, &l, bounded, true);
+    });
+    h.frame(vec![button(true)], |ui| {
+        out = show_with(ui, &l, bounded, true);
+    });
+    h.frame(vec![button(false)], |ui| {
+        ui.add_space(100.0);
+        out = show_with(ui, &l, bounded, true);
+    });
+    assert!(
+        out.effects.contains(&Effect::Activate(c2)),
+        "{:?}",
+        out.effects
+    );
+}
+
+/// While a value is typed, an error that comes or goes on another row moves
+/// no row: it shows under the list, and keeps its room until the edit ends.
+#[test]
+fn an_error_on_another_row_moves_nothing_while_a_value_is_typed() {
+    let lines = lines();
+    let why = "C1: out of range";
+    let mut h = Harness::new(230.0, 400.0);
+    let frame = |h: &mut Harness, error: bool, editing: bool| {
+        h.frame(vec![], |ui| {
+            let view = ListView {
+                editing,
+                error: error.then(|| (RowKey::of("C1"), why)),
+                error_last: editing,
+                ..ListView::new(
+                    egui::Id::unique("typed-list"),
+                    "Parts",
+                    Layout::Bounded { rows: 8 },
+                )
+            };
+            let cols = Columns::measure(ui, &ListTokens::get(ui.ctx()), std::iter::empty());
+            view.show(ui, &lines, |ui, rect, line, cx| {
+                let name = [line.name];
+                row::paint(ui, cx.id, rect, &Row::new(line.key, &name), &cols)
+            });
+        })
+    };
+    let top = |painted: &[crate::kit::rows::tests::Painted], text: &str| {
+        painted
+            .iter()
+            .find(|p| p.text == text)
+            .map(|p| p.rect.top())
+    };
+    let before = top(&frame(&mut h, false, true), "U1");
+    let painted = frame(&mut h, true, true);
+    assert_eq!(top(&painted, "U1"), before);
+    assert!(top(&painted, why) > before, "under the list");
+    assert_eq!(top(&frame(&mut h, false, true), "U1"), before);
+    // Shown before the edit began: it goes while a value is typed, and the
+    // rows under it stay.
+    let mut h = Harness::new(230.0, 400.0);
+    let with = top(&frame(&mut h, true, false), "U1");
+    assert!(with > before);
+    assert_eq!(top(&frame(&mut h, true, true), "U1"), with);
+    assert_eq!(top(&frame(&mut h, false, true), "U1"), with);
+    assert_eq!(top(&frame(&mut h, false, false), "U1"), before);
+}
