@@ -45,7 +45,7 @@ mod wedges;
 pub(crate) use ties::bridge_ring;
 pub use ties::{TieIsland, TieJoin};
 
-pub(crate) use build::{islands_joined, track_copper, via_copper};
+pub(crate) use build::{Pour, islands_joined, pours_reaching, track_copper, via_copper};
 pub use islands::Island;
 pub use joints::{Meets, TrackEnd, TrackJoint, keeps_joint, leaves_pour, pours_met};
 pub use lengths::{MAX_PATH_WORK, NetPaths, PadEnd, PathEdge, PathTree, Walk};

@@ -23,6 +23,7 @@ use std::collections::{BTreeMap, VecDeque};
 mod checks;
 mod compute;
 pub(crate) mod geom;
+mod groups;
 #[cfg(test)]
 mod tests;
 
@@ -351,11 +352,14 @@ pub fn follow_board(project: &mut Project) -> Result<()> {
 /// The copper of fill `id`: its outline less board edge and cutout
 /// clearance, other-net copper and holes at the effective clearances
 /// (rules and net classes), higher-priority fills and keepouts, with
-/// thermal reliefs, minimum-width erosion and island removal. Pure and
-/// deterministic; fresh stored copper of higher-ranking fills is reused.
-/// See [`compute`](self) for the steps.
+/// thermal reliefs, minimum-width erosion and island removal, for which the
+/// net's other fills on the layer are asked too. Pure and deterministic;
+/// fresh stored copper of the fills it reads is reused. See
+/// [`compute`](self) for the steps.
 pub fn compute(project: &Project, id: Id) -> Result<FilledCopper> {
-    compute::Ctx::new(project).copper(id, false)
+    let mut ctx = compute::Ctx::new(project);
+    ctx.again.insert(id);
+    ctx.copper(id)
 }
 
 /// The fills `target` names, in rank order (highest priority first).
@@ -391,9 +395,10 @@ fn ranked(project: &Project, target: RefillTarget) -> Result<Vec<Id>> {
 pub fn refill(project: &Project, target: RefillTarget) -> Result<Vec<(Id, FilledCopper)>> {
     let ids = ranked(project, target)?;
     let mut ctx = compute::Ctx::new(project);
+    ctx.again.extend(ids.iter().copied());
     let mut out = Vec::with_capacity(ids.len());
     for id in ids {
-        out.push((id, ctx.copper(id, false)?));
+        out.push((id, ctx.copper(id)?));
     }
     Ok(out)
 }
@@ -462,7 +467,7 @@ pub fn compute_stale(project: &Project, cache: &mut FillCache) -> Result<Vec<(Id
                 hit.clone()
             }
             None => {
-                let c = ctx.copper(id, true)?;
+                let c = ctx.copper(id)?;
                 cache.insert(c.clone());
                 c
             }
@@ -483,10 +488,12 @@ fn fnv_hex(bytes: &[u8]) -> String {
 }
 
 /// The cache key of fill `id`'s inputs: the fill's definition, the
-/// rules, the board shape and stackup, and only the pads, vias, tracks,
-/// keepouts and higher-ranking other-net fills within its reach. An edit
-/// out of that reach (another layer, far away, a fill it does not clear)
-/// leaves the key, so only affected fills go stale.
+/// rules, the board shape and stackup, and only the pads, vias, tracks and
+/// keepouts within its reach, and the same of every fill its copper reads:
+/// higher-ranking ones of other nets and, unless it keeps every island,
+/// those of its net it may join. An edit out of that reach (another layer,
+/// far away, a fill it does not read) leaves the key, so only affected
+/// fills go stale.
 pub fn inputs_key(project: &Project, id: Id) -> Result<String> {
     compute::Ctx::new(project).key(id)
 }

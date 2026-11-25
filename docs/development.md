@@ -180,6 +180,7 @@ A board has 2, 4 or 6 layers (the seed's remainder by three) and any of: pads of
 | `Silent` | No edit but a deletion leaves a net fewer vias without its report or an open-net finding naming the net, and no edit changes the netlist of a net that was there |
 | `Short` | Copper of two nets that overlaps is a finding no waiver accepts |
 | `Stale` | A fill is what the board gives now, or told as stale |
+| `Island` | A fill that removes islands has those that reach a pad, via or track of its net, through the net's other fills if need be, and no others |
 | `Clearance` | Every fill keeps every clearance, the edge, cutouts, keepouts and its own outline, measured between segments |
 | `ReadBack` | The check before every export passes |
 | `Image` | `fabcheck`'s pictures of the copper, mask, paste and drill files are those painted from the document |
@@ -201,7 +202,7 @@ SPARKSMITH_RANDOM_CASE='17:0-3,9,22' cargo test -p sparksmith-core --lib random:
 
 The numbers are places in the seed's list of atoms: a change to the generator (`plan.rs`) makes other boards of the same seeds, so a case worth keeping becomes a test of its own.
 
-**Alive.** `every_seeded_fault_is_told_by_the_rules_that_must_tell_it` makes what was seen of one board wrong in 18 ways (a fill clearance, a drill position, a mirrored mask, a lost via, old copper and an old graph among them) and names the rules that must tell each. `the_generator_makes_everything_and_most_edits_are_taken` keeps the boards from being empty.
+**Alive.** `every_seeded_fault_is_told_by_the_rules_that_must_tell_it` makes what was seen of one board wrong in 20 ways (a fill clearance, a drill position, a mirrored mask, a lost via, old copper and an old graph among them) and names the rules that must tell each. `the_generator_makes_everything_and_most_edits_are_taken` keeps the boards from being empty.
 
 ## KiCad import comparison
 
