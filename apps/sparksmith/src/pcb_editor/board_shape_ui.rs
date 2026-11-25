@@ -59,11 +59,16 @@ impl Loaded {
     }
 }
 
-/// A point being dragged: the live sketch follows the pointer each frame.
+/// A point being dragged: each frame shows what a release there does.
 struct Drag {
     point: SketchPointId,
+    /// The sketch the drag started from: what the release edits.
     live: LiveSketch,
+    /// The sketch as the last frame left it, and the point's place in it.
+    shown: LiveSketch,
     at: Point,
+    /// What a release does; none when the point cannot move.
+    edits: Vec<BoardEdit>,
 }
 
 /// A dimension placed with the Dimension tool and its value being typed.
@@ -181,6 +186,12 @@ fn field_id(name: Option<&ParamName>) -> egui::Id {
 const DIM_FIELD: &str = "board-dimension";
 
 impl ShapeMode {
+    /// The sketch the drag in progress shows.
+    #[cfg(test)]
+    pub(super) fn dragged(&self) -> Option<SketchView> {
+        self.drag.as_ref().map(|d| d.shown.view())
+    }
+
     pub(super) fn reset_gesture(&mut self) {
         self.gesture.clear();
         self.draft = None;
@@ -595,8 +606,10 @@ impl PcbEditor {
             {
                 self.shape.drag = Some(Drag {
                     point,
+                    shown: live.clone(),
                     live,
                     at: start,
+                    edits: Vec::new(),
                 });
             }
         }
@@ -604,15 +617,34 @@ impl PcbEditor {
             && response.dragged_by(PointerButton::Primary)
             && let Ok(frame) = drag.live.drag(&drag.point, at)
         {
-            drag.live = frame.sketch;
+            let edits = shape::drop_edits(
+                &loaded.view,
+                &frame.sketch.view(),
+                &drag.point,
+                at,
+                frame.at,
+                tolerance,
+            );
             drag.at = frame.at;
+            drag.shown = frame.sketch;
+            drag.edits = Vec::new();
+            if edits.len() > 1
+                && let Ok(joined) = drag.live.after(&edits)
+            {
+                drag.at = joined.point(&drag.point).unwrap_or(drag.at);
+                drag.shown = joined;
+            }
+            if frame.moved || edits.len() > 1 {
+                drag.edits = edits
+                    .into_iter()
+                    .map(|edit| BoardEdit::Sketch { edit })
+                    .collect();
+            }
         }
         if response.drag_stopped_by(PointerButton::Primary)
             && let Some(drag) = self.shape.drag.take()
         {
-            let moved = drag.live.view();
-            let edits = shape::drop_edits(&loaded.view, &moved, &drag.point, drag.at, tolerance);
-            operation = Some(shape::operation(edits));
+            operation = (!drag.edits.is_empty()).then(|| shape::operation(drag.edits));
         }
         if response.clicked_by(PointerButton::Secondary) {
             if self.shape.tool == ShapeTool::Spline && self.shape.gesture.pending.len() >= 2 {
@@ -782,7 +814,7 @@ impl PcbEditor {
             .shape
             .drag
             .as_ref()
-            .map(|d| d.live.view())
+            .map(|d| d.shown.view())
             .unwrap_or_else(|| loaded.view.clone());
         let report = loaded.report.as_ref();
         let conflicting: Vec<_> = report.map(|r| r.conflicting.clone()).unwrap_or_default();
@@ -892,7 +924,7 @@ impl PcbEditor {
             .shape
             .drag
             .as_ref()
-            .map(|d| &d.live)
+            .map(|d| &d.shown)
             .or(loaded.live.as_ref());
         let layouts = live.map(|l| l.dimensions(px, &half_of)).unwrap_or_default();
         let mut rects = Vec::new();

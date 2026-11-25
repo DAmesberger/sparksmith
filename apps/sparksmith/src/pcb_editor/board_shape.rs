@@ -1466,18 +1466,19 @@ pub(crate) fn held_by(view: &SketchView, ids: &[SketchRef]) -> Vec<SketchRef> {
     held
 }
 
-/// What a point dragged to `at` does: moves there, or onto the point it is
-/// dropped on, joined to it in the same commit. `view` is the sketch before
-/// the drag, `moved` as it is at the drop.
+/// What a point released at `to` does: moves towards it, or onto the point
+/// it is dropped on, joined to it in the same commit. `view` is the sketch
+/// before the drag, `moved` as it is at the drop, with the point at `at`.
 pub(crate) fn drop_edits(
     view: &SketchView,
     moved: &SketchView,
     point: &SketchPointId,
+    to: Point,
     at: Point,
     tolerance: f64,
-) -> Vec<BoardEdit> {
+) -> Vec<SketchEdit> {
     let target = join_target(view, moved, point, at, tolerance);
-    let to = target.map_or(at, |t| t.at);
+    let to = target.map_or(to, |t| t.at);
     let mut edits = vec![SketchEdit::Drag {
         point: point.clone(),
         to,
@@ -1492,9 +1493,6 @@ pub(crate) fn drop_edits(
         });
     }
     edits
-        .into_iter()
-        .map(|edit| BoardEdit::Sketch { edit })
-        .collect()
 }
 
 /// The point a dragged `point` joins when dropped at `at`: the nearest one

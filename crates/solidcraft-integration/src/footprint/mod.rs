@@ -6,6 +6,7 @@
 //!
 //! - [`check`]: the only way a stored sketch is loaded.
 //! - [`params`]: parameters with typed `pkg_*` package values.
+//! - [`drag`]: the one computation behind a drag's preview and its release.
 //! - [`edit`]: sketch edits and pad templates.
 //! - [`evaluate`]: solve, copper-only profile pass, classification, arrays,
 //!   derived graphics, datum, quantization and the result hash.
@@ -14,6 +15,9 @@
 mod arrays;
 pub(crate) mod check;
 mod classify;
+pub(crate) mod drag;
+#[cfg(test)]
+mod drag_tests;
 pub(crate) mod edit;
 pub(crate) mod evaluate;
 pub(crate) mod params;

@@ -554,11 +554,13 @@ pub struct ToolState {
 
 /// A Select drag: where it started, the point it carries (a pad centre or
 /// sketch point, snapped as it moves) and the snapped offset so far.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MoveDrag {
     pub start: Point,
     pub reference: Point,
     pub delta: Point,
+    /// The footprint as a release here makes it; none when it is refused.
+    pub shown: Option<Box<FootprintDefinition>>,
 }
 
 /// Why a gesture finished while another waits to be sent is refused.

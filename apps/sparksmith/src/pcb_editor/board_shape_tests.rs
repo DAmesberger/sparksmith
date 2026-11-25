@@ -1999,6 +1999,112 @@ fn a_point_dropped_on_another_joins_it() -> Fallible {
     Ok(())
 }
 
+/// Drags the point at `from` to `to` and releases it: where the last frame
+/// showed every point is where the document has it, within a nanometre.
+/// Returns the landed sketch.
+fn dragged_as_shown(d: &mut Drawn, from: Point, to: Point) -> Fallible<SketchView> {
+    d.hover(from);
+    let pos = d.view.screen(from);
+    d.frame(press_at(pos));
+    for f in [0.2, 0.5, 0.8, 1.0] {
+        d.hover([
+            from[0] + (to[0] - from[0]) * f,
+            from[1] + (to[1] - from[1]) * f,
+        ]);
+    }
+    let shown = d.editor.shape.dragged().ok_or("nothing is dragged")?;
+    let pos = d.view.screen(to);
+    let op = d.frame(release_at(pos));
+    d.apply(op)?;
+    let landed = scene_view(&d.board()?)?;
+    for p in &shown.points {
+        let at = landed.point(&p.id).ok_or("a point is gone")?.at;
+        assert!(dist(p.at, at) <= 1e-6, "{:?}: {:?} {at:?}", p.id, p.at);
+    }
+    Ok(landed)
+}
+
+/// `Drawn`, seen from the top or the bottom.
+fn seen(from_bottom: bool) -> Fallible<Drawn> {
+    let mut d = Drawn::new()?;
+    d.editor.from_bottom = from_bottom;
+    let (_, _, rect) = canvas(&mut d.editor, &d.engine, &d.ctx, vec![]);
+    d.view = board_view(
+        rect,
+        d.engine.project().board_size,
+        1.0,
+        egui::Vec2::ZERO,
+        from_bottom,
+    );
+    Ok(d)
+}
+
+/// A cutout's corner, square or rounded, and the outline's: each lands
+/// where it was shown, from either side. (A corner of a rectangle went a
+/// quarter of the way.)
+#[test]
+fn a_dragged_corner_lands_where_it_is_shown() -> Fallible {
+    for from_bottom in [false, true] {
+        for radius in [0.0, 1.0] {
+            let mut d = seen(from_bottom)?;
+            let (a, b) = (d.at(0.3, 0.3), d.at(0.5, 0.5));
+            let board = d.board()?;
+            let mut stage = Stage::new(host_evaluator().ok_or("no evaluator")?, &board.sketch);
+            let curves = rectangle(&mut stage, a, b, radius, None, false)?;
+            let edits = stage.edits.clone();
+            d.apply(Some(operation(edits)))?;
+            let view = scene_view(&d.board()?)?;
+            let from = view
+                .points
+                .iter()
+                .filter(|p| {
+                    curves
+                        .iter()
+                        .filter_map(|c| view.curve(c))
+                        .any(|c| c.points.contains(&p.id))
+                })
+                .map(|p| p.at)
+                .max_by(|p, q| (p[0] + p[1]).total_cmp(&(q[0] + q[1])))
+                .ok_or("no corner")?;
+            let to = [from[0] + 2.3, from[1] + 1.7];
+            let landed = dragged_as_shown(&mut d, from, to)?;
+            if radius == 0.0 {
+                let there = landed.points.iter().filter(|p| dist(p.at, to) < 0.02);
+                assert_eq!(there.count(), 2, "both ends at the pointer");
+            }
+        }
+        let mut d = seen(from_bottom)?;
+        let set: Vec<SketchRef> = scene_view(&d.board()?)?
+            .constraints
+            .iter()
+            .filter(|k| k.value.is_some())
+            .map(|k| SketchRef::Constraint(k.id.clone()))
+            .collect();
+        d.apply(Some(operation(vec![BoardEdit::Sketch {
+            edit: SketchEdit::Delete { ids: set },
+        }])))?;
+        let from = d.at(1.0, 1.0);
+        let to = [from[0] + 1.5, from[1] + 2.0];
+        let landed = dragged_as_shown(&mut d, from, to)?;
+        assert!(landed.points.iter().any(|p| dist(p.at, to) < 0.02));
+    }
+    Ok(())
+}
+
+/// A point over another shows the join its release makes.
+#[test]
+fn a_point_dropped_on_another_is_shown_joined() -> Fallible {
+    let mut d = Drawn::new()?;
+    let (p, q) = (d.at(0.3, 0.3), d.at(0.5, 0.45));
+    let (a, b) = (d.at(0.3, 0.6), d.at(0.6, 0.7));
+    guide(&mut d, p, a)?;
+    guide(&mut d, q, b)?;
+    let landed = dragged_as_shown(&mut d, p, [q[0] + 0.05, q[1]])?;
+    let there = landed.points.iter().filter(|p| dist(p.at, q) < 1e-3);
+    assert_eq!(there.count(), 2);
+    Ok(())
+}
+
 /// A line's own ends, and ends joined already, are no place to join.
 #[test]
 fn a_line_is_not_closed_up_by_dropping_its_ends_together() -> Fallible {
@@ -2008,7 +2114,7 @@ fn a_line_is_not_closed_up_by_dropping_its_ends_together() -> Fallible {
     let view = scene_view(&d.board()?)?;
     let points = view.curve(&line).ok_or("no line")?.points.clone();
     assert!(join_target(&view, &view, &points[0], b, 0.5).is_none());
-    assert_eq!(drop_edits(&view, &view, &points[0], b, 0.5).len(), 1);
+    assert_eq!(drop_edits(&view, &view, &points[0], b, b, 0.5).len(), 1);
     Ok(())
 }
 
