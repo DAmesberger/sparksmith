@@ -1321,3 +1321,46 @@ fn generators_diagnosis() -> String {
     }
     lines.join("\n")
 }
+
+/// GUI check 2, N7: Esc closes Library sources, and Settings opened over it
+/// replaces it instead of opening behind it.
+#[test]
+fn esc_closes_library_sources_and_settings_replaces_it() -> Fallible {
+    let mut ax = Ax::new(Workspace::Pcb)?;
+    ax.app.sources.open_card();
+    ax.settle();
+    assert!(ax.app.sources.card_open());
+    ax.key(Key::Escape);
+    ax.settle();
+    assert!(!ax.app.sources.card_open());
+    ax.app.sources.open_card();
+    ax.settle();
+    let ctx = ax.ctx.clone();
+    ax.app.run_command(&ctx, "app.settings");
+    ax.settle();
+    assert!(ax.app.settings_window.is_open());
+    assert!(!ax.app.sources.card_open());
+    Ok(())
+}
+
+/// GUI check 2, N18: Esc at the key-conflict question answers it; Settings
+/// stays.
+#[test]
+fn esc_at_a_key_conflict_keeps_settings_open() -> Fallible {
+    let mut ax = Ax::new(Workspace::Pcb)?;
+    let ctx = ax.ctx.clone();
+    ax.app.run_command(&ctx, "app.settings");
+    ax.settle();
+    ax.app.settings_window.record("pcb.tune");
+    ax.key(Key::B);
+    ax.settle();
+    assert!(ax.app.settings_window.pending().is_some());
+    ax.key(Key::Escape);
+    ax.settle();
+    assert!(ax.app.settings_window.pending().is_none());
+    assert!(ax.app.settings_window.is_open());
+    ax.key(Key::Escape);
+    ax.settle();
+    assert!(!ax.app.settings_window.is_open());
+    Ok(())
+}

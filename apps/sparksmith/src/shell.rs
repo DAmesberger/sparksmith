@@ -1003,6 +1003,15 @@ fn overflow_item(ui: &mut Ui, tool: &Tool) -> Response {
         font,
         ink,
     );
+    if let Some(key) = &tool.shortcut {
+        ui.painter().text(
+            pos2(rect.right() - t.space_8, rect.center().y),
+            Align2::RIGHT_CENTER,
+            key,
+            FontId::proportional(t.font_small),
+            t.text_dim,
+        );
+    }
     response.widget_info(|| {
         egui::WidgetInfo::selected(egui::Role::Button, tool.enabled, tool.selected, tool.label)
     });

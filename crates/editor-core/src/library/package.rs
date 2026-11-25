@@ -249,7 +249,7 @@ impl PackageDefinition {
         if !self.envelope_valid() {
             out.push(issue(
                 FindingCode::PackageEnvelope,
-                "Package envelope dimensions must be finite and positive.".into(),
+                "The body size must be 0.01 to 1000 mm on each side (3D tab).".into(),
                 vec![this],
             ));
         }

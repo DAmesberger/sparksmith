@@ -841,7 +841,7 @@ impl App {
                 .menu(&filter)
                 .align(egui::RectAlign::TOP_START)
                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                .show(|ui| self.pcb.filter_menu(ui));
+                .show(|ui| self.pcb.filter_menu(ui, self.engine.project()));
             self.sources.set_selection_filter(self.pcb.filter());
         }
         if pcb {

@@ -69,15 +69,20 @@ pub use model_view::reset_model_view;
 pub use part_props::{PartReturn, meaning_label, spec_text};
 use sparksmith_core::functions::{Direction, TerminalFunctions};
 use sparksmith_core::geometry::Bounds;
+use sparksmith_core::library::footprint_edit;
+use sparksmith_core::library::footprint_source::{
+    Expr, FootprintEdit, PadTemplate, PadTemplateParams,
+};
 use sparksmith_core::library::graphics::{
     self, Fill, HAlign, Justify, PIN_TEXT_HEIGHT, SYMBOL_MODULE_MM, SYMBOL_STROKE_MM, ShapeNm,
     TextContent, VAlign,
 };
 use sparksmith_core::library::{
-    Drafts, Item, PackageTerminal, Pad, Pin, PinDirection, Terminal, TerminalClass, TerminalMap,
-    Unit,
+    Drafts, FootprintDefinition, Item, PackageDefinition, PackageTerminal, Pad, PadKind, PadSide,
+    Pin, PinDirection, Terminal, TerminalClass, TerminalMap, TerminalRule, Unit,
 };
 use sparksmith_core::units::{Nm, PointNm};
+use sparksmith_solidcraft::footprint::SketchEvaluator;
 // The tests below take points in millimetres.
 use sparksmith_core::{
     ComponentRef, DefinitionId, Engine, FunctionId, GraphicId, LibraryCommand, ObjectRef,
@@ -93,6 +98,30 @@ use std::sync::Arc;
 #[cfg(test)]
 pub use working_set::Template;
 pub use working_set::{WorkingSet, create_blank};
+
+/// `footprint` with a sketched 1 × 1.4 mm pad at `at` that lands `terminal`.
+fn sketched_land(
+    footprint: &FootprintDefinition,
+    package: &PackageDefinition,
+    terminal: PackageTerminalId,
+    number: &str,
+    at: sparksmith_core::Point,
+) -> sparksmith_core::Result<FootprintDefinition> {
+    let edit = FootprintEdit::AddPad {
+        template: PadTemplate::Rect,
+        at,
+        params: PadTemplateParams {
+            width: Expr("1 mm".into()),
+            height: Expr("1.4 mm".into()),
+            radius_ratio: None,
+            kind: PadKind::Smd,
+            side: PadSide::Top,
+            terminal: Some(terminal),
+            number: number.to_owned(),
+        },
+    };
+    footprint_edit::edit(footprint, package, &[edit], &SketchEvaluator).map(|(next, _)| next)
+}
 
 /// One selected object of the Symbol view: a pin by its terminal or a
 /// graphic by its stable ID.
@@ -1256,7 +1285,9 @@ impl PartEditor {
     }
 
     /// Add a passive terminal with its package terminal, pad and mapping,
-    /// but no pin; the first terminal of an empty symbol also gets a first
+    /// but no pin. On a footprint that is a sketch, or is empty and can
+    /// become one, the pad is a sketched one, unless pads drawn before wait
+    /// for a terminal (Mapping lands them); the first terminal of an empty symbol also gets a first
     /// unit. Returns the terminal, or `None` with a notice at a limit.
     fn new_terminal(&mut self) -> Option<TerminalId> {
         let set = self.draft.as_mut()?;
@@ -1278,9 +1309,7 @@ impl PartEditor {
         let electrical = allocate(&mut set.component.next_local);
         let function = allocate(&mut set.component.next_local);
         let physical = allocate(&mut set.package.next_local);
-        let pad = allocate(&mut set.footprint.next_local);
-        let (Some(electrical), Some(function), Some(physical), Some(pad)) =
-            (electrical, function, physical, pad)
+        let (Some(electrical), Some(function), Some(physical)) = (electrical, function, physical)
         else {
             self.tell(Level::Error, NO_MORE_TERMINALS);
             return None;
@@ -1316,14 +1345,46 @@ impl PartEditor {
             .find(|n| !taken(n))
             .unwrap_or_else(|| physical.to_string());
         let chip = set.package.chip().is_some() && set.package.terminals.len() >= 2;
-        let land = Pad::smd_rect_mm(
-            PadId(pad),
-            physical,
-            number.clone(),
-            [0.0, row * 2.0],
-            [1.0, 1.4],
-        )
-        .ok()?;
+        let mut package = set.package.clone();
+        package.terminals.push(PackageTerminal {
+            id: physical,
+            designation: number.clone(),
+        });
+        let at = if set.footprint.pads.is_empty() {
+            [0.0, row * 2.0]
+        } else {
+            footprint_geometry::free_spot(&set.footprint.pads)
+        };
+        let footprint = if set.footprint.source.is_some() || set.footprint.pads.is_empty() {
+            let waiting =
+                |p: &Pad| p.terminal.is_none() && p.kind.terminal_rule() == TerminalRule::Required;
+            if set.footprint.pads.iter().any(waiting) {
+                Ok(set.footprint.clone())
+            } else {
+                sketched_land(&set.footprint, &package, physical, &number, at)
+            }
+        } else {
+            let mut footprint = set.footprint.clone();
+            let id = allocate(&mut footprint.next_local)?;
+            let land = Pad::smd_rect_mm(
+                PadId(id),
+                physical,
+                number.clone(),
+                [0.0, row * 2.0],
+                [1.0, 1.4],
+            )
+            .ok()?;
+            footprint.pads.push(land);
+            Ok(footprint)
+        };
+        match footprint {
+            Ok(footprint) => set.footprint = footprint,
+            Err(error) => {
+                self.tell(Level::Error, crate::refusal::shown_error(&error));
+                return None;
+            }
+        }
+        set.package = package;
         set.component.terminals.push(Terminal {
             id: electrical,
             name: number.clone(),
@@ -1331,11 +1392,6 @@ impl PartEditor {
                 FunctionId(function),
                 Direction::Passive,
             )),
-        });
-        set.footprint.pads.push(land);
-        set.package.terminals.push(PackageTerminal {
-            id: physical,
-            designation: number,
         });
         set.binding.mappings.push(TerminalMap {
             package_terminal: physical,
@@ -1371,10 +1427,28 @@ impl PartEditor {
             unit.pins.retain(|p| p.terminal != selected);
         }
         set.binding.mappings.retain(|m| m.terminal != selected);
-        set.package.terminals.retain(|t| !physical.contains(&t.id));
-        set.footprint
+        let lands: Vec<PadId> = set
+            .footprint
             .pads
-            .retain(|p| p.terminal.is_none_or(|t| !physical.contains(&t)));
+            .iter()
+            .filter(|p| p.terminal.is_some_and(|t| physical.contains(&t)))
+            .map(|p| p.id)
+            .collect();
+        if set.footprint.source.is_some() {
+            // Sketched pads go with their outlines; an array's stay, and
+            // Issues lists them without a terminal.
+            for pad in lands {
+                let edit = [FootprintEdit::RemovePad { pad }];
+                if let Ok((footprint, _)) =
+                    footprint_edit::edit(&set.footprint, &set.package, &edit, &SketchEvaluator)
+                {
+                    set.footprint = footprint;
+                }
+            }
+        } else {
+            set.footprint.pads.retain(|p| !lands.contains(&p.id));
+        }
+        set.package.terminals.retain(|t| !physical.contains(&t.id));
         self.selected = set.component.terminals.first().map(|t| t.id);
     }
 
@@ -2933,6 +3007,99 @@ mod draft_tests {
         engine.undo()?;
         assert!(engine.drafts().items.is_empty(), "one undo step");
         assert!(!engine.can_undo());
+        Ok(())
+    }
+
+    fn committed(
+        editor: &mut PartEditor,
+        engine: &mut Engine,
+        component: DefinitionId,
+    ) -> sparksmith_core::Result<WorkingSet> {
+        let ctx = egui::Context::default();
+        if let Some(operation) = editor.commit(&ctx, engine) {
+            engine.apply_hosted(
+                engine.revision(),
+                operation,
+                sparksmith_core::Evaluators {
+                    footprint: Some(&SketchEvaluator),
+                    board: None,
+                },
+            )?;
+        }
+        editor.commit(&ctx, engine);
+        let set = WorkingSet::of(engine.drafts(), component)
+            .ok_or(sparksmith_core::Error::Limit("no set".into()))?;
+        footprint_edit::check_fresh(&set.footprint, &set.package, &SketchEvaluator)?;
+        Ok(set)
+    }
+
+    /// GUI check 2, N3: a terminal before the footprint (the order the
+    /// own-part guide gives) leaves the footprint a sketch, its pad in it.
+    #[test]
+    fn terminals_before_the_footprint_leave_it_a_sketch() -> sparksmith_core::Result<()> {
+        let mut engine = Engine::default();
+        let mut editor = PartEditor::default();
+        let component = create_blank(&mut engine)?;
+        editor.open(component, &engine);
+        editor.commit(&egui::Context::default(), &engine);
+        for count in 1..=2 {
+            editor.on_tool("terminal", &engine);
+            let set = committed(&mut editor, &mut engine, component)?;
+            assert!(set.footprint.source.is_some());
+            assert_eq!(set.footprint.pads.len(), count);
+            assert!(set.footprint.pads.iter().all(|p| p.terminal.is_some()));
+        }
+        assert!(editor.footprint_sketching());
+        editor.on_tool("footprint", &engine);
+        // Removing one takes its sketched pad with it.
+        editor.remove_selected();
+        let set = committed(&mut editor, &mut engine, component)?;
+        assert_eq!(set.component.terminals.len(), 1);
+        assert_eq!(set.footprint.pads.len(), 1);
+        Ok(())
+    }
+
+    /// The other order: pads drawn first keep waiting for their terminals,
+    /// and Terminal adds no pad beside them.
+    #[test]
+    fn terminals_after_drawn_pads_add_no_pad() -> sparksmith_core::Result<()> {
+        let mut engine = Engine::default();
+        let mut editor = PartEditor::default();
+        let component = create_blank(&mut engine)?;
+        editor.open(component, &engine);
+        editor.commit(&egui::Context::default(), &engine);
+        let set = WorkingSet::of(engine.drafts(), component)
+            .ok_or(sparksmith_core::Error::Limit("no set".into()))?;
+        let pad = |x: f64, number: &str| FootprintEdit::AddPad {
+            template: PadTemplate::Rect,
+            at: [x, 0.0],
+            params: PadTemplateParams {
+                width: Expr("1 mm".into()),
+                height: Expr("1 mm".into()),
+                radius_ratio: None,
+                kind: PadKind::Smd,
+                side: PadSide::Top,
+                terminal: None,
+                number: number.into(),
+            },
+        };
+        engine.apply_hosted(
+            engine.revision(),
+            Operation::Library(LibraryCommand::EditFootprint {
+                draft: set.ids.footprint,
+                edits: vec![pad(-1.0, "1"), pad(1.0, "2")],
+            }),
+            sparksmith_core::Evaluators {
+                footprint: Some(&SketchEvaluator),
+                board: None,
+            },
+        )?;
+        editor.commit(&egui::Context::default(), &engine);
+        editor.on_tool("terminal", &engine);
+        let set = committed(&mut editor, &mut engine, component)?;
+        assert_eq!(set.component.terminals.len(), 1);
+        assert_eq!(set.footprint.pads.len(), 2, "the drawn pads only");
+        assert_eq!(set.package.terminals[0].designation, "1");
         Ok(())
     }
 

@@ -831,7 +831,7 @@ fn evaluate_now(bytes: &[u8], values: &PartValues, key: [u8; 32]) -> Result<Eval
         findings.push(finding(
             "part_file.slow",
             false,
-            format!("the cold evaluation took {evaluate_ms:.0} ms (target {SLOW_MS:.0} ms)"),
+            format!("the part took {evaluate_ms:.0} ms to build (aim for {SLOW_MS:.0} ms)"),
         ));
     }
     Ok(EvaluatedPart {

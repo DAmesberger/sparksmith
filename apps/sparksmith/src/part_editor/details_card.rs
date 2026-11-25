@@ -35,7 +35,7 @@ impl PartEditor {
             kit::text_row(ui, "Name", &mut set.metas.component.name);
             let prefix = &mut set.component.designator_prefix;
             let invalid = !designator_prefix_valid(prefix);
-            let response = kit::checked_text_row(ui, "Designator", prefix, "R", invalid)
+            let response = kit::checked_text_row(ui, "Designator", prefix, "such as R", invalid)
                 .on_hover_text(
                     "Prefix new instances are numbered under: 1–8 letters, e.g. R, C, U",
                 );

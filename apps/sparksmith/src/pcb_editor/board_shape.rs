@@ -1646,7 +1646,7 @@ pub(crate) fn dimension_value_edits(
 
 /// `text` with `unit` after it when it is a bare number ("52" → "52 mm");
 /// anything else as typed.
-fn with_unit(text: &str, unit: ParamUnit) -> String {
+pub(crate) fn with_unit(text: &str, unit: ParamUnit) -> String {
     let suffix = match unit {
         ParamUnit::Mm => "mm",
         ParamUnit::Deg => "deg",

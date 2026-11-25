@@ -175,7 +175,7 @@ fn make(
         PartModel::Envelope => {
             if !part.package.envelope_valid() {
                 return Err(Error::Invalid(
-                    "package envelope dimensions must be finite and positive".into(),
+                    "the body size must be 0.01 to 1000 mm on each side (3D tab)".into(),
                 ));
             }
             for (name, value) in ["length", "width", "height"]

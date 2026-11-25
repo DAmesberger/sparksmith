@@ -563,3 +563,17 @@ fn a_double_click_in_one_batch_stays_a_double_click() -> Fallible {
     assert_eq!(expr(&ax, "height")?, stored);
     Ok(())
 }
+
+/// GUI check 2, R2-A2: a tool listed in a menu shows its key.
+#[test]
+fn a_listed_constraint_shows_its_key() -> Fallible {
+    let mut ax = sketched()?;
+    ax.window = egui::vec2(760.0, 900.0);
+    let _ = ax.app.pcb.on_tool("board-shape", &ax.app.engine);
+    ax.settle();
+    ax.button("More tools")?;
+    ax.settle();
+    let key = crate::keys::shown(&ax.ctx, "shape.bs-perpendicular").ok_or("no key")?;
+    assert!(ax.texts.contains(&key), "{key}: {:?}", ax.texts);
+    Ok(())
+}

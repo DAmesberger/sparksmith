@@ -1614,17 +1614,24 @@ impl PcbEditor {
                         _ => None,
                     })
                     .collect();
+                // A bare number is shown with the unit it is taken in.
+                let texts: Vec<String> = board
+                    .parameters
+                    .iter()
+                    .map(|p| shape::with_unit(p.expr.0.trim(), p.unit))
+                    .collect();
                 let l = list::ListTokens::get(ui.ctx());
                 let shown: Vec<list::Value<'_>> = board
                     .parameters
                     .iter()
                     .zip(&results)
-                    .map(|(p, r)| match r {
+                    .zip(&texts)
+                    .map(|((p, r), text)| match r {
                         Some(r) => list::Value::Expr {
                             expr: &p.expr.0,
                             value: r,
                         },
-                        None => list::Value::Number(&p.expr.0),
+                        None => list::Value::Number(text),
                     })
                     .collect();
                 let cols = list::Columns::measure(ui, &l, shown.iter().copied());
