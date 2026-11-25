@@ -673,6 +673,27 @@ impl PartEditor {
         let action = panel.show(ui, |ui| {
             paste_body(ui, flow, &rows, document.as_ref(), &problems);
         });
+        // A pasted table is not thrown away by one Esc or Cancel: the
+        // person says so first.
+        if matches!(action, Some(kit::dialog::DialogAction::Cancel)) && !flow.text.trim().is_empty()
+        {
+            flow.discarding = true;
+            return None;
+        }
+        if flow.discarding {
+            match kit::dialog::confirm(
+                &ctx,
+                id.with("discard"),
+                "Discard the pasted table",
+                "The pasted rows and the column mapping are lost.",
+                "Discard",
+            ) {
+                Some(true) => self.pins.table.paste = None,
+                Some(false) => flow.discarding = false,
+                None => {}
+            }
+            return None;
+        }
         match action {
             Some(kit::dialog::DialogAction::Cancel) => {
                 self.pins.table.paste = None;

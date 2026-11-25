@@ -109,6 +109,10 @@ impl<'a> DialogPanel<'a> {
         // on Esc before this frame runs, so the last frame's state decides.
         let typing_id = self.id.with("typing");
         let typing = ui.data(|d| d.get_temp::<bool>(typing_id)).unwrap_or(false);
+        // Esc while a drop-down list was open closes the list, not the
+        // dialog: the list may have closed itself by now.
+        let popup_id = self.id.with("popup");
+        let popup = ui.data(|d| d.get_temp::<bool>(popup_id)).unwrap_or(false);
         let slot = ui.available_rect_before_wrap();
         let closed = header(ui, self.icon, self.title, self.kind);
         let padding = t.space_8 * 2.0;
@@ -176,11 +180,13 @@ impl<'a> DialogPanel<'a> {
         if action.is_none() && closed {
             action = Some(DialogAction::Cancel);
         }
-        if action.is_none() && !typing && ui.is_enabled() {
+        if action.is_none() && !typing && !popup && ui.is_enabled() {
             action = keyboard(ui.ctx(), self.primary_disabled.is_none());
         }
         let focused = ui.ctx().memory(|m| m.focused().is_some());
         ui.data_mut(|d| d.insert_temp(typing_id, focused));
+        let open = ui.ctx().any_popup_open();
+        ui.data_mut(|d| d.insert_temp(popup_id, open));
         action
     }
 }
