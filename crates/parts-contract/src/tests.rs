@@ -180,9 +180,13 @@ fn hostile_catalog_documents_are_refused_within_their_bounds() -> Fallible {
         Err(Error::TooLarge(_))
     ));
     // A search reply's fields a v1 client does not read never cost it.
-    let reply = br#"{"format":"one","query":5,"offset":-1,"total":0,"results":[]}"#;
+    let reply = br#"{"format":1,"query":5,"offset":-1,"total":0,"results":[]}"#;
     assert!(decode_search::<Value>(reply).is_ok());
-    assert!(decode_search::<Value>(br#"{"results":[]}"#).is_err());
+    assert!(decode_search::<Value>(br#"{"format":1,"results":[]}"#).is_err());
+    // Another format is refused, naming it, as the other documents are.
+    let other = br#"{"format":2,"total":0,"results":[]}"#;
+    assert!(matches!(decode_search::<Value>(other), Err(Error::Invalid(m)) if m.contains('2')));
+    assert!(decode_search::<Value>(br#"{"total":0,"results":[]}"#).is_err());
     assert!(matches!(
         decode_bundle::<Value>(br#"{"format":2,"bundle":{}}"#),
         Err(Error::Invalid(_))

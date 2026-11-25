@@ -48,6 +48,8 @@ pub struct ShardEntry {
     pub id: String,
     /// A review word ([`Review`]).
     pub review: String,
+    /// Sent by the server; its meaning is not stated, and a client does
+    /// not read it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub glb: Option<String>,
 }
@@ -94,8 +96,7 @@ pub struct Hidden {
 /// `results`.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct SearchReply<H> {
-    /// [`FORMAT`]; a v1 client does not read it.
-    #[serde(default, deserialize_with = "lenient")]
+    /// [`FORMAT`].
     pub format: u32,
     #[serde(default)]
     pub snapshot: String,
@@ -181,9 +182,16 @@ pub fn parse_shard<C: DeserializeOwned>(bytes: &[u8]) -> Result<Shard<C>> {
     Ok(shard)
 }
 
-/// Decode a search reply.
+/// Decode a search reply, refusing another format.
 pub fn decode_search<H: DeserializeOwned>(bytes: &[u8]) -> Result<SearchReply<H>> {
-    decode(bytes, MAX_SEARCH_BYTES, "a search reply")
+    let reply: SearchReply<H> = decode(bytes, MAX_SEARCH_BYTES, "a search reply")?;
+    if reply.format != FORMAT {
+        return Err(Error::Invalid(format!(
+            "registry search reply format {} is not supported ({FORMAT} is)",
+            reply.format
+        )));
+    }
+    Ok(reply)
 }
 
 /// Decode a bundle reply, refusing another format. The bundle itself is

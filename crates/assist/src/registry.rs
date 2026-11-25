@@ -509,8 +509,13 @@ impl RegistryClient {
         });
         match self.get(&route, self.silence(|n| n.search)) {
             Ok(bytes) => {
-                let wire: wire::SearchReply<Hit> = wire::decode_search(&bytes)
-                    .map_err(|e| format!("the registry's search reply is unreadable: {e}"))?;
+                let wire: wire::SearchReply<Hit> =
+                    wire::decode_search(&bytes).map_err(|e| match e {
+                        sparksmith_parts_contract::Error::Unreadable(e) => {
+                            format!("the registry's search reply is unreadable: {e}")
+                        }
+                        other => other.to_string(),
+                    })?;
                 Ok(OnlineReport {
                     source: self.host.clone(),
                     snapshot: wire.snapshot,

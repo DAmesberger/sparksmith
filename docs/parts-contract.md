@@ -32,6 +32,8 @@ The client sends no conditional request and reads no caching header; the caching
 
 Within a major a new minor may add an optional field, query parameter, route, error code or review word, and raise a bound a reader accepts. A reader ignores what it does not know; an unknown code is read by its status, an unknown review word as not reviewed. Removing or renaming anything, another type or meaning, a newly required field, another hash or a smaller bound need a new major, served beside the old one. A client refuses another `format`, naming it. Records inside a bundle are read strictly in both directions, since a dropped field would change the content hash.
 
+A shard entry's `glb` is sent by the server; its meaning is not stated, and the client does not read it.
+
 ## Hashes
 
 A shard is named by the SHA-256 of the bytes served, an asset by the SHA-256 of its decoded bytes (`data` is standard padded base64, and only the canonical text is accepted), a record by the SHA-256 of its canonical JSON: what `serde_json` writes for the core's `RevisionRecord` (compact, fields in declared order, `float_roundtrip`, without `preserve_order` or `arbitrary_precision`). A bundle is accepted only when it is the asked root and every record hashes to the content hash its shard lists for that revision.
