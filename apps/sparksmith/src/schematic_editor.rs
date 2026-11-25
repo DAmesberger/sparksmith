@@ -1787,7 +1787,7 @@ impl SchematicEditor {
             }
             Subject::Item(item) => self.item_section(ui, engine, item),
             Subject::LabelTool(tool) => {
-                self.label_tool_section(ui, tool);
+                self.label_tool_section(ui, project, tool);
                 None
             }
             Subject::SheetTool => {

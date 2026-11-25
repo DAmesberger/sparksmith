@@ -277,7 +277,8 @@ pub enum SchematicCommand {
         position: PointNm,
     },
     /// Rename, change the kind of, or turn a label. A name or kind change
-    /// may join or split nets.
+    /// may join or split nets. A power port's style is its name's: changing
+    /// it restyles every power port of that name.
     #[serde(rename = "label.edit")]
     EditLabel {
         label: Id,

@@ -150,7 +150,25 @@ pub fn edit(
     if let Some(at) = at {
         label.position = super::sheet_point(at)?;
     }
+    // A power port's style is its net's: every port of the name draws
+    // alike, so one change restyles them all.
+    if let Some(LabelKind::Power { style }) = kind {
+        let name = label.name.clone();
+        for other in project.labels.iter_mut() {
+            if other.name == name && matches!(other.kind, LabelKind::Power { .. }) {
+                other.kind = LabelKind::Power { style };
+            }
+        }
+    }
     Ok(())
+}
+
+/// The style the power ports named `name` draw in, if there are any.
+pub fn power_style(project: &Project, name: &str) -> Option<crate::model::PowerStyle> {
+    project.labels.iter().find_map(|l| match l.kind {
+        LabelKind::Power { style } if l.name == name => Some(style),
+        _ => None,
+    })
 }
 
 /// The pin a label is attached to while it places itself: it is not

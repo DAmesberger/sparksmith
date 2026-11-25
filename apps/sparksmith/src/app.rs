@@ -2318,6 +2318,9 @@ mod open_project_tests;
 #[path = "app/parts_band_tests.rs"]
 mod parts_band_tests;
 #[cfg(test)]
+#[path = "app/power_port_tests.rs"]
+mod power_port_tests;
+#[cfg(test)]
 #[path = "app/via_tests.rs"]
 mod via_tests;
 
