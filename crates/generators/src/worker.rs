@@ -21,7 +21,6 @@ use crate::cancel::{self, Cancel};
 use crate::{Limits, WasmiRuntime};
 use sparksmith_generator_abi::v1::{Description, Request};
 use sparksmith_generator_abi::{Failure, Generated, GeneratorRuntime};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -55,7 +54,7 @@ struct Slots(AtomicUsize);
 enum Pool {
     Process(&'static Slots),
     #[cfg(any(test, feature = "test-fixtures"))]
-    Fixture(Arc<Slots>),
+    Fixture(std::sync::Arc<Slots>),
 }
 
 impl Pool {
@@ -116,7 +115,7 @@ impl Worker {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn fixture() -> Self {
         Self {
-            pool: Pool::Fixture(Arc::new(Slots(AtomicUsize::new(0)))),
+            pool: Pool::Fixture(std::sync::Arc::new(Slots(AtomicUsize::new(0)))),
             ..Self::default()
         }
     }

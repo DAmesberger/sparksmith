@@ -91,7 +91,14 @@ pub(crate) fn finalize(
     // Dimensioned parts, fills and keepouts are solved after the board (and
     // a move that cannot land is refused); a solved part, like a part moved
     // by hand, carries the copper attached to its pads.
+    let asked = (!project.part_dimensions.is_empty()).then(|| project.clone());
     let mut placed = layout::dimensions::follow(base, project, f.evaluator)?;
+    let over_edge = match &asked {
+        Some(asked) if !placed.is_empty() => {
+            layout::dimensions::put_over_edge(base, asked, project, f.evaluator)
+        }
+        _ => Vec::new(),
+    };
     for instance in f.moved_parts {
         if !placed.contains(instance) {
             placed.push(*instance);
@@ -124,5 +131,6 @@ pub(crate) fn finalize(
         interface::assembly_link::guard_driven(base, project, f.evaluator)?;
     }
     interface::assembly_link::follow_cycles(base, project, f.evaluator)?;
+    rerouted.over_edge = over_edge;
     Ok(Finalized { rerouted })
 }

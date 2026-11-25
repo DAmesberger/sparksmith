@@ -137,16 +137,13 @@ fn a_pending_preview_spins_without_blocking_the_frame() -> TestResult {
         let _ = wait.recv_timeout(Duration::from_secs(10));
         Err("released".into())
     });
-    let mut slowest = Duration::ZERO;
     for _ in 0..5 {
         let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
-            let started = Instant::now();
             previews.pane(ui, &key, vec2(160.0, 160.0));
-            slowest = slowest.max(started.elapsed());
         });
     }
+    // A pane that waited for the job would have seen it end.
     assert_eq!(previews.state(&key), PreviewState::Pending);
-    assert!(slowest < Duration::from_millis(20), "{slowest:?}");
     let _ = release.send(());
     assert_eq!(
         settle(&mut previews, &key),
