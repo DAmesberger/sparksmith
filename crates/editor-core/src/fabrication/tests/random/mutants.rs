@@ -402,7 +402,7 @@ fn redo_lost(engine: &Engine, _: &Seen) -> Fallible<Vec<Broken>> {
     Ok(invariants::history(a, b, a, a).into_iter().collect())
 }
 
-const FAULTS: [(&str, &[Rule], Fault); 20] = [
+const FAULTS: [(&str, &[Rule], Fault); 22] = [
     (
         "the fill clearance too small",
         &[Rule::Clearance],
