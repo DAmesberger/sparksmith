@@ -1097,3 +1097,137 @@ fn an_outline_with_a_stray_segment_is_imported() -> Fallible {
     assert_eq!(imported.report.count(Case::OutlineNotClosed), 1);
     Ok(())
 }
+
+/// Copper of nets A and B round two chips at (100, 100) and (140, 120) in
+/// KiCad's frame, with a zone, without any outline.
+const NO_OUTLINE: &str = r#"
+  (segment (start 99.25 100) (end 99.25 120) (width 0.3) (layer "F.Cu") (net 1))
+  (segment (start 99.25 120) (end 139.25 120) (width 0.3) (layer "F.Cu") (net 1))
+  (via (at 120 120) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (net 1))
+  (segment (start 120 120) (end 120 130) (width 0.3) (layer "B.Cu") (net 1))"#;
+
+fn chip_at(name: &str, at: [f64; 2]) -> String {
+    chip_footprint(name, at[0], "100n").replace(
+        &format!("(at {} 30)", at[0]),
+        &format!("(at {} {})", at[0], at[1]),
+    )
+}
+
+/// A board of those parts and `edges` (Edge.Cuts drawings).
+fn loose(edges: &str) -> String {
+    board(
+        "loose",
+        &format!(
+            "{}{}{NO_OUTLINE}{edges}",
+            chip_at("C1", [100.0, 100.0]),
+            chip_at("C2", [140.0, 120.0])
+        ),
+    )
+    .lines()
+    .filter(|l| !l.contains("gr_rect"))
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
+/// Everything of [`loose`] came in, and what stands for the outline goes
+/// round it.
+fn all_came_in(imported: &crate::kicad_import::KicadImport) -> Fallible {
+    use sparksmith_kicad::report::Case;
+    let report = &imported.report;
+    assert_eq!((report.counts.tracks, report.counts.vias), (3, 1));
+    assert_eq!(report.count(Case::TrackRefused), 0);
+    assert_eq!(report.count(Case::ViaRefused), 0);
+    assert_eq!(report.count(Case::CopperOutside), 0);
+    let project = imported.engine.project();
+    assert_eq!(project.placements.len(), 2);
+    assert!(sparksmith_core::layout::outside_board(project).is_empty());
+    let [w, h] = project.board_size;
+    for pad in sparksmith_core::layout::placed_pads(project) {
+        let [x, y] = pad.center();
+        assert!(x > 0.0 && y > 0.0 && x < w && y < h, "{x}, {y}");
+    }
+    Ok(())
+}
+
+/// What stands for an outline never reaches production: an error no waiver
+/// accepts, with no line of it drawn in the sketch.
+fn no_production(engine: &mut sparksmith_core::Engine, code: &str) -> Fallible {
+    let sparksmith_core::BoardShape::Sketch(sketch) = &engine.project().board_shape else {
+        return Err("a board sketch".into());
+    };
+    assert!(sketch.fault.is_some() && !sketch.current);
+    let items = sparksmith_core::fabrication::preflight::report(
+        engine.project(),
+        engine.drafts(),
+        None,
+        engine.check_settings(),
+    )?
+    .items;
+    let item = items.iter().find(|i| i.code == code).ok_or("the fault")?;
+    assert!(item.blocks() && !item.offers_waiver());
+    let refused = engine.apply(
+        engine.revision(),
+        sparksmith_core::Operation::Fabrication(
+            sparksmith_core::fabrication::FabricationCommand::Waive {
+                keys: vec![item.key.clone()],
+                reason: "as imported".into(),
+                profile: None,
+            },
+        ),
+    );
+    assert!(refused.is_err());
+    Ok(())
+}
+
+/// Red when a board without Edge.Cuts keeps the new-board rectangle: every
+/// piece of copper lay off it and was left out (GUI check 2, N5).
+#[test]
+fn a_board_without_an_outline_keeps_its_copper_and_is_no_board_yet() -> Fallible {
+    use sparksmith_kicad::report::Case;
+    let dir = tempfile::tempdir()?;
+    let mut imported = import(dir.path(), "none", &loose(""))?;
+    all_came_in(&imported)?;
+    assert_eq!(imported.report.count(Case::OutlineMissing), 1);
+    let said = imported.report.summary();
+    assert!(said.contains("draw the outline in Edit shape"), "{said}");
+    if let sparksmith_core::BoardShape::Sketch(sketch) = &imported.engine.project().board_shape {
+        assert!(sketch.edges.is_empty() && sketch.parameters.is_empty());
+    }
+    no_production(&mut imported.engine, "board.shape_invalid")?;
+    // A person's own rectangle is an outline.
+    let size = imported.engine.project().board_size;
+    let engine = &mut imported.engine;
+    engine.apply_hosted(
+        engine.revision(),
+        sparksmith_core::Operation::Board(
+            sparksmith_core::layout::outline::BoardCommand::SetRectangle { size },
+        ),
+        crate::session::hosted(),
+    )?;
+    assert!(engine.project().board_shape.invalid().is_none());
+    Ok(())
+}
+
+/// The same for drawings that do not close: three sides of a board.
+#[test]
+fn an_outline_that_does_not_close_keeps_the_copper() -> Fallible {
+    use sparksmith_kicad::report::Case;
+    let line = |a: [i32; 2], b: [i32; 2]| {
+        format!(
+            r#"(gr_line (start {} {}) (end {} {}) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#,
+            a[0], a[1], b[0], b[1]
+        )
+    };
+    let edges = [
+        line([90, 90], [160, 90]),
+        line([160, 90], [160, 140]),
+        line([160, 140], [90, 140]),
+    ]
+    .concat();
+    let dir = tempfile::tempdir()?;
+    let mut imported = import(dir.path(), "open", &loose(&edges))?;
+    all_came_in(&imported)?;
+    assert_eq!(imported.report.count(Case::OutlineNotClosed), 1);
+    no_production(&mut imported.engine, "board.shape_open")?;
+    Ok(())
+}

@@ -65,7 +65,9 @@ pub struct Board {
     pub aux_origin: Option<PointNm>,
     /// Where our board frame's origin lies in KiCad's: the lower-left
     /// corner of the outline's box (our board outline lies right of and
-    /// above its origin), else the auxiliary origin, else the file origin.
+    /// above its origin). Without an outline the auxiliary origin, else the
+    /// file origin, when everything on the board lies right of and above it,
+    /// else the lower-left corner of everything ([`extent`]).
     pub origin: PointNm,
     pub setup: Setup,
     pub footprints: Vec<Footprint>,
@@ -429,9 +431,61 @@ pub fn read(bytes: &[u8], report: &mut Report) -> Result<Board> {
             min[0].div_euclid(1000) * 1000,
             -((-max[1]).div_euclid(1000) * 1000),
         ],
-        None => board.aux_origin.unwrap_or_default(),
+        None => {
+            let stated = board.aux_origin.unwrap_or_default();
+            match extent(&board) {
+                Some([min, max]) if min[0] < stated[0] || max[1] > stated[1] => [
+                    min[0].div_euclid(1000) * 1000,
+                    -((-max[1]).div_euclid(1000) * 1000),
+                ],
+                _ => stated,
+            }
+        }
     };
     Ok(board)
+}
+
+/// How far a provisional outline stays from what it goes round, nm.
+const PROVISIONAL_MARGIN: Nm = 2_000_000;
+
+/// The box of everything on the board in KiCad's frame, with a margin:
+/// pads, tracks, vias, zones and the footprints' own origins. `None` for an
+/// empty board.
+pub fn extent(board: &Board) -> Option<[PointNm; 2]> {
+    let mut points: Vec<(PointNm, Nm)> = Vec::new();
+    for fp in &board.footprints {
+        points.push((fp.at, 0));
+        let (s, c) = fp.angle.to_radians().sin_cos();
+        for pad in &fp.pads {
+            let [x, y] = [pad.at[0] as f64, pad.at[1] as f64];
+            // A counter-clockwise turn on screen in a y-down frame.
+            let at = [
+                fp.at[0].saturating_add((x * c + y * s).round() as Nm),
+                fp.at[1].saturating_add((y * c - x * s).round() as Nm),
+            ];
+            let reach = (pad.size[0] as f64).hypot(pad.size[1] as f64) / 2.0;
+            points.push((at, reach.ceil() as Nm));
+        }
+    }
+    for t in &board.items.tracks {
+        for p in [Some(t.start), t.mid, Some(t.end)].into_iter().flatten() {
+            points.push((p, t.width / 2));
+        }
+    }
+    points.extend(board.items.vias.iter().map(|v| (v.at, v.size / 2)));
+    for ring in board.items.zones.iter().flat_map(|z| &z.outlines) {
+        points.extend(ring.iter().map(|p| (*p, 0)));
+    }
+    points.into_iter().fold(None, |found, (p, reach)| {
+        let reach = reach.saturating_add(PROVISIONAL_MARGIN);
+        let low = p.map(|v| v.saturating_sub(reach));
+        let high = p.map(|v| v.saturating_add(reach));
+        let [a, b] = found.unwrap_or([low, high]);
+        Some([
+            [a[0].min(low[0]), a[1].min(low[1])],
+            [b[0].max(high[0]), b[1].max(high[1])],
+        ])
+    })
 }
 
 /// A decimal millimetre length as whole nanometres (exact for up to six

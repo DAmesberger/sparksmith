@@ -347,12 +347,12 @@ fn an_imported_short_blocks_until_it_is_fixed() -> Fallible<()> {
 }
 
 /// What a document cannot hold is left out and listed with the reason, and
-/// the rest is imported: a track off the board, a via without a ring.
+/// the rest is imported: a track off the working area, a via without a ring.
 #[test]
 fn copper_the_board_cannot_hold_is_listed_and_the_rest_imported() -> Fallible<()> {
     let mut board = routed();
     board.items.push_str(
-        "  (segment (start 35 5) (end 45 5) (width 0.25) (layer \"F.Cu\") (net 1))
+        "  (segment (start 35 5) (end 2045 5) (width 0.25) (layer \"F.Cu\") (net 1))
   (via (at 20 5) (size 0.3) (drill 0.3) (layers \"F.Cu\" \"B.Cu\") (net 1))\n",
     );
     let imported = import(board.text().as_bytes())?;
@@ -366,7 +366,7 @@ fn copper_the_board_cannot_hold_is_listed_and_the_rest_imported() -> Fallible<()
     for (case, says) in [
         (
             Case::TrackRefused,
-            "Track on SIG (Top) from (35, 15) to (45, 15) mm: track copper must lie inside",
+            "Track on SIG (Top) from (35, 15) to (2045, 15) mm: track copper must lie inside the working area",
         ),
         (
             Case::ViaRefused,
@@ -387,7 +387,7 @@ fn copper_the_board_cannot_hold_is_listed_and_the_rest_imported() -> Fallible<()
     Ok(())
 }
 
-/// A track from R2's SIG pad whose second piece runs off the board: that
+/// A track from R2's SIG pad whose second piece runs off the working area: that
 /// piece cannot be held, and the first piece, now ending in nothing, says
 /// in its finding that the import refused the rest and why.
 #[test]
@@ -395,7 +395,7 @@ fn a_stub_a_refused_track_left_says_so() -> Fallible<()> {
     let mut board = routed();
     board.items.push_str(
         "  (segment (start 29 10) (end 29 16) (width 0.25) (layer \"F.Cu\") (net 1))
-  (segment (start 29 16) (end 29 25) (width 0.25) (layer \"F.Cu\") (net 1))\n",
+  (segment (start 29 16) (end 29 1200) (width 0.25) (layer \"F.Cu\") (net 1))\n",
     );
     let imported = import(board.text().as_bytes())?;
     assert_eq!(imported.report.count(Case::TrackRefused), 1);
@@ -413,6 +413,72 @@ fn a_stub_a_refused_track_left_says_so() -> Fallible<()> {
             && text
                 == "Track on SIG (Top) stops at (29, 4) mm: import refused the rest (outside the board)"),
         "{found:#?}"
+    );
+    Ok(())
+}
+
+/// Copper outside the outline comes in where it is: the report counts it and
+/// the board check lists each piece. Red when it is dropped.
+#[test]
+fn copper_outside_the_outline_is_imported_and_told() -> Fallible<()> {
+    use sparksmith_core::{Operation, layout::LayoutCommand};
+    let plain = import(routed().text().as_bytes())?;
+    assert_eq!(plain.report.count(Case::CopperOutside), 0);
+    let mut board = routed();
+    board.items.push_str(
+        "  (segment (start 35 5) (end 45 5) (width 0.25) (layer \"F.Cu\") (net 1))
+  (segment (start -6 8) (end -2 8) (width 0.25) (layer \"F.Cu\") (net 1))
+  (via (at 45 25) (size 0.6) (drill 0.3) (layers \"F.Cu\" \"B.Cu\") (net 1))\n",
+    );
+    let imported = import(board.text().as_bytes())?;
+    let report = &imported.report;
+    assert_eq!(report.count(Case::TrackRefused), 0);
+    assert_eq!(report.count(Case::ViaRefused), 0);
+    assert_eq!(report.count(Case::CopperOutside), 3);
+    let project = imported.engine.project();
+    // The outline is the file's own, and nothing moved.
+    assert_eq!(project.board_size, [40.0, 20.0]);
+    assert!(project.refused_import_tracks.is_empty());
+    assert!(project.vias.iter().any(|v| v.position == [45.0, -5.0]));
+    let outside: std::collections::BTreeSet<_> = findings(project)?
+        .into_iter()
+        .filter(|(code, _)| code == "board.outside_outline")
+        .collect();
+    assert_eq!(report.counts.tracks, plain.report.counts.tracks + 2);
+    assert!(!outside.is_empty(), "{outside:?}");
+    // It can be worked on: taken away, and other copper edited.
+    let mut engine = imported.engine;
+    let stray = engine
+        .project()
+        .tracks
+        .iter()
+        .find(|t| t.start[0] < 0.0)
+        .map(|t| t.id)
+        .ok_or("the stray")?;
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::DeleteTrack { id: stray }),
+    )?;
+    // No edit puts copper there.
+    let via = engine
+        .project()
+        .vias
+        .iter()
+        .find(|v| v.position[0] < 40.0)
+        .map(|v| v.id)
+        .ok_or("the via on the board")?;
+    let moved = engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::MoveVia {
+            id: via,
+            position: [45.0, 5.0],
+        }),
+    );
+    assert!(
+        moved
+            .as_ref()
+            .is_err_and(|e| e.to_string().contains("inside the board outline")),
+        "{moved:?}"
     );
     Ok(())
 }

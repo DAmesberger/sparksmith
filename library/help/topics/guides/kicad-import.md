@@ -30,4 +30,6 @@ The import makes a new Sparksmith project. Your KiCad files are not changed.
 - Wait for “Importing KiCad project…”. Stop ends it with nothing imported.
 - Read the KiCad import report: Exact, Approximated, Imported and listed, and Not imported. It opens again with [[command/view.import-report]].
 - The board gets the fab profile a new board takes. Rules that are looser in KiCad than the profile are not taken; the report names them. Choose your fabricator's profile as in [[guide/fab-profiles]].
+- All copper comes in. A track or via outside the board outline stays where it is, and Issues lists it.
+- A board whose KiCad file has no outline, or one that does not close, shows a provisional rectangle round everything. Draw or close the outline in Edit shape: until then the board cannot be exported, and that error cannot be waived.
 - Open Issues and go through what it lists, then save the project.

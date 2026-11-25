@@ -548,6 +548,10 @@ fn add(
     report.counts.tracks = added.tracks;
     report.counts.vias = added.vias;
     let project = session.engine.project();
+    report.add_n(
+        Case::CopperOutside,
+        sparksmith_core::layout::outside_board(project).len(),
+    );
     let mut refused = Vec::new();
     for (track, why) in &added.refused_tracks {
         let why = why.to_string();
@@ -585,7 +589,7 @@ fn add(
 
 /// The kind of a refusal, without the names the core's message may carry.
 fn reason_kind(reason: &str) -> TrackRefusal {
-    if reason.contains("inside the board") {
+    if reason.contains("inside the working area") {
         TrackRefusal::OutsideBoard
     } else if reason.contains("width") {
         TrackRefusal::Width
