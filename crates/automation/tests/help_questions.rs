@@ -165,7 +165,7 @@ fn measure() -> Fallible {
     }
     let shown = std::env::var("SPARKSMITH_HELP_SET").unwrap_or_default();
     type Ask<'a> = Box<dyn FnMut(&Question) -> Vec<HelpId> + 'a>;
-    for set in ["tune", "held", "run2"] {
+    for set in ["tune", "held", "run2", "fresh"] {
         for who in ["person", "agent"] {
             let ways: [(&str, Ask<'_>); 2] = [
                 ("text", Box::new(|q| search(&text, q))),

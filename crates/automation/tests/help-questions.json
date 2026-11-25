@@ -1,5 +1,5 @@
 {
-  "about": "Questions a person or an agent types into the help search, with the topics that answer them (any one counts; a trailing * matches a prefix). Written before any tuning. Set 'tune' may be used to choose weights; set 'held' only to measure, and so is 'run2', written by the tester of GUI run 2 without sight of the others (the right answers are the search author's). The first 32 are the questions of the measurement of 2026-11-24.",
+  "about": "Questions a person or an agent types into the help search, with the topics that answer them (any one counts; a trailing * matches a prefix). Written before any tuning. Set 'tune' may be used to choose weights; set 'held' only to measure, and so is 'run2', written by the tester of GUI run 2 without sight of the others (the right answers are the search author's). Set 'fresh' was written, with its right answers, before the topics on track width and layer count existed and before any search ran on it. The first 32 are the questions of the measurement of 2026-11-24.",
   "questions": [
     {"set": "tune", "for": "person", "ask": "why can't I export", "right": ["guide/export-disabled", "guide/fab-output"]},
     {"set": "held", "for": "person", "ask": "connect two pins", "right": ["guide/wiring", "guide/first-board", "panel/schematic"]},
@@ -143,6 +143,27 @@
     {"set": "run2", "for": "person", "ask": "how do I use the AI assistant", "right": ["guide/ai-setup", "panel/assistant"]},
     {"set": "run2", "for": "person", "ask": "what are the keyboard shortcuts", "right": ["guide/keyboard", "panel/keyboard-shortcuts", "command/app.shortcuts"]},
 
+
+    {"set": "fresh", "for": "person", "ask": "what decides how wide a new track starts", "right": ["guide/track-width"]},
+    {"set": "fresh", "for": "person", "ask": "my trace is thinner than the rule allows", "right": ["guide/track-width", "finding/board.track_width"]},
+    {"set": "fresh", "for": "person", "ask": "give power nets thicker copper by default", "right": ["guide/track-width", "command/pcb.net-classes", "term/net-class"]},
+    {"set": "fresh", "for": "person", "ask": "go from a 2 layer to a 4 layer board", "right": ["guide/stackups", "command/pcb.stackup"]},
+    {"set": "fresh", "for": "person", "ask": "how many copper layers does the standard profile allow", "right": ["guide/fab-profiles", "guide/stackups", "finding/board.profile_layers"]},
+    {"set": "fresh", "for": "person", "ask": "line up several parts in a row", "right": ["command/pcb.align*", "command/pcb.distribute*"]},
+    {"set": "fresh", "for": "person", "ask": "hide the thin lines between unrouted pads", "right": ["command/pcb.airwires"]},
+    {"set": "fresh", "for": "person", "ask": "put a text note on the sheet", "right": ["command/schematic.note"]},
+    {"set": "fresh", "for": "person", "ask": "mark a pin that is meant to stay empty", "right": ["command/schematic.no-connect"]},
+    {"set": "fresh", "for": "person", "ask": "make a second schematic page", "right": ["command/schematic.add-sheet"]},
+    {"set": "fresh", "for": "person", "ask": "renumber all the designators", "right": ["command/schematic.annotate"]},
+    {"set": "fresh", "for": "person", "ask": "two parts are too close together", "right": ["finding/board.courtyard*"]},
+    {"set": "fresh", "for": "person", "ask": "which things did the kicad import leave out", "right": ["command/view.import-report", "guide/kicad-import"]},
+    {"set": "fresh", "for": "person", "ask": "leave a part off one version of the board", "right": ["command/pcb.variants", "term/variant*"]},
+    {"set": "fresh", "for": "person", "ask": "make a signal longer so both arrive together", "right": ["command/pcb.tune", "guide/pairs"]},
+    {"set": "fresh", "for": "person", "ask": "look at the underside of the board", "right": ["command/view.bottom", "command/pcb.from-bottom"]},
+    {"set": "fresh", "for": "person", "ask": "the copper is closer to the edge than allowed", "right": ["finding/board.edge_clearance"]},
+    {"set": "fresh", "for": "person", "ask": "get back to the file I was working on yesterday", "right": ["panel/files", "guide/save-recover", "command/file.open*"]},
+    {"set": "fresh", "for": "person", "ask": "show only one layer", "right": ["command/pcb.layer-focus"]},
+    {"set": "fresh", "for": "person", "ask": "where does a part's 3D shape come from", "right": ["guide/own-part", "guide/view-3d", "panel/model-3d"]},
 
     {"set": "tune", "for": "agent", "ask": "place a component", "right": ["entry/component.place"]},
     {"set": "held", "for": "agent", "ask": "connect two pins", "right": ["entry/schematic.connect"]},
