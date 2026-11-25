@@ -1452,7 +1452,7 @@
  "project.redo": {"additionalProperties":false,"properties":{"expected_revision":{"format":"uint64","minimum":0,"type":"integer"}},"required":["expected_revision"],"type":"object"},
  "project.rename": {"additionalProperties":false,"properties":{"name":{"type":"string"}},"required":["name"],"type":"object"},
  "project.replace_component": {"additionalProperties":false,"properties":{"expected_revision":{"format":"uint64","minimum":0,"type":"integer"},"merge_named_nets":{"default":false,"type":"boolean"},"remove_conflicting_tracks":{"default":false,"type":"boolean"},"replace":{"$ref":"#/$defs/PreviewReplaceParams"}},"required":["replace","expected_revision"],"type":"object"},
- "project.save": {"additionalProperties":false,"properties":{"path":{"default":null,"type":["string","null"]}},"type":"object"},
+ "project.save": {"additionalProperties":false,"properties":{"path":{"default":null,"type":["string","null"]},"replace_write_protected":{"type":"boolean"}},"type":"object"},
  "project.schema": {"additionalProperties":false,"properties":{"def":{"default":null,"type":["string","null"]},"detail":{"$ref":"#/$defs/SchemaDetail","default":"input"},"name":{"default":null,"type":["string","null"]}},"type":"object"},
  "project.set_properties": {"additionalProperties":false,"properties":{"properties":{"$ref":"#/$defs/ProjectProperties"}},"required":["properties"],"type":"object"},
  "project.turn_begin": {"additionalProperties":false,"properties":{"label":{"type":"string"}},"required":["label"],"type":"object"},

@@ -962,3 +962,44 @@ fn folder_assignment_requires_the_instance_version_that_was_chosen() -> Fallible
     );
     Ok(())
 }
+
+/// A flip that a dimension turns into a part over the board's edge is made,
+/// and one toast with Undo says so at once: the part with the dimension
+/// that put it there, and the connections it opened.
+#[test]
+fn a_part_put_over_the_boards_edge_is_said_at_once() -> Fallible {
+    use sparksmith_core::layout::LayoutCommand;
+    let mut h = Harness::new()?;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
+    h.app.engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    h.app.document_replaced();
+    let project = h.app.engine.project();
+    let j1 = project.instance_by_designator("J1").ok_or("J1")?.id;
+    let at = project.placement_of(j1).cloned().ok_or("placed")?;
+    let flip = Operation::Layout(LayoutCommand::Move {
+        instance: j1,
+        position: at.position,
+        rotation_deg: at.rotation_deg,
+        layer: sparksmith_core::model::Layer::Bottom,
+    });
+    h.app.apply(&h.ctx, Origin::Command, Some(flip));
+    let shown: Vec<_> = h
+        .app
+        .toasts
+        .items()
+        .map(|t| (t.text.clone(), t.actions.clone()))
+        .collect();
+    let [(text, actions)] = shown.as_slice() else {
+        return Err(format!("{shown:?}").into());
+    };
+    assert!(
+        text.starts_with(
+            "J1 extends beyond the board: J1 · front face to the bottom edge (0 mm). Re-routed "
+        ) && text.contains("15 left unrouted (")
+            && text.contains("VBUS"),
+        "{text}"
+    );
+    assert_eq!(*actions, [ToastAction::Undo]);
+    Ok(())
+}

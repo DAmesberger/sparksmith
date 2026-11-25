@@ -24,10 +24,10 @@
   {"name":"variant.set_population","class":"edit","schema":"f4a0d51125490c0e","reply":"2520c70471af4388","fields":[["instances","6eed743aac2b3e81"],["population","b8b0924b1f19efc2"],["variant","c5454bd7e46f4b53"]],"required":["instances"]},
   {"name":"variant.substitutes","class":"read","schema":"d0db1335626b7e65","reply":"8d20ba288398c1bd","fields":[["instance","9295ea67127970c6"]],"required":["instance"]}
  ]},
- {"id": "files", "version": "2.0", "digest": "sha256:1bce338b87bf6cf082a0e3e771eccd42e2b03d3136856b504e89a01a47f38189", "entries": [
+ {"id": "files", "version": "2.0", "digest": "sha256:bbc4970f23cb53ac55e5f0e8e4e115e3f2f3c4c5e7f66a7d2c541463f2a21aad", "entries": [
   {"name":"project.new","class":"ask","schema":"ec36e7cf1af2150b","reply":"fbfb25c25a3622bc","fields":[["expected_revision","9295ea67127970c6"],["profile","a3b3c2b554ff5c19"]],"required":["expected_revision"]},
   {"name":"project.open","class":"ask","schema":"7317cdb697af20e5","reply":"fbfb25c25a3622bc","fields":[["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"]],"required":["expected_revision","path"]},
-  {"name":"project.save","class":"ask","schema":"d6b27c72606417bf","reply":"19462af2d65a22bb","fields":[["path","40bd5b57f4261fe2"]],"required":[]}
+  {"name":"project.save","class":"ask","schema":"d60ee39b134c3acd","reply":"19462af2d65a22bb","fields":[["path","40bd5b57f4261fe2"],["replace_write_protected","90c3f0cfcf6ff8f0"]],"required":[]}
  ]},
  {"id": "schematic", "version": "2.0", "digest": "sha256:7287907b51cd7ecd4c54220c181fd38359f82ac6128197ed5cafed523a2de04e", "entries": [
   {"name":"component.inspect","class":"read","schema":"d0db1335626b7e65","reply":"75767e44048c88da","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
