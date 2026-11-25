@@ -1287,7 +1287,7 @@
   {
     "id": "entry/layout.block_move",
     "title": "Move a block",
-    "summary": "Move a block's placed parts as one, as one undo step: mirrored onto the other side (`flip`, left to right) and turned by `turn_deg` counter-…",
+    "summary": "Move a block's placed parts as one, as one undo step.",
     "since": "0.1.0",
     "facts": {
       "kind": "entry",

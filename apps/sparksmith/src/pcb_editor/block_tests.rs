@@ -659,3 +659,91 @@ fn a_block_and_a_part_are_one_group() -> Fallible {
     );
     Ok(())
 }
+
+/// The example board with a block of six parts near each other, and a locked
+/// one of five on the other side.
+fn example() -> Fallible<(Engine, Id)> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
+    let mut engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    let placements = engine.project().placements.clone();
+    let mut taken = BTreeSet::new();
+    let mut near = |at: Point, count: usize| -> Vec<Id> {
+        let mut by: Vec<(f64, Id)> = placements
+            .iter()
+            .filter(|p| !taken.contains(&p.instance))
+            .map(|p| {
+                let d = (p.position[0] - at[0]).hypot(p.position[1] - at[1]);
+                (d, p.instance)
+            })
+            .collect();
+        by.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let parts: Vec<Id> = by.into_iter().take(count).map(|(_, id)| id).collect();
+        taken.extend(parts.iter().copied());
+        parts
+    };
+    let board = engine.project().board_size;
+    let blocks = [
+        ("Supply", near([board[0] * 0.2, board[1] * 0.3], 6)),
+        ("USB", near([board[0] * 0.8, board[1] * 0.3], 5)),
+    ];
+    let mut first = None;
+    for (name, parts) in blocks {
+        let command = LayoutCommand::AddBlock {
+            parts,
+            name: Some(name.into()),
+        };
+        let outcome = engine.apply(engine.revision(), Operation::Layout(command))?;
+        let Outcome::BlockAdded { block } = outcome else {
+            return Err("no block".into());
+        };
+        first = first.or(Some(block));
+        if name == "USB" {
+            let lock = LayoutCommand::SetBlockLock {
+                id: block,
+                locked: true,
+            };
+            engine.apply(engine.revision(), Operation::Layout(lock))?;
+        }
+    }
+    Ok((engine, first.ok_or("no block")?))
+}
+
+/// Evidence pictures, written only with `SPARKSMITH_PICTURES` set: the
+/// example board's blocks at each level of detail, one selected, and the
+/// card.
+#[test]
+fn block_pictures() -> Fallible {
+    use super::super::raster_tests::{picture, picture_of};
+    let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
+        return Ok(());
+    };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir)?;
+    let (engine, block) = example()?;
+    for (name, choice, zoom, selected) in [
+        ("block-auto", Choice::Auto, 1.0, false),
+        ("block-far", Choice::Auto, 0.4, false),
+        ("block-border", Choice::Fixed(Detail::Border), 1.0, true),
+        ("block-parts", Choice::Fixed(Detail::Parts), 1.0, false),
+        ("block-copper", Choice::Fixed(Detail::Copper), 1.0, true),
+    ] {
+        let mut editor = PcbEditor {
+            zoom,
+            ..Default::default()
+        };
+        editor.blocks.choice = choice;
+        if selected {
+            editor.select_block(block);
+        }
+        let png = picture(&mut editor, &engine).png().ok_or("png")?;
+        std::fs::write(dir.join(format!("{name}.png")), png)?;
+    }
+    let mut editor = PcbEditor::default();
+    editor.select_block(block);
+    let card = picture_of([280.0, 520.0], Tokens::get().panel, |ui| {
+        editor.subject_slot(ui, &engine);
+    });
+    std::fs::write(dir.join("block-card.png"), card.png().ok_or("png")?)?;
+    Ok(())
+}

@@ -350,7 +350,7 @@ pub enum LayoutCommand {
     /// of its parts by hand; the parts' own locks stay as they are.
     #[serde(rename = "layout.block_lock")]
     SetBlockLock { id: Id, locked: bool },
-    /// Move a block's placed parts as one, as one undo step: mirrored onto
+    /// Move a block's placed parts as one, as one undo step. Mirrored onto
     /// the other side (`flip`, left to right) and turned by `turn_deg`
     /// counter-clockwise about the middle of its border, then slid by `by`
     /// (mm). The attached copper is carried as by `layout.move_parts`. A

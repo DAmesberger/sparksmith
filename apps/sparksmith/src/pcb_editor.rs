@@ -3283,7 +3283,7 @@ impl PcbEditor {
             let chosen = self.track == Some(track.id)
                 || self.group.tracks.contains(&track.id)
                 || self.net_is_highlighted(track.net);
-            if (chosen_only && !chosen) || (!chosen && self.track_hidden(track.id)) {
+            if !chosen && (chosen_only || self.track_hidden(track.id)) {
                 continue;
             }
             let Some(ring) = self.layout_copper.track(track.id) else {

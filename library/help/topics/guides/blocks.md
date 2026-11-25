@@ -14,8 +14,7 @@
     "layout block",
     "group parts",
     "module",
-    "move parts together",
-    "keep parts together",
+    "move parts as one",
     "ungroup",
     "lock a block",
     "flip a block",
@@ -31,8 +30,8 @@
     "term/layout-block"
   ],
   "since": "0.1.0",
-  "summary": "Make a block of parts that belong together, so they move, turn, flip and lock as one.",
-  "title": "Move parts together as a block"
+  "summary": "Make a block of parts, so they move, turn, flip and lock as one.",
+  "title": "Move several parts as one block"
 }
 ---
 
