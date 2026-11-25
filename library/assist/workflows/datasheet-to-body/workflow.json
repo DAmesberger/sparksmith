@@ -11,8 +11,8 @@
     "recreate the 3D body of LS1 from its drawing"
   ],
   "needs": [
-    {"module": "library", "major": 5, "minor": 0},
-    {"module": "generators", "major": 3, "minor": 0},
+    {"module": "library", "major": 6, "minor": 0},
+    {"module": "generators", "major": 4, "minor": 0},
     {"module": "assist", "major": 1, "minor": 4}
   ],
   "reach": {"project": "read", "library": "read", "generators": "edit", "assist": "edit", "view": "show"},
