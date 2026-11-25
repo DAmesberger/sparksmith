@@ -475,6 +475,8 @@ pub fn object_of(project: &Project, id: Id) -> Option<ObjectRef> {
         Some(ObjectRef::Fill { id })
     } else if project.keepouts.iter().any(|k| k.id == id) {
         Some(ObjectRef::Keepout { id })
+    } else if project.board_text(id).is_some() {
+        Some(ObjectRef::BoardText { id })
     } else if project.wire(id).is_some() {
         Some(ObjectRef::Wire { id })
     } else if project.label(id).is_some() {
@@ -502,6 +504,7 @@ fn exists(project: &Project, object: &ObjectRef) -> bool {
         | ObjectRef::Via { id }
         | ObjectRef::Fill { id }
         | ObjectRef::Keepout { id }
+        | ObjectRef::BoardText { id }
         | ObjectRef::Wire { id } => object_of(project, id) == Some(*object),
         _ => true,
     }

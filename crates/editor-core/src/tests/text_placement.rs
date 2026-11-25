@@ -40,7 +40,7 @@ fn designator_text(project: &Project, instance: Id) -> Fallible<PlacedText> {
     let graphic = instances::text::target(project, instance, None)?;
     layout::placed_graphics(project)
         .into_iter()
-        .filter(|g| g.instance == instance && g.graphic == graphic)
+        .filter(|g| g.instance() == Some(instance) && g.graphic() == Some(graphic))
         .find_map(|g| match g.item {
             PlacedItem::Text(text) => Some(text),
             PlacedItem::Shape { .. } => None,
@@ -278,7 +278,7 @@ fn a_placement_survives_the_file_and_a_bad_stored_one_is_refused() -> Fallible {
 }
 
 /// Every drawn coordinate of a Gerber file, in nanometres.
-fn gerber_points(text: &str) -> BTreeSet<(i64, i64)> {
+pub(super) fn gerber_points(text: &str) -> BTreeSet<(i64, i64)> {
     let mut points = BTreeSet::new();
     let (mut x, mut y) = (0i64, 0i64);
     for line in text.lines() {

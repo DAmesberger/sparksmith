@@ -11,7 +11,7 @@
 use super::check_pair_budget;
 use super::grid::BoundsGrid;
 use super::limits::{mm_against, need};
-use super::placed::{BoardDrawing, PlacedItem, placed_graphics};
+use super::placed::{BoardDrawing, GraphicOwner, PlacedItem, placed_graphics};
 use crate::diagnostics::FindingCode;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, Shape, polygons_overlap, polyline_polygon_distance};
@@ -43,17 +43,17 @@ pub struct PlacedCourtyard {
 pub fn placed_courtyards(project: &Project) -> Vec<PlacedCourtyard> {
     placed_graphics(project)
         .into_iter()
-        .filter_map(|g| match (g.layer, g.item) {
-            (BoardDrawing::Courtyard(layer), PlacedItem::Shape { shape, .. })
-                if shape.is_closed() =>
-            {
-                Some(PlacedCourtyard {
-                    instance: g.instance,
-                    graphic: g.graphic,
-                    layer,
-                    shape,
-                })
-            }
+        .filter_map(|g| match (g.owner, g.layer, g.item) {
+            (
+                GraphicOwner::Part { instance, graphic },
+                BoardDrawing::Courtyard(layer),
+                PlacedItem::Shape { shape, .. },
+            ) if shape.is_closed() => Some(PlacedCourtyard {
+                instance,
+                graphic,
+                layer,
+                shape,
+            }),
             _ => None,
         })
         .collect()

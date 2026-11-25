@@ -247,9 +247,6 @@ impl PreflightReport {
     }
 }
 
-/// Characters of a legend text a finding quotes, so its title stays one line.
-const MAX_LEGEND_NAME: usize = 16;
-
 /// Finding codes that may not be waived, and whether one may: they live
 /// with the findings ([`crate::issues`]), which hide waived findings.
 pub use crate::issues::{NO_WAIVER, SLOT_UNROUTABLE, can_waive};
@@ -684,16 +681,16 @@ impl LegendFault {
     }
 }
 
-/// The name a legend finding gives an item: at most `MAX_LEGEND_NAME`
-/// characters of its own text.
+/// The name a legend finding gives a part's legend text: at most
+/// `board_text::MAX_NAME_CHARS` characters of its own text.
 fn legend_name(text: &str, designator: &str) -> String {
     if text == designator {
         return format!("Designator {designator}");
     }
-    let line = text.lines().next().unwrap_or_default();
-    let short: String = line.chars().take(MAX_LEGEND_NAME).collect();
-    let more = if short.len() < line.len() { "…" } else { "" };
-    format!("Legend text {short}{more} of {designator}")
+    format!(
+        "Legend text {} of {designator}",
+        crate::model::board_text::first_line(text)
+    )
 }
 
 /// Legend text past the board's outline or over a cutout or slot: the
@@ -771,11 +768,33 @@ fn legend_against_the_board(project: &Project, items: &mut Vec<PreflightItem>) {
         let Some(fault) = worst else {
             continue;
         };
-        // placed_graphics includes only instances with resolved footprints.
-        let Some(&(designator, footprint)) = names.get(&graphic.instance) else {
-            continue;
+        let (name, hint, objects) = match graphic.owner {
+            layout::GraphicOwner::BoardText { id } => (
+                format!(
+                    "Board text {}",
+                    crate::model::board_text::first_line(&text.text)
+                ),
+                "Move the text",
+                vec![ObjectRef::BoardText { id }],
+            ),
+            layout::GraphicOwner::Part { instance, graphic } => {
+                // placed_graphics includes only instances with resolved footprints.
+                let Some(&(designator, footprint)) = names.get(&instance) else {
+                    continue;
+                };
+                (
+                    legend_name(&text.text, designator),
+                    "Move the text on the part's Placement card, or move the part",
+                    vec![
+                        ObjectRef::Instance { id: instance },
+                        ObjectRef::LibraryObject {
+                            definition: footprint,
+                            local: graphic.0,
+                        },
+                    ],
+                )
+            }
         };
-        let name = legend_name(&text.text, designator);
         let (code, title) = match fault {
             LegendFault::Outside => (
                 "fabrication.legend_outside",
@@ -793,21 +812,7 @@ fn legend_against_the_board(project: &Project, items: &mut Vec<PreflightItem>) {
                 ),
             ),
         };
-        let mut finding = item(
-            code,
-            Severity::Warning,
-            title,
-            Some("Move the text on the part's Placement card, or move the part".into()),
-            vec![
-                ObjectRef::Instance {
-                    id: graphic.instance,
-                },
-                ObjectRef::LibraryObject {
-                    definition: footprint,
-                    local: graphic.graphic.0,
-                },
-            ],
-        );
+        let mut finding = item(code, Severity::Warning, title, Some(hint.into()), objects);
         if let LegendFault::Close { gap, .. } = fault {
             finding.measured = vec![Measured::at_least(gap, limit, Unit::Mm, 1e-8)];
         }
@@ -847,13 +852,14 @@ fn silk_over_pads(project: &Project, items: &mut Vec<PreflightItem>) {
     let grid = layout::grid::BoundsGrid::new(openings.iter().map(|o| Some(o.2)), 0.0);
     let budget = layout::check_pair_budget(openings.len().saturating_add(graphics.len()));
     let mut near = Vec::new();
-    let mut flagged: BTreeSet<(Id, Layer)> = BTreeSet::new();
+    let mut flagged: BTreeSet<(layout::Whose, Layer)> = BTreeSet::new();
     let mut pairs = 0usize;
     for graphic in graphics {
         let BoardDrawing::Silkscreen(side) = graphic.layer else {
             continue;
         };
-        if flagged.contains(&(graphic.instance, side)) {
+        let whose = graphic.whose();
+        if flagged.contains(&(whose, side)) {
             continue;
         }
         let strokes: Vec<(Vec<Point>, f64)> = match &graphic.item {
@@ -891,7 +897,7 @@ fn silk_over_pads(project: &Project, items: &mut Vec<PreflightItem>) {
                 };
                 let hits = polyline_polygon_distance(&path, ring) < width / 2.0;
                 if hits {
-                    flagged.insert((graphic.instance, side));
+                    flagged.insert((whose, side));
                     break 'strokes;
                 }
             }
@@ -902,20 +908,34 @@ fn silk_over_pads(project: &Project, items: &mut Vec<PreflightItem>) {
         .iter()
         .map(|i| (i.id, i.designator.as_str()))
         .collect();
-    for (instance, side) in flagged {
+    for (whose, side) in flagged {
+        let (name, object) = match whose {
+            layout::Whose::Part(id) => (
+                names.get(&id).copied().unwrap_or("a part").to_owned(),
+                ObjectRef::Instance { id },
+            ),
+            layout::Whose::BoardText(id) => (
+                format!(
+                    "board text {}",
+                    project.board_text(id).map_or_else(String::new, |t| {
+                        crate::model::board_text::first_line(&t.text)
+                    })
+                ),
+                ObjectRef::BoardText { id },
+            ),
+        };
         items.push(item(
             "fabrication.silk_over_pad",
             Severity::Warning,
             format!(
-                "Legend of {} runs into a pad opening on the {} side",
-                names.get(&instance).copied().unwrap_or("a part"),
+                "Legend of {name} runs into a pad opening on the {} side",
                 match side {
                     Layer::Top => "top",
                     Layer::Bottom => "bottom",
                 }
             ),
             Some("Move the legend clear of the pads; the fabricator clips ink in openings".into()),
-            vec![ObjectRef::Instance { id: instance }],
+            vec![object],
         ));
     }
 }

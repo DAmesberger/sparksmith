@@ -1,24 +1,24 @@
 ---
 {
-  "id": "panel/properties",
-  "kind": "panel",
-  "title": "Properties",
-  "summary": "Inspect the selected object or change a field in the subject card.",
-  "since": "0.1.0",
   "covers": {
-    "entry/view.select": "74fda399933448fc"
+    "entry/view.select": "5cda9cf6fa83864e"
   },
+  "id": "panel/properties",
   "keywords": [
     "inspector",
     "selection",
     "field error",
     "properties card"
   ],
+  "kind": "panel",
   "related": [
     "panel/issues",
     "panel/browser",
     "panel/layout"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Inspect the selected object or change a field in the subject card.",
+  "title": "Properties"
 }
 ---
 

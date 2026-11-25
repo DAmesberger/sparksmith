@@ -177,7 +177,10 @@ pub fn part_boxes(project: &Project) -> BTreeMap<Id, Bounds> {
             PlacedItem::Shape { shape, width, .. } => shape.bounds(*width),
             PlacedItem::Text(text) => text.bounds(metric),
         };
-        add(graphic.instance, b);
+        // A board text is no part's.
+        if let Some(instance) = graphic.instance() {
+            add(instance, b);
+        }
     }
     boxes
 }

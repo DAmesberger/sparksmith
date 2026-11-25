@@ -531,6 +531,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             .iter()
             .filter_map(|hole| drill_size(project, &drill_min, hole)),
     );
+    out.extend(super::board_text::findings(project));
     out
 }
 

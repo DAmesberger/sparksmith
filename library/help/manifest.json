@@ -75,6 +75,7 @@
     "findings/board.shape_range.md",
     "findings/board.shape_unsolved.md",
     "findings/board.sketch_edit.md",
+    "findings/board.text_height.md",
     "findings/board.track_dangling.md",
     "findings/board.track_width.md",
     "findings/board.unplaced.md",

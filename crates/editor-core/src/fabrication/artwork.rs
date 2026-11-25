@@ -581,7 +581,10 @@ fn legend(
         if graphic.layer != BoardDrawing::Silkscreen(side) {
             continue;
         }
-        w.object(&[("C", board.designator(graphic.instance))]);
+        match graphic.instance() {
+            Some(instance) => w.object(&[("C", board.designator(instance))]),
+            None => w.object(&[]),
+        }
         match &graphic.item {
             PlacedItem::Shape {
                 shape,

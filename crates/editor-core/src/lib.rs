@@ -2190,6 +2190,7 @@ impl Engine {
             }
             Operation::Layout(command) => {
                 let part = command.places_part();
+                let adds_text = command.adds_text();
                 let before = candidate.project.library.components.len();
                 let project = Arc::make_mut(&mut candidate.project);
                 match layout::apply_staged(project, command)? {
@@ -2202,6 +2203,7 @@ impl Engine {
                             created: project.library.components.len() > before,
                         }
                     }
+                    Some(text) if adds_text => Outcome::TextAdded { text },
                     Some(via) => Outcome::ViaAdded { via },
                     None => Outcome::None,
                 }

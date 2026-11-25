@@ -1,13 +1,9 @@
 ---
 {
-  "id": "panel/issues",
-  "kind": "panel",
-  "title": "Issues",
-  "summary": "Locate a design finding, see why it was reported, and decide what to change.",
-  "since": "0.1.0",
   "covers": {
-    "entry/project.issues": "8179456145cb1eba"
+    "entry/project.issues": "c8b7fbd7ea9a1af3"
   },
+  "id": "panel/issues",
   "keywords": [
     "error warning",
     "ERC",
@@ -17,11 +13,15 @@
     "fix",
     "scope"
   ],
+  "kind": "panel",
   "related": [
     "panel/properties",
     "panel/messages",
     "guide/fab-output"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Locate a design finding, see why it was reported, and decide what to change.",
+  "title": "Issues"
 }
 ---
 

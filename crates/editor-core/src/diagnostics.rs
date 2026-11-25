@@ -202,6 +202,10 @@ pub enum ObjectRef {
     Keepout {
         id: Id,
     },
+    /// Text on the board's silkscreen that belongs to no part.
+    BoardText {
+        id: Id,
+    },
     /// The board as a whole, for a finding about the board rather than any
     /// one object on it (a check that stopped at its limit). Locating it
     /// frames the board.

@@ -46,7 +46,7 @@ pub struct Legend<'a> {
 /// The silkscreen films of `project`, cut at the mask openings of
 /// `legend.lands` grown by the rules' silkscreen-to-pad clearance
 /// (`rules.silkscreen.pad_clearance`), as fabricators clip legend. Each film is a [`BodyKind::Silkscreen`] geometry whose
-/// `layer` names its side's outer copper layer: one film per placed part and
+/// `layer` names its side's outer copper layer: one film per placed part (or board text) and
 /// side, plus its pieces standing on mask caps. A part's films whose
 /// inputs `memo` (the last call's) holds are taken from it instead of made
 /// again; the memo of this call is returned with the films, so an edit
@@ -54,7 +54,7 @@ pub struct Legend<'a> {
 pub fn films(project: &Project, legend: &Legend<'_>, memo: &Memo) -> Result<(Vec<Geometry>, Memo)> {
     let mut next = Memo::default();
     let stackup = &project.stackup;
-    let mut strokes: BTreeMap<(Id, Layer), Vec<Vec<Point>>> = BTreeMap::new();
+    let mut strokes: BTreeMap<(layout::Whose, Layer), Vec<Vec<Point>>> = BTreeMap::new();
     let silk = project.rules.effective().silkscreen;
     for graphic in layout::placed_graphics(project) {
         let BoardDrawing::Silkscreen(side) = graphic.layer else {
@@ -67,7 +67,7 @@ pub fn films(project: &Project, legend: &Legend<'_>, memo: &Memo) -> Result<(Vec
         if !printed {
             continue;
         }
-        let out = strokes.entry((graphic.instance, side)).or_default();
+        let out = strokes.entry((graphic.whose(), side)).or_default();
         match &graphic.item {
             PlacedItem::Shape {
                 shape,
@@ -83,7 +83,7 @@ pub fn films(project: &Project, legend: &Legend<'_>, memo: &Memo) -> Result<(Vec
     // their own ink, not parts × board.
     let mut sides: BTreeMap<Layer, Near> = BTreeMap::new();
     let mut films = Vec::new();
-    for ((instance, side), loops) in strokes {
+    for ((whose, side), loops) in strokes {
         if loops.is_empty() {
             continue;
         }
@@ -94,7 +94,11 @@ pub fn films(project: &Project, legend: &Legend<'_>, memo: &Memo) -> Result<(Vec
         let near = sides
             .entry(side)
             .or_insert_with(|| Near::of(legend, side, silk.pad_clearance));
-        let item = legend.picks.get(&instance).copied();
+        // A board text has no pick identity of a part.
+        let item = match whose {
+            layout::Whose::Part(instance) => legend.picks.get(&instance).copied(),
+            layout::Whose::BoardText(_) => None,
+        };
         let layer = Some(CopperLayer::from(side));
         let cuts = near.cuts(&reach);
         // On the mask (or the bare laminate): the stack's legend slot; and

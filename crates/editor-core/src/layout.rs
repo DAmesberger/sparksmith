@@ -26,6 +26,7 @@ pub const WORKING_AREA_MM: [f64; 2] = [-1000.0, 2000.0];
 pub mod arrange;
 pub mod blocks;
 pub mod board_edge;
+pub mod board_text;
 pub mod bodies;
 pub mod connectivity;
 mod copper;
@@ -71,9 +72,9 @@ pub(crate) use courtyard::limit_finding as courtyard_limit_finding;
 pub use courtyard::{PlacedCourtyard, placed_courtyards};
 pub use pad_hole::{PadHoleIndex, items as pad_hole_items};
 pub use placed::{
-    BoardDrawing, PlacedBridge, PlacedGraphic, PlacedHole, PlacedItem, PlacedKeepout, PlacedPad,
-    model_to_board, pick_graphic, pick_pad, placed_bridges, placed_graphics, placed_keepouts,
-    placed_pads, placement_transform, seat_height,
+    BoardDrawing, GraphicOwner, PlacedBridge, PlacedGraphic, PlacedHole, PlacedItem, PlacedKeepout,
+    PlacedPad, Whose, board_text_graphic, model_to_board, pick_graphic, pick_pad, placed_bridges,
+    placed_graphics, placed_keepouts, placed_pads, placement_transform, seat_height,
 };
 pub use via::{LayerChangeRequest, ViaRequest, via_pad_clearance_conflict};
 /// Nearby copper pairs one check may compare per shape on average, and
@@ -321,6 +322,20 @@ pub enum LayoutCommand {
         objects: several::Objects,
         locked: bool,
     },
+    /// Add text to the board's silkscreen; the outcome names it
+    /// (`Outcome::TextAdded`). Example:
+    /// `{"text":{"text":"Sensor node rev A","position":{"x_nm":20000000,"y_nm":5000000},"height_nm":1000000,"side":"Top"}}`.
+    #[serde(rename = "layout.text_add")]
+    AddText {
+        text: Box<crate::model::BoardTextSpec>,
+    },
+    /// Replace a board text with an edited one of the same id: its words,
+    /// place, height, turn or side.
+    #[serde(rename = "layout.text_edit")]
+    EditText { text: Box<crate::model::BoardText> },
+    /// Delete a board text.
+    #[serde(rename = "layout.text_delete")]
+    DeleteText { id: Id },
     /// Record the track pieces an import refused, replacing those
     /// recorded: copper left ending where one ran says why
     /// (`board.track_dangling`).
@@ -366,6 +381,9 @@ declare_entries!(LayoutCommand in layout {
     DeleteObjects "layout.delete_objects" Edit "Delete several board objects" [returns(none, parts_kept)],
     LockObjects "layout.lock_objects" Edit "Lock or unlock several board objects",
     SetRefusedImportTracks "layout.set_refused_import_tracks" Edit "Record tracks an import refused" [since(0, 3)],
+    AddText "layout.text_add" Edit "Add text to the silkscreen" [since(4, 2), returns(text_added)],
+    EditText "layout.text_edit" Edit "Edit a board text" [since(4, 2)],
+    DeleteText "layout.text_delete" Edit "Delete a board text" [since(4, 2)],
 });
 
 impl LayoutCommand {
@@ -373,6 +391,12 @@ impl LayoutCommand {
     /// outcome is `Outcome::PartPlaced`).
     pub fn places_part(&self) -> bool {
         matches!(self, Self::PlacePart { .. } | Self::SetPart { .. })
+    }
+
+    /// Whether the command adds a board text (its outcome is
+    /// `Outcome::TextAdded`).
+    pub fn adds_text(&self) -> bool {
+        matches!(self, Self::AddText { .. })
     }
 }
 
@@ -1024,6 +1048,9 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
         LayoutCommand::LockObjects { objects, locked } => {
             several::lock(project, &objects, locked)?;
         }
+        LayoutCommand::AddText { text } => return board_text::add(project, *text).map(Some),
+        LayoutCommand::EditText { text } => board_text::edit(project, *text)?,
+        LayoutCommand::DeleteText { id } => board_text::delete(project, id)?,
         LayoutCommand::SetRefusedImportTracks { tracks } => {
             crate::model::import_review::check_refused(&tracks)?;
             project.refused_import_tracks = tracks;
@@ -1896,7 +1923,7 @@ pub enum BoardCheck {
     /// Pad holes and their copper ([`pad_hole`]).
     PadHoles,
     Courtyards,
-    /// Track widths and drill sizes ([`physical`]).
+    /// Track widths, drill sizes and board text heights ([`physical`]).
     Physical,
     /// Fills and keepouts.
     Fills,

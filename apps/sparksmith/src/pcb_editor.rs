@@ -1205,17 +1205,17 @@ impl PcbEditor {
                     BoardDrawing::Assembly(_) | BoardDrawing::Courtyard(_)
                 )
             })
-            .map(|g| g.instance)
+            .filter_map(PlacedGraphic::instance)
             .collect();
         self.labelled = self
             .graphics
             .iter()
             .filter(|g| {
-                matches!(&g.item, PlacedItem::Text(text) if project
-                    .instance(g.instance)
+                matches!(&g.item, PlacedItem::Text(text) if g.instance()
+                    .and_then(|id| project.instance(id))
                     .is_some_and(|i| !i.designator.is_empty() && text.text == i.designator))
             })
-            .map(|g| g.instance)
+            .filter_map(PlacedGraphic::instance)
             .collect();
         // What the active variant leaves off (`variants::fitted`'s
         // population): its copper stays, its outline is crossed out.
@@ -2979,9 +2979,9 @@ impl PcbEditor {
             .map(|p| p.instance)
             .or_else(|| {
                 layout::pick_graphic(&self.graphics, at, tolerance, metric, |g| {
-                    layers.drawing(g.layer) && !self.part_hidden(g.instance)
+                    layers.drawing(g.layer) && g.instance().is_some_and(|i| !self.part_hidden(i))
                 })
-                .map(|g| g.instance)
+                .and_then(PlacedGraphic::instance)
             })
             .or_else(|| self.pick_body(project, at))
     }
@@ -3564,7 +3564,8 @@ impl PcbEditor {
             .graphics
             .iter()
             .filter(|g| {
-                g.instance == placement.instance && matches!(g.layer, BoardDrawing::Courtyard(_))
+                g.instance() == Some(placement.instance)
+                    && matches!(g.layer, BoardDrawing::Courtyard(_))
             })
             .filter_map(|g| match &g.item {
                 PlacedItem::Shape { shape, .. } if shape.is_closed() => Some(shape.bounds(0.0)),
@@ -3591,17 +3592,16 @@ impl PcbEditor {
             let BoardDrawing::Courtyard(layer) = graphic.layer else {
                 continue;
             };
-            if layer != side
-                || !pairs
-                    .iter()
-                    .any(|(a, b)| *a == graphic.instance || *b == graphic.instance)
-            {
+            let Some(instance) = graphic.instance() else {
+                continue;
+            };
+            if layer != side || !pairs.iter().any(|(a, b)| *a == instance || *b == instance) {
                 continue;
             }
             if let PlacedItem::Shape { shape, .. } = &graphic.item
                 && shape.is_closed()
             {
-                let delta = self.drag_delta(graphic.instance);
+                let delta = self.drag_delta(instance);
                 symbol_view::paint_shape(
                     painter,
                     view.view,
@@ -3626,14 +3626,19 @@ impl PcbEditor {
     ) {
         let selected_ink = Tokens::get().body_selected;
         for graphic in &self.graphics {
+            let instance = graphic.instance();
             if drawing_side(graphic.layer) != side
                 || !layers(graphic.layer)
                 || !self.layers.drawing(graphic.layer)
-                || self.part_hidden(graphic.instance)
+                || instance.is_some_and(|i| self.part_hidden(i))
             {
                 continue;
             }
-            let mut color = if self.is_selected(graphic.instance) {
+            let selected = match graphic.owner {
+                layout::GraphicOwner::Part { instance, .. } => self.is_selected(instance),
+                layout::GraphicOwner::BoardText { .. } => false,
+            };
+            let mut color = if selected {
                 selected_ink
             } else {
                 match graphic.layer {
@@ -3645,10 +3650,10 @@ impl PcbEditor {
             if dim {
                 color = ink.on_board(color, FAR_SHADE);
             }
-            if self.not_fitted.contains(&graphic.instance) {
+            if instance.is_some_and(|i| self.not_fitted.contains(&i)) {
                 color = ink.on_board(color, NOT_FITTED_SHADE);
             }
-            let delta = self.drag_delta(graphic.instance);
+            let delta = instance.map_or([0.0, 0.0], |i| self.drag_delta(i));
             match &graphic.item {
                 PlacedItem::Shape {
                     shape,

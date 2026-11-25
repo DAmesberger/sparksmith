@@ -1,13 +1,9 @@
 ---
 {
-  "id": "panel/messages",
-  "kind": "panel",
-  "title": "Messages",
-  "summary": "Read the full text of recent command results and refusals.",
-  "since": "0.1.0",
   "covers": {
-    "entry/project.issues": "8179456145cb1eba"
+    "entry/project.issues": "c8b7fbd7ea9a1af3"
   },
+  "id": "panel/messages",
   "keywords": [
     "log",
     "history",
@@ -15,10 +11,14 @@
     "toast",
     "copy report"
   ],
+  "kind": "panel",
   "related": [
     "panel/issues",
     "panel/files"
-  ]
+  ],
+  "since": "0.1.0",
+  "summary": "Read the full text of recent command results and refusals.",
+  "title": "Messages"
 }
 ---
 

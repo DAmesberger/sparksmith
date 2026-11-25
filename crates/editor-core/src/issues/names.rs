@@ -166,6 +166,15 @@ impl<'a> Names<'a> {
                     }
                 },
             ),
+            ObjectRef::BoardText { id } => self.project.board_text(id).map_or_else(
+                || "a board text".into(),
+                |t| {
+                    format!(
+                        "board text ‘{}’",
+                        crate::model::board_text::first_line(&t.text)
+                    )
+                },
+            ),
             ObjectRef::Board => "the board".into(),
             ObjectRef::BoardFeature { feature } => crate::layout::physical::feature_name(
                 self.project,

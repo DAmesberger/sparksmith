@@ -3,6 +3,7 @@ mod arc_corners;
 mod arrange;
 mod board_checks;
 mod board_contract;
+mod board_text;
 mod ce04;
 mod ce05;
 mod ce06;
