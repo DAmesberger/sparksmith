@@ -541,3 +541,44 @@ fn ports_on_horizontal_pins_stand_upright_where_they_have_room() -> Result<()> {
     );
     Ok(())
 }
+
+/// A power port's style is its name's: changing it on one port restyles
+/// every port of that name in one step, and others stay.
+#[test]
+fn a_power_style_change_restyles_every_port_of_the_name() -> Result<()> {
+    let mut engine = Engine::default();
+    let f = four_sides(&mut engine)?;
+    let u = place(&mut engine, &f, "U1", [0.0, 0.0])?;
+    let ground = LabelKind::Power {
+        style: PowerStyle::Ground,
+    };
+    let a = attach(&mut engine, "+3V3", ground, u, 1)?;
+    let b = attach(&mut engine, "+3V3", ground, u, 4)?;
+    let gnd = attach(&mut engine, "GND", ground, u, 10)?;
+    assert_eq!(
+        labels::power_style(engine.project(), "+3V3"),
+        Some(PowerStyle::Ground)
+    );
+    let revision = engine.revision();
+    run(
+        &mut engine,
+        C::EditLabel {
+            label: a,
+            name: None,
+            kind: Some(LabelKind::Power {
+                style: PowerStyle::Bar,
+            }),
+            rotation: None,
+        },
+    )?;
+    assert_eq!(engine.revision(), revision + 1, "one step");
+    let style = |e: &Engine, id: Id| e.project().label(id).map(|l| l.kind);
+    let bar = Some(LabelKind::Power {
+        style: PowerStyle::Bar,
+    });
+    assert_eq!((style(&engine, a), style(&engine, b)), (bar, bar));
+    assert_eq!(style(&engine, gnd), Some(ground));
+    engine.undo()?;
+    assert_eq!(style(&engine, b), Some(ground));
+    Ok(())
+}

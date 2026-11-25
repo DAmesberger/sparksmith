@@ -582,7 +582,12 @@ impl SchematicEditor {
     }
 
     /// The label and power-port tools' card: what the next click places.
-    pub(super) fn label_tool_section(&mut self, ui: &mut egui::Ui, tool: LabelTool) {
+    pub(super) fn label_tool_section(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &Project,
+        tool: LabelTool,
+    ) {
         kit::section(ui, "label-tool", tool.title(), true, None, |ui| {
             let drafts = &mut self.drafts;
             let name = match tool {
@@ -595,6 +600,20 @@ impl SchematicEditor {
             if let Some(problem) = name_problem(name) {
                 kit::field_error(ui, &response, problem, true);
             }
+            // A power port's style follows its name, unless chosen by hand:
+            // the ports of that name in the design, else the common name's,
+            // else a supply bar.
+            if tool == LabelTool::Power && response.changed() && !drafts.power_style_chosen {
+                let name = drafts.power.trim();
+                drafts.power_style = sparksmith_core::schematic::labels::power_style(project, name)
+                    .or_else(|| {
+                        POWER_PRESETS
+                            .iter()
+                            .find(|(n, _)| *n == name)
+                            .map(|(_, s)| *s)
+                    })
+                    .unwrap_or(PowerStyle::Bar);
+            }
             match tool {
                 LabelTool::Global => {
                     kit::choice_row(ui, "Shape", &mut drafts.global_shape, &shapes());
@@ -603,7 +622,9 @@ impl SchematicEditor {
                     kit::choice_row(ui, "Shape", &mut drafts.hierarchical_shape, &shapes());
                 }
                 LabelTool::Power => {
-                    kit::choice_row(ui, "Style", &mut drafts.power_style, &styles());
+                    if kit::choice_row(ui, "Style", &mut drafts.power_style, &styles()) {
+                        drafts.power_style_chosen = true;
+                    }
                     let presets: Vec<(usize, String)> = POWER_PRESETS
                         .iter()
                         .enumerate()
@@ -618,6 +639,7 @@ impl SchematicEditor {
                     {
                         drafts.power = (*n).to_owned();
                         drafts.power_style = *style;
+                        drafts.power_style_chosen = false;
                     }
                 }
                 LabelTool::Local => {}

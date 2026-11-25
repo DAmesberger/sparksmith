@@ -66,6 +66,8 @@ pub(super) struct Drafts {
     pub hierarchical_shape: PortShape,
     pub power: String,
     pub power_style: PowerStyle,
+    /// The style was chosen by hand: a new name keeps it.
+    pub power_style_chosen: bool,
     /// The name of the sheet a new sheet symbol creates; empty for "Sheet n".
     pub sheet_name: String,
     pub child: Option<SheetId>,
@@ -83,6 +85,7 @@ impl Default for Drafts {
             hierarchical_shape: PortShape::Bidirectional,
             power: "GND".into(),
             power_style: PowerStyle::Ground,
+            power_style_chosen: false,
             sheet_name: String::new(),
             child: None,
             note: "Note".into(),

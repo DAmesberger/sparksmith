@@ -2285,6 +2285,9 @@ mod block_tests;
 #[path = "app/board_param_tests.rs"]
 mod board_param_tests;
 #[cfg(test)]
+#[path = "app/browser_pcb_tests.rs"]
+mod browser_pcb_tests;
+#[cfg(test)]
 #[path = "app/browser_tree_tests.rs"]
 mod browser_tree_tests;
 #[cfg(test)]
@@ -2317,6 +2320,9 @@ mod open_project_tests;
 #[cfg(test)]
 #[path = "app/parts_band_tests.rs"]
 mod parts_band_tests;
+#[cfg(test)]
+#[path = "app/power_port_tests.rs"]
+mod power_port_tests;
 #[cfg(test)]
 #[path = "app/via_tests.rs"]
 mod via_tests;
