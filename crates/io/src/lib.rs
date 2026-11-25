@@ -30,8 +30,8 @@ pub mod shipped;
 pub mod standards;
 
 pub use persistence::{
-    Conflict, DiskIdentity, InUse, SavedDocument, UnsavedCopy, create_project, open_project,
-    read_project, same_file, save_document, save_project, write_project,
+    Conflict, DiskIdentity, InUse, SavedDocument, UnsavedCopy, WriteProtected, create_project,
+    open_project, read_project, same_file, save_document, save_project, write_project,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -62,6 +62,12 @@ pub enum Error {
     /// A save could not replace its file: another program has it open.
     #[error("{0}")]
     InUse(Box<persistence::InUse>),
+    /// A save did not replace its file, which is write-protected.
+    #[error(
+        "{} is write-protected and was not replaced. Save under another name, or make the file writable and save again.",
+        .0.display()
+    )]
+    WriteProtected(std::path::PathBuf),
 }
 
 impl Error {
@@ -75,6 +81,7 @@ impl Error {
             Self::Json(_) => "malformed_file",
             Self::Conflict(_) => "file_conflict",
             Self::InUse(_) => "file_in_use",
+            Self::WriteProtected(_) => "file_write_protected",
         }
     }
     pub fn diagnostic(&self) -> sparksmith_core::Diagnostic {

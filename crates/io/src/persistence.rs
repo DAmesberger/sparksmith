@@ -134,12 +134,53 @@ fn located(path: &Path) -> Option<Location> {
 /// writers that save this way lock the file, check it and rename over it
 /// as one step. A file that changed meanwhile is kept and this document
 /// is written to a new file beside it ([`Error::Conflict`]). Without
-/// `expected` (Save As to a file the person chose) any file is replaced.
-/// Returns the identity of the saved file.
+/// `expected` (Save As to a file the person chose) any file is replaced,
+/// but a write-protected one ([`Error::WriteProtected`]). Returns the
+/// identity of the saved file.
 pub fn save_project(
     path: &Path,
     file: &EditorFile,
     expected: Option<DiskIdentity>,
+) -> Result<DiskIdentity> {
+    save_project_over(path, file, expected, WriteProtected::Refuse)
+}
+
+/// What a save does with a write-protected file. A rename needs no right to
+/// write the file it replaces, so without asking first it would go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WriteProtected {
+    /// Leave it as it is and say so.
+    Refuse,
+    /// Replace it, as the person said; the new file is write-protected too.
+    Replace,
+}
+
+/// Whether `path` is a file that says it must not be written: without any
+/// right to write (Unix) or read-only (Windows), or on Unix one this person
+/// may not write (another's file, an access list, a locked file).
+fn write_protected(path: &Path) -> bool {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    if !meta.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    let refused = matches!(
+        std::fs::OpenOptions::new().write(true).open(path),
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied
+    );
+    // Elsewhere an open another program refuses answers the same.
+    #[cfg(not(unix))]
+    let refused = false;
+    refused || meta.permissions().readonly()
+}
+
+fn save_project_over(
+    path: &Path,
+    file: &EditorFile,
+    expected: Option<DiskIdentity>,
+    protected: WriteProtected,
 ) -> Result<DiskIdentity> {
     check_project_path(path)?;
     // Stage and publish beside the linked file, including across volumes.
@@ -150,6 +191,11 @@ pub fn save_project(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => path.to_owned(),
         Err(error) => return Err(error.into()),
     };
+    if protected == WriteProtected::Refuse && write_protected(&target) {
+        return Err(Error::WriteProtected(target));
+    }
+    #[cfg(windows)]
+    let _writable = windows::Writable::for_replacement(&target)?;
     container::save_container(&target, file, expected)
 }
 
@@ -172,14 +218,23 @@ pub struct SavedDocument {
 /// by its own file at the next save. Refused because another program has
 /// the file open or locked ([`Error::InUse`]), `document` is kept in its one copy,
 /// over the `copy` an earlier refused save made; saved, that is removed.
+/// `protected` says what becomes of a write-protected file.
 pub fn save_document(
     path: &Path,
     document: &Document,
     expected: Option<DiskIdentity>,
     nonce: &str,
     copy: Option<&UnsavedCopy>,
+    protected: WriteProtected,
 ) -> Result<SavedDocument> {
-    save_document_with(path, document, expected, nonce, copy, save_project)
+    save_document_with(
+        path,
+        document,
+        expected,
+        nonce,
+        copy,
+        |path, file, expected| save_project_over(path, file, expected, protected),
+    )
 }
 
 /// [`save_document`], its project written by `save`.

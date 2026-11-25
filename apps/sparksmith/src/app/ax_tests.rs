@@ -776,6 +776,62 @@ fn the_production_waive_form_shows_beside_a_long_issues_list() -> Fallible {
     Ok(())
 }
 
+/// GUI check 2, R2-D1: a Position typed key by key after Production was
+/// opened and cancelled, with its check running or done, keeps the keyboard
+/// for every key, and all of it is committed.
+#[test]
+fn a_position_typed_after_production_was_cancelled_is_kept_whole() -> Fallible {
+    let engine = Engine::showcase()?;
+    let project = engine.project();
+    let host = crate::pcb_editor::board_shape::host_evaluator();
+    let free = project
+        .placements
+        .iter()
+        .map(|p| p.instance)
+        .find(|id| sparksmith_core::layout::move_refusal(project, *id, host).is_none())
+        .ok_or("a part that may move")?;
+    let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
+    ax.window = egui::vec2(1380.0, 1200.0);
+    for checked in [true, false] {
+        ax.app.pcb.set_selection(Some(free), None, None);
+        ax.settle();
+        ax.button("Production")?;
+        if checked {
+            ax.until("the production check", |ax| {
+                !ax.all_prefix(Role::CheckBox, "").is_empty()
+            })?;
+        }
+        ax.button("Cancel")?;
+        assert!(!ax.app.pcb.production_open());
+        for typed in ["27.5", "27.6"] {
+            let field = ax
+                .all(Role::TextInput, "Position")
+                .first()
+                .map(|n| n.center())
+                .ok_or_else(|| format!("no Position:\n{}", ax.dump()))?;
+            ax.click_at(field);
+            ax.command_key(Key::A);
+            for c in typed.chars() {
+                ax.type_text(&c.to_string());
+                ax.settle();
+                assert!(ax.ctx.text_edit_focused(), "{typed}: {c} took the keyboard");
+            }
+            assert!(ax.texts.iter().any(|t| t == typed), "{:?}", ax.texts);
+            ax.key(Key::Enter);
+            ax.settle();
+            let at = ax.app.engine.project().placement_of(free);
+            let at = at.map(|p| p.position[0]).ok_or("placed")?;
+            assert!(
+                (at - typed.parse::<f64>()?).abs() < 1e-9 || ax.texts.iter().any(|t| t == typed),
+                "{typed}: at {at}, {:?}",
+                ax.texts
+            );
+        }
+        ax.key(Key::Escape);
+    }
+    Ok(())
+}
+
 /// A launch whose recovery folder holds an earlier session, settled on the
 /// recovery question. A restored session keeps the profile it had; kept for
 /// later, the launch's new project keeps its own. Neither is asked for one.

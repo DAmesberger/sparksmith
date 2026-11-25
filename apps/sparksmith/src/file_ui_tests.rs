@@ -659,14 +659,14 @@ fn a_save_another_program_blocks_is_tried_again() -> Fallible {
     );
     assert!(h.files.dirty() && h.files.prompting());
     h.click("Cancel")?;
-    assert!(h.files.in_use.is_none());
+    assert!(h.files.not_saved.is_none());
     assert_eq!(h.files.controller.prompt, Some(Transition::New));
     h.files.controller.prompt = None;
 
     refuse(&mut h)?;
     h.click("Try again")?;
     h.until("the write", |h| !h.files.busy())?;
-    assert!(h.files.in_use.is_none());
+    assert!(h.files.not_saved.is_none());
     assert_eq!(sparksmith_io::read_project(&path)?.project.name, "Blocked");
     assert!(!copy.exists());
     assert_eq!(h.files.controller.unsaved, None);
@@ -689,7 +689,7 @@ fn a_locked_file_is_said_at_once() -> Fallible {
     let holder = std::fs::File::open(&path)?;
     holder.lock()?;
     h.files.request(Action::Save);
-    h.until("the refusal", |h| h.files.in_use.is_some())?;
+    h.until("the refusal", |h| h.files.not_saved.is_some())?;
     assert!(!h.files.saving() && h.files.dirty());
     assert_eq!(h.files.activity(), None);
     drop(holder);
@@ -698,6 +698,46 @@ fn a_locked_file_is_said_at_once() -> Fallible {
     h.until("the write", |h| !h.files.busy())?;
     assert_eq!(sparksmith_io::read_project(&path)?.project.name, "Locked");
     assert!(!h.dir.path().join("locked (unsaved 1).sparksmith").exists());
+    Ok(())
+}
+
+/// GUI check 2, N2: a write-protected file is not replaced silently: the
+/// dialog says so, Cancel leaves everything, and Replace replaces it, still
+/// write-protected.
+#[test]
+fn a_write_protected_file_is_replaced_only_when_the_person_says_so() -> Fallible {
+    let mut h = Harness::new()?;
+    let path = h.dir.path().join("protected.sparksmith");
+    sparksmith_io::write_project(&path, &h.engine.to_file())?;
+    let (_, identity) = sparksmith_io::open_project(&path)?;
+    let before = std::fs::read(&path)?;
+    let writable = std::fs::metadata(&path)?.permissions();
+    let mut protected = writable.clone();
+    protected.set_readonly(true);
+    std::fs::set_permissions(&path, protected.clone())?;
+    h.files
+        .adopt(&h.engine, Some(path.clone()), Some(identity), false)?;
+    h.edit("Replaced")?;
+    for choice in ["Cancel", "Replace"] {
+        h.files.request(Action::Save);
+        h.until("the refusal", |h| h.files.not_saved.is_some())?;
+        assert!(h.files.dirty());
+        assert_eq!(std::fs::read(&path)?, before);
+        let painted = h.shown();
+        assert!(
+            painted
+                .iter()
+                .any(|(text, _)| text.contains("write-protected")),
+            "{painted:?}"
+        );
+        h.click(choice)?;
+        h.until("the answer", |h| !h.files.busy())?;
+        assert!(h.files.not_saved.is_none());
+    }
+    assert_eq!(sparksmith_io::read_project(&path)?.project.name, "Replaced");
+    assert!(!h.files.dirty());
+    assert_eq!(std::fs::metadata(&path)?.permissions(), protected);
+    std::fs::set_permissions(&path, writable)?;
     Ok(())
 }
 

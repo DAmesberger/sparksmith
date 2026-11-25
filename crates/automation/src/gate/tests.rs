@@ -555,6 +555,47 @@ fn saving_without_a_path_counts_as_naming_the_current_file() -> Fallible {
     Ok(())
 }
 
+/// GUI check 2, N2: a save refuses a write-protected file and says what to
+/// do; a model that asks to replace it needs a person in every mode.
+#[test]
+fn a_write_protected_file_is_a_persons_to_replace() -> Fallible {
+    let root = tempfile::tempdir()?;
+    let file = root.path().join("board.sparksmith");
+    let mut session = Session::new(Engine::demo()?);
+    let path = file.display().to_string();
+    let saved = session.dispatch(json!({"command": "project.save", "params": {"path": path}}));
+    assert_eq!(saved["ok"], true, "{saved}");
+    let writable = std::fs::metadata(&file)?.permissions();
+    let mut protected = writable.clone();
+    protected.set_readonly(true);
+    std::fs::set_permissions(&file, protected)?;
+    let before = std::fs::read(&file)?;
+
+    let policy = Grant::new(Mode::AllowAll, [root.path().to_path_buf()]);
+    let save = json!({"command": "project.save", "params": {}});
+    let refused = session.respond(Caller::Model(&policy), save);
+    assert_eq!(
+        refused["error"]["code"], "file_write_protected",
+        "{refused}"
+    );
+    let instead = refused["error"]["instead"].as_str().unwrap_or_default();
+    assert!(instead.contains("replace_write_protected"), "{refused}");
+
+    let replace = json!({"command": "project.save", "params": {"replace_write_protected": true}});
+    let Decision::Ask(question) = session.check_request(&policy, &replace) else {
+        return Err("a person decides".into());
+    };
+    assert!(question.why.contains("write-protected"), "{question:?}");
+    let refused = session.respond(Caller::Model(&policy), replace.clone());
+    assert_eq!(refused["error"]["code"], "gate.needs_person", "{refused}");
+    assert_eq!(std::fs::read(&file)?, before);
+
+    let saved = session.dispatch(replace);
+    assert_eq!(saved["ok"], true, "{saved}");
+    std::fs::set_permissions(&file, writable)?;
+    Ok(())
+}
+
 /// Unix only: making a symbolic link on Windows needs a privilege or
 /// Developer Mode that an ordinary account lacks.
 #[cfg(unix)]
