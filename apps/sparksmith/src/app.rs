@@ -2290,6 +2290,9 @@ mod parts_band_tests;
 #[path = "app/power_port_tests.rs"]
 mod power_port_tests;
 #[cfg(test)]
+#[path = "app/search_tests.rs"]
+mod search_tests;
+#[cfg(test)]
 #[path = "app/via_tests.rs"]
 mod via_tests;
 

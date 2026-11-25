@@ -781,6 +781,11 @@ impl SchematicEditor {
         None
     }
 
+    #[cfg(test)]
+    pub(crate) fn palette_ref(&self) -> &PlacePalette {
+        &self.palette
+    }
+
     pub fn palette_mut(&mut self) -> &mut PlacePalette {
         &mut self.palette
     }

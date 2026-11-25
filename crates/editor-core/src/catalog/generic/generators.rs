@@ -563,7 +563,7 @@ pub fn find_presets(
         return (Vec::new(), 0);
     }
     let metric = metric_aliases(query, &words);
-    let mut found: Vec<(bool, &v1::Description, &v1::Preset)> = Vec::new();
+    let mut found: Vec<(bool, bool, &v1::Description, &v1::Preset)> = Vec::new();
     for description in descriptions {
         let families = description
             .offer()
@@ -580,27 +580,47 @@ pub fn find_presets(
             )
             .to_lowercase()
             .replace('×', "x");
-            let names = |k: usize, w: &str| match metric.iter().find(|(m, _)| *m == k) {
-                Some((_, alias)) => text.replace(alias.as_str(), "").contains(w),
-                None => text.contains(w),
+            // The words of its kind: the generator's title and families and
+            // the preset's aliases, not its name or description, where a
+            // maker's name stands.
+            let kind = format!(
+                "{} {} {}",
+                preset.aliases.join(" "),
+                description.title,
+                families
+            )
+            .to_lowercase()
+            .replace('×', "x");
+            let names_in = |hay: &str, k: usize, w: &str| {
+                let hay = match metric.iter().find(|(m, _)| *m == k) {
+                    Some((_, alias)) => hay.replace(alias.as_str(), ""),
+                    None => hay.to_owned(),
+                };
+                crate::catalog::words::meanings(w)
+                    .iter()
+                    .any(|m| crate::catalog::words::starts_word(&hay, m))
             };
+            let names = |k: usize, w: &str| names_in(&text, k, w);
             if words.iter().enumerate().all(|(k, w)| names(k, w)) {
+                let by_kind = words.iter().enumerate().all(|(k, w)| names_in(&kind, k, w));
                 let exact = preset
                     .aliases
                     .iter()
                     .chain(std::iter::once(&preset.name))
                     .any(|a| same_word(a, query));
-                found.push((exact, description, preset));
+                found.push((exact, by_kind, description, preset));
             }
         }
     }
-    found.sort_by_key(|(exact, _, _)| !exact);
+    // An alias named whole first, then what the words name as a kind of
+    // part, before what only a name or description holds.
+    found.sort_by_key(|(exact, by_kind, _, _)| (!exact, !by_kind));
     let limit = limit.min(MAX_PRESET_HITS);
     let more = found.len().saturating_sub(limit);
     let hits = found
         .into_iter()
         .take(limit)
-        .map(|(_, description, preset)| preset_hit(document, description, preset))
+        .map(|(_, _, description, preset)| preset_hit(document, description, preset))
         .collect();
     (hits, more)
 }

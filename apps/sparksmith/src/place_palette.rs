@@ -703,6 +703,32 @@ impl PlacePalette {
     /// changes whenever they do, and `context` is only built then.
     /// The shipped generators whose presets and generic parts the palette
     /// lists.
+    /// Whether the shipped generators have been read (tests).
+    #[cfg(test)]
+    pub(crate) fn shelf_ready(&self) -> bool {
+        self.shelf.offers().is_some()
+    }
+
+    /// The listed rows' names, top to bottom (tests).
+    #[cfg(test)]
+    pub(crate) fn row_names(&self) -> Vec<String> {
+        let Some(results) = &self.results else {
+            return Vec::new();
+        };
+        let hits = results.report.as_ref().map_or(&[][..], |r| &r.results[..]);
+        results
+            .order
+            .iter()
+            .filter_map(|slot| match *slot {
+                Slot::Hit(i) => hits.get(i).map(|h| h.entry.name.clone()),
+                Slot::Generic(i) => results.generic.get(i).map(|c| c.name.clone()),
+                Slot::Template(i) => results.templates.hits.get(i).map(|h| h.name.clone()),
+                Slot::Builtin(i) => results.builtins.get(i).map(|p| p.title.clone()),
+                Slot::Online(_) => None,
+            })
+            .collect()
+    }
+
     pub fn set_shelf(&mut self, shelf: &Shelf) {
         self.shelf = shelf.clone();
     }

@@ -986,7 +986,9 @@ fn body_mm(text: &str) -> Option<Vec<f64>> {
 
 /// A token without an operator: always text, and also a value of every
 /// quantity field it reads as when it carries a letter (`10k`, `4k7`,
-/// `100nF`). Plain numbers such as `0603` stay text.
+/// `100nF`). Plain numbers such as `0603` stay text. Without a unit, a
+/// multiplier is read only for the fields that take it bare
+/// ([`takes_bare`]): `100n` is a capacitance, not 100 nΩ.
 fn bare(token: &str, vocabulary: &Vocabulary) -> Term {
     let text = fold(token);
     let starts = token.chars().next().is_some_and(|c| {
@@ -1008,6 +1010,9 @@ fn bare(token: &str, vocabulary: &Vocabulary) -> Term {
                         .chain(&u.aliases)
                         .any(|s| !s.is_empty() && written.ends_with(&s.to_lowercase()))
                 });
+                if unitless && !takes_bare(token, field, kind) {
+                    continue;
+                }
                 readings.push(FieldTest {
                     field: field.field,
                     unitless,
@@ -1035,6 +1040,32 @@ fn bare(token: &str, vocabulary: &Vocabulary) -> Term {
     } else {
         Term::Value { text, readings }
     }
+}
+
+/// Whether `field` reads `token`, written without a unit, with the
+/// multiplier it carries: the search vocabulary's value slot of the field
+/// lists the multipliers its values are written with bare (a capacitance
+/// in p, n or µ, a resistance in k or M; `generic-families.json`'s
+/// `value_slots`). A field without a slot takes none. Without the shipped
+/// standards every reading stays.
+fn takes_bare(token: &str, field: &VocabularyField, kind: &VocabularyKind) -> bool {
+    let Ok(standards) = crate::library::standards::get() else {
+        return true;
+    };
+    let Some(slot) = standards
+        .generic
+        .value_slots
+        .iter()
+        .find(|s| s.field.eq_ignore_ascii_case(&field.name))
+    else {
+        return false;
+    };
+    let units = &kind.quantity.units;
+    let Ok(parsed) = quantity::parse_in_unit(token, units, &kind.quantity.default_unit, None)
+    else {
+        return false;
+    };
+    slot.bare.contains(&parsed.suffix)
 }
 
 /// Parse a full query and report a structured core error.
