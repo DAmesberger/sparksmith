@@ -1288,3 +1288,41 @@ fn confirm_shown_rows_confirms_what_the_filter_shows() -> TestResult {
     assert!(h.engine_component()?.review.is_none());
     Ok(())
 }
+
+/// Run 4, C5: the preview lists its findings, not only their count; a
+/// finding that names a pin the draft already has offers Locate, which
+/// shows it on the Symbol tab.
+#[test]
+fn the_preview_lists_its_findings_and_locates_one() -> TestResult {
+    let mut h = Harness::new()?;
+    h.click("Paste table…")?;
+    let flow = h.editor.pins.table.paste.as_mut().ok_or("not open")?;
+    flow.text = "Pin;Name;AF7\n1;PA9;USART1_TX\n2;PA10;USART1_RX\n".into();
+    flow.mapping.source_title = "EXM datasheet".into();
+    h.click("Preview")?;
+    let component = h.editor.draft.as_ref().ok_or("no draft")?.ids.component;
+    let terminal = *h.terminals()?.first().ok_or("no terminal")?;
+    let flow = h.editor.pins.table.paste.as_mut().ok_or("closed")?;
+    let (_, plan) = flow.plan.as_mut().ok_or("no plan")?;
+    plan.findings.push(sparksmith_core::Finding::new(
+        sparksmith_core::diagnostics::FindingCode::ComponentDesignatorPrefix,
+        "An example finding on a pin the draft has".into(),
+        vec![sparksmith_core::ObjectRef::LibraryObject {
+            definition: component,
+            local: terminal.0,
+        }],
+    ));
+    let messages: Vec<String> = plan.findings.iter().map(|f| f.message.clone()).collect();
+    let shown = h.texts();
+    for message in &messages {
+        assert!(
+            shown.iter().any(|t| t == message),
+            "{message} not in {shown:?}"
+        );
+    }
+    h.click("Locate")?;
+    h.frame(vec![]);
+    assert_eq!(h.editor.located(), ("symbol", true));
+    assert!(h.editor.pins.table.paste.is_some(), "the table is kept");
+    Ok(())
+}
