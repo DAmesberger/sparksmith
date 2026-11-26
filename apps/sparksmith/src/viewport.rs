@@ -1477,9 +1477,26 @@ impl Viewport {
         }
     }
 
-    /// Look at the model from `direction` (toward the eye).
+    /// Look at the model from `direction` (toward the eye). Straight down
+    /// or up is the Top or Bottom view, turned as Layout shows the board
+    /// (the board's x to the right): at the pole the heading is otherwise
+    /// kept from the view before, so the cube's TOP face from the
+    /// isometric view showed the board a quarter turn round (run 4, A18).
     pub fn view_from(&mut self, direction: Vec3) {
-        if direction.is_finite() && direction.dot(direction) > 0.0 {
+        use sparksmith_solidcraft::viewport::StandardView;
+        if !(direction.is_finite() && direction.dot(direction) > 0.0) {
+            return;
+        }
+        let Some(d) = direction.normalized() else {
+            return;
+        };
+        let up = self.camera.up_dir();
+        let along = d.dot(up);
+        if along > 1.0 - 1e-9 {
+            self.camera.set_view(StandardView::Top);
+        } else if along < -1.0 + 1e-9 {
+            self.camera.set_view(StandardView::Bottom);
+        } else {
             self.camera = self.camera.looking_from(direction);
         }
     }
@@ -2333,5 +2350,44 @@ mod tests {
             "hidden board is not hit"
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod top_view_tests {
+    use super::*;
+    use sparksmith_solidcraft::viewport::StandardView;
+
+    /// Run 4, A18: the navigation cube's TOP face, asked from the isometric
+    /// view, shows the board as Layout does: its x to the right, its y up.
+    /// The same for BOTTOM, as the Bottom view key shows it.
+    #[test]
+    fn the_cube_s_top_face_shows_the_board_as_layout_does() {
+        let gap = |a: Vec3, b: Vec3| {
+            let d = a - b;
+            d.dot(d).sqrt()
+        };
+        for (direction, view) in [
+            (Vec3::Z, StandardView::Top),
+            (-Vec3::Z, StandardView::Bottom),
+        ] {
+            let mut viewport = Viewport::detached();
+            viewport.standard_view(StandardView::Iso);
+            viewport.view_from(direction);
+            let (right, _, back) = viewport.camera.basis();
+            let mut keyed = Viewport::detached();
+            keyed.standard_view(view);
+            let (keyed_right, _, keyed_back) = keyed.camera.basis();
+            assert!(gap(right, keyed_right) < 1e-9, "{view:?}: right {right:?}");
+            assert!(gap(back, keyed_back) < 1e-6, "{view:?}: back {back:?}");
+        }
+        let mut viewport = Viewport::detached();
+        viewport.standard_view(StandardView::Iso);
+        viewport.view_from(Vec3::Z);
+        let (right, ..) = viewport.camera.basis();
+        assert!(
+            gap(right, Vec3::X) < 1e-9,
+            "board x to the right: {right:?}"
+        );
     }
 }
