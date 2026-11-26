@@ -2565,10 +2565,22 @@ fn findings_after(
         .map(|p| p.instance)
         .filter(|i| project.placements.iter().all(|q| q.instance != *i))
         .collect();
+    // A staged part lies beside the board: its copper and holes past the
+    // edge are where it waits, not what the update makes (run 4, A13: the
+    // review listed thirteen "extends beyond the board edge" rows for two
+    // parts not placed yet). The board and the net a finding also names
+    // are not parties.
     let off_board = |f: &Finding| {
-        f.code == "board.outside_outline"
-            && !f.objects.is_empty()
-            && f.objects.iter().all(|o| match o {
+        let parties: Vec<&ObjectRef> = f
+            .objects
+            .iter()
+            .filter(|o| !matches!(o, ObjectRef::Board | ObjectRef::Net { .. }))
+            .collect();
+        matches!(
+            f.code.as_str(),
+            "board.outside_outline" | "board.edge_clearance"
+        ) && !parties.is_empty()
+            && parties.iter().all(|o| match o {
                 ObjectRef::Pad { instance, .. } | ObjectRef::Instance { id: instance } => {
                     staged.contains(instance)
                 }

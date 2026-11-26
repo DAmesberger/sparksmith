@@ -1414,3 +1414,46 @@ fn a_part_joining_a_routed_net_reports_only_its_own_pads_as_new() -> Result<()> 
     }
     Ok(())
 }
+
+/// Run 4, A13: a part the update stages beside the board has its holes and
+/// copper past the board's edge; the review's "after this update" leaves
+/// out their edge-clearance findings as it leaves out their copper outside
+/// the outline. Measured on the showcase: a placement taken off the board
+/// (as a staged one is) whose pads have holes.
+#[test]
+fn a_staged_part_s_edge_clearance_is_not_a_new_finding() -> Result<()> {
+    let engine = Engine::showcase()?;
+    let project = engine.project().clone();
+    let holed = crate::layout::placed_pads(&project)
+        .into_iter()
+        .find(|p| p.pad.kind == crate::library::PadKind::PlatedThrough)
+        .map(|p| p.instance)
+        .ok_or_else(|| crate::Error::NotFound("no part with plated holes".into()))?;
+    // `project` without it, `next` with it beyond the board's right edge.
+    let mut before = project.clone();
+    before.placements.retain(|p| p.instance != holed);
+    let mut next = project.clone();
+    let outline_right = next.board_size[0];
+    for p in &mut next.placements {
+        if p.instance == holed {
+            p.position = [outline_right + 0.5, p.position[1]];
+        }
+    }
+    let names_it = |f: &Finding| {
+        f.objects.iter().any(
+            |o| matches!(o, ObjectRef::Pad { instance, .. } | ObjectRef::Instance { id: instance } if *instance == holed),
+        )
+    };
+    let settings = crate::layout::CheckSettings::default();
+    let edge = |fs: &[Finding]| {
+        fs.iter()
+            .filter(|f| f.code == "board.edge_clearance" && names_it(f))
+            .count()
+    };
+    assert!(
+        edge(&findings(&next, &settings)) > 0,
+        "the board checks flag the holes past the edge"
+    );
+    assert_eq!(edge(&findings_after(&before, &next, &settings)), 0);
+    Ok(())
+}
