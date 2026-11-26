@@ -925,9 +925,15 @@ fn copper(board: &mut Board, lane: [u64; 2]) -> Fallible {
         json!({"fill": {"name": "GND plane", "net": ground, "layer": {"Inner": 2}, "region": "board"}}),
     )?;
     let reply = board.apply("Fill", "fill.refill", json!({"target": {"fills": "all"}}))?;
-    // The plane joins the eight ground pads through their vias.
+    // The plane joins the eight ground pads through their vias. Before it,
+    // six of them are named unrouted: board.unrouted names the pads the
+    // airwires join (A21, 9a6f4cd8), and J2's B12 and B1 are already joined
+    // to its A1 and A12 above them through their vias, so no airwire ends
+    // there. Named before the plane, measured: J1 A1, A12, B1, B12 and J2
+    // A1, A12. All six are resolved; with every pad of the split net named
+    // (before A21) it was eight.
     assert_eq!(
-        reply["findings"]["resolved"]["board.unrouted"], 8,
+        reply["findings"]["resolved"]["board.unrouted"], 6,
         "{reply}"
     );
     Ok(())
