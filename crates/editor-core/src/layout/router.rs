@@ -592,14 +592,36 @@ fn shove_plan(ctx: &Ctx<'_>, request: &RouteStepRequest) -> RoutePlan {
             None,
         );
     }
-    // Shove as far along the straight step as room allows.
+    // Shove as far along the straight step as room allows, stopping on the
+    // edge of what blocked it rather than in its hull's corner overreach,
+    // where the next step had no way on past it (run 5, A16; see
+    // `Walker::reach`).
+    let facets = if request.posture == Posture::Orthogonal {
+        hull::Facets::Four
+    } else {
+        hull::Facets::Eight
+    };
+    let wall = ctx
+        .hull(
+            &State::default(),
+            first_try.target,
+            request.net,
+            crate::rules::CopperObject::Track,
+            request.width / 2.0,
+            facets,
+        )
+        .filter(|h| !h.strictly_contains(request.head, 1e-7));
     let total = clean::length(&straight.first);
     let pushed = bisect(total, |along| {
         let head = Head {
             first: clean::prefix(&straight.first, along),
             ..Default::default()
         };
-        if head.first.len() < 2 {
+        if head.first.len() < 2
+            || wall
+                .as_ref()
+                .is_some_and(|h| h.strictly_contains(head.end(request).0, 1e-7))
+        {
             return None;
         }
         attempt(ctx, request, &head).ok().map(|state| (head, state))

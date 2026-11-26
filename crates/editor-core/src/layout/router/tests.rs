@@ -1057,3 +1057,49 @@ fn a_placed_via_keeps_its_drill_clearance() -> Fallible {
     assert_eq!(drills(&after), 0);
     Ok(())
 }
+
+/// Run 5, A16: after a step stopped short next to a pad ("Route stopped
+/// short … the route goes on from its end"), every click from that end that
+/// had to pass the pad was refused, even ones leading away from it. The end
+/// lay on the pad's hull, or in its corner overreach, and the walk gave up
+/// there. From each end of a straight or diagonal near miss below R1 pad 1,
+/// the next step in either elbow reaches every target round the pad, and
+/// the board stays clean.
+#[test]
+fn a_route_goes_on_from_the_end_of_a_near_miss() -> Fallible {
+    let p = board()?;
+    let approaches = [
+        ([7.2, 4.0], [7.2, 7.6]),
+        ([10.0, 5.0], [7.0, 7.2]),
+        ([10.0, 5.0], [7.4, 7.25]),
+        ([9.5, 6.0], [7.2, 7.3]),
+        ([10.0, 6.5], [7.0, 7.1]),
+    ];
+    for (head, aim) in approaches {
+        for flipped in [false, true] {
+            let mut near = p.clone();
+            let mut first = request(B, head, aim, RouteMode::Shove);
+            first.flipped = flipped;
+            let missed = run(&near, &first);
+            assert!(
+                !missed.reached && !missed.edits.add.is_empty(),
+                "{missed:?}"
+            );
+            commit(&mut near, &missed)?;
+            for to in [[3.0, 5.5], [3.0, 9.5], [5.0, 4.0], [12.0, 9.0], [7.2, 3.0]] {
+                for flip in [false, true] {
+                    let mut next = request(B, missed.end, to, RouteMode::Shove);
+                    next.flipped = flip;
+                    let plan = run(&near, &next);
+                    let case = format!(
+                        "{head:?}→{aim:?} {flipped}, end {:?} → {to:?} {flip}",
+                        missed.end
+                    );
+                    assert!(plan.reached, "{case}: {:?}", plan.blocked);
+                    commit(&mut near.clone(), &plan).map_err(|e| format!("{case}: {e}"))?;
+                }
+            }
+        }
+    }
+    Ok(())
+}

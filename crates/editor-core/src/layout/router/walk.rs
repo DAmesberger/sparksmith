@@ -90,13 +90,27 @@ impl Walker<'_> {
         )
     }
 
-    /// The farthest point of leg `a`–`b` the walker reaches clear.
+    /// The farthest point of leg `a`–`b` the walker reaches clear, and not
+    /// inside the hull of what the leg hits: a route stopped short there
+    /// ends on that hull's edge, where the next step can follow the hull
+    /// round. An end in a hull's corner overreach (clear of the exact
+    /// copper, inside the hull) had no way on past the obstacle (run 5,
+    /// A16). A hull holding `a` already does not limit it.
     fn reach(&self, ctx: &Ctx<'_>, state: &State, a: Point, b: Point) -> Point {
         let (mut lo, mut hi) = (0.0f64, 1.0f64);
         let at = |t: f64| [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        let hulls: Vec<Hull> = self
+            .leg_hits(ctx, state, a, b)
+            .iter()
+            .filter_map(|h| self.hull(ctx, state, h.target))
+            .filter(|hull| !hull.strictly_contains(a, INSIDE_EPS))
+            .collect();
         for _ in 0..24 {
             let mid = 0.5 * (lo + hi);
-            if self.leg_hits(ctx, state, a, at(mid)).is_empty() {
+            let p = at(mid);
+            if self.leg_hits(ctx, state, a, p).is_empty()
+                && !hulls.iter().any(|h| h.strictly_contains(p, INSIDE_EPS))
+            {
                 lo = mid;
             } else {
                 hi = mid;
@@ -210,16 +224,18 @@ impl Walker<'_> {
         let mut excluded = false;
         'merge: for _ in 0..=MAX_MERGES {
             let (leg, entry) = entry(legs, &hull)?;
-            if leg == 0 && legs.first().is_some_and(|p| distance(*p, entry) < 1e-9) {
+            if leg == 0 && !excluded && legs.first().is_some_and(|p| distance(*p, entry) < 1e-9) {
                 // The head is inside the hull's corner overreach (clear of
                 // the exact copper): pull the hull back to it once.
-                if excluded {
-                    return None;
-                }
                 excluded = true;
                 hull.exclude(entry);
                 continue 'merge;
             }
+            // A head still entering here is on the hull's edge (a step that
+            // stopped short at the clearance ends there): follow the hull
+            // from it like any entry. It gave up before, so every step from
+            // such an end that had to pass the obstacle was refused (run 5,
+            // A16). The walk checks each kept leg against the exact copper.
             let mut path = Vec::new();
             let mut c = entry;
             let corners = hull.corners_from(entry, ccw);

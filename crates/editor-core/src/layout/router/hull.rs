@@ -132,7 +132,6 @@ impl Hull {
     }
 
     /// Whether `p` lies inside, more than `eps` from every edge.
-    #[cfg(test)]
     pub(super) fn strictly_contains(&self, p: Point, eps: f64) -> bool {
         (0..8)
             .filter(|k| self.facets.uses(*k))
