@@ -37,7 +37,7 @@ fn second() -> Fallible<EditorFile> {
 
 fn open_second(ax: &mut Ax) -> Fallible<sparksmith_core::Document> {
     let path = ax.dir.path().join("second.sparksmith");
-    ax.app.replace(second()?, Some(path), None, false);
+    ax.app.replace(second()?, Some(path), None, false, None);
     assert_eq!(ax.app.engine.project().name, "Second project");
     Ok(ax.app.engine.document().clone())
 }

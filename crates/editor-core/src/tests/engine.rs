@@ -888,3 +888,30 @@ fn tracks_on_removed_terminals_fail_validation_instead_of_retagging() -> Result<
     assert!(engine.replace_document(file).is_err());
     Ok(())
 }
+
+/// Run 4, A25: a session recovered over the file it was saved from is one
+/// undo step on that file, so Undo shows what was saved and Redo the
+/// recovery; a recovery equal to the file adds no step.
+#[test]
+fn a_recovery_over_its_saved_file_is_one_undo_step() -> crate::Result<()> {
+    let saved = crate::Engine::demo()?.to_file();
+    let mut recovered = saved.clone();
+    recovered.project.name = "Recovered".into();
+    let mut engine = crate::Engine::default();
+    engine.recover_over(saved.clone(), recovered)?;
+    assert_eq!(engine.project().name, "Recovered");
+    assert_eq!(
+        engine.undo_step().map(|s| s.title),
+        Some(crate::Step::RECOVER)
+    );
+    engine.undo()?;
+    assert_eq!(engine.project().name, saved.project.name);
+    assert!(!engine.can_undo());
+    engine.redo()?;
+    assert_eq!(engine.project().name, "Recovered");
+
+    let mut same = crate::Engine::default();
+    same.recover_over(saved.clone(), saved)?;
+    assert!(!same.can_undo());
+    Ok(())
+}

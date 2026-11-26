@@ -457,7 +457,7 @@ fn a_held_export_ends_with_the_project_it_was_asked_for() -> Fallible {
     }
     assert_eq!(h.app.live_held(), Some("project.export_fabrication"));
     h.app
-        .replace(Engine::showcase()?.to_file(), None, None, false);
+        .replace(Engine::showcase()?.to_file(), None, None, false, None);
     h.frame(Vec::new());
     assert_eq!(h.app.live_held(), None);
     // Allow, had it been pressed, finds nothing to run.

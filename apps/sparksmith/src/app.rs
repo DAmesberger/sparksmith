@@ -1385,12 +1385,17 @@ impl App {
         path: Option<PathBuf>,
         identity: Option<sparksmith_io::DiskIdentity>,
         recovered: bool,
+        saved: Option<EditorFile>,
     ) {
         let name = path
             .as_ref()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| document.project.name.clone());
-        if let Err(error) = self.engine.replace_document(document) {
+        let replaced = match saved {
+            Some(saved) => self.engine.recover_over(saved, document),
+            None => self.engine.replace_document(document),
+        };
+        if let Err(error) = replaced {
             self.say(Level::Error, format!("Open failed: {error}"));
             return;
         }
@@ -1553,7 +1558,8 @@ impl App {
                     path,
                     identity,
                     recovered,
-                } => self.replace(*document, path, identity, recovered),
+                    saved,
+                } => self.replace(*document, path, identity, recovered, saved.map(|s| *s)),
 
                 Effect::FirstSave { given, saved } => {
                     self.engine.adopt_first_save(&given);

@@ -280,6 +280,9 @@ pub enum Effect {
         /// What the opened file held, for its next save.
         identity: Option<DiskIdentity>,
         recovered: bool,
+        /// A recovery's saved file: the recovered document is one undo
+        /// step over it.
+        saved: Option<Box<EditorFile>>,
     },
     /// A save gave the project its name or identity
     /// (`sparksmith_core::first_save`): the engine takes them
@@ -320,7 +323,13 @@ enum Event {
     Written(Ticket, PathBuf, Outcome<Wrote>),
     PdfExported(Ticket, PathBuf, Arc<Project>, Outcome<Printed>),
     Recovered(Ticket, bool, bool, Outcome<()>),
-    Restored(Ticket, Outcome<Box<(RecoveryRecord, Snapshot)>>),
+    /// The record, its snapshot and the file it was saved from, read
+    /// again so the recovery is one undo step over it (`None` when it was
+    /// never saved or no longer reads).
+    Restored(
+        Ticket,
+        Outcome<Box<(RecoveryRecord, Snapshot, Option<EditorFile>)>>,
+    ),
     Discarded(Snapshot, Outcome<()>),
     /// The older sessions that are gone, and why the rest are not.
     DiscardedOlder(Vec<PathBuf>, Outcome<()>),
@@ -535,7 +544,13 @@ fn worker(ctx: egui::Context, recovery: Arc<Recovery>, events: Sender<Event>) ->
                 Job::Restore(ticket, snapshot) => {
                     let result = directory.as_ref().map_err(Clone::clone).and_then(|dir| {
                         recovery::restore(dir, &snapshot)
-                            .map(Box::new)
+                            .map(|(record, snapshot)| {
+                                let saved = record
+                                    .original_path
+                                    .as_deref()
+                                    .and_then(|p| sparksmith_io::read_project(p).ok());
+                                Box::new((record, snapshot, saved))
+                            })
                             .map_err(|e| e.to_string())
                     });
                     Event::Restored(ticket, result)
@@ -977,6 +992,7 @@ impl FileUi {
                         path: None,
                         identity: None,
                         recovered: false,
+                        saved: None,
                     });
                 }
                 Err(error) => self.status = Some((Level::Error, error)),
@@ -1437,6 +1453,7 @@ impl FileUi {
                         path: Some(path),
                         identity: Some(identity),
                         recovered: false,
+                        saved: None,
                     }),
                     Err(error) => {
                         self.status = Some((Level::Error, format!("Open failed: {error}")))
@@ -1518,7 +1535,7 @@ impl FileUi {
                 }
                 match result {
                     Ok(restored) => {
-                        let (record, snapshot) = *restored;
+                        let (record, snapshot, saved) = *restored;
                         let Some(epoch) = self.controller.current.epoch.checked_add(1) else {
                             self.status =
                                 Some((Level::Error, "Document identity exhausted".into()));
@@ -1534,6 +1551,7 @@ impl FileUi {
                             path: None,
                             identity: None,
                             recovered: true,
+                            saved: saved.map(Box::new),
                         });
                     }
                     Err(error) => {

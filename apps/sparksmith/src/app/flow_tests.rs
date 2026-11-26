@@ -629,6 +629,7 @@ fn opening_another_project_closes_the_production_dialog() -> Fallible {
         Some(h.dir.path().join("other.sparksmith")),
         None,
         false,
+        None,
     );
     h.frame(vec![]);
     assert!(!h.app.pcb.production_open(), "{}", said(&h.app));
@@ -843,7 +844,7 @@ fn folder_placement_stays_with_the_project_that_requested_it() -> Fallible {
         .open_assign(String::new(), vec![selected]);
     let mut other = Engine::default().to_file();
     other.project.name = "Second project".into();
-    h.app.replace(other, None, None, false);
+    h.app.replace(other, None, None, false, None);
     assert!(!h.app.schematic.palette_mut().is_open());
     let before = h.app.engine.document().clone();
     h.app.sources.wait_for_bundle()?;
@@ -942,7 +943,7 @@ fn folder_assignment_requires_the_instance_version_that_was_chosen() -> Fallible
         .read_bundle(&h.app.engine, pick.clone(), purpose.clone());
     let mut copy = h.app.engine.to_file();
     copy.project.name = "Project copy".into();
-    h.app.replace(copy, None, None, false);
+    h.app.replace(copy, None, None, false, None);
     let before = h.app.engine.document().clone();
     h.app.sources.wait_for_bundle()?;
     h.app.library_bundles();

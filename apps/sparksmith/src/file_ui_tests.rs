@@ -1082,3 +1082,40 @@ fn continuous_editing_is_snapshotted_within_the_maximum_interval() -> Fallible {
     })?;
     Ok(())
 }
+
+/// Run 4, A25: Restore reads the file the session was saved from, so the
+/// app can make the recovery one undo step over it; a session whose file
+/// is gone carries none.
+#[test]
+fn a_restore_carries_the_file_it_was_saved_from() -> Fallible {
+    for exists in [true, false] {
+        let dir = tempfile::tempdir()?;
+        let original = dir.path().join("board.sparksmith");
+        let saved = Engine::demo()?.to_file();
+        if exists {
+            sparksmith_io::persistence::write_project(&original, &saved)?;
+        }
+        let mut recovered = saved.clone();
+        recovered.project.name = "Recovered".into();
+        RecoveryStore::new(&dir.path().join("recovery"))?.write(&recovered, Some(&original))?;
+        let mut h = Harness::in_dir(dir)?;
+        h.until("the recovery question", |h| !h.files.recoveries.is_empty())?;
+        h.click("Restore")?;
+        h.until("the restored project", |h| !h.effects.is_empty())?;
+        let Some(Effect::Replace {
+            document,
+            recovered: true,
+            saved: carried,
+            ..
+        }) = h.effects.pop()
+        else {
+            return Err("expected the restored project".into());
+        };
+        assert_eq!(document.project.name, "Recovered");
+        assert_eq!(
+            carried.map(|s| s.project.name),
+            exists.then(|| saved.project.name.clone())
+        );
+    }
+    Ok(())
+}

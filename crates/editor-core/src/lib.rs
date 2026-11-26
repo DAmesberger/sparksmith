@@ -786,6 +786,8 @@ const PART_NOUNS: [&str; 4] = [
 impl Step {
     /// The title of a batch of different operations.
     pub const MIXED: &'static str = "Several changes";
+    /// The step a recovery makes over the file it was saved from.
+    pub const RECOVER: &'static str = "Recover unsaved changes";
 
     /// `operation`'s step on `project`, the document it applies to.
     fn of(operation: &Operation, project: &Project) -> Self {
@@ -1742,6 +1744,45 @@ impl Engine {
         self.last_step = None;
         self.history = next_history();
         self.opening = next_history();
+        Ok(())
+    }
+
+    /// Recover a session over the file it was saved from: the saved file
+    /// is opened and the recovered document is one undo step on it ("Recover
+    /// unsaved changes"), so Undo shows what was saved and Redo the recovery
+    /// again (run 4, A25: Undo was empty after Restore). The history of the
+    /// lost session is not kept: only its result. A recovered document that
+    /// does not validate changes nothing; a saved file that does not is
+    /// skipped and the recovered document opens on its own.
+    pub fn recover_over(
+        &mut self,
+        saved: format::EditorFile,
+        recovered: format::EditorFile,
+    ) -> Result<()> {
+        recovered.validate()?;
+        if saved.validate().is_err() {
+            return self.replace_document(recovered);
+        }
+        self.replace_document(saved)?;
+        let fallback = recovered.clone();
+        let mut candidate = recovered.into_document();
+        if candidate.project.stackup.dk_estimates.0.0.is_empty() {
+            Arc::make_mut(&mut candidate.project).stackup.dk_estimates =
+                self.document.project.stackup.dk_estimates.clone();
+        }
+        if candidate == self.document {
+            return Ok(());
+        }
+        let step = Step {
+            title: Step::RECOVER,
+            area: Area::Project,
+            subject: None,
+            label: None,
+        };
+        // The recovered document opens whatever happens to the step.
+        if self.commit(candidate, step).is_err() {
+            return self.replace_document(fallback);
+        }
         Ok(())
     }
 
