@@ -301,6 +301,9 @@ pub struct SchematicEditor {
     draft_id: Option<Id>,
     pan: Vec2,
     scale: f32,
+    /// Each sheet's pan and zoom when another sheet was shown: coming
+    /// back shows it as it was left (run 4, A10).
+    sheet_views: BTreeMap<sparksmith_core::SheetId, (Vec2, f32)>,
     /// Dragged occurrence and the pointer's offset from its position.
     drag: Option<(Id, Point)>,
     /// Occurrence being dragged and its previewed position.
@@ -448,6 +451,7 @@ impl Default for SchematicEditor {
             draft_id: None,
             pan: Vec2::ZERO,
             scale: 12.0,
+            sheet_views: BTreeMap::new(),
             drag: None,
             preview: None,
             report: None,

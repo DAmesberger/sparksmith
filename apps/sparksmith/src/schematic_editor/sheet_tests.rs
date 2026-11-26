@@ -311,6 +311,36 @@ fn fit_keeps_the_page_clear_of_the_navigation_bar() -> TestResult {
     Ok(())
 }
 
+/// Run 4, A10: a sheet zoomed in on is shown as it was left when the
+/// person comes back from another sheet; a sheet shown for the first time
+/// is fitted.
+#[test]
+fn coming_back_to_a_sheet_keeps_its_view() -> TestResult {
+    let mut engine = Engine::demo()?;
+    let first = engine.project().sheets.first();
+    let second = add_sheet(&mut engine)?;
+    let ctx = ctx();
+    let mut editor = SchematicEditor::default();
+    editor.fit();
+    canvas_frame(&mut editor, &engine, &ctx, vec![]);
+    let fitted = (editor.pan, editor.scale);
+    // Zoomed in on the first sheet.
+    editor.scale = fitted.1 * 3.0;
+    editor.pan = fitted.0 + vec2(40.0, -25.0);
+    let zoomed = (editor.pan, editor.scale);
+    editor.show_sheet(second, engine.project());
+    canvas_frame(&mut editor, &engine, &ctx, vec![]);
+    assert_ne!(
+        (editor.pan, editor.scale),
+        zoomed,
+        "the new sheet is fitted"
+    );
+    editor.show_sheet(first, engine.project());
+    canvas_frame(&mut editor, &engine, &ctx, vec![]);
+    assert_eq!((editor.pan, editor.scale), zoomed);
+    Ok(())
+}
+
 #[test]
 fn a_shown_sheet_draws_only_its_own_symbols() -> TestResult {
     let mut engine = Engine::demo()?;
