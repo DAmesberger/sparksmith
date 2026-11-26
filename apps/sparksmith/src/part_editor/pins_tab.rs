@@ -222,6 +222,28 @@ pub fn add_rule(component: &mut ComponentDefinition) -> Result<RuleId, &'static 
     Ok(id)
 }
 
+/// What Confirm shown rows confirms, named: the rows by terminal name, at
+/// most twelve, and how many of them the import flagged uncertain.
+pub fn confirm_shown_tip(rows: &[&sparksmith_core::library::Terminal], flagged: usize) -> String {
+    const NAMED: usize = 12;
+    let names: Vec<&str> = rows.iter().take(NAMED).map(|t| t.name.as_str()).collect();
+    let more = rows.len().saturating_sub(NAMED);
+    let more = if more > 0 {
+        format!(" and {more} more")
+    } else {
+        String::new()
+    };
+    let flagged = match flagged {
+        0 => String::new(),
+        1 => "; 1 of them was flagged uncertain".to_owned(),
+        n => format!("; {n} of them were flagged uncertain"),
+    };
+    format!(
+        "You checked these rows against the datasheet: {}{more}{flagged}",
+        names.join(", ")
+    )
+}
+
 /// Confirm an imported row: it leaves the import review (F8). An empty
 /// review is removed.
 pub fn confirm_row(component: &mut ComponentDefinition, terminal: TerminalId) {
@@ -501,8 +523,40 @@ impl PartEditor {
             );
             return;
         }
+        // Run 4, C4: the shown rows that wait for review, confirmed at once.
+        let review = component.review.as_deref();
+        let pending: Vec<&sparksmith_core::library::Terminal> = rows
+            .iter()
+            .filter_map(|i| component.terminals.get(*i))
+            .filter(|t| pins_table::unreviewed(review, t.id))
+            .collect();
+        let mut confirm_shown = Vec::new();
+        if !pending.is_empty() {
+            let flagged = pending
+                .iter()
+                .filter(|t| review.is_some_and(|r| r.uncertain.contains(&t.id)))
+                .count();
+            let label = match pending.len() {
+                1 => "Confirm 1 shown row".to_owned(),
+                n => format!("Confirm {n} shown rows"),
+            };
+            let clicked = ui_kit::button(ui, label, Button::Small)
+                .on_hover_text(confirm_shown_tip(&pending, flagged))
+                .clicked();
+            if clicked {
+                confirm_shown = pending.iter().map(|t| t.id).collect();
+            }
+            ui.add_space(t.space_4);
+        }
         let pads = pins_table::pads_by_terminal(set);
         let event = pins_table::table(ui, component, &pads, &rows, self.pins.lit());
+        if !confirm_shown.is_empty()
+            && let Some(set) = self.draft.as_mut()
+        {
+            for terminal in confirm_shown {
+                confirm_row(&mut set.component, terminal);
+            }
+        }
         self.pins_event(event);
     }
 
