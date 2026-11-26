@@ -1066,3 +1066,61 @@ fn deleting_a_keepout_says_so_with_undo() -> Fallible {
     assert!(h.app.engine.project().keepout(keepout).is_some());
     Ok(())
 }
+
+/// Run 5, A14: a part moved so that its pad lies on another net's pad was
+/// taken with no word; only Issues listed the short. The move is still
+/// taken (Undo takes it back), and its toast now says the short at once,
+/// naming both pads and both nets. A move that makes no short says none.
+#[test]
+fn a_move_that_shorts_two_nets_says_so_at_once() -> Fallible {
+    use sparksmith_core::layout::LayoutCommand;
+    let mut h = Harness::new()?;
+    h.app.workspace = Workspace::Pcb;
+    let project = h.app.engine.project_arc().clone();
+    let r1 = project.instance_by_designator("R1").ok_or("R1")?.id;
+    let r2 = project.instance_by_designator("R2").ok_or("R2")?.id;
+    let placed = project.placement_of(r2).cloned().ok_or("R2 placed")?;
+    let net = |instance, terminal| {
+        project
+            .net_of(sparksmith_core::Endpoint {
+                instance,
+                terminal: sparksmith_core::TerminalId(terminal),
+            })
+            .map(|n| project.net_name(n.id))
+            .ok_or("demo net")
+    };
+    let (r2_2, r1_1) = (net(r2, 2)?, net(r1, 1)?);
+    assert_ne!(r2_2, r1_1);
+    let move_by = |dx: f64| {
+        Operation::Layout(LayoutCommand::Move {
+            instance: r2,
+            position: [placed.position[0] + dx, placed.position[1]],
+            rotation_deg: placed.rotation_deg,
+            layer: placed.layer,
+        })
+    };
+    // 1 mm to the left: clear of R1, nothing to say about shorts.
+    h.app.apply(&h.ctx, Origin::Command, Some(move_by(-1.0)));
+    assert!(
+        !toasts(&h.app).iter().any(|t| t.contains("Short")),
+        "{:?}",
+        toasts(&h.app)
+    );
+    // R2's pad 2 (at x 16.8) onto R1's pad 1 (at x 7.2).
+    h.app.apply(&h.ctx, Origin::Command, Some(move_by(-9.6)));
+    let said: Vec<_> = h
+        .app
+        .toasts
+        .items()
+        .map(|t| (t.text.clone(), t.level, t.actions.clone()))
+        .collect();
+    let short = format!("Short: R2 pad 2 ({r2_2}) touches R1 pad 1 ({r1_1})");
+    assert!(
+        said.iter()
+            .any(|(text, level, actions)| text.starts_with(&short)
+                && *level == Level::Warning
+                && actions.contains(&ToastAction::Undo)),
+        "{said:?}"
+    );
+    Ok(())
+}

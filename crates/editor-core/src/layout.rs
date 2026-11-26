@@ -737,6 +737,71 @@ pub fn pad_labels(project: &Project) -> BTreeMap<(Id, PadId), String> {
     labels
 }
 
+/// The pads of `instances` that touch a pad of another net in `after` and
+/// did not in `before`, in the words of a refusal: "D3 pad 2 (N46) touches
+/// J2 pad 1 (+3V3)". A move that shorts two nets is taken (the board check
+/// lists it as `board.overlap`); the host says it at once with this, naming
+/// both nets (run 5, A14: the move was silent).
+pub fn pad_shorts_made(before: &Project, after: &Project, instances: &[Id]) -> Vec<String> {
+    let made = touching_pads(after, instances);
+    if made.is_empty() {
+        return Vec::new();
+    }
+    let had = touching_pads(before, instances);
+    let labels = pad_labels(after);
+    let name = |pad: &WorldPad| {
+        let designator = after
+            .instance(pad.instance)
+            .map_or("a part", |i| i.designator.as_str());
+        let label = labels
+            .get(&(pad.instance, pad.pad))
+            .cloned()
+            .unwrap_or_else(|| pad.pad.to_string());
+        format!("{designator} pad {label} ({})", after.net_name(pad.net))
+    };
+    made.iter()
+        .filter(|(key, _)| !had.iter().any(|(k, _)| k == key))
+        .map(|(_, (a, b))| format!("{} touches {}", name(a), name(b)))
+        .collect()
+}
+
+/// Pairs of copper pads of different nets that touch, one of them of
+/// `instances` (that one first), by their keys.
+#[allow(clippy::type_complexity)] // A pair of pad keys and the pads.
+fn touching_pads(
+    project: &Project,
+    instances: &[Id],
+) -> Vec<(((Id, PadId), (Id, PadId)), (WorldPad, WorldPad))> {
+    let all = pads(project);
+    let rings: Vec<CopperRing> = all.iter().map(CopperRing::of_pad).collect();
+    let mut out = Vec::new();
+    for (i, a) in all.iter().enumerate() {
+        if !instances.contains(&a.instance) {
+            continue;
+        }
+        for (j, b) in all.iter().enumerate() {
+            let both_moved = instances.contains(&b.instance);
+            // A pair of two moved pads is taken once.
+            if a.net == b.net || (both_moved && j <= i) {
+                continue;
+            }
+            if !(a.through || b.through || a.layer == b.layer) {
+                continue;
+            }
+            let (Some(ra), Some(rb)) = (rings.get(i), rings.get(j)) else {
+                continue;
+            };
+            if ra.gap(rb, 2.0 * EPS) <= EPS {
+                out.push((
+                    ((a.instance, a.pad), (b.instance, b.pad)),
+                    (a.clone(), b.clone()),
+                ));
+            }
+        }
+    }
+    out
+}
+
 /// Whether an instance has a resolvable physical choice.
 pub fn board_placeable(project: &Project, instance: Id) -> bool {
     project

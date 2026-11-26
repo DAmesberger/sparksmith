@@ -532,6 +532,9 @@ impl App {
         };
         // A delete in Layout says what went, with Undo (run 4, N3).
         let deleted = deleted_line(&operation);
+        // A part move says at once which pads it made touch another net's.
+        let moving =
+            moved_parts(&operation).map(|parts| (self.engine.project_arc().clone(), parts));
         // A placement says what it joined and the issues it added.
         let placing = matches!(
             &operation,
@@ -616,20 +619,28 @@ impl App {
                 if let Some(text) = deleted {
                     self.say_with(Level::Ok, text, vec![ToastAction::Undo]);
                 }
-                // Moved parts' dragged copper the engine re-routed, or
-                // left unrouted, in the same undo step, and the parts their
-                // dimensions put over the board's edge: one toast, since
-                // only the newest shows.
+                // Pads a part move made touch another net's: a short, said
+                // at once with both nets, as a refusal is (run 5, A14: only
+                // Issues showed it). Moved parts' dragged copper the engine
+                // re-routed, or left unrouted, in the same undo step, and
+                // the parts their dimensions put over the board's edge: one
+                // toast, since only the newest shows.
+                let shorts = moving.map_or_else(Vec::new, |(before, parts)| {
+                    sparksmith_core::layout::pad_shorts_made(&before, self.engine.project(), &parts)
+                });
                 let rerouted = self.engine.rerouted();
-                let lines: Vec<String> = rerouted
-                    .over_edge
+                let lines: Vec<String> = shorts
                     .iter()
-                    .cloned()
+                    .map(|s| format!("Short: {s}"))
+                    .chain(rerouted.over_edge.iter().cloned())
                     .chain(rerouted.line())
                     .collect();
                 if !lines.is_empty() {
                     let line = lines.join(". ");
-                    let level = if rerouted.unrouted.is_empty() && rerouted.over_edge.is_empty() {
+                    let level = if shorts.is_empty()
+                        && rerouted.unrouted.is_empty()
+                        && rerouted.over_edge.is_empty()
+                    {
                         Level::Info
                     } else {
                         Level::Warning
@@ -2570,6 +2581,23 @@ mod theme_tests {
                 .collect();
             assert!(told.is_empty(), "{told:?}");
         }
+    }
+}
+
+/// The parts a Layout command moves (a drag, a typed position, a turn or
+/// flip, a group move, align or distribute), whose pads the app checks for
+/// a new short once it is applied.
+fn moved_parts(operation: &Operation) -> Option<Vec<sparksmith_core::Id>> {
+    use sparksmith_core::layout::LayoutCommand;
+    match operation {
+        Operation::Layout(LayoutCommand::Move { instance, .. }) => Some(vec![*instance]),
+        Operation::Layout(LayoutCommand::MoveParts { moves, .. }) => {
+            Some(moves.iter().map(|m| m.instance).collect())
+        }
+        Operation::Layout(
+            LayoutCommand::Align { instances, .. } | LayoutCommand::Distribute { instances, .. },
+        ) => Some(instances.clone()),
+        _ => None,
     }
 }
 
