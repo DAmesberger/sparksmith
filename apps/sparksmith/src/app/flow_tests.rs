@@ -996,14 +996,20 @@ fn a_part_put_over_the_boards_edge_is_said_at_once() -> Fallible {
     let [(text, actions)] = shown.as_slice() else {
         return Err(format!("{shown:?}").into());
     };
-    // 16 connections: the board left has the same pads unrouted as before
-    // pairs counted coupled out to three pair gaps (A23); the re-route now
-    // also takes J1's USB receptacle stubs, which ran coupled 0.2 mm apart
-    // and no longer do, as one of its connections.
+    // 15 connections. 975986b4 counted 16 on the example as it was then:
+    // the board left had the same pads unrouted as before pairs counted
+    // coupled out to three pair gaps (A23), and the re-route also took J1's
+    // USB receptacle stubs, which ran coupled 0.2 mm apart, as one of its
+    // connections. 2bacc472 moved the example to JLCPCB 4-layer (and
+    // regenerated it); with that file the same code leaves 15, one fewer,
+    // and its later regenerations (f03c8c1c, ecd6a8d6) keep 15. Measured
+    // by running this test with each commit's example; the board.unrouted
+    // naming of A21 (9a6f4cd8) does not enter this count, which is the
+    // re-route's own list, and gives 15 with it switched off too.
     assert!(
         text.starts_with(
             "J1 extends beyond the board: J1 · front face to the bottom edge (0 mm). Re-routed "
-        ) && text.contains("16 left unrouted (")
+        ) && text.contains("15 left unrouted (")
             && text.contains("VBUS"),
         "{text}"
     );
