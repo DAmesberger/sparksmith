@@ -898,6 +898,12 @@ impl PartEditor {
         }
     }
 
+    /// The text of the open Paste table flow (tests).
+    #[cfg(test)]
+    pub(crate) fn paste_text(&self) -> Option<&str> {
+        self.pins.table.paste.as_ref().map(|f| f.text.as_str())
+    }
+
     pub fn on_tab(&mut self, tab: &str) {
         self.view = match tab {
             "details" => View::Details,
