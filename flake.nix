@@ -78,11 +78,17 @@
             # sccache shares compiled crates across worktrees and target directories.
             # Set RUSTC_WRAPPER to an empty string to build without it.
             export RUSTC_WRAPPER="''${RUSTC_WRAPPER-sccache}"
+            # Our own sccache server and cache: sccache's default port (4226) is
+            # anybody's, and a server another project started there would take our
+            # compilations into its cache and ignore our base directories.
+            export SCCACHE_SERVER_PORT="''${SCCACHE_SERVER_PORT:-4256}"
+            export SCCACHE_DIR="''${SCCACHE_DIR:-$HOME/.cache/sparksmith-sccache}"
             export SCCACHE_CACHE_SIZE="''${SCCACHE_CACHE_SIZE:-60G}"
             # Paths under these directories are made relative before hashing, so the same
             # crate compiled in another worktree or target directory is a cache hit. The
             # sccache server reads them when it starts: after adding a worktree, run
-            # `sccache --stop-server` once so the next build picks the new list up.
+            # `sccache --stop-server` once in this shell (it stops the server on our
+            # port only) so the next build picks the new list up.
             if [ -z "''${SCCACHE_BASEDIRS:-}" ]; then
               dirs=$(git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | tr '\n' ':')
               case "$CARGO_TARGET_DIR" in /*) dirs="$dirs$CARGO_TARGET_DIR:" ;; esac
@@ -110,6 +116,8 @@
           shellHook = ''
             export CARGO_TARGET_DIR="''${CARGO_TARGET_DIR:-target/nix-windows}"
             export RUSTC_WRAPPER="''${RUSTC_WRAPPER-sccache}"
+            export SCCACHE_SERVER_PORT="''${SCCACHE_SERVER_PORT:-4256}"
+            export SCCACHE_DIR="''${SCCACHE_DIR:-$HOME/.cache/sparksmith-sccache}"
             export SCCACHE_CACHE_SIZE="''${SCCACHE_CACHE_SIZE:-60G}"
             echo "sparksmith: $(rustc --version) for ${windowsTarget}; run cargo xtask windows-check"
           '';
