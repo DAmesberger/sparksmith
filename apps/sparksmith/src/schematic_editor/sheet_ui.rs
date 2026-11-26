@@ -280,7 +280,8 @@ impl SchematicEditor {
     }
 
     /// Show `sheet` on the canvas (the Browser, a jump, Open sheet). The
-    /// selection is released and the page is fitted.
+    /// selection is released. A sheet shown before comes back with the pan
+    /// and zoom it was left with; one shown for the first time is fitted.
     pub fn show_sheet(&mut self, sheet: SheetId, project: &Project) {
         if project.sheet(sheet).is_none() {
             return;
@@ -289,7 +290,15 @@ impl SchematicEditor {
             self.select(None, None, project);
             self.wire = None;
             self.draw_from = None;
-            self.fit_requested = true;
+            self.keep_sheet_view();
+            match self.sheet_views.get(&sheet) {
+                Some(&(pan, scale)) => {
+                    self.pan = pan;
+                    self.scale = scale;
+                    self.fit_requested = false;
+                }
+                None => self.fit_requested = true,
+            }
         }
         self.sheet = sheet;
         self.set_path(
@@ -330,10 +339,16 @@ impl SchematicEditor {
         };
     }
 
+    /// Keep the shown sheet's pan and zoom for when it is shown again.
+    fn keep_sheet_view(&mut self) {
+        self.sheet_views.insert(self.sheet, (self.pan, self.scale));
+    }
+
     /// Switch to `sheet` without fitting (a located object frames itself).
     pub(super) fn switch_sheet(&mut self, sheet: Option<SheetId>, project: &Project) {
         if let Some(sheet) = sheet.filter(|s| project.sheet(*s).is_some()) {
             if self.sheet != sheet {
+                self.keep_sheet_view();
                 self.set_path(
                     project
                         .sheets

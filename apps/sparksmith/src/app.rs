@@ -966,7 +966,7 @@ impl App {
             request @ part_editor::Request::Discard(_) => {
                 match part_editor::run(&mut self.engine, request) {
                     Ok(Some(text)) => {
-                        self.part.show_start();
+                        self.part.show_start_after_discard();
                         self.say_with(Level::Ok, text, vec![ToastAction::Undo]);
                         return;
                     }
@@ -2308,6 +2308,9 @@ mod mapping_scroll_tests;
 #[cfg(test)]
 #[path = "app/open_project_tests.rs"]
 mod open_project_tests;
+#[cfg(test)]
+#[path = "app/part_discard_tests.rs"]
+mod part_discard_tests;
 #[cfg(test)]
 #[path = "app/parts_band_tests.rs"]
 mod parts_band_tests;

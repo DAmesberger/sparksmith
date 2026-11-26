@@ -1442,6 +1442,9 @@ pub struct PasteFlow {
     /// ([`initial_columns`]): a column that still holds its start follows
     /// the table as it grows; one the person changed keeps their choice.
     pub started: Vec<ColumnMap>,
+    /// A preview finding's objects the person asked to locate: shown on
+    /// the next frame, where the draft can show them.
+    pub locate: Option<Vec<sparksmith_core::ObjectRef>>,
 }
 
 impl PasteFlow {

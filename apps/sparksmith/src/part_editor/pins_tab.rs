@@ -648,6 +648,10 @@ impl PartEditor {
     /// Preview (`library.pinout_preview`) and Apply (`library.pinout_apply`).
     fn paste_dialog(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Operation> {
         let id = egui::Id::unique("pins-paste-table");
+        if let Some(refs) = self.pins.table.paste.as_mut().and_then(|f| f.locate.take()) {
+            crate::issues::Locate::locate(self, engine, &refs);
+            return None;
+        }
         let set = self.draft.as_ref()?;
         let lineage = self.lineage?;
         let device = set.metas.component.name.clone();
@@ -663,6 +667,20 @@ impl PartEditor {
             flow.sent = None;
         }
         let rows = flow.rows();
+        // Which preview findings name something the draft shows now: those
+        // offer Locate (a pin the import would add is not there yet).
+        let parts = super::part_props::PartProps::draft_ids(engine, set.ids.component);
+        let locatable: Vec<bool> = flow.plan.as_ref().map_or_else(Vec::new, |(_, plan)| {
+            plan.findings
+                .iter()
+                .map(|f| {
+                    f.objects.iter().any(|r| {
+                        super::target(set, &parts, r)
+                            .is_some_and(|t| !matches!(t, super::Target::Tab(_)))
+                    })
+                })
+                .collect()
+        });
         let (document, problems) = match &rows {
             Ok(rows) => pins_table::document(rows, &flow.mapping, &device, &variant),
             Err(_) => (None, Vec::new()),
@@ -725,7 +743,7 @@ impl PartEditor {
         panel.refusal = shown_refusal.as_deref();
         panel.reset_scroll = std::mem::take(&mut flow.opened);
         let action = panel.show(ui, |ui| {
-            paste_body(ui, flow, &rows, document.as_ref(), &problems);
+            paste_body(ui, flow, &rows, document.as_ref(), &problems, &locatable);
         });
         // A pasted table is not thrown away by one Esc or Cancel: the
         // person says so first.
@@ -1395,6 +1413,7 @@ fn paste_body(
     rows: &Result<Vec<Vec<String>>, String>,
     document: Option<&sparksmith_core::library::pinout::PinoutDocument>,
     problems: &[pins_table::RowProblem],
+    locatable: &[bool],
 ) {
     let text_id = ui.scope_id().with("paste-text");
     kit::note(
@@ -1505,12 +1524,42 @@ fn paste_body(
         return;
     };
     let rejected = &mut flow.rejected;
+    let all_rows = flow.all_rows;
     let mut show_all = false;
+    let mut locate = None;
     kit::section(ui, "paste-plan", "Preview", true, None, |ui| {
         kit::value_row(ui, "Pins", &document.pins.len().to_string());
         kit::value_row(ui, "Peripherals", &document.peripherals.len().to_string());
         kit::value_row(ui, "Changes", &plan.changes.len().to_string());
         kit::value_row(ui, "Findings", &plan.findings.len().to_string());
+        // Run 4, C5: what the findings are, not only how many.
+        let shown = if all_rows {
+            plan.findings.len()
+        } else {
+            kit::LIST_MAX_ROWS
+        };
+        let listed = kit::list_frame(ui, plan.findings.len(), shown, |ui, index| {
+            let Some(finding) = plan.findings.get(index) else {
+                return;
+            };
+            let tone = if finding.blocks.is_some() {
+                kit::Tone::Error
+            } else {
+                kit::Tone::Warning
+            };
+            kit::status(ui, &finding.message, tone);
+            if locatable.get(index).copied().unwrap_or(false) {
+                kit::actions(ui, |ui| {
+                    if ui_kit::button(ui, "Locate", Button::Small)
+                        .on_hover_text("Show it in the draft")
+                        .clicked()
+                    {
+                        locate = Some(finding.objects.clone());
+                    }
+                });
+            }
+        });
+        show_all |= listed.show_all;
         kit::value_row(ui, "Flagged rows", &plan.review.len().to_string());
         kit::note(ui, "Untick a row to leave it out of the import");
         let count = document.pins.len();
@@ -1554,10 +1603,13 @@ fn paste_body(
                 }
             }
         });
-        show_all = listed.show_all;
+        show_all |= listed.show_all;
     });
     if show_all {
         flow.all_rows = true;
+    }
+    if locate.is_some() {
+        flow.locate = locate;
     }
 }
 
