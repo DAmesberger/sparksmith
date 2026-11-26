@@ -1542,12 +1542,11 @@ fn paste_body(
             let Some(finding) = plan.findings.get(index) else {
                 return;
             };
-            let tone = if finding.blocks.is_some() {
-                kit::Tone::Error
+            if finding.blocks.is_some() {
+                kit::refusal(ui, &finding.message);
             } else {
-                kit::Tone::Warning
-            };
-            kit::status(ui, &finding.message, tone);
+                kit::warning_row(ui, &finding.message);
+            }
             if locatable.get(index).copied().unwrap_or(false) {
                 kit::actions(ui, |ui| {
                     if ui_kit::button(ui, "Locate", Button::Small)
