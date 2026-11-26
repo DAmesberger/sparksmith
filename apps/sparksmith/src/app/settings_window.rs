@@ -368,7 +368,7 @@ impl SettingsWindow {
                 });
                 // macOS has it in the app menu too.
                 kit::section(ui, "settings-about", "About", true, None, |ui| {
-                    let version = sparksmith_core::product::version();
+                    let version = crate::build_info::version();
                     kit::value_row(ui, "Version", &version);
                     kit::value_row(ui, "Website", sparksmith_core::product::WEBSITE);
                     kit::note(

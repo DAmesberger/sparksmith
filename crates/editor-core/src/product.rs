@@ -42,10 +42,23 @@ pub const COMMIT: Option<&str> = option_env!("SPARKSMITH_COMMIT");
 
 /// The version as people read it: "0.1.0 (1a2b3c4d5e)".
 pub fn version() -> String {
-    match COMMIT {
-        Some(commit) => format!("{VERSION} ({commit})"),
-        None => format!("{VERSION} (built from source)"),
+    version_from(None)
+}
+
+/// The version, naming `source` (the checkout's commit a host read when it
+/// was built) when no package commit is set: "0.1.0 (built from source at
+/// 1a2b3c4d5e)". Only the commit's hash, nothing of the machine.
+pub fn version_from(source: Option<&str>) -> String {
+    match (COMMIT, source.filter(|s| is_commit(s))) {
+        (Some(commit), _) => format!("{VERSION} ({commit})"),
+        (None, Some(source)) => format!("{VERSION} (built from source at {source})"),
+        (None, None) => format!("{VERSION} (built from source)"),
     }
+}
+
+/// A short hexadecimal commit hash, and nothing else.
+fn is_commit(text: &str) -> bool {
+    (7..=40).contains(&text.len()) && text.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 #[cfg(test)]
@@ -58,5 +71,23 @@ mod tests {
         assert_eq!(SHORT_NAME, NAME.to_ascii_lowercase());
         assert!(BUNDLE_ID.starts_with(BUNDLE_ID_PREFIX));
         assert!(WEBSITE.starts_with("https://"));
+    }
+
+    /// Run 4, B2: a build from a checkout names its commit when the host
+    /// read one; anything but a hash is not shown.
+    #[test]
+    fn a_source_build_names_its_commit() {
+        if COMMIT.is_some() {
+            return;
+        }
+        assert_eq!(
+            version_from(Some("c939b0f7ab")),
+            format!("{VERSION} (built from source at c939b0f7ab)")
+        );
+        assert_eq!(version_from(None), format!("{VERSION} (built from source)"));
+        assert_eq!(
+            version_from(Some("/home/someone")),
+            format!("{VERSION} (built from source)")
+        );
     }
 }

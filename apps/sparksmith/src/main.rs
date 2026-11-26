@@ -4,6 +4,7 @@
 mod about;
 mod app;
 mod assistant;
+mod build_info;
 #[cfg(test)]
 mod bundle_tests;
 mod commands;
@@ -83,7 +84,7 @@ fn main() -> eframe::Result {
         println!(
             "{} {}",
             sparksmith_core::product::NAME,
-            sparksmith_core::product::version()
+            crate::build_info::version()
         );
         return Ok(());
     }

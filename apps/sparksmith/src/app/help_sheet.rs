@@ -476,7 +476,7 @@ fn missing_topic(question: &str) -> String {
         "Help topic missing: “{}” ({} {})",
         question.trim(),
         sparksmith_core::product::NAME,
-        sparksmith_core::product::version()
+        crate::build_info::version()
     )
 }
 
