@@ -502,6 +502,50 @@ fn a_layer_key_routes_through_a_via_of_the_chosen_size() -> TestResult {
     Ok(())
 }
 
+/// Run 5, A15: routing on another layer than a pad's, a click on a pad of
+/// the routed net was a corner under the pad and the route went on,
+/// silently. It now ends on the pad through a via at the head: a via to
+/// the pad's layer, the step on that layer to the pad, and the route done.
+#[test]
+fn a_click_on_the_nets_pad_on_another_layer_ends_there_through_a_via() -> TestResult {
+    let mut engine = Engine::demo()?;
+    let mut canvas = Canvas::new();
+    let mut editor = PcbEditor::default();
+    start(&mut canvas, &mut editor, &engine)?;
+    let via_at = [11.0, 11.0];
+    canvas.key(
+        &mut editor,
+        &engine,
+        via_at,
+        egui::Key::Num2,
+        egui::Modifiers::NONE,
+    );
+    let head = [14.0, 11.0];
+    let step = canvas.click(&mut editor, &engine, head);
+    canvas.apply(&mut editor, &mut engine, step)?;
+    assert_eq!(editor.layer, CopperLayer::Bottom);
+    assert_eq!(editor.route_start, Some(head));
+    // R2 pad 1 is on Top and of the routed net.
+    let end = canvas.click(&mut editor, &engine, R2_1);
+    let sent = edits(&end)?;
+    assert_eq!(
+        sent.vias.iter().map(|v| v.position).collect::<Vec<_>>(),
+        vec![head],
+        "{sent:?}"
+    );
+    assert!(
+        sent.add
+            .iter()
+            .all(|r| r.layer == CopperLayer::Top && r.start != R2_1),
+        "{sent:?}"
+    );
+    assert!(sent.add.iter().any(|r| close(r.end, R2_1)), "{sent:?}");
+    canvas.apply(&mut editor, &mut engine, end)?;
+    assert!(editor.route_start.is_none(), "the route ended on the pad");
+    assert!(editor.route.ended);
+    Ok(())
+}
+
 /// W during a route steps to the next width preset (a net class's width),
 /// Shift+W back; the new width applies from the next step and the
 /// accepted ones keep theirs.

@@ -886,6 +886,21 @@ impl PcbEditor {
             }
             return None;
         }
+        // A pad of the routed net with no copper on the routing layer (a top
+        // pad clicked while routing on Inner 1) ends the route on it through
+        // a via at the head, as the layer's key and a click on the pad do;
+        // a via the step cannot place keeps the route on its layer and says
+        // why. It was a corner under the pad before, silently (run 5, A15).
+        if self.pending_via.is_none()
+            && self.route_pad(project, at, scale).is_none()
+            && let Some((_, layer)) = self.route_pad_elsewhere(at, scale)
+        {
+            self.change_layer_to(layer, None);
+            if let Some(why) = self.refuse_layer_change(project) {
+                self.route.refused = Some(why);
+                return None;
+            }
+        }
         let snapped = self
             .route_pad(project, at, scale)
             .map(|p| (p.center(), p.net));

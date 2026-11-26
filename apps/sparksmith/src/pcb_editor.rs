@@ -2702,6 +2702,32 @@ impl PcbEditor {
             .map(|(b, _, _)| &b.placed)
     }
 
+    /// During a route, a visible pad of the routed net within 8 pixels of
+    /// `at` that has no copper on the routing layer (a top pad while the
+    /// route is on Inner 1), with the stackup layer its copper is on.
+    fn route_pad_elsewhere(&self, at: Point, scale: f32) -> Option<(&PlacedPad, CopperLayer)> {
+        let net = self.route_start.and(self.net)?;
+        let reach = f64::from(8.0 / scale);
+        let seen = self.seen();
+        self.board_pads
+            .iter()
+            .filter(|b| {
+                let p = &b.placed;
+                p.net == Some(net) && !p.on_copper(self.layer) && seen.pad(p)
+            })
+            .filter_map(|b| {
+                let layer = self
+                    .stack
+                    .iter()
+                    .copied()
+                    .find(|l| b.placed.on_copper(*l))?;
+                Some((b, layer, b.outline.distance(at, true)))
+            })
+            .filter(|(_, _, edge)| *edge < reach)
+            .min_by(|a, b| a.2.total_cmp(&b.2))
+            .map(|(b, layer, _)| (&b.placed, layer))
+    }
+
     /// The pad a route step at `at` snaps to: not another net's pad while
     /// copper of the routed net is just as close.
     fn route_pad(&self, project: &Project, at: Point, scale: f32) -> Option<&PlacedPad> {
