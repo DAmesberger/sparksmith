@@ -247,6 +247,14 @@ impl PartEditor {
         self.start.focus = true;
     }
 
+    /// Show the start page after the shown draft was discarded. Its search
+    /// does not take the keyboard: the person was not looking for a part,
+    /// and Ctrl+Z still undoes the discard (run 4, C10).
+    pub fn show_start_after_discard(&mut self) {
+        self.show_start();
+        self.start.focus = false;
+    }
+
     /// Whether a library-folder item is shown read-only.
     pub fn is_read_only(&self) -> bool {
         self.identity.previewing.is_some()
