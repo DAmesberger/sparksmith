@@ -168,6 +168,56 @@ impl<T> Drop for Running<T> {
     }
 }
 
+/// The tests' servers on this computer.
+#[cfg(test)]
+pub(crate) mod test_server {
+    use std::net::{TcpListener, TcpStream};
+    use std::time::{Duration, Instant};
+
+    /// How long a test server waits for its one client, and for each read
+    /// or write after: longer than any client limit the tests set.
+    pub(crate) const WAIT: Duration = Duration::from_secs(30);
+
+    /// The one client of `listener` within `wait`, its reads and writes
+    /// bounded by `wait` too; `None` when none came. A server thread that
+    /// accepted without a bound waited forever for a client that gave up
+    /// before it connected (its connect limit is the silence limit, 50 ms
+    /// in some tests): on a busy machine the test then hung at the join.
+    pub(crate) fn accept_within(listener: &TcpListener, wait: Duration) -> Option<TcpStream> {
+        listener.set_nonblocking(true).ok()?;
+        let until = Instant::now() + wait;
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    stream.set_nonblocking(false).ok()?;
+                    stream.set_read_timeout(Some(wait)).ok()?;
+                    stream.set_write_timeout(Some(wait)).ok()?;
+                    return Some(stream);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    if Instant::now() >= until {
+                        return None;
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(_) => return None,
+            }
+        }
+    }
+
+    /// A server nobody calls gives up at its wait, and the test goes on.
+    #[test]
+    fn a_server_nobody_calls_gives_up() -> Result<(), Box<dyn std::error::Error>> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let (said, heard) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = said.send(accept_within(&listener, Duration::from_millis(200)).is_none());
+        });
+        assert_eq!(heard.recv_timeout(Duration::from_secs(10)), Ok(true));
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
