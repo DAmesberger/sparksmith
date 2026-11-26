@@ -370,7 +370,9 @@ mod tests {
         let base = format!("http://{}", listener.local_addr()?);
         let server = std::thread::spawn(move || {
             use std::io::Write as _;
-            let Ok((mut stream, _)) = listener.accept() else {
+            let Some(mut stream) =
+                crate::http::test_server::accept_within(&listener, crate::http::test_server::WAIT)
+            else {
                 return;
             };
             let mut seen = Vec::new();

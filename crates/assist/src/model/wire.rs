@@ -522,7 +522,9 @@ mod tests {
         let base = format!("http://{}", listener.local_addr()?);
         let handle = std::thread::spawn(move || {
             let mut seen = Vec::new();
-            if let Ok((mut stream, _)) = listener.accept() {
+            if let Some(mut stream) =
+                crate::http::test_server::accept_within(&listener, crate::http::test_server::WAIT)
+            {
                 let mut chunk = [0u8; 8192];
                 while let Ok(n) = stream.read(&mut chunk) {
                     if n == 0 {
@@ -1011,7 +1013,10 @@ mod tests {
             let stop = cancel.clone();
             let (done, wait) = std::sync::mpsc::channel::<()>();
             let silent = std::thread::spawn(move || {
-                let accepted = listener.accept();
+                let accepted = crate::http::test_server::accept_within(
+                    &listener,
+                    crate::http::test_server::WAIT,
+                );
                 stop.set();
                 let _ = wait.recv();
                 drop(accepted);
@@ -1045,7 +1050,9 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let base = format!("http://{}", listener.local_addr()?);
         let handle = std::thread::spawn(move || {
-            let Ok((mut stream, _)) = listener.accept() else {
+            let Some(mut stream) =
+                crate::http::test_server::accept_within(&listener, crate::http::test_server::WAIT)
+            else {
                 return;
             };
             let _ = stream.read(&mut [0u8; 8192]);
@@ -1148,7 +1155,10 @@ mod tests {
             } else {
                 ModelProfile::openai_compatible("m", 32_768)
             };
-            profile.silence = quiet(50);
+            // The limit also bounds the connect and the request's write:
+            // 50 ms was shorter than a busy machine's scheduling delay, and
+            // the head and the half answer then counted as not arrived.
+            profile.silence = quiet(500);
             let mut backend: Box<dyn ModelBackend> = if messages {
                 Box::new(crate::model::anthropic::AnthropicBackend::new(
                     profile, wire,
@@ -1183,7 +1193,9 @@ mod tests {
         let base = format!("http://{}", listener.local_addr()?);
         let (go_on, wait) = std::sync::mpsc::channel::<()>();
         let handle = std::thread::spawn(move || {
-            let Ok((mut stream, _)) = listener.accept() else {
+            let Some(mut stream) =
+                crate::http::test_server::accept_within(&listener, crate::http::test_server::WAIT)
+            else {
                 return;
             };
             let mut chunk = [0u8; 8192];

@@ -138,9 +138,11 @@ fn a_pending_preview_spins_without_blocking_the_frame() -> TestResult {
         Err("released".into())
     });
     for _ in 0..5 {
-        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
             previews.pane(ui, &key, vec2(160.0, 160.0));
         });
+        // No renderer takes the uploads: hand them over (debug assertion).
+        output.textures_delta.clear();
     }
     // A pane that waited for the job would have seen it end.
     assert_eq!(previews.state(&key), PreviewState::Pending);
@@ -194,11 +196,13 @@ fn the_pane_draws_body_footprint_and_symbol_at_two_sizes() -> TestResult {
     let ctx = egui::Context::default();
     for side in [160.0, 320.0] {
         let mut cost = Duration::ZERO;
-        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
             let started = Instant::now();
             previews.pane(ui, &key, vec2(side, side));
             cost = started.elapsed();
         });
+        // No renderer takes the uploads: hand them over (debug assertion).
+        output.textures_delta.clear();
         let images = output
             .shapes
             .iter()
