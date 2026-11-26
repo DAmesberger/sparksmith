@@ -1430,3 +1430,85 @@ fn unrouted_pads_are_counted_apart_by_pad_and_net() {
         "1 error · 3 pads unrouted on 2 nets"
     );
 }
+
+/// Run 5, N1 follow-up: the result line read "38 errors · 52 pads unrouted
+/// on 16 nets" while the disabled Export said "Fix or waive the 90 errors
+/// first; 53 cannot be waived", counting the unrouted pads as errors again.
+/// Export now counts them as the line does, in the line's own words.
+#[test]
+fn export_counts_unrouted_pads_as_the_result_line_does() -> TestResult {
+    use sparksmith_core::ObjectRef;
+    let engine = Engine::showcase()?;
+    let base = report_with_error(&engine);
+    let item = |code: &str, objects: Vec<ObjectRef>| {
+        let mut item = base.items[0].clone();
+        item.key = format!("{code} {objects:?}");
+        item.code = code.into();
+        item.objects = objects;
+        item
+    };
+    let pad = |instance: u64, net: u64| {
+        vec![
+            ObjectRef::Pad {
+                instance,
+                pad: sparksmith_core::PadId(1),
+            },
+            ObjectRef::Net { id: net },
+        ]
+    };
+    let of = |items: Vec<PreflightItem>| PreflightReport {
+        errors: items.len(),
+        blocking: items.len(),
+        items,
+        ..base.clone()
+    };
+    let unrouted = [
+        item("board.unrouted", pad(1, 10)),
+        item("board.unrouted", pad(2, 10)),
+        item("board.unrouted", pad(3, 11)),
+    ];
+    let mut editor = open(&engine)?;
+    let tmp = tempfile::tempdir()?;
+    let d = dialog(&mut editor)?;
+    d.location = Some(tmp.path().to_path_buf());
+    let out = d.output("x");
+    let blocked = |report: PreflightReport| {
+        let line = report_summary(&report);
+        (
+            export_blocked(d, Some(&Ok(report)), true, out.as_ref()),
+            line,
+        )
+    };
+
+    // Waivable errors beside unrouted pads, one error that cannot be waived.
+    let mut items = vec![
+        base.items[0].clone(),
+        item("board.clearance", Vec::new()),
+        item("fill.stale", Vec::new()),
+    ];
+    items.extend(unrouted.iter().cloned());
+    let (why, line) = blocked(of(items));
+    assert_eq!(line, "3 errors · 3 pads unrouted on 2 nets");
+    assert_eq!(
+        why.as_deref(),
+        Some(
+            "Fix or waive the 3 errors and route the 3 pads unrouted on 2 nets first; 1 cannot be waived"
+        )
+    );
+    // Only unrouted pads: nothing to waive, only to route.
+    let (why, line) = blocked(of(unrouted.to_vec()));
+    assert_eq!(line, "3 pads unrouted on 2 nets");
+    assert_eq!(
+        why.as_deref(),
+        Some("Route the 3 pads unrouted on 2 nets first")
+    );
+    // One error that cannot be waived beside them.
+    let mut items = vec![item("fill.stale", Vec::new())];
+    items.extend(unrouted.iter().cloned());
+    let (why, _) = blocked(of(items));
+    assert_eq!(
+        why.as_deref(),
+        Some("Fix the error and route the 3 pads unrouted on 2 nets first; it cannot be waived")
+    );
+    Ok(())
+}

@@ -660,26 +660,23 @@ pub fn size_text(bytes: usize) -> String {
     }
 }
 
-/// "2 errors · 1 warning · 1 waived", or "No issues".
-/// Unrouted pads are counted apart, by pad and by net, as Issues lists
-/// them (one row per net): the same findings read "52 errors" here and "16
-/// to do" in Issues before (run 4, N1). They still block the export.
-pub fn report_summary(report: &PreflightReport) -> String {
-    let mut parts = Vec::new();
-    let unrouted =
-        |i: &&sparksmith_core::fabrication::preflight::PreflightItem| i.code == "board.unrouted";
-    let unwaived = |s: Severity| {
-        report
-            .items
-            .iter()
-            .filter(|i| i.severity == s && i.waiver.is_none() && !unrouted(i))
-            .count()
-    };
+/// Whether a finding is one unrouted pad (`board.unrouted`, one per pad).
+fn is_unrouted(item: &sparksmith_core::fabrication::preflight::PreflightItem) -> bool {
+    item.code == "board.unrouted"
+}
+
+/// "52 pads unrouted on 16 nets", or `None` when every pad is routed: the
+/// one wording of the open unrouted pads, for the result line and for why
+/// Export is off, so the two never count them apart (run 5, N1 follow-up).
+fn unrouted_words(report: &PreflightReport) -> Option<String> {
     let open: Vec<_> = report
         .items
         .iter()
-        .filter(|i| unrouted(i) && i.waiver.is_none())
+        .filter(|i| is_unrouted(i) && i.waiver.is_none())
         .collect();
+    if open.is_empty() {
+        return None;
+    }
     let nets: std::collections::BTreeSet<_> = open
         .iter()
         .flat_map(|i| i.objects.iter())
@@ -688,6 +685,28 @@ pub fn report_summary(report: &PreflightReport) -> String {
             _ => None,
         })
         .collect();
+    let pads = if open.len() == 1 { "pad" } else { "pads" };
+    let in_nets = if nets.len() == 1 { "net" } else { "nets" };
+    Some(format!(
+        "{} {pads} unrouted on {} {in_nets}",
+        open.len(),
+        nets.len()
+    ))
+}
+
+/// "2 errors · 1 warning · 1 waived", or "No issues".
+/// Unrouted pads are counted apart, by pad and by net, as Issues lists
+/// them (one row per net): the same findings read "52 errors" here and "16
+/// to do" in Issues before (run 4, N1). They still block the export.
+pub fn report_summary(report: &PreflightReport) -> String {
+    let mut parts = Vec::new();
+    let unwaived = |s: Severity| {
+        report
+            .items
+            .iter()
+            .filter(|i| i.severity == s && i.waiver.is_none() && !is_unrouted(i))
+            .count()
+    };
     for (severity, level) in [
         (Severity::Error, Level::Error),
         (Severity::Warning, Level::Warning),
@@ -697,14 +716,8 @@ pub fn report_summary(report: &PreflightReport) -> String {
         if n > 0 {
             parts.push(level.count_words(n));
         }
-        if severity == Severity::Error && !open.is_empty() {
-            let pads = if open.len() == 1 { "pad" } else { "pads" };
-            let in_nets = if nets.len() == 1 { "net" } else { "nets" };
-            parts.push(format!(
-                "{} {pads} unrouted on {} {in_nets}",
-                open.len(),
-                nets.len()
-            ));
+        if severity == Severity::Error {
+            parts.extend(unrouted_words(report));
         }
     }
     if report.waived > 0 {
@@ -720,6 +733,41 @@ pub fn report_summary(report: &PreflightReport) -> String {
 /// The link to the guide that says how to clear what disables Export.
 const WHY_OFF: &str = "Why is Export off?";
 
+/// Why Export is off while errors block it, counted as the result line
+/// counts them: unrouted pads apart from the other errors and in the same
+/// words ([`unrouted_words`]), as in "Fix or waive the 38 errors and route
+/// the 52 pads unrouted on 16 nets first; 1 cannot be waived". Run 5: the
+/// line said 38 errors and this said 90, the unrouted pads counted again.
+fn blocked_words(report: &PreflightReport) -> String {
+    let errors: Vec<_> = report
+        .items
+        .iter()
+        .filter(|i| i.blocks() && !is_unrouted(i))
+        .collect();
+    let fixed_only = errors.iter().filter(|i| !i.offers_waiver()).count();
+    let fix = match (errors.len(), fixed_only) {
+        (0, _) => None,
+        (1, 1) => Some("Fix the error".to_owned()),
+        (1, _) => Some("Fix or waive the error".to_owned()),
+        (n, k) if k == n => Some(format!("Fix the {}", Level::Error.count_words(n))),
+        (n, _) => Some(format!("Fix or waive the {}", Level::Error.count_words(n))),
+    };
+    let tail = match (errors.len(), fixed_only) {
+        (_, 0) => String::new(),
+        (1, _) => "; it cannot be waived".to_owned(),
+        (n, k) if k == n => "; they cannot be waived".to_owned(),
+        (_, k) => format!("; {k} cannot be waived"),
+    };
+    let head = match (fix, unrouted_words(report)) {
+        (Some(fix), Some(unrouted)) => format!("{fix} and route the {unrouted}"),
+        (Some(fix), None) => fix,
+        (None, Some(unrouted)) => format!("Route the {unrouted}"),
+        // Every blocking finding is an error, unrouted or not; kept total.
+        (None, None) => format!("Fix the {}", Level::Error.count_words(report.blocking)),
+    };
+    format!("{head} first{tail}")
+}
+
 /// Why Export is disabled, or `None` when it can run.
 pub(super) fn export_blocked(
     dialog: &ProductionDialog,
@@ -733,45 +781,22 @@ pub(super) fn export_blocked(
     match report {
         None => return Some("Checking the design…".into()),
         Some(Err(error)) => return Some(error.clone()),
-        // Errors only a profile that allows the board resolves are not
-        // waived: say so.
-        Some(Ok(report))
-            if report.blocking > 0
-                && report
-                    .items
-                    .iter()
-                    .filter(|i| i.blocks())
-                    .all(|i| !i.offers_waiver()) =>
-        {
+        Some(Ok(report)) if report.blocking > 0 => {
             let blocking = || report.items.iter().filter(|i| i.blocks());
-            // Only a finding with needs is resolved by another profile.
-            return Some(if blocking().any(|i| i.code == "rules.no_fab_profile") {
-                "Choose a fab profile first".into()
-            } else if blocking().any(|i| i.needs.is_some()) {
-                "Fix the design or switch to a fab profile that allows it first".into()
-            } else if report.blocking == 1 {
-                "Fix the error first; it cannot be waived".into()
-            } else {
-                format!(
-                    "Fix the {} errors first; they cannot be waived",
-                    report.blocking
-                )
-            });
-        }
-        Some(Ok(report)) if report.blocking == 1 => {
-            return Some("Fix or waive the error first".into());
-        }
-        Some(Ok(report)) if report.blocking > 1 => {
-            let fixed_only = report
-                .items
-                .iter()
-                .filter(|i| i.blocks() && !i.offers_waiver())
-                .count();
-            let words = format!("Fix or waive the {} errors first", report.blocking);
-            return Some(match fixed_only {
-                0 => words,
-                n => format!("{words}; {n} cannot be waived"),
-            });
+            // Errors only a profile that allows the board resolves are not
+            // waived: say so. Only a finding with needs is resolved by
+            // another profile.
+            if blocking().all(|i| !i.offers_waiver()) {
+                if blocking().any(|i| i.code == "rules.no_fab_profile") {
+                    return Some("Choose a fab profile first".into());
+                }
+                if blocking().any(|i| i.needs.is_some()) {
+                    return Some(
+                        "Fix the design or switch to a fab profile that allows it first".into(),
+                    );
+                }
+            }
+            return Some(blocked_words(report));
         }
         Some(Ok(_)) => {}
     }
