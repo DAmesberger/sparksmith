@@ -1512,3 +1512,95 @@ fn export_counts_unrouted_pads_as_the_result_line_does() -> TestResult {
     );
     Ok(())
 }
+
+/// GUI check of integ-13: the footer's one status line cut the reason
+/// Export is off to "Fix or waive the 38 er…". The reason now shows under
+/// the result in the kit's wrapped refusal row, whole: at the Properties
+/// card's width (as at 1920 × 1080) and in a narrower slot (a narrow
+/// window), and the footer no longer carries it.
+#[test]
+fn the_reason_export_is_off_is_shown_whole_at_any_width() -> TestResult {
+    use sparksmith_core::ObjectRef;
+    let engine = Engine::showcase()?;
+    let base = report_with_error(&engine);
+    let item = |code: &str, objects: Vec<ObjectRef>| {
+        let mut item = base.items[0].clone();
+        item.key = format!("{code} {objects:?}");
+        item.code = code.into();
+        item.objects = objects;
+        item
+    };
+    let pad = |instance: u64, net: u64| {
+        vec![
+            ObjectRef::Pad {
+                instance,
+                pad: sparksmith_core::PadId(1),
+            },
+            ObjectRef::Net { id: net },
+        ]
+    };
+    let items = vec![
+        base.items[0].clone(),
+        item("board.clearance", Vec::new()),
+        item("fill.stale", Vec::new()),
+        item("board.unrouted", pad(1, 10)),
+        item("board.unrouted", pad(2, 10)),
+        item("board.unrouted", pad(3, 11)),
+    ];
+    let report = PreflightReport {
+        errors: items.len(),
+        blocking: items.len(),
+        items,
+        ..base.clone()
+    };
+    let reason = "Fix or waive the 3 errors and route the 3 pads unrouted on 2 nets first; \
+                  1 cannot be waived";
+    let mut editor = open(&engine)?;
+    let ctx = context();
+    let tmp = tempfile::tempdir()?;
+    {
+        let d = dialog(&mut editor)?;
+        d.report = Some(((engine.report_key(), Pick::Board, None), Ok(report)));
+        d.location = Some(tmp.path().to_path_buf());
+    }
+    let card = sparksmith_ui::theme::Tokens::get().form_card_width;
+    for width in [card, 180.0] {
+        frame_at(&mut editor, &engine, &ctx, vec![], width);
+        let (output, _) = frame_at(&mut editor, &engine, &ctx, vec![], width);
+        fn walk(shape: &Shape, out: &mut Vec<(String, bool, usize)>) {
+            match shape {
+                Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+                Shape::Text(text) => out.push((
+                    text.galley.job.text.clone(),
+                    text.galley.elided,
+                    text.galley.rows.len(),
+                )),
+                _ => {}
+            }
+        }
+        let mut shown = Vec::new();
+        for shape in &output.shapes {
+            walk(&shape.shape, &mut shown);
+        }
+        let rows: Vec<_> = shown.iter().filter(|(t, ..)| t == reason).collect();
+        match rows.as_slice() {
+            [(_, false, lines)] => {
+                assert!(*lines > 1, "{width}: the reason wraps ({lines} line)");
+            }
+            _ => {
+                return Err(format!(
+                    "{width}: the reason is not shown whole once: {rows:?} in {:?}",
+                    texts(&output)
+                )
+                .into());
+            }
+        }
+        assert!(
+            !shown
+                .iter()
+                .any(|(t, elided, _)| *elided && reason.starts_with(t.trim_end_matches('…'))),
+            "{width}: a cut copy of the reason is shown"
+        );
+    }
+    Ok(())
+}

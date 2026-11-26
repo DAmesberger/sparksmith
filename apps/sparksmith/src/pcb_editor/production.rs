@@ -878,14 +878,16 @@ impl PcbEditor {
         let output = stem.as_deref().and_then(|s| dialog.output(s));
         let report = dialog.current(engine).cloned();
         let blocked = export_blocked(&dialog, report.as_ref(), stem.is_some(), output.as_ref());
-        // The footer's status line says why errors keep Export disabled, as
-        // a review's says its gate; the other reasons show in the body.
+        // Why errors keep Export disabled is said in the body, under the
+        // result, in the kit's wrapped refusal row: the footer's one status
+        // line cut it to "Fix or waive the 38 er…" (run 6). The footer keeps
+        // the export's progress.
         let errors = matches!(&report, Some(Ok(report)) if report.blocking > 0);
+        let reason = blocked.clone().filter(|_| errors);
         let status = dialog
             .progress
             .as_ref()
-            .map(|p| format!("Step {} of {} · {}", p.step, p.total, p.label))
-            .or_else(|| blocked.clone().filter(|_| errors));
+            .map(|p| format!("Step {} of {} · {}", p.step, p.total, p.label));
         // A missing profile is named for as long as it is picked.
         let refusal_text = dialog.profile().err().or_else(|| dialog.refusal.clone());
         let panel = DialogPanel {
@@ -907,6 +909,7 @@ impl PcbEditor {
                 report.as_ref(),
                 output.as_ref(),
                 stem.as_deref(),
+                reason.as_deref(),
             );
         });
         let mut close = false;
@@ -962,6 +965,7 @@ fn body(
     report: Option<&Result<PreflightReport, String>>,
     output: Option<&PathBuf>,
     stem: Option<&str>,
+    blocked: Option<&str>,
 ) -> Option<Operation> {
     let mut op = None;
     if let Some(p) = &dialog.progress
@@ -1004,6 +1008,9 @@ fn body(
                 Some(Err(_)) => {}
                 Some(Ok(report)) => {
                     kit::value_row(ui, "Result", &report_summary(report));
+                    if let Some(reason) = blocked {
+                        kit::refusal_wrapped(ui, reason);
+                    }
                     if report.blocking > 0 {
                         help_sheet::guide_row(ui, WHY_OFF, "guide/export-disabled");
                     }
