@@ -550,6 +550,9 @@ impl PartEditor {
     /// Send the working copy with sibling references at their pending
     /// revisions; the next sync shows what the engine accepted.
     fn send(&mut self, engine: &Engine) -> Option<Operation> {
+        if let (Some(set), Some(was)) = (self.draft.as_mut(), self.baseline.as_ref()) {
+            set.name_companions(&was.metas.component.name);
+        }
         let set = self.draft.as_ref()?.retargeted(engine.drafts());
         self.baseline = self.draft.clone();
         self.awaiting = true;
@@ -3328,6 +3331,37 @@ mod draft_tests {
         let set = committed(&mut editor, &mut engine, component)?;
         assert_eq!(set.component.terminals.len(), 1);
         assert_eq!(set.footprint.pads.len(), 1);
+        Ok(())
+    }
+
+    /// Run 4, N2: a blank component's symbol, package, footprint and
+    /// binding drafts take its name when it is named, and follow a
+    /// rename; a name the person gave one of them stays.
+    #[test]
+    fn a_named_blank_component_names_its_package() -> sparksmith_core::Result<()> {
+        let mut engine = Engine::default();
+        let mut editor = PartEditor::default();
+        let component = create_blank(&mut engine)?;
+        editor.open(component, &engine);
+        editor.commit(&egui::Context::default(), &engine);
+        let rename = |editor: &mut PartEditor, name: &str| {
+            if let Some(set) = editor.draft.as_mut() {
+                set.metas.component.name = name.into();
+            }
+        };
+        rename(&mut editor, "Sensor hub");
+        let set = committed(&mut editor, &mut engine, component)?;
+        assert_eq!(set.metas.package.name, "Sensor hub package");
+        assert_eq!(set.metas.symbol.name, "Sensor hub symbol");
+        assert_eq!(set.metas.footprint.name, "Sensor hub footprint");
+        assert_eq!(set.metas.binding.name, "Sensor hub binding");
+        if let Some(set) = editor.draft.as_mut() {
+            set.metas.footprint.name = "Hub land pattern".into();
+        }
+        rename(&mut editor, "Hub");
+        let set = committed(&mut editor, &mut engine, component)?;
+        assert_eq!(set.metas.package.name, "Hub package");
+        assert_eq!(set.metas.footprint.name, "Hub land pattern");
         Ok(())
     }
 

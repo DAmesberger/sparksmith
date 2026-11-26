@@ -370,6 +370,35 @@ fn reserve(engine: &mut Engine) -> Result<Ids> {
 /// The name a blank component starts with.
 const BLANK: &str = "New component";
 
+/// What each draft beside the component adds to its name ("… package").
+const COMPANIONS: [&str; 4] = [" symbol", " package", " footprint", " binding"];
+
+impl WorkingSet {
+    /// The symbol, package, footprint and binding drafts named after the
+    /// component (`was`, its name before this edit, or a blank one's)
+    /// follow its new name: "New component package" becomes "SNS24 sensor
+    /// hub package" (run 4, N2). A name the person gave stays.
+    pub fn name_companions(&mut self, was: &str) {
+        let name = self.metas.component.name.trim().to_owned();
+        if name.is_empty() || name == was.trim() {
+            return;
+        }
+        let metas = &mut self.metas;
+        let drafts = [
+            &mut metas.symbol,
+            &mut metas.package,
+            &mut metas.footprint,
+            &mut metas.binding,
+        ];
+        for (meta, what) in drafts.into_iter().zip(COMPANIONS) {
+            let named_after = |base: &str| meta.name == format!("{}{what}", base.trim());
+            if named_after(was) || named_after(BLANK) {
+                meta.name = format!("{name}{what}");
+            }
+        }
+    }
+}
+
 /// Start a component without a generator: five empty drafts (component,
 /// symbol, package, footprint, binding) that name each other, as one undo
 /// step. Its first terminal adds the symbol unit, package terminal and pad.
@@ -395,10 +424,10 @@ fn link_blank(engine: &mut Engine) -> Result<DefinitionId> {
         ids,
         metas: Metas {
             component: meta(""),
-            symbol: meta(" symbol"),
-            package: meta(" package"),
-            footprint: meta(" footprint"),
-            binding: meta(" binding"),
+            symbol: meta(COMPANIONS[0]),
+            package: meta(COMPANIONS[1]),
+            footprint: meta(COMPANIONS[2]),
+            binding: meta(COMPANIONS[3]),
         },
         component: ComponentDefinition {
             next_local: 1,
