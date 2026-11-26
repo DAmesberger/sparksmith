@@ -1169,7 +1169,10 @@ impl Surface {
             w.sent = false;
             match refusal::claim(&ctx, Origin::Field(kit::issues_list::reason_id())) {
                 Some(why) => {
-                    w.error = Some(why);
+                    // A sentence under the field starts with a capital,
+                    // though core words it after a code ("…: the
+                    // fabricator states nothing about this…").
+                    w.error = Some(capitalised(&why));
                     w.start = true;
                 }
                 None => self.waiving = None,
@@ -1927,3 +1930,12 @@ impl Badges {
 #[cfg(test)]
 #[path = "issues_tests.rs"]
 mod tests;
+
+/// `text` with its first letter in upper case.
+fn capitalised(text: &str) -> String {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}

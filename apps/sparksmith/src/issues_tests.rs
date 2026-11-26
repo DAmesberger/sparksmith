@@ -1375,3 +1375,16 @@ fn the_waived_list_shows_the_accepted_value() {
     );
     assert_eq!(waived_reason(&waiver(Vec::new(), "taken"), false), "taken");
 }
+
+/// Run 4: a waive refused for an empty reason says why under the field as
+/// a sentence ("The fabricator states nothing about this, …"), though core
+/// words it after its code in lower case.
+#[test]
+fn a_refused_waive_s_reason_starts_with_a_capital() {
+    assert_eq!(
+        capitalised("the fabricator states nothing about this, so accepting it needs a reason"),
+        "The fabricator states nothing about this, so accepting it needs a reason"
+    );
+    assert_eq!(capitalised(""), "");
+    assert_eq!(capitalised("Already"), "Already");
+}
