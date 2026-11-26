@@ -1199,3 +1199,92 @@ fn gpio_options_show_only_for_a_gpio_pin() -> TestResult {
     }
     Ok(())
 }
+
+/// A table typed into Paste table line by line (run 4).
+const TYPED_TABLE: &str = include_str!("../app/paste_table_typed.txt");
+
+/// Run 4, C3: a table typed line by line maps its captioned columns by
+/// their captions, not Ignore; a column the person set keeps their choice
+/// while the table grows.
+#[test]
+fn typed_captions_map_their_columns() -> TestResult {
+    let mut flow = pins_table::PasteFlow::new();
+    let mut typed = String::new();
+    for c in TYPED_TABLE.chars().take_while(|c| *c != '3') {
+        typed.push(c);
+        flow.text = typed.clone();
+        flow.rows()?;
+    }
+    let read = [
+        ColumnMap::Number,
+        ColumnMap::Name,
+        ColumnMap::Type,
+        ColumnMap::Function,
+    ];
+    assert_eq!(flow.mapping.columns, read);
+    if let Some(column) = flow.mapping.columns.get_mut(3) {
+        *column = ColumnMap::Mux;
+    }
+    flow.text = TYPED_TABLE.into();
+    flow.rows()?;
+    assert_eq!(
+        flow.mapping.columns[3],
+        ColumnMap::Mux,
+        "the person's choice"
+    );
+    assert_eq!(flow.mapping.columns[..3], read[..3]);
+    // The captions are the mapping's own names, in any case or plural.
+    let captions = ["Number", "functions", "NAME", "Mux / AF"].map(String::from);
+    assert_eq!(
+        pins_table::initial_columns(4, Some(&captions)),
+        [
+            ColumnMap::Number,
+            ColumnMap::Function,
+            ColumnMap::Name,
+            ColumnMap::Mux
+        ]
+    );
+    Ok(())
+}
+
+/// Run 4, C4: the rows shown that wait for review are confirmed with one
+/// button that names them, in one edit; rows the filter hides stay.
+#[test]
+fn confirm_shown_rows_confirms_what_the_filter_shows() -> TestResult {
+    let mut h = Harness::new()?;
+    let ids = h.terminals()?;
+    let (first, second) = match ids.as_slice() {
+        [a, b, ..] => (*a, *b),
+        _ => return Err("two terminals expected".into()),
+    };
+    let second_name = h
+        .component()?
+        .terminals
+        .iter()
+        .find(|t| t.id == second)
+        .map(|t| t.name.clone())
+        .ok_or("no terminal")?;
+    h.component_mut()?.review = Some(Box::new(ImportReview {
+        unreviewed: [first].into_iter().collect(),
+        uncertain: [second].into_iter().collect(),
+    }));
+    assert!(h.commit()?);
+    // Both shown: the button names them and the flagged one.
+    let component = h.component()?.clone();
+    let pending: Vec<_> = component.terminals.iter().collect();
+    let tip = super::confirm_shown_tip(&pending, 1);
+    assert!(tip.contains(&second_name), "{tip}");
+    assert!(tip.ends_with("; 1 of them was flagged uncertain"), "{tip}");
+    // Filtered to the second's name, only it is confirmed.
+    h.editor.pins.table.query = second_name.clone();
+    h.click("Confirm 1 shown row")?;
+    let review = h.component()?.review.clone().ok_or("all confirmed")?;
+    assert!(review.unreviewed.contains(&first));
+    assert!(!review.uncertain.contains(&second));
+    h.editor.pins.table.query.clear();
+    h.click("Confirm 1 shown row")?;
+    assert!(h.component()?.review.is_none());
+    assert!(h.commit()?);
+    assert!(h.engine_component()?.review.is_none());
+    Ok(())
+}

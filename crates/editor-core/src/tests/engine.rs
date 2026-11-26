@@ -915,3 +915,33 @@ fn a_recovery_over_its_saved_file_is_one_undo_step() -> crate::Result<()> {
     assert!(!same.can_undo());
     Ok(())
 }
+
+/// Run 4, A7: a schematic edit applied as a reviewed update (a drawn wire
+/// joins nets through one) is named on the undo list by the edit, not as
+/// "Apply an update".
+#[test]
+fn a_reviewed_schematic_edit_is_named_by_its_edit() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let occurrence = engine.project().occurrences[0].id;
+    let command = SchematicCommand::MoveUnit {
+        occurrence,
+        position: pt([4.0, 0.0]),
+    };
+    let title = Operation::Schematic(command.clone()).title();
+    assert_ne!(title, "Apply an update");
+    let revision = engine.revision();
+    engine.apply(
+        revision,
+        Operation::Update(Box::new(crate::updates::ApplyUpdate {
+            expected_revision: revision,
+            change: crate::updates::Change::Schematic { command },
+            remove_conflicting_tracks: false,
+            merge_named_nets: false,
+        })),
+    )?;
+    let step = engine
+        .undo_step()
+        .ok_or_else(|| Error::History("no step".into()))?;
+    assert_eq!(step.title, title);
+    Ok(())
+}

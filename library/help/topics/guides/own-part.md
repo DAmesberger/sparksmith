@@ -40,3 +40,5 @@ A component is a symbol, a footprint and a map between them.
 - Go to Schematic, choose Place and search for its name.
 
 Publishing again makes a new revision. Placed parts keep theirs until you update them.
+
+Rows a pasted table imported wait under Unreviewed on the Pins tab until you check them against the datasheet. Confirm row confirms one; Confirm shown rows confirms every row the filter shows, and its tip names them.

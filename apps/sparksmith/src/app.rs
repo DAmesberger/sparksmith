@@ -2301,6 +2301,9 @@ mod open_project_tests;
 #[path = "app/parts_band_tests.rs"]
 mod parts_band_tests;
 #[cfg(test)]
+#[path = "app/paste_table_tests.rs"]
+mod paste_table_tests;
+#[cfg(test)]
 #[path = "app/power_port_tests.rs"]
 mod power_port_tests;
 #[cfg(test)]
