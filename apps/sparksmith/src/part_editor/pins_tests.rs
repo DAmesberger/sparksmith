@@ -1199,3 +1199,50 @@ fn gpio_options_show_only_for_a_gpio_pin() -> TestResult {
     }
     Ok(())
 }
+
+/// A table typed into Paste table line by line (run 4).
+const TYPED_TABLE: &str = include_str!("../app/paste_table_typed.txt");
+
+/// Run 4, C3: a table typed line by line maps its captioned columns by
+/// their captions, not Ignore; a column the person set keeps their choice
+/// while the table grows.
+#[test]
+fn typed_captions_map_their_columns() -> TestResult {
+    let mut flow = pins_table::PasteFlow::new();
+    let mut typed = String::new();
+    for c in TYPED_TABLE.chars().take_while(|c| *c != '3') {
+        typed.push(c);
+        flow.text = typed.clone();
+        flow.rows()?;
+    }
+    let read = [
+        ColumnMap::Number,
+        ColumnMap::Name,
+        ColumnMap::Type,
+        ColumnMap::Function,
+    ];
+    assert_eq!(flow.mapping.columns, read);
+    if let Some(column) = flow.mapping.columns.get_mut(3) {
+        *column = ColumnMap::Mux;
+    }
+    flow.text = TYPED_TABLE.into();
+    flow.rows()?;
+    assert_eq!(
+        flow.mapping.columns[3],
+        ColumnMap::Mux,
+        "the person's choice"
+    );
+    assert_eq!(flow.mapping.columns[..3], read[..3]);
+    // The captions are the mapping's own names, in any case or plural.
+    let captions = ["Number", "functions", "NAME", "Mux / AF"].map(String::from);
+    assert_eq!(
+        pins_table::initial_columns(4, Some(&captions)),
+        [
+            ColumnMap::Number,
+            ColumnMap::Function,
+            ColumnMap::Name,
+            ColumnMap::Mux
+        ]
+    );
+    Ok(())
+}

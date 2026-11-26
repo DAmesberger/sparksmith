@@ -958,23 +958,51 @@ impl Default for Mapping {
 }
 
 /// The starting mapping for `columns` columns: number, name, then
-/// functions, except that the first column captioned as a type ("Type",
-/// "Pin type", "Type (power, input)") is the Pin type column. `captions`
-/// is the table's first row when it holds captions. The person changes any
-/// of them before anything is planned.
+/// functions, except that a column captioned with a mapping's own name
+/// ("Name", "Functions", "Mux / AF") is that column, and the first column
+/// captioned as a type ("Type", "Pin type", "Type (power, input)") is the
+/// Pin type column. `captions` is the table's first row when it holds
+/// captions. The person changes any of them before anything is planned.
 pub fn initial_columns(columns: usize, captions: Option<&[String]>) -> Vec<ColumnMap> {
     let type_column = captions
         .into_iter()
         .flatten()
         .position(|caption| is_type_caption(caption));
+    let mut named_before = Vec::new();
     (0..columns)
-        .map(|i| match i {
-            0 => ColumnMap::Number,
-            i if Some(i) == type_column => ColumnMap::Type,
-            1 => ColumnMap::Name,
-            _ => ColumnMap::Function,
+        .map(|i| {
+            let named = captions.and_then(|c| c.get(i)).and_then(|c| named_by(c));
+            // A column of one kind but Function is named once, the first.
+            if let Some(named) = named
+                && (named == ColumnMap::Function || !named_before.contains(&named))
+            {
+                named_before.push(named);
+                return named;
+            }
+            match i {
+                0 => ColumnMap::Number,
+                i if Some(i) == type_column => ColumnMap::Type,
+                1 => ColumnMap::Name,
+                _ => ColumnMap::Function,
+            }
         })
         .collect()
+}
+
+/// The mapping a caption names: one of [`ColumnMap::ALL`]'s names, in any
+/// case, or its plural ("Functions"). Ignore is never named, and the Pin
+/// type column is found by [`is_type_caption`].
+fn named_by(caption: &str) -> Option<ColumnMap> {
+    let caption = caption.trim();
+    let singular = caption
+        .strip_suffix('s')
+        .or_else(|| caption.strip_suffix('S'))
+        .unwrap_or(caption);
+    ColumnMap::ALL
+        .iter()
+        .filter(|(map, _)| !matches!(map, ColumnMap::Ignore | ColumnMap::Type))
+        .find(|(_, name)| name.eq_ignore_ascii_case(caption) || name.eq_ignore_ascii_case(singular))
+        .map(|(map, _)| *map)
 }
 
 /// Whether a column's caption has the word "type". This only starts the
@@ -1410,6 +1438,10 @@ pub struct PasteFlow {
     /// Cancel was asked with a table pasted: whether to discard it waits
     /// for the person.
     pub discarding: bool,
+    /// The starting mapping the columns were last given
+    /// ([`initial_columns`]): a column that still holds its start follows
+    /// the table as it grows; one the person changed keeps their choice.
+    pub started: Vec<ColumnMap>,
 }
 
 impl PasteFlow {
@@ -1436,13 +1468,21 @@ impl PasteFlow {
     pub fn rows(&mut self) -> Result<Vec<Vec<String>>, String> {
         let rows = split_table(&self.text, self.delimiter)?;
         let width = rows.iter().map(Vec::len).max().unwrap_or(0);
-        if self.mapping.columns.len() != width {
-            let captions = rows.first().filter(|_| self.mapping.header);
-            let initial = initial_columns(width, captions.map(Vec::as_slice));
-            self.mapping.columns.resize(width, ColumnMap::Ignore);
-            if self.mapping.columns.iter().all(|c| *c == ColumnMap::Ignore) {
-                self.mapping.columns = initial;
-            }
+        let captions = rows.first().filter(|_| self.mapping.header);
+        let initial = initial_columns(width, captions.map(Vec::as_slice));
+        if initial != self.started || self.mapping.columns.len() != width {
+            let old = std::mem::replace(&mut self.started, initial.clone());
+            let columns = &self.mapping.columns;
+            self.mapping.columns = initial
+                .iter()
+                .enumerate()
+                .map(|(i, start)| match (columns.get(i), old.get(i)) {
+                    // The person's choice.
+                    (Some(column), Some(was)) if column != was => *column,
+                    (Some(column), None) => *column,
+                    _ => *start,
+                })
+                .collect();
         }
         Ok(rows)
     }
