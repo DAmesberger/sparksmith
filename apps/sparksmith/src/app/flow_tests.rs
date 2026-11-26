@@ -1017,3 +1017,52 @@ fn a_part_put_over_the_boards_edge_is_said_at_once() -> Fallible {
     assert_eq!(*actions, [ToastAction::Undo]);
     Ok(())
 }
+
+/// Run 4, N3: deleting a keep-out says so, with Undo, as every Layout
+/// delete now does; Undo brings it back.
+#[test]
+fn deleting_a_keepout_says_so_with_undo() -> Fallible {
+    use sparksmith_core::layout::fill::FillCommand;
+    use sparksmith_core::model::fill::{KeepoutLayers, KeepoutRules, KeepoutSpec};
+    let mut h = Harness::new()?;
+    let outline = sparksmith_core::library::Outline {
+        start: [2.0, 2.0],
+        segments: [[6.0, 2.0], [6.0, 6.0], [2.0, 6.0], [2.0, 2.0]]
+            .into_iter()
+            .map(|to| sparksmith_core::library::Segment::Line { to })
+            .collect(),
+    };
+    let sparksmith_core::Outcome::KeepoutAdded { keepout } = h.app.engine.apply(
+        h.app.engine.revision(),
+        Operation::Fill(FillCommand::AddKeepout {
+            keepout: Box::new(KeepoutSpec {
+                name: "Test".into(),
+                outline,
+                layers: KeepoutLayers::All,
+                forbid: KeepoutRules::default(),
+            }),
+        }),
+    )?
+    else {
+        return Err("no keepout".into());
+    };
+    h.app.apply(
+        &h.ctx,
+        Origin::Command,
+        Some(Operation::Fill(FillCommand::DeleteKeepout { id: keepout })),
+    );
+    assert!(h.app.engine.project().keepout(keepout).is_none());
+    let shown: Vec<_> = h
+        .app
+        .toasts
+        .items()
+        .map(|t| (t.text.clone(), t.actions.clone()))
+        .collect();
+    assert_eq!(
+        shown,
+        [("Deleted the keep-out".to_owned(), vec![ToastAction::Undo])]
+    );
+    h.app.engine.undo()?;
+    assert!(h.app.engine.project().keepout(keepout).is_some());
+    Ok(())
+}

@@ -530,6 +530,8 @@ impl App {
             Operation::Schematic(command) => Some(command.clone()),
             _ => None,
         };
+        // A delete in Layout says what went, with Undo (run 4, N3).
+        let deleted = deleted_line(&operation);
         // A placement says what it joined and the issues it added.
         let placing = matches!(
             &operation,
@@ -610,6 +612,9 @@ impl App {
                 ) = (&outcome, placing)
                 {
                     self.placed(&before, counts, *instance, designator);
+                }
+                if let Some(text) = deleted {
+                    self.say_with(Level::Ok, text, vec![ToastAction::Undo]);
                 }
                 // Moved parts' dragged copper the engine re-routed, or
                 // left unrouted, in the same undo step, and the parts their
@@ -2563,4 +2568,20 @@ mod theme_tests {
             assert!(told.is_empty(), "{told:?}");
         }
     }
+}
+
+/// What a Layout delete says once it is applied: the object it removed.
+fn deleted_line(operation: &Operation) -> Option<&'static str> {
+    use sparksmith_core::instances::blocks::BlockCommand;
+    use sparksmith_core::layout::LayoutCommand;
+    Some(match operation {
+        Operation::Layout(LayoutCommand::DeleteTrack { .. }) => "Deleted the track",
+        Operation::Layout(LayoutCommand::DeleteVia { .. }) => "Deleted the via",
+        Operation::Layout(LayoutCommand::DeleteText { .. }) => "Deleted the text",
+        Operation::Fill(FillCommand::Delete { .. }) => "Deleted the fill",
+        Operation::Fill(FillCommand::DeleteKeepout { .. }) => "Deleted the keep-out",
+        Operation::Block(BlockCommand::Delete { ids }) if ids.len() == 1 => "Deleted the block",
+        Operation::Block(BlockCommand::Delete { .. }) => "Deleted the blocks",
+        _ => return None,
+    })
 }
