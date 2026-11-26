@@ -65,7 +65,7 @@ fn beside_a_usb_track(
                 && (20.0..SCREEN[1] - 20.0).contains(&shown.y);
             let clear = on_canvas
                 && editor.pick_pad(at, |p| layers.pad(p)).is_none()
-                && editor.pick_via(project, at).is_none()
+                && editor.pick_via(project, at, 0.0).is_none()
                 && !project
                     .tracks
                     .iter()
@@ -227,5 +227,51 @@ fn tuning_a_net_at_its_target_is_information() -> TestResult {
             "USB_DN is already at or past its target"
         )]
     );
+    Ok(())
+}
+
+/// Run 4, D1: a click 3 px off a GND via's ring, inside the GND pour it
+/// sits in, selects the via (as a click beside a track selects the track),
+/// not the pour; at the fitted zoom a 0.45 mm via is only a few pixels wide.
+#[test]
+fn a_click_just_off_a_via_in_a_pour_selects_the_via() -> TestResult {
+    let engine = esp32()?;
+    let ctx = egui::Context::default();
+    let mut editor = PcbEditor::default();
+    frame(&mut editor, &engine, &ctx, vec![]);
+    let project = engine.project();
+    let scale =
+        f64::from(screen(&editor, &engine, [1.0, 0.0]).x - screen(&editor, &engine, [0.0, 0.0]).x)
+            .abs();
+    let layers = editor.seen();
+    let (via, at) = project
+        .vias
+        .iter()
+        .flat_map(|v| (0..8).map(move |k| (v, f64::from(k) * std::f64::consts::FRAC_PI_4)))
+        .find_map(|(v, angle)| {
+            let (c, r) = editor.layout_copper.via_extent(v.id)?;
+            let reach = r + 3.0 / scale;
+            let at = [c[0] + reach * angle.cos(), c[1] + reach * angle.sin()];
+            let in_pour = editor
+                .pick_fill(project, at, 0.0)
+                .is_some_and(|f| f.net == Some(v.net));
+            // Pads pick before vias, so the point is off pads. A track
+            // there does not matter: vias pick before tracks.
+            let clear = editor.pick_pad(at, |p| layers.pad(p)).is_none()
+                && project.vias.iter().filter(|o| o.id != v.id).all(|o| {
+                    editor
+                        .layout_copper
+                        .via_extent(o.id)
+                        .is_none_or(|(oc, or)| {
+                            sparksmith_core::geometry::distance(oc, at) - or > 6.0 / scale
+                        })
+                });
+            (in_pour && clear).then_some((v.id, at))
+        })
+        .ok_or("no via in a pour of its net with room beside it")?;
+    let point = screen(&editor, &engine, at);
+    frame(&mut editor, &engine, &ctx, click(point));
+    assert_eq!(editor.via, Some(via));
+    assert_eq!(editor.fill, None);
     Ok(())
 }

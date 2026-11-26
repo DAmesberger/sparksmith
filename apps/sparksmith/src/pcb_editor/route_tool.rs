@@ -378,7 +378,7 @@ impl PcbEditor {
         {
             return Some((net, pad.center(), self.layer));
         }
-        if let Some(via) = self.pick_via(project, at) {
+        if let Some(via) = self.pick_via(project, at, 0.0) {
             return Some((via.net, via.position, self.layer));
         }
         let reach = f64::from(8.0 / scale);

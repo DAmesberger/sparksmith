@@ -2806,16 +2806,24 @@ impl PcbEditor {
     }
 
     /// The topmost visible via whose pad is under `at`.
-    fn pick_via<'a>(&self, project: &'a Project, at: Point) -> Option<&'a Via> {
+    /// The visible via under `at`, or within `tolerance` of its ring (a
+    /// few pixels, as tracks pick): a via in a pour is a few pixels wide,
+    /// and a click just off it must not fall through to the pour (run 4,
+    /// D1). The nearest wins when several are in reach.
+    fn pick_via<'a>(&self, project: &'a Project, at: Point, tolerance: f64) -> Option<&'a Via> {
         let seen = self.seen();
-        project.vias.iter().rev().find(|via| {
-            seen.via(via, &self.stack)
-                && !self.via_hidden(via.id)
-                && self
-                    .layout_copper
-                    .via_extent(via.id)
-                    .is_some_and(|(c, r)| sparksmith_core::geometry::distance(c, at) <= r)
-        })
+        project
+            .vias
+            .iter()
+            .rev()
+            .filter(|via| seen.via(via, &self.stack) && !self.via_hidden(via.id))
+            .filter_map(|via| {
+                let (c, r) = self.layout_copper.via_extent(via.id)?;
+                let gap = sparksmith_core::geometry::distance(c, at) - r;
+                (gap <= tolerance.max(0.0)).then_some((via, gap.max(0.0)))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(via, _)| via)
     }
 
     /// The topmost (last drawn) visible pad under `at`, against the cached
@@ -2888,7 +2896,7 @@ impl PcbEditor {
                     .and_then(|pad| pass(self.pad_hit(pad.instance, pad.pad.id, pad.net)))
             })
             .or_else(|| {
-                self.pick_via(project, at)
+                self.pick_via(project, at, tolerance)
                     .and_then(|via| pass(Hit::Via(via.id, via.net)))
             })
             .or_else(|| {
