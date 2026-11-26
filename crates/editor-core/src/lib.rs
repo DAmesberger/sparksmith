@@ -156,8 +156,15 @@ impl Operation {
         }
     }
 
-    /// This operation's title for people, from [`Self::entries`].
+    /// This operation's title for people, from [`Self::entries`]. A
+    /// reviewed schematic edit is titled by the edit it applies ("Draw a
+    /// wire"), not as an update (run 4, A7).
     pub fn title(&self) -> &'static str {
+        if let Self::Update(update) = self
+            && let updates::Change::Schematic { command } = &update.change
+        {
+            return Self::Schematic(command.clone()).title();
+        }
         permission::find(Self::entries(), self.command()).map_or("Change", |entry| entry.title)
     }
 

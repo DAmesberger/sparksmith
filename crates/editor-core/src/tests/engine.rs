@@ -888,3 +888,33 @@ fn tracks_on_removed_terminals_fail_validation_instead_of_retagging() -> Result<
     assert!(engine.replace_document(file).is_err());
     Ok(())
 }
+
+/// Run 4, A7: a schematic edit applied as a reviewed update (a drawn wire
+/// joins nets through one) is named on the undo list by the edit, not as
+/// "Apply an update".
+#[test]
+fn a_reviewed_schematic_edit_is_named_by_its_edit() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let occurrence = engine.project().occurrences[0].id;
+    let command = SchematicCommand::MoveUnit {
+        occurrence,
+        position: pt([4.0, 0.0]),
+    };
+    let title = Operation::Schematic(command.clone()).title();
+    assert_ne!(title, "Apply an update");
+    let revision = engine.revision();
+    engine.apply(
+        revision,
+        Operation::Update(Box::new(crate::updates::ApplyUpdate {
+            expected_revision: revision,
+            change: crate::updates::Change::Schematic { command },
+            remove_conflicting_tracks: false,
+            merge_named_nets: false,
+        })),
+    )?;
+    let step = engine
+        .undo_step()
+        .ok_or_else(|| Error::History("no step".into()))?;
+    assert_eq!(step.title, title);
+    Ok(())
+}
