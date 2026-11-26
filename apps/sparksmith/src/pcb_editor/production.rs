@@ -142,15 +142,28 @@ pub(super) struct ProductionDialog {
     opening: bool,
 }
 
+/// Every installed fab profile the check can run under: the user's own,
+/// then the shipped ones (JLCPCB, PCBWay, Standard) that no user profile of
+/// the same id replaces (run 4, A22: only the board's profile and the
+/// user's were offered, so a shipped one was reachable only in Rules…).
+fn installed(library: Option<&ProfileLibrary>) -> Vec<RuleProfile> {
+    let Some(listing) = library.and_then(|l| l.list().ok()) else {
+        return Vec::new();
+    };
+    let mut out = listing.profiles;
+    for builtin in listing.builtins {
+        if !out.iter().any(|p| p.id == builtin.id) {
+            out.push(builtin);
+        }
+    }
+    out
+}
+
 impl ProductionDialog {
     /// A new dialog writing into `folder` (the project's kept production
     /// folder) when that folder still exists.
     pub(super) fn new(library: Option<ProfileLibrary>, folder: Option<PathBuf>) -> Self {
-        let user_profiles = library
-            .as_ref()
-            .and_then(|l| l.list().ok())
-            .map(|l| l.profiles)
-            .unwrap_or_default();
+        let user_profiles = installed(library.as_ref());
         Self {
             library,
             user_profiles,
@@ -201,9 +214,18 @@ impl ProductionDialog {
             Pick::Board,
             format!("{} · this board", engine.project().rules.profile_name()),
         )];
+        // The board's own profile is the first row; the same profile
+        // again would read as a second choice.
+        let own = engine
+            .project()
+            .rules
+            .profile
+            .as_ref()
+            .map(|p| p.id.as_str());
         out.extend(
             self.user_profiles
                 .iter()
+                .filter(|p| Some(p.id.as_str()) != own)
                 .map(|p| (Pick::User(p.id.clone()), p.name.clone())),
         );
         if let (Pick::User(id), Err(_)) = (&self.pick, self.profile()) {
@@ -228,7 +250,7 @@ impl ProductionDialog {
     /// longer reads has none: what was read before is not what is there.
     fn reload_profiles(&mut self) {
         if let Some(library) = &self.library {
-            self.user_profiles = library.list().map(|l| l.profiles).unwrap_or_default();
+            self.user_profiles = installed(Some(library));
         }
     }
 

@@ -1332,3 +1332,56 @@ fn a_row_says_what_was_accepted_and_what_it_is_now() -> TestResult {
     assert!(row_tip(&item).contains("is now 0.12 mm"));
     Ok(())
 }
+
+/// Run 4, A22: the Fab profile choice offers every installed profile, the
+/// shipped ones too, not only the board's own and the user's; the board's
+/// own profile is listed once, as "· this board"; picking a shipped one
+/// checks under it.
+#[test]
+fn the_fab_profile_choice_offers_the_shipped_profiles() -> TestResult {
+    let engine = Engine::showcase()?;
+    let tmp = tempfile::tempdir()?;
+    let library = ProfileLibrary::new(
+        tmp.path().join("fab-profiles"),
+        sparksmith_io::shipped::ShippedLibrary::locate()?,
+    );
+    let mut editor = PcbEditor::default();
+    editor.open_production_in(Some(library));
+    let ctx = context();
+    let own = engine
+        .project()
+        .rules
+        .profile
+        .as_ref()
+        .map(|p| p.id.clone())
+        .ok_or("the showcase has a profile")?;
+    let d = dialog(&mut editor)?;
+    let options = d.options_list(&engine);
+    let names: Vec<&str> = options.iter().map(|(_, n)| n.as_str()).collect();
+    for shipped in [
+        "JLCPCB 2-layer",
+        "JLCPCB 4-layer",
+        "PCBWay 4-layer",
+        "Standard",
+    ] {
+        assert!(
+            names.iter().any(|n| n.starts_with(shipped)),
+            "{shipped} in {names:?}"
+        );
+    }
+    assert!(
+        !options
+            .iter()
+            .any(|(p, _)| matches!(p, Pick::User(id) if *id == own)),
+        "the board's own profile twice: {names:?}"
+    );
+    let other = options
+        .iter()
+        .find_map(|(p, _)| matches!(p, Pick::User(_)).then(|| p.clone()))
+        .ok_or("no other profile")?;
+    d.pick = other;
+    d.wait_check(&ctx, &engine);
+    assert!(matches!(d.current(&engine), Some(Ok(_))));
+    Ok(())
+}
+
