@@ -1385,3 +1385,48 @@ fn the_fab_profile_choice_offers_the_shipped_profiles() -> TestResult {
     Ok(())
 }
 
+/// Run 4, N1: Production counted every unrouted pad as an error ("52
+/// errors") while Issues lists one row per net ("16 to do"). The summary
+/// now names them apart, by pad and by net, so the two can be read side by
+/// side; they still block the export.
+#[test]
+fn unrouted_pads_are_counted_apart_by_pad_and_net() {
+    use sparksmith_core::ObjectRef;
+    let item = |code: &str, objects: Vec<ObjectRef>| PreflightItem {
+        key: format!("{code} {objects:?}"),
+        code: code.into(),
+        severity: Severity::Error,
+        title: String::new(),
+        fix: None,
+        objects,
+        waiver: None,
+        needs: None,
+        not_stated: None,
+        lapsed: None,
+        measured: Vec::new(),
+    };
+    let pad = |instance: u64, net: u64| {
+        vec![
+            ObjectRef::Pad {
+                instance,
+                pad: sparksmith_core::PadId(1),
+            },
+            ObjectRef::Net { id: net },
+        ]
+    };
+    let report = PreflightReport {
+        items: vec![
+            item("board.clearance", Vec::new()),
+            item("board.unrouted", pad(1, 10)),
+            item("board.unrouted", pad(2, 10)),
+            item("board.unrouted", pad(3, 11)),
+        ],
+        errors: 4,
+        blocking: 4,
+        ..PreflightReport::default()
+    };
+    assert_eq!(
+        report_summary(&report),
+        "1 error · 3 pads unrouted on 2 nets"
+    );
+}

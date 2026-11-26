@@ -661,15 +661,33 @@ pub fn size_text(bytes: usize) -> String {
 }
 
 /// "2 errors · 1 warning · 1 waived", or "No issues".
+/// Unrouted pads are counted apart, by pad and by net, as Issues lists
+/// them (one row per net): the same findings read "52 errors" here and "16
+/// to do" in Issues before (run 4, N1). They still block the export.
 pub fn report_summary(report: &PreflightReport) -> String {
     let mut parts = Vec::new();
+    let unrouted =
+        |i: &&sparksmith_core::fabrication::preflight::PreflightItem| i.code == "board.unrouted";
     let unwaived = |s: Severity| {
         report
             .items
             .iter()
-            .filter(|i| i.severity == s && i.waiver.is_none())
+            .filter(|i| i.severity == s && i.waiver.is_none() && !unrouted(i))
             .count()
     };
+    let open: Vec<_> = report
+        .items
+        .iter()
+        .filter(|i| unrouted(i) && i.waiver.is_none())
+        .collect();
+    let nets: std::collections::BTreeSet<_> = open
+        .iter()
+        .flat_map(|i| i.objects.iter())
+        .filter_map(|o| match o {
+            sparksmith_core::ObjectRef::Net { id } => Some(*id),
+            _ => None,
+        })
+        .collect();
     for (severity, level) in [
         (Severity::Error, Level::Error),
         (Severity::Warning, Level::Warning),
@@ -678,6 +696,15 @@ pub fn report_summary(report: &PreflightReport) -> String {
         let n = unwaived(severity);
         if n > 0 {
             parts.push(level.count_words(n));
+        }
+        if severity == Severity::Error && !open.is_empty() {
+            let pads = if open.len() == 1 { "pad" } else { "pads" };
+            let in_nets = if nets.len() == 1 { "net" } else { "nets" };
+            parts.push(format!(
+                "{} {pads} unrouted on {} {in_nets}",
+                open.len(),
+                nets.len()
+            ));
         }
     }
     if report.waived > 0 {
