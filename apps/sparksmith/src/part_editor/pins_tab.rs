@@ -668,16 +668,26 @@ impl PartEditor {
         }
         let rows = flow.rows();
         // Which preview findings name something the draft shows now: those
-        // offer Locate (a pin the import would add is not there yet).
+        // offer Locate. A finding on an object of the draft (a pin, a pad)
+        // locates it; one on a whole draft (the designator prefix, the
+        // body size) opens the tab that sets it. One naming a pin the
+        // import would add has nothing to show yet.
         let parts = super::part_props::PartProps::draft_ids(engine, set.ids.component);
         let locatable: Vec<bool> = flow.plan.as_ref().map_or_else(Vec::new, |(_, plan)| {
             plan.findings
                 .iter()
                 .map(|f| {
-                    f.objects.iter().any(|r| {
-                        super::target(set, &parts, r)
-                            .is_some_and(|t| !matches!(t, super::Target::Tab(_)))
-                    })
+                    let targets: Vec<_> = f
+                        .objects
+                        .iter()
+                        .map(|r| super::target(set, &parts, r))
+                        .collect();
+                    let object = targets
+                        .iter()
+                        .flatten()
+                        .any(|t| !matches!(t, super::Target::Tab(_)));
+                    let whole = !targets.is_empty() && targets.iter().all(Option::is_some);
+                    object || whole
                 })
                 .collect()
         });

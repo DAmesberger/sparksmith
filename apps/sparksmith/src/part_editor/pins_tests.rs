@@ -1324,5 +1324,32 @@ fn the_preview_lists_its_findings_and_locates_one() -> TestResult {
     h.frame(vec![]);
     assert_eq!(h.editor.located(), ("symbol", true));
     assert!(h.editor.pins.table.paste.is_some(), "the table is kept");
+    // A finding on the whole component (its designator prefix) opens the
+    // tab that sets it; one on a pin the import would add has no Locate
+    // (run 5's window check: three findings, none with Locate).
+    h.editor.on_tab("pins");
+    h.frame(vec![]);
+    let flow = h.editor.pins.table.paste.as_mut().ok_or("closed")?;
+    let (_, plan) = flow.plan.as_mut().ok_or("no plan")?;
+    plan.findings = vec![
+        sparksmith_core::Finding::new(
+            sparksmith_core::diagnostics::FindingCode::ComponentDesignatorPrefix,
+            "A component needs a designator prefix".into(),
+            vec![sparksmith_core::ObjectRef::Definition { id: component }],
+        ),
+        sparksmith_core::Finding::new(
+            sparksmith_core::diagnostics::FindingCode::ComponentDesignatorPrefix,
+            "A finding on a pin the import adds".into(),
+            vec![sparksmith_core::ObjectRef::LibraryObject {
+                definition: component,
+                local: u32::MAX,
+            }],
+        ),
+    ];
+    let locates = h.texts().iter().filter(|t| *t == "Locate").count();
+    assert_eq!(locates, 1, "one Locate, on the component's finding");
+    h.click("Locate")?;
+    h.frame(vec![]);
+    assert_eq!(h.editor.located().0, "details");
     Ok(())
 }
