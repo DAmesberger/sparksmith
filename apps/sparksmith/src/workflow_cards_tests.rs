@@ -78,6 +78,10 @@ impl Chat {
         if let Some(update) = out.platform_output.accesskit_update.take() {
             self.nodes = nodes(&update);
         }
+        // No renderer takes the frame's texture uploads (the font atlas on
+        // the first frame): hand them over, or egui's debug assertion fails
+        // when the output is dropped.
+        out.textures_delta.clear();
     }
 
     fn settle(&mut self) {
@@ -877,11 +881,12 @@ fn the_slash_menu_shows_the_chosen_workflows_card() -> Fallible {
             }],
             ..Default::default()
         };
-        let _ = ctx.run_ui(input, |ui| {
+        let mut output = ctx.run_ui(input, |ui| {
             if let Some(id) = cards.slash_menu(ui, "component", true) {
                 chosen = Some(id);
             }
         });
+        output.textures_delta.clear();
     }
     assert_eq!(chosen.as_deref(), Some("datasheet-to-component"));
     assert_eq!(cards.items.len(), 1);
